@@ -1,4 +1,4 @@
-# app.py – Efootball Team Builder (Table-only, no cards/images)
+# app.py – Efootball Team Builder (Google Sheets version)
 import os
 import shutil
 from pathlib import Path
@@ -11,6 +11,77 @@ import pandas as pd
 import altair as alt
 import streamlit as st
 import json
+from google.oauth2.service_account import Credentials
+import gspread
+
+# --- GOOGLE SHEETS CONNECTION ---
+@st.cache_resource
+def get_gsheet_connection():
+    """Kết nối tới Google Sheets"""
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    
+    credentials = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=scope
+    )
+    
+    client = gspread.authorize(credentials)
+    return client
+
+def load_data_from_gsheet():
+    """Đọc dữ liệu từ Google Sheets"""
+    try:
+        client = get_gsheet_connection()
+        sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
+        data = sheet.get_all_records()
+        df = pd.DataFrame(data)
+        
+        # Ensure required columns
+        required_cols = [
+            "Player", "Rating", "Position", "Position Style", "Player Type",
+            "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills",
+        ]
+        for col in required_cols:
+            if col not in df.columns:
+                if col == "Rating":
+                    df[col] = 0
+                else:
+                    df[col] = ""
+        
+        # Clean data
+        df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0).astype(int)
+        df = df[df["Rating"] > 0].copy()
+        
+        for col in ["Player", "Position", "Position Style", "Player Type", "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills"]:
+            if col in df.columns:
+                df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
+        
+        df["Epic_Priority"] = df["Player Type"].apply(lambda x: 0 if str(x).strip().upper() == "EPIC" else 1)
+        
+        return df
+    except Exception as e:
+        st.error(f"❌ Lỗi khi đọc dữ liệu: {e}")
+        return pd.DataFrame()
+
+def save_data_to_gsheet(df):
+    """Lưu dữ liệu lên Google Sheets"""
+    try:
+        client = get_gsheet_connection()
+        sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
+        
+        # Remove Epic_Priority column before saving
+        df_save = df.drop(columns=['Epic_Priority'], errors='ignore')
+        
+        # Clear and update
+        sheet.clear()
+        sheet.update([df_save.columns.values.tolist()] + df_save.values.tolist())
+        return True
+    except Exception as e:
+        st.error(f"❌ Lỗi khi lưu dữ liệu: {e}")
+        return False
 
 # --- SKILLS PRIORITY SYSTEM ---
 POSITION_SKILLS_PRIORITY = {
@@ -193,12 +264,10 @@ def check_inventory_availability(skill_name):
     return inventory.get(skill_name, 0) > 0
 
 # --- CONFIG ---
-DATA_PATH = APP_DIR / "Efootball.xlsx"
 MAX_SQUAD_SIZE = 23
-BACKUP_DIR = APP_DIR / "Backups"
 
 st.set_page_config(
-    page_title="Efootball Team Builder (Table)",
+    page_title="Efootball Team Builder",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -227,14 +296,6 @@ POSITION_STYLE_ORDER = {
     "Midfielder": 2,
     "Defender": 3,
     "Goalkeeper": 4,
-}
-
-# Formation presets
-FORMATIONS = {
-    "4-3-3 (CMF)": {"GK": 1, "LB": 1, "CB": 2, "RB": 1, "CMF": 3, "LWF": 1, "RWF": 1, "CF": 1},
-    "4-2-3-1 (DMF+AMF)": {"GK": 1, "LB": 1, "CB": 2, "RB": 1, "DMF": 2, "AMF": 1, "LWF": 1, "RWF": 1, "CF": 1},
-    "4-4-2 (CMF+LMF+RMF)": {"GK": 1, "LB": 1, "CB": 2, "RB": 1, "CMF": 2, "LMF": 1, "RMF": 1, "CF": 2},
-    "3-5-2 (CMF)": {"GK": 1, "CB": 3, "CMF": 3, "LMF": 1, "RMF": 1, "CF": 2},
 }
 
 # Scraper config
@@ -295,115 +356,8 @@ def get_unique_values(df: pd.DataFrame, column: str) -> list:
         return sorted(vals)
     return []
 
-def create_backup() -> bool:
-    if DATA_PATH.exists():
-        try:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_file = BACKUP_DIR / f"Efootball_{timestamp}.xlsx"
-            shutil.copy2(DATA_PATH, backup_file)
-            backups = sorted(BACKUP_DIR.glob("Efootball_*.xlsx"), reverse=True)
-            for old in backups[10:]:
-                old.unlink()
-            return True
-        except Exception:
-            return False
-    return True
-
-@st.cache_data(show_spinner=True)
-def read_raw_data(path: Path, mtime_key: str) -> pd.DataFrame:
-    required_cols = [
-        "Player", "Rating", "Position", "Position Style", "Player Type",
-        "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills",
-    ]
-    if not os.path.exists(path):
-        return pd.DataFrame(columns=required_cols)
-
-    try:
-        df = pd.read_excel(path)
-    except Exception:
-        return pd.DataFrame(columns=required_cols)
-
-    cols = list(df.columns)
-    seen = {}
-    new_cols = []
-    for c in cols:
-        if c in seen:
-            seen[c] += 1
-            new_cols.append(f"{c}_dup{seen[c]}")
-        else:
-            seen[c] = 0
-            new_cols.append(c)
-    df.columns = new_cols
-
-    col_map = {}
-    mapped = set()
-    for c in df.columns:
-        cl = str(c).lower().strip()
-        new_name = None
-        if any(x in cl for x in ["player", "name", "tên"]) and "type" not in cl and "Player" not in mapped:
-            new_name = "Player"
-        elif any(x in cl for x in ["rating", "ovr", "chỉ số"]) and "Rating" not in mapped:
-            new_name = "Rating"
-        elif ("position style" in cl or "playing style" in cl or "phong cách" in cl) and "Position Style" not in mapped:
-            new_name = "Position Style"
-        elif "position" in cl and "style" not in cl and "Position" not in mapped:
-            new_name = "Position"
-        elif ("player type" in cl or "type" in cl or "loại" in cl) and "Player Type" not in mapped:
-            new_name = "Player Type"
-        elif any(x in cl for x in ["nation", "country", "quốc gia"]) and "Nation" not in mapped:
-            new_name = "Nation"
-        elif ("club" in cl or "team" in cl or "clb" in cl) and "Club" not in mapped:
-            new_name = "Club"
-        elif ("league" in cl or "giải" in cl) and "League" not in mapped:
-            new_name = "League"
-        elif ("player url" in cl or ("url" in cl and "player" in cl)) and "Player URL" not in mapped:
-            new_name = "Player URL"
-        elif ("player id" in cl or cl == "id") and "Player ID" not in mapped:
-            new_name = "Player ID"
-        elif "skills" in cl and "added" not in cl and "Skills" not in mapped:
-            new_name = "Skills"
-        elif ("added skills" in cl or "skills added" in cl) and "Added Skills" not in mapped:
-            new_name = "Added Skills"
-        if new_name:
-            col_map[c] = new_name
-            mapped.add(new_name)
-    if col_map:
-        df = df.rename(columns=col_map)
-
-    for col in required_cols:
-        if col not in df.columns:
-            if col == "Rating":
-                df[col] = 0
-            else:
-                df[col] = ""
-
-    df = df.dropna(subset=["Player"]).copy()
-    df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0).astype(int)
-    df = df[df["Rating"] > 0].copy()
-    
-    for col in ["Player", "Position", "Position Style", "Player Type", "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills"]:
-        if col in df.columns:
-            df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
-
-    base_url = EFOOTBALLHUB_PLAYER_URL_BASE
-    if "Player URL" in df.columns:
-        def clean_duplicate_url(url_str):
-            if not url_str:
-                return url_str
-            url_str = str(url_str).strip()
-            if base_url in url_str:
-                parts = url_str.split(base_url)
-                if len(parts) > 1:
-                    return base_url + parts[-1]
-            return url_str
-        df["Player URL"] = df["Player URL"].apply(clean_duplicate_url)
-        
-    df["Epic_Priority"] = df["Player Type"].apply(lambda x: 0 if str(x).strip().upper() == "EPIC" else 1)
-    return df
-
 def initialize_session_state():
     defaults = {
-        'last_mtime': 0,
         'manual_reload_triggered': False,
         'selected_player_detail': None,
         'editing_player': None,
@@ -418,19 +372,13 @@ def initialize_session_state():
 def main():
     initialize_session_state()
 
-    st.title("⚽ Efootball Team Builder – Table-only")
-
-    if os.path.exists(DATA_PATH):
-        mtime_str = datetime.fromtimestamp(os.path.getmtime(DATA_PATH)).strftime('%d/%m/%Y %H:%M:%S')
-        st.caption(f"📁 {DATA_PATH.name} • Cập nhật: {mtime_str}")
-    else:
-        st.error("Không tìm thấy file dữ liệu!")
-        return
+    st.title("⚽ Efootball Team Builder – Google Sheets")
 
     with st.sidebar:
         st.header("⚙️ Điều khiển")
         if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
             st.cache_data.clear()
+            st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
             st.rerun()
         
@@ -463,9 +411,11 @@ def main():
             st.rerun()
         
         st.divider()
-        st.caption(f"Phiên bản: Table-only • Max Squad: {MAX_SQUAD_SIZE}")
+        st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
 
-    df = read_raw_data(DATA_PATH, mtime_key=str(os.path.getmtime(DATA_PATH)))
+    with st.spinner("⏳ Đang tải dữ liệu từ Google Sheets..."):
+        df = load_data_from_gsheet()
+    
     if df.empty:
         st.error("Không có dữ liệu cầu thủ!")
         return
@@ -486,11 +436,8 @@ def main():
                 updated = True
         
         if updated:
-            try:
-                df.to_excel(DATA_PATH, index=False)
-                st.cache_data.clear()
-            except Exception:
-                pass
+            save_data_to_gsheet(df)
+            st.cache_data.clear()
         
         st.session_state['auto_extracting'] = False
 
@@ -650,9 +597,7 @@ def main():
         ], index=0)
         sort_order = st.radio("Thứ tự", ["Giảm dần","Tăng dần"], horizontal=True, index=0)
         
-        # Custom sort for Position
         if sort_col == 'Position':
-            # Add temporary column for position order
             filtered_df['_pos_order'] = filtered_df['Position'].map(POSITION_ORDER)
             filtered_df = filtered_df.sort_values(by='_pos_order', ascending=(sort_order=="Tăng dần"), kind='mergesort')
             filtered_df = filtered_df.drop(columns=['_pos_order'])
@@ -665,11 +610,8 @@ def main():
         ]
         view_cols = [c for c in view_cols if c in filtered_df.columns]
 
-        # Add STT column and position order for proper sorting
         display_df = filtered_df[view_cols].copy()
         display_df.insert(0, 'STT', range(1, len(display_df) + 1))
-        
-        # Add hidden position order column for sorting
         display_df['_Position_Order'] = display_df['Position'].map(POSITION_ORDER).fillna(999)
 
         st.dataframe(
@@ -685,7 +627,7 @@ def main():
                 "Nation": st.column_config.TextColumn("Nation", width="small", help="Quốc gia"),
                 "League": st.column_config.TextColumn("League", width="small", help="Giải đấu"),
                 "Skills": st.column_config.TextColumn("Skills", width="large", help="Kỹ năng"),
-                "_Position_Order": None,  # Hide this column
+                "_Position_Order": None,
             },
             use_container_width=True,
             hide_index=True,
@@ -716,7 +658,6 @@ def main():
             sell_df = rec_df[rec_df['Action'] == '❌ BÁN']
             st.caption(f"Gợi ý bán: {len(sell_df)} cầu thủ")
             
-            # Add STT column
             sell_display = sell_df[['Player','Rating','Position','Player Type','Club','Nation','League','Reasons']].copy()
             sell_display.insert(0, 'STT', range(1, len(sell_display) + 1))
             st.dataframe(sell_display, 
@@ -740,11 +681,11 @@ def main():
             if st.button("Bán (xóa khỏi dữ liệu)", disabled=len(to_sell) == 0):
                 try:
                     new_df = df.drop(index=to_sell, errors='ignore')
-                    new_df.to_excel(DATA_PATH, index=False)
-                    st.success("Đã bán (xóa) các cầu thủ đã chọn")
-                    st.session_state['scroll_to_sell'] = False
-                    st.cache_data.clear()
-                    st.rerun()
+                    if save_data_to_gsheet(new_df):
+                        st.success("Đã bán (xóa) các cầu thủ đã chọn")
+                        st.session_state['scroll_to_sell'] = False
+                        st.cache_data.clear()
+                        st.rerun()
                 except Exception as e:
                     st.error(f"Lỗi khi bán: {e}")
 
@@ -953,8 +894,6 @@ def main():
                         cols = st.columns(num_cols)
                         
                         reset_key = st.session_state.get('checkbox_reset_counter', 0)
-                        
-                        # Load inventory to show stock
                         inventory = load_skill_inventory()
                         
                         for i, skill in enumerate(recommended):
@@ -992,8 +931,8 @@ def main():
                                                 for skill in selected_skills:
                                                     update_inventory_count(skill, -1)
                                                 
-                                                df.to_excel(DATA_PATH, index=False)
-                                                st.cache_data.clear()
+                                                if save_data_to_gsheet(df):
+                                                    st.cache_data.clear()
                                             
                                             st.toast(f"✅ Đã thêm {len(selected_skills)} skills cho {player_name}!", icon="✅")
                                             st.session_state.checkbox_reset_counter += 1
@@ -1016,20 +955,16 @@ def main():
         with g1:
             group_by = st.selectbox("Theo", ["Club", "Nation", "League"], index=0)
         with g2:
-            # Count players for each group
             group_counts = df[group_by].value_counts().to_dict()
             group_options = sorted([x for x in df[group_by].astype(str).unique() if str(x).strip()])
             
-            # Format options with count
             formatted_options = ["(Tất cả)"] + [f"{opt} ({group_counts.get(opt, 0)})" for opt in group_options]
             
             selected_display = st.selectbox(f"Chọn {group_by}", formatted_options)
             
-            # Extract actual value (remove count)
             if selected_display == "(Tất cả)":
                 group_value = "(Tất cả)"
             else:
-                # Extract name before the count
                 group_value = selected_display.rsplit(" (", 1)[0]
 
         df_src = df.copy()
@@ -1039,7 +974,6 @@ def main():
         if df_src.empty:
             st.warning("Không có cầu thủ cho lựa chọn này.")
         else:
-            # Show total count and squad size
             total_available = len(df_src)
             squad_size = min(23, total_available)
             
@@ -1060,7 +994,6 @@ def main():
             show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Skills']
             show_cols = [c for c in show_cols if c in squad.columns]
             
-            # Add STT column
             squad_display = squad[show_cols].copy()
             squad_display.insert(0, 'STT', range(1, len(squad_display) + 1))
             st.dataframe(squad_display, 
@@ -1144,12 +1077,12 @@ def main():
 
                     new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
                     try:
-                        new_df.to_excel(DATA_PATH, index=False)
-                        st.success(f"✅ Đã thêm cầu thủ {player_name} thành công!")
-                        st.cache_data.clear()
-                        st.rerun()
+                        if save_data_to_gsheet(new_df):
+                            st.success(f"✅ Đã thêm cầu thủ {player_name} thành công!")
+                            st.cache_data.clear()
+                            st.rerun()
                     except Exception as e:
-                        st.error(f"Lỗi khi lưu file: {e}")
+                        st.error(f"Lỗi khi lưu: {e}")
                 else:
                     st.error("Vui lòng điền đầy đủ thông tin bắt buộc!")
 
