@@ -656,7 +656,7 @@ def main():
                 "Position": st.column_config.TextColumn("Position", width="small", help="Vị trí"),
                 "Position Style": st.column_config.TextColumn("Position Style", width="small", help="Phong cách"),
                 "Player Type": st.column_config.TextColumn("Player Type", width="small", help="Loại"),
-                "Club": st.column_config.TextColumn("Club", width="medium", help="Câu lạc bộ"),
+                "Club": st.column_config.TextColumn("Club", width="small", help="Câu lạc bộ"),
                 "Nation": st.column_config.TextColumn("Nation", width="small", help="Quốc gia"),
                 "League": st.column_config.TextColumn("League", width="small", help="Giải đấu"),
                 "Skills": st.column_config.TextColumn("Skills", width="large", help="Kỹ năng"),
