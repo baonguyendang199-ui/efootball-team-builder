@@ -466,7 +466,7 @@ def main():
         st.dataframe(pos_counts, 
             column_config={
                 "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Position": st.column_config.TextColumn("Vị trí", width="medium"),
+                "Position": st.column_config.TextColumn("Vị trí", width="small"),
                 "Count": st.column_config.NumberColumn("Số lượng", width="small"),
             },
             use_container_width=True, 
@@ -483,7 +483,7 @@ def main():
         st.dataframe(type_counts, 
             column_config={
                 "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Player Type": st.column_config.TextColumn("Loại", width="medium"),
+                "Player Type": st.column_config.TextColumn("Loại", width="small"),
                 "Count": st.column_config.NumberColumn("Số lượng", width="small"),
             },
             use_container_width=True, 
@@ -500,7 +500,7 @@ def main():
         st.dataframe(league_counts, 
             column_config={
                 "STT": st.column_config.NumberColumn("STT", width="small"),
-                "League": st.column_config.TextColumn("Giải đấu", width="large"),
+                "League": st.column_config.TextColumn("Giải đấu", width="small"),
                 "Count": st.column_config.NumberColumn("Số lượng", width="small"),
             },
             use_container_width=True, 
@@ -517,7 +517,7 @@ def main():
         st.dataframe(club_counts, 
             column_config={
                 "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Club": st.column_config.TextColumn("Câu lạc bộ", width="large"),
+                "Club": st.column_config.TextColumn("Câu lạc bộ", width="small"),
                 "Count": st.column_config.NumberColumn("Số lượng", width="small"),
             },
             use_container_width=True, 
@@ -534,7 +534,7 @@ def main():
         st.dataframe(nation_counts, 
             column_config={
                 "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Nation": st.column_config.TextColumn("Quốc gia", width="large"),
+                "Nation": st.column_config.TextColumn("Quốc gia", width="small"),
                 "Count": st.column_config.NumberColumn("Số lượng", width="small"),
             },
             use_container_width=True, 
