@@ -455,57 +455,90 @@ def main():
         with c4:
             st.metric("POTW", int((df['Player Type'].astype(str).str.upper() == 'POTW').sum()))
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Phân bố theo vị trí")
-            pos_counts = df['Position'].value_counts().reset_index(name='Count')
-            pos_counts = pos_counts.rename(columns={'index': 'Position'})
-            chart = alt.Chart(pos_counts).mark_bar().encode(
-                x=alt.X('Position:N', sort='-y'),
-                y=alt.Y('Count:Q')
-            )
-            st.altair_chart(chart, use_container_width=True)
-        with c2:
-            st.subheader("Phân bố theo loại")
-            type_counts = df['Player Type'].value_counts().reset_index(name='Count')
-            type_counts = type_counts.rename(columns={'index': 'Player Type'})
-            chart = alt.Chart(type_counts).mark_bar().encode(
-                x=alt.X('Player Type:N', sort='-y'),
-                y=alt.Y('Count:Q')
-            )
-            st.altair_chart(chart, use_container_width=True)
+        st.divider()
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Top Leagues")
-            league_counts = df['League'].value_counts().reset_index(name='Count')
-            league_counts = league_counts.rename(columns={'index': 'League'})
-            league_counts = league_counts.head(10)
-            chart = alt.Chart(league_counts).mark_bar().encode(
-                x=alt.X('League:N', sort='-y'),
-                y=alt.Y('Count:Q')
-            )
-            st.altair_chart(chart, use_container_width=True)
-        with c2:
-            st.subheader("Top Clubs")
-            club_counts = df['Club'].value_counts().reset_index(name='Count')
-            club_counts = club_counts.rename(columns={'index': 'Club'})
-            club_counts = club_counts.head(10)
-            chart = alt.Chart(club_counts).mark_bar().encode(
-                x=alt.X('Club:N', sort='-y'),
-                y=alt.Y('Count:Q')
-            )
-            st.altair_chart(chart, use_container_width=True)
+        # Phân bố theo vị trí
+        st.subheader("📍 Phân bố theo vị trí")
+        pos_counts = df['Position'].value_counts().reset_index(name='Count')
+        pos_counts.columns = ['Position', 'Count']
+        pos_counts = pos_counts.sort_values('Count', ascending=False)
+        pos_counts.insert(0, 'STT', range(1, len(pos_counts) + 1))
+        st.dataframe(pos_counts, 
+            column_config={
+                "STT": st.column_config.NumberColumn("STT", width="small"),
+                "Position": st.column_config.TextColumn("Vị trí", width="medium"),
+                "Count": st.column_config.NumberColumn("Số lượng", width="medium"),
+            },
+            use_container_width=True, 
+            hide_index=True)
 
-        st.subheader("Top Nations")
+        st.divider()
+
+        # Phân bố theo loại
+        st.subheader("🏷️ Phân bố theo loại")
+        type_counts = df['Player Type'].value_counts().reset_index(name='Count')
+        type_counts.columns = ['Player Type', 'Count']
+        type_counts = type_counts.sort_values('Count', ascending=False)
+        type_counts.insert(0, 'STT', range(1, len(type_counts) + 1))
+        st.dataframe(type_counts, 
+            column_config={
+                "STT": st.column_config.NumberColumn("STT", width="small"),
+                "Player Type": st.column_config.TextColumn("Loại", width="medium"),
+                "Count": st.column_config.NumberColumn("Số lượng", width="medium"),
+            },
+            use_container_width=True, 
+            hide_index=True)
+
+        st.divider()
+
+        # Top Leagues
+        st.subheader("🏆 Top 10 Leagues")
+        league_counts = df['League'].value_counts().reset_index(name='Count')
+        league_counts.columns = ['League', 'Count']
+        league_counts = league_counts.head(10)
+        league_counts.insert(0, 'STT', range(1, len(league_counts) + 1))
+        st.dataframe(league_counts, 
+            column_config={
+                "STT": st.column_config.NumberColumn("STT", width="small"),
+                "League": st.column_config.TextColumn("Giải đấu", width="large"),
+                "Count": st.column_config.NumberColumn("Số lượng", width="medium"),
+            },
+            use_container_width=True, 
+            hide_index=True)
+
+        st.divider()
+
+        # Top Clubs
+        st.subheader("⚽ Top 10 Clubs")
+        club_counts = df['Club'].value_counts().reset_index(name='Count')
+        club_counts.columns = ['Club', 'Count']
+        club_counts = club_counts.head(10)
+        club_counts.insert(0, 'STT', range(1, len(club_counts) + 1))
+        st.dataframe(club_counts, 
+            column_config={
+                "STT": st.column_config.NumberColumn("STT", width="small"),
+                "Club": st.column_config.TextColumn("Câu lạc bộ", width="large"),
+                "Count": st.column_config.NumberColumn("Số lượng", width="medium"),
+            },
+            use_container_width=True, 
+            hide_index=True)
+
+        st.divider()
+
+        # Top Nations
+        st.subheader("🌍 Top 10 Nations")
         nation_counts = df['Nation'].value_counts().reset_index(name='Count')
-        nation_counts = nation_counts.rename(columns={'index': 'Nation'})
+        nation_counts.columns = ['Nation', 'Count']
         nation_counts = nation_counts.head(10)
-        chart = alt.Chart(nation_counts).mark_bar().encode(
-            x=alt.X('Nation:N', sort='-y'),
-            y=alt.Y('Count:Q')
-        )
-        st.altair_chart(chart, use_container_width=True)
+        nation_counts.insert(0, 'STT', range(1, len(nation_counts) + 1))
+        st.dataframe(nation_counts, 
+            column_config={
+                "STT": st.column_config.NumberColumn("STT", width="small"),
+                "Nation": st.column_config.TextColumn("Quốc gia", width="large"),
+                "Count": st.column_config.NumberColumn("Số lượng", width="medium"),
+            },
+            use_container_width=True, 
+            hide_index=True)
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
