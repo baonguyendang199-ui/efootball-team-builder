@@ -1150,7 +1150,7 @@ def main():
                             st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
 
     elif current_tab == 'squad':
-    st.header("⚽ Đội hình")
+        st.header("⚽ Đội hình")
     
     g1, g2 = st.columns(2)
     with g1:
