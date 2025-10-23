@@ -1181,17 +1181,22 @@ def main():
                 df_src = df_src.sort_values(['Player', 'Rating', 'Epic_Priority'], 
                                             ascending=[True, False, True])
                 df_src = df_src.drop_duplicates(subset=['Player'], keep='first')
-                # ===== RANDOM CHỌN 1 TRONG CÁC THẺ CÙNG TÊN + CÙNG RATING =====
-
+                # ===== ƯU TIÊN PROTECTED CLUB TRƯỚC, SAU ĐÓ RANDOM =====
                 import random
                 duplicates = df_src[df_src.duplicated(subset=['Player','Rating'], keep=False)]
                 for player in duplicates['Player'].unique():
                     same_cards = duplicates[duplicates['Player'] == player]
                     if len(same_cards) > 1:
-                        chosen_idx = random.choice(same_cards.index.tolist())
+                        # Nếu có thẻ thuộc Protected Club → giữ lại thẻ đó
+                        protected_cards = same_cards[same_cards['Club'].isin(PROTECTED_CLUBS)]
+                        if not protected_cards.empty:
+                            chosen_idx = protected_cards.index[0]  # lấy thẻ đầu tiên trong protected
+                        else:
+                            # Nếu không có protected → random chọn 1
+                            chosen_idx = random.choice(same_cards.index.tolist())
                         # Giữ lại thẻ được chọn, bỏ các thẻ còn lại
-
                         df_src = df_src.drop(same_cards.index.difference([chosen_idx]))
+
             # Với Club: không loại trùng (1 người không thể chơi cho 2 club cùng lúc)
             
             # ===== CHỌN TOP 23 VỚI BẮT BUỘC 1 GK =====
