@@ -480,7 +480,6 @@ def main():
         pos_counts = df['Position'].value_counts().reset_index(name='Count')
         pos_counts.columns = ['Position', 'Count']
         pos_counts = pos_counts.sort_values('Count', ascending=False)
-        pos_counts.insert(0, 'STT', range(1, len(pos_counts) + 1))
 
         # Căn giữa và hiển thị không scroll
         pos_counts_styled = pos_counts.style.set_properties(**{
