@@ -1151,6 +1151,7 @@ def main():
 
     elif current_tab == 'squad':
         st.header("⚽ Đội hình")
+        
         g1, g2 = st.columns(2)
         with g1:
             group_by = st.selectbox("Theo", ["Club", "Nation", "League"], index=0)
@@ -1166,7 +1167,7 @@ def main():
                 group_value = "(Tất cả)"
             else:
                 group_value = selected_display.rsplit(" (", 1)[0]
-
+        
         df_src = df.copy()
         if group_value != "(Tất cả)":
             df_src = df_src[df_src[group_by].astype(str) == group_value]
@@ -1174,42 +1175,134 @@ def main():
         if df_src.empty:
             st.warning("Không có cầu thủ cho lựa chọn này.")
         else:
-            total_available = len(df_src)
-            squad_size = min(23, total_available)
+            # ===== ÁP DỤNG LOGIC LOẠI TRÙNG TÊN (GIỐNG TAB PLAYERS) =====
+            if group_by in ['Nation', 'League']:
+                # Loại trùng tên: chỉ giữ thẻ rating cao nhất của mỗi cầu thủ
+                df_src = df_src.sort_values(['Player', 'Rating', 'Epic_Priority'], 
+                                            ascending=[True, False, True])
+                df_src = df_src.drop_duplicates(subset=['Player'], keep='first')
+            # Với Club: không loại trùng (1 người không thể chơi cho 2 club cùng lúc)
             
-            col1, col2, col3 = st.columns(3)
+            # ===== CHỌN TOP 23 VỚI BẮT BUỘC 1 GK =====
+            # Bước 1: Tìm GK rating cao nhất
+            gk_df = df_src[df_src['Position'] == 'GK']
+            non_gk_df = df_src[df_src['Position'] != 'GK']
+            
+            squad = pd.DataFrame()
+            has_gk = False
+            remaining_slots = 23
+            
+            if not gk_df.empty:
+                # Chọn 1 GK rating cao nhất
+                best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'], 
+                                           ascending=[False, True]).head(1)
+                squad = pd.concat([squad, best_gk])
+                has_gk = True
+                remaining_slots = 22
+            
+            # Bước 2: Chọn 22 cầu thủ còn lại (không phải GK)
+            if not non_gk_df.empty:
+                top_non_gk = non_gk_df.sort_values(['Rating', 'Epic_Priority'], 
+                                                   ascending=[False, True]).head(remaining_slots)
+                squad = pd.concat([squad, top_non_gk])
+            
+            # Sắp xếp lại theo Rating
+            if not squad.empty:
+                squad = squad.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+            
+            total_available = len(df_src)
+            squad_size = len(squad)
+            
+            # ===== THỐNG KÊ =====
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Tổng cầu thủ", total_available)
             with col2:
                 st.metric("Chọn vào đội hình", squad_size)
             with col3:
-                if total_available >= 23:
+                if has_gk and squad_size >= 23:
                     st.metric("Trạng thái", "✅ Đủ đội hình")
+                elif not has_gk:
+                    st.metric("Trạng thái", "⚠️ Thiếu GK")
                 else:
-                    st.metric("Trạng thái", f"⚠️ Thiếu {23 - total_available}")
+                    st.metric("Trạng thái", f"⚠️ Thiếu {23 - squad_size}")
+            with col4:
+                gk_count = len(gk_df)
+                st.metric("Thủ môn", f"{gk_count} GK")
             
-            st.caption(f"Lấy {squad_size} cầu thủ rating cao nhất")
-            squad = df_src.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(23)
-            st.subheader("Đội hình 23 – Top rating")
-            show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Skills']
-            show_cols = [c for c in show_cols if c in squad.columns]
+            # ===== CẢNH BÁO =====
+            if not has_gk:
+                st.warning("⚠️ **Đội hình chưa có thủ môn (GK)!** Đội hình không hoàn chỉnh.")
             
-            squad_display = squad[show_cols].copy()
-            squad_display.insert(0, 'STT', range(1, len(squad_display) + 1))
-            st.dataframe(squad_display, 
-                column_config={
-                    "STT": st.column_config.NumberColumn("STT", width="small"),
-                    "Player": st.column_config.TextColumn("Player", width="small"),
-                    "Rating": st.column_config.NumberColumn("Rating", width="small"),
-                    "Position": st.column_config.TextColumn("Position", width="small"),
-                    "Player Type": st.column_config.TextColumn("Type", width="small"),
-                    "Club": st.column_config.TextColumn("Club", width="small"),
-                    "Nation": st.column_config.TextColumn("Nation", width="small"),
-                    "League": st.column_config.TextColumn("League", width="small"),
-                    "Skills": st.column_config.TextColumn("Skills", width="large"),
-                },
-                use_container_width=True, 
-                hide_index=True)
+            if squad_size < 23:
+                st.warning(f"⚠️ Đội hình chưa đủ 23 người (hiện có {squad_size}, còn thiếu {23 - squad_size})")
+            
+            if group_by in ['Nation', 'League']:
+                duplicate_count = len(df[df[group_by].astype(str) == group_value]) - total_available
+                if duplicate_count > 0:
+                    st.info(f"ℹ️ Đã loại {duplicate_count} thẻ trùng tên (chỉ giữ rating cao nhất của mỗi cầu thủ)")
+            
+            if has_gk:
+                st.caption(f"🎯 Lấy 1 GK rating cao nhất + {remaining_slots} cầu thủ rating cao nhất")
+            else:
+                st.caption(f"🎯 Lấy {squad_size} cầu thủ rating cao nhất (không có GK)")
+            
+            # ===== HIỂN THỊ ĐỘI HÌNH =====
+                st.subheader("Đội hình 23 – Top rating")
+                show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Skills']
+                show_cols = [c for c in show_cols if c in squad.columns]
+                
+                squad_display = squad[show_cols].copy()
+                squad_display.insert(0, 'STT', range(1, len(squad_display) + 1))
+                
+                st.dataframe(squad_display, 
+                    column_config={
+                        "STT": st.column_config.NumberColumn("STT", width="small"),
+                        "Player": st.column_config.TextColumn("Player", width="medium"),
+                        "Rating": st.column_config.NumberColumn("Rating", width="small"),
+                        "Position": st.column_config.TextColumn("Position", width="small"),
+                        "Player Type": st.column_config.TextColumn("Type", width="small"),
+                        "Club": st.column_config.TextColumn("Club", width="medium"),
+                        "Nation": st.column_config.TextColumn("Nation", width="small"),
+                        "League": st.column_config.TextColumn("League", width="small"),
+                        "Skills": st.column_config.TextColumn("Skills", width="large"),
+                    },
+                    use_container_width=True, 
+                    hide_index=True)
+                
+                # ===== PHÂN TÍCH ĐỘI HÌNH =====
+                with st.expander("📊 Phân tích đội hình"):
+                    analysis_col1, analysis_col2 = st.columns(2)
+                    
+                    with analysis_col1:
+                        st.subheader("Phân bố vị trí")
+                        pos_counts = squad['Position'].value_counts().reset_index()
+                        pos_counts.columns = ['Position', 'Count']
+                        pos_counts.insert(0, 'STT', range(1, len(pos_counts) + 1))
+                        st.dataframe(pos_counts, use_container_width=True, hide_index=True)
+                    
+                    with analysis_col2:
+                        st.subheader("Phân bố loại thẻ")
+                        type_counts = squad['Player Type'].value_counts().reset_index()
+                        type_counts.columns = ['Type', 'Count']
+                        type_counts.insert(0, 'STT', range(1, len(type_counts) + 1))
+                        st.dataframe(type_counts, use_container_width=True, hide_index=True)
+                    
+                    st.divider()
+                    
+                    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+                    with stat_col1:
+                        avg_rating = squad['Rating'].mean()
+                        st.metric("Rating trung bình", f"{avg_rating:.1f}")
+                    with stat_col2:
+                        max_rating = squad['Rating'].max()
+                        st.metric("Rating cao nhất", max_rating)
+                    with stat_col3:
+                        min_rating = squad['Rating'].min()
+                        st.metric("Rating thấp nhất", min_rating)
+                    with stat_col4:
+                        epic_count = (squad['Player Type'].astype(str).str.upper() == 'EPIC').sum()
+                        st.metric("Số EPIC", epic_count)
 
     elif current_tab == 'add':
         st.header("➕ Thêm cầu thủ")
