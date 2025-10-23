@@ -558,40 +558,135 @@ def main():
             use_container_width=True, 
             hide_index=True)
 
-    elif current_tab == 'players':
-        st.header("👥 Cầu thủ")
+elif current_tab == 'players':
+    st.header("👥 Cầu thủ")
+    
+    # ===== CẤU HÌNH TEAMS CẦN BUILD =====
+    target_clubs = ["Barcelona", "Real Madrid", "Chelsea"]  # Bạn có thể sửa ở đây
+    target_nations = ["Spain", "France", "Italy"]
+    target_leagues = ["EPL", "LaLiga", "Bundesliga"]
+    
+    SQUAD_SIZE = 23  # Số cầu thủ mỗi team
+    
+    # ===== TÍNH TOP 23 CHO MỖI TEAM =====
+    def get_top_23_players(df, group_by, values):
+        """Lấy top 23 cầu thủ rating cao nhất cho mỗi team"""
+        top_players = set()
+        for value in values:
+            team_df = df[df[group_by].astype(str) == value]
+            if not team_df.empty:
+                # Sort by Rating desc, Epic_Priority asc (Epic trước)
+                top_23 = team_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(SQUAD_SIZE)
+                top_players.update(top_23.index.tolist())
+        return top_players
+    
+    # Tính top 23 cho từng loại team
+    top_club_players = get_top_23_players(df, 'Club', target_clubs)
+    top_nation_players = get_top_23_players(df, 'Nation', target_nations)
+    top_league_players = get_top_23_players(df, 'League', target_leagues)
+    
+    # Gộp tất cả cầu thủ nên giữ
+    all_keep_players = top_club_players | top_nation_players | top_league_players
+    
+    # ===== PHÁT HIỆN CẦU THỦ TRÙNG =====
+    def detect_duplicates(df):
+        """Phát hiện cầu thủ trùng Club + Nation + League"""
+        duplicates_info = []
         
-        target_clubs = [
-            "Real Madrid", "Munich", "Inter", "Manchester City", "Liverpool", "PSG", "Dortmund",
-            "Leverkusen", "Atletico Madrid", "Arsenal", "Chelsea", "Man United", "Atalanta",
-            "AC Milan", "Tottenham", "Juventus", "Naples",
-        ]
-        target_nations = [
-            "Spain", "France", "Argentina", "England", "Portugal", "Brazil", "Netherlands",
-            "Belgium", "Italy", "Germany", "Uruguay", "Japan", "Sweden",
-        ]
-        target_leagues = ["LaLiga", "EPL", "Serie A", "Bundesliga"]
+        # Group by Club + Nation + League
+        grouped = df.groupby(['Club', 'Nation', 'League'])
         
-        def quick_suggest_action(row):
-            club = str(row.get('Club', ''))
-            nation = str(row.get('Nation', ''))
-            league = str(row.get('League', ''))
-            
-            if club in target_clubs or nation in target_nations or league in target_leagues:
-                return 'GIỮ'
-            return '❌ BÁN'
+        for (club, nation, league), group in grouped:
+            if len(group) > 1 and club and nation and league:  # Có ít nhất 2 cầu thủ giống nhau
+                # Sort by Rating desc
+                sorted_group = group.sort_values('Rating', ascending=False)
+                
+                best_player = sorted_group.iloc[0]
+                duplicate_players = sorted_group.iloc[1:]
+                
+                for _, dup in duplicate_players.iterrows():
+                    duplicates_info.append({
+                        'index': dup.name,
+                        'player': dup['Player'],
+                        'rating': dup['Rating'],
+                        'club': club,
+                        'nation': nation,
+                        'league': league,
+                        'best_player': best_player['Player'],
+                        'best_rating': best_player['Rating']
+                    })
         
-        quick_rec = df.apply(lambda r: quick_suggest_action(r), axis=1)
-        quick_sell_count = (quick_rec == '❌ BÁN').sum()
+        return duplicates_info
+    
+    duplicates = detect_duplicates(df)
+    
+    # ===== GỢI Ý BÁN =====
+    def suggest_action(row):
+        idx = row.name
+        club = str(row.get('Club', '')).strip()
+        nation = str(row.get('Nation', '')).strip()
+        league = str(row.get('League', '')).strip()
         
-        if quick_sell_count == 0:
-            st.info("✅ Không có cầu thủ đề xuất bán")
+        reasons = []
+        
+        # 1. Barcelona LUÔN GIỮ
+        if club == "Barcelona":
+            return '✅ GIỮ', "Barcelona - Không bao giờ bán"
+        
+        # 2. Kiểm tra thuộc Top 23 nào không
+        in_top_club = idx in top_club_players
+        in_top_nation = idx in top_nation_players
+        in_top_league = idx in top_league_players
+        
+        if in_top_club:
+            reasons.append(f"Top 23 Club: {club}")
+        if in_top_nation:
+            reasons.append(f"Top 23 Nation: {nation}")
+        if in_top_league:
+            reasons.append(f"Top 23 League: {league}")
+        
+        # 3. Nếu thuộc ít nhất 1 Top 23 → GIỮ
+        if reasons:
+            return '✅ GIỮ', " | ".join(reasons)
         else:
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.warning(f"⚠️ Có **{quick_sell_count}** cầu thủ đề xuất bán")
+            return '❌ BÁN', "Không thuộc Top 23 của bất kỳ team nào"
+    
+    # Apply suggestion
+    rec_df = df.copy()
+    suggestions = rec_df.apply(suggest_action, axis=1)
+    rec_df['Action'], rec_df['Reasons'] = zip(*suggestions)
+    
+    # Đếm số cầu thủ đề xuất bán
+    sell_df = rec_df[rec_df['Action'] == '❌ BÁN']
+    quick_sell_count = len(sell_df)
+    
+    # ===== HIỂN THỊ CẢNH BÁO =====
+    if duplicates:
+        st.error(f"⚠️ **CẢNH BÁO:** Phát hiện {len(duplicates)} cầu thủ TRÙNG (Club + Nation + League)")
         
-        st.divider()
+        with st.expander("🔍 Xem chi tiết cầu thủ trùng", expanded=True):
+            dup_data = []
+            for dup in duplicates:
+                dup_data.append({
+                    'STT': len(dup_data) + 1,
+                    'Cầu thủ': dup['player'],
+                    'Rating': dup['rating'],
+                    'Club': dup['club'],
+                    'Nation': dup['nation'],
+                    'League': dup['league'],
+                    'Tốt nhất': f"{dup['best_player']} ({dup['best_rating']})",
+                    'Ghi chú': '⚠️ Nên bán - Có bản tốt hơn'
+                })
+            
+            dup_df = pd.DataFrame(dup_data)
+            st.dataframe(dup_df, use_container_width=True, hide_index=True)
+    
+    if quick_sell_count == 0:
+        st.success("✅ Không có cầu thủ đề xuất bán")
+    else:
+        st.warning(f"⚠️ Có **{quick_sell_count}** cầu thủ đề xuất bán (Không thuộc Top 23 bất kỳ team)")
+    
+    st.divider()
         
         f1, f2, f3, f4 = st.columns(4)
         with f1:
