@@ -481,14 +481,16 @@ def main():
         pos_counts.columns = ['Position', 'Count']
         pos_counts = pos_counts.sort_values('Count', ascending=False)
         pos_counts.insert(0, 'STT', range(1, len(pos_counts) + 1))
-        st.dataframe(pos_counts, 
-            column_config={
-                "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Position": st.column_config.TextColumn("Vị trí", width="small"),
-                "Count": st.column_config.NumberColumn("Số lượng", width="small"),
-            },
-            use_container_width=True, 
-            hide_index=True)
+
+        # Căn giữa và hiển thị không scroll
+        pos_counts_styled = pos_counts.style.set_properties(**{
+            'text-align': 'center'
+        }).set_table_styles([{
+            'selector': 'th',
+            'props': [('text-align', 'center')]
+        }])
+
+        st.table(pos_counts_styled)
 
         st.divider()
 
