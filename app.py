@@ -1182,6 +1182,7 @@ def main():
                                             ascending=[True, False, True])
                 df_src = df_src.drop_duplicates(subset=['Player'], keep='first')
                 # ===== RANDOM CHỌN 1 TRONG CÁC THẺ CÙNG TÊN + CÙNG RATING =====
+
                 import random
                 duplicates = df_src[df_src.duplicated(subset=['Player','Rating'], keep=False)]
                 for player in duplicates['Player'].unique():
