@@ -596,7 +596,7 @@ def main():
 
                     # Bước 1: chọn GK tốt nhất (nếu có)
                     gk_df = team_df[team_df['Position'] == 'GK']
-                    non_gk_df = team_df[team_df['Position'] != 'GK']
+                    others = team_df[team_df['Position'] != 'GK']
 
                     squad = pd.DataFrame()
                     remaining_slots = SQUAD_SIZE
