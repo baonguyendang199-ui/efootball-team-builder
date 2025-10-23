@@ -1204,7 +1204,17 @@ def main():
         with st.form("add_player_form"):
             c1, c2 = st.columns(2)
             with c1:
-                player_name = st.text_input("Tên cầu thủ", placeholder="Nhập tên cầu thủ...")
+                # Danh sách tên cầu thủ có sẵn
+                existing_players = sorted(df['Player'].astype(str).unique().tolist())
+
+                player_name = st.selectbox(
+                    "Tên cầu thủ (gõ để tìm)", 
+                    options=[""] + existing_players
+                )
+
+                # Nếu không chọn, cho nhập mới
+                if not player_name:
+                    player_name = st.text_input("Hoặc nhập tên mới", placeholder="Ví dụ: Lionel Messi")
                 rating = st.number_input("Rating", min_value=1, max_value=150, value=80)
                 position = st.selectbox("Vị trí", existing_positions)
                 position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
