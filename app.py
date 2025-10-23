@@ -1222,7 +1222,7 @@ def main():
                 position = st.selectbox("Vị trí", existing_positions)
                 position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
             with c2:
-                player_type = st.selectbox("Loại", ["EPIC", "POTW", "NON-EPIC"])
+                player_type = st.selectbox("Loại", ["NON-EPIC", "POTW", "EPIC"])
                 
                 nation = st.selectbox("Quốc gia", existing_nations, help="Chọn từ danh sách có sẵn")
                 if nation == "":
