@@ -1223,19 +1223,19 @@ def main():
                 
                 nation = st.selectbox("Quốc gia", existing_nations, help="Chọn từ danh sách có sẵn")
                 if nation == "":
-                    nation_custom = st.text_input("Hoặc nhập quốc gia mới", key="nation_custom")
+                    nation_custom = st.text_input("Hoặc nhập quốc gia mới", key="nation_custom", placeholder="Ví dụ: Vietnam")
                     if nation_custom:
                         nation = nation_custom
                 
                 club = st.selectbox("CLB", existing_clubs, help="Chọn từ danh sách có sẵn")
                 if club == "":
-                    club_custom = st.text_input("Hoặc nhập CLB mới", key="club_custom")
+                    club_custom = st.text_input("Hoặc nhập CLB mới", key="club_custom", placeholder="Ví dụ: HAGL")
                     if club_custom:
                         club = club_custom
                 
                 league = st.selectbox("Giải đấu", existing_leagues, help="Chọn từ danh sách có sẵn")
                 if league == "":
-                    league_custom = st.text_input("Hoặc nhập giải đấu mới", key="league_custom")
+                    league_custom = st.text_input("Hoặc nhập giải đấu mới", key="league_custom", placeholder="Ví dụ: VLeague")
                     if league_custom:
                         league = league_custom
             
