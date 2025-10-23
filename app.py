@@ -1213,18 +1213,19 @@ def main():
             remaining_slots = 23
             
             if not gk_df.empty:
-                # Chọn 1 GK rating cao nhất
-                best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'], 
-                                           ascending=[False, True]).head(1)
+                # Ép chọn 1 GK tốt nhất để đảm bảo có GK
+                best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'],
+                                            ascending=[False, True]).head(1)
                 squad = pd.concat([squad, best_gk])
                 has_gk = True
                 remaining_slots = 22
-            
-            # Bước 2: Chọn 22 cầu thủ còn lại (không phải GK)
-            if not non_gk_df.empty:
-                top_non_gk = non_gk_df.sort_values(['Rating', 'Epic_Priority'], 
-                                                   ascending=[False, True]).head(remaining_slots)
-                squad = pd.concat([squad, top_non_gk])
+
+            # Bước 2: Chọn các cầu thủ còn lại (bao gồm cả GK khác nếu đủ mạnh)
+            others = df_src.drop(squad.index)  # bỏ GK đã chọn bắt buộc
+            if not others.empty:
+                top_rest = others.sort_values(['Rating', 'Epic_Priority'],
+                                              ascending=[False, True]).head(remaining_slots)
+                squad = pd.concat([squad, top_rest])
             
             # Sắp xếp lại theo Rating
             if not squad.empty:
