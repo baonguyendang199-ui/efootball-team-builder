@@ -69,11 +69,21 @@ def load_data_from_gsheet():
 def save_data_to_gsheet(df):
     """Lưu dữ liệu lên Google Sheets"""
     try:
+        # Check if dataframe is empty
+        if df.empty:
+            st.error("⚠️ Không thể lưu: DataFrame trống!")
+            return False
+            
         client = get_gsheet_connection()
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
         
         # Remove Epic_Priority column before saving
-        df_save = df.drop(columns=['Epic_Priority'], errors='ignore')
+        df_save = df.drop(columns=['Epic_Priority'], errors='ignore').copy()
+        
+        # Check again after dropping column
+        if df_save.empty:
+            st.error("⚠️ Không thể lưu: DataFrame trống sau khi xóa cột!")
+            return False
         
         # Clear and update
         sheet.clear()
