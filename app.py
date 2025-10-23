@@ -563,18 +563,21 @@ def main():
 
         # ===== CẤU HÌNH TEAMS CẦN BUILD =====
         target_clubs = [
-            "Real Madrid", "Munich", "Inter", "Manchester City", "Liverpool", 
+            "Barcelona", "Real Madrid", "Munich", "Inter", "Manchester City", "Liverpool", 
             "PSG", "Dortmund", "Leverkusen", "Atletico Madrid", "Arsenal", 
             "Chelsea", "Man United", "Atalanta", "AC Milan", "Tottenham", 
             "Juventus", "Napoli"
         ]
-    
+        
+        # Club được miễn trừ (không bao giờ bán)
+        PROTECTED_CLUBS = ["Barcelona"]
+        
         target_nations = [
             "Spain", "France", "Argentina", "England", "Portugal", 
             "Brazil", "Netherlands", "Belgium", "Italy", "Germany", 
             "Uruguay", "Japan"
         ]
-    
+        
         target_leagues = ["LaLiga", "EPL", "Serie A", "Bundesliga", "Ligue 1"]
 
         SQUAD_SIZE = 23  # Số cầu thủ mỗi team
@@ -586,7 +589,6 @@ def main():
             for value in values:
                 team_df = df[df[group_by].astype(str) == value]
                 if not team_df.empty:
-                    # Sort by Rating desc, Epic_Priority asc (Epic trước)
                     top_23 = team_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(SQUAD_SIZE)
                     top_players.update(top_23.index.tolist())
             return top_players
@@ -596,25 +598,18 @@ def main():
         top_nation_players = get_top_23_players(df, 'Nation', target_nations)
         top_league_players = get_top_23_players(df, 'League', target_leagues)
 
-        # Gộp tất cả cầu thủ nên giữ
-        all_keep_players = top_club_players | top_nation_players | top_league_players
-
-        # ===== PHÁT HIỆN CẦU THỦ TRÙNG (FIXED) =====
+        # ===== PHÁT HIỆN CẦU THỦ TRÙNG =====
         def detect_duplicates(df):
             """Phát hiện cầu thủ trùng: CÙNG TÊN + Club + Nation + League"""
             duplicates_info = []
-    
-            # Group by TÊN + Club + Nation + League (FIX: thêm 'Player')
             grouped = df.groupby(['Player', 'Club', 'Nation', 'League'])
-    
-            for (player, club, nation, league), group in grouped:
-                if len(group) > 1 and club and nation and league:  # Có ít nhất 2 thẻ của CÙNG CẦU THỦ
-                    # Sort by Rating desc, Epic_Priority asc
-                    sorted_group = group.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
             
+            for (player, club, nation, league), group in grouped:
+                if len(group) > 1 and club and nation and league:
+                    sorted_group = group.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                     best_card = sorted_group.iloc[0]
                     duplicate_cards = sorted_group.iloc[1:]
-            
+                    
                     for _, dup in duplicate_cards.iterrows():
                         duplicates_info.append({
                             'index': dup.name,
@@ -627,7 +622,6 @@ def main():
                             'best_rating': best_card['Rating'],
                             'best_rarity': best_card.get('Rarity', '')
                         })
-    
             return duplicates_info
 
         duplicates = detect_duplicates(df)
@@ -638,27 +632,30 @@ def main():
             club = str(row.get('Club', '')).strip()
             nation = str(row.get('Nation', '')).strip()
             league = str(row.get('League', '')).strip()
-    
             reasons = []
-    
-            # 1. Kiểm tra có phải thẻ trùng không (ưu tiên cao nhất)
+            
+            # 0. Kiểm tra club được bảo vệ (BARCELONA)
+            if club in PROTECTED_CLUBS:
+                return '✅ GIỮ', f"🛡️ {club} - Không bao giờ bán (Fan club)"
+            
+            # 1. Kiểm tra thẻ trùng
             is_duplicate = any(dup['index'] == idx for dup in duplicates)
             if is_duplicate:
                 return '❌ BÁN', "⚠️ Thẻ trùng - Có thẻ tốt hơn"
-    
-            # 2. Kiểm tra thuộc Top 23 nào không
+            
+            # 2. Kiểm tra thuộc Top 23
             in_top_club = idx in top_club_players
             in_top_nation = idx in top_nation_players
             in_top_league = idx in top_league_players
-    
+            
             if in_top_club:
                 reasons.append(f"Top 23 Club: {club}")
             if in_top_nation:
                 reasons.append(f"Top 23 Nation: {nation}")
             if in_top_league:
                 reasons.append(f"Top 23 League: {league}")
-    
-            # 3. Nếu thuộc ít nhất 1 Top 23 → GIỮ
+            
+            # 3. Quyết định
             if reasons:
                 return '✅ GIỮ', " | ".join(reasons)
             else:
@@ -668,24 +665,24 @@ def main():
         rec_df = df.copy()
         suggestions = rec_df.apply(suggest_action, axis=1)
         rec_df['Action'], rec_df['Reasons'] = zip(*suggestions)
-
-        # Đếm số cầu thủ đề xuất bán
         sell_df = rec_df[rec_df['Action'] == '❌ BÁN']
-        quick_sell_count = len(sell_df)
 
-        # ===== HIỂN THỊ THỐNG KÊ TỔNG QUAN =====
-        col1, col2, col3 = st.columns(3)
+        # ===== THỐNG KÊ TỔNG QUAN =====
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("🎯 Tổng cầu thủ", len(df))
         with col2:
-            st.metric("✅ Đề xuất giữ", len(df) - quick_sell_count)
+            protected_count = len(df[df['Club'].isin(PROTECTED_CLUBS)])
+            st.metric("🛡️ Barcelona", protected_count)
         with col3:
-            st.metric("❌ Đề xuất bán", quick_sell_count)
+            st.metric("✅ Đề xuất giữ", len(df) - len(sell_df))
+        with col4:
+            st.metric("❌ Đề xuất bán", len(sell_df))
 
-        # ===== HIỂN THỊ CẢNH BÁO THẺ TRÙNG =====
+        # ===== CẢNH BÁO THẺ TRÙNG =====
         if duplicates:
             st.error(f"⚠️ **CẢNH BÁO:** Phát hiện {len(duplicates)} thẻ TRÙNG (Cùng cầu thủ + Club + Nation + League)")
-    
+            
             with st.expander("🔍 Xem chi tiết thẻ trùng", expanded=True):
                 dup_data = []
                 for dup in duplicates:
@@ -698,128 +695,58 @@ def main():
                         'Nation': dup['nation'],
                         'League': dup['league'],
                         'Thẻ tốt nhất': f"{dup['best_rating']} ({dup['best_rarity']})",
-                        'Ghi chú': '⚠️ Nên bán - Có thẻ tốt hơn'
                     })
-        
+                
                 dup_df = pd.DataFrame(dup_data)
                 st.dataframe(dup_df, use_container_width=True, hide_index=True)
         else:
             st.success("✅ Không phát hiện thẻ trùng")
 
         st.divider()
-    
-        # ===== HIỂN THỊ BẢNG CẦU THỦ VỚI GỢI Ý =====
-        st.subheader("📋 Danh sách cầu thủ với gợi ý")
-    
-        # Filter và Sort options
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            action_filter = st.selectbox(
-                "Lọc theo hành động",
-                ["Tất cả", "✅ GIỮ", "❌ BÁN"]
-            )
-    
-        with col2:
-            sort_by = st.selectbox(
-                "Sắp xếp theo",
-                ["Rating (Cao → Thấp)", "Rating (Thấp → Cao)", "Tên A-Z", "Tên Z-A"]
-            )
-    
-        with col3:
-            # Thêm search box
-            search_player = st.text_input("🔍 Tìm cầu thủ", placeholder="Nhập tên...")
-    
-        # Apply filters
-        display_df = rec_df.copy()
-    
-        # Filter by action
-        if action_filter != "Tất cả":
-            display_df = display_df[display_df['Action'] == action_filter]
-    
-        # Filter by search
-        if search_player:
-            display_df = display_df[display_df['Player'].str.contains(search_player, case=False, na=False)]
-    
-        # Apply sorting
-        if sort_by == "Rating (Cao → Thấp)":
-            display_df = display_df.sort_values('Rating', ascending=False)
-        elif sort_by == "Rating (Thấp → Cao)":
-            display_df = display_df.sort_values('Rating', ascending=True)
-        elif sort_by == "Tên A-Z":
-            display_df = display_df.sort_values('Player')
-        elif sort_by == "Tên Z-A":
-            display_df = display_df.sort_values('Player', ascending=False)
-    
-        # Select columns to display
-        display_columns = ['Player', 'Rating', 'Rarity', 'Club', 'Nation', 'League', 'Action', 'Reasons']
-        available_columns = [col for col in display_columns if col in display_df.columns]
-    
-        # Hiển thị kết quả tìm kiếm
-        st.info(f"📊 Hiển thị **{len(display_df)}** / {len(rec_df)} cầu thủ")
-    
-        st.dataframe(
-            display_df[available_columns],
-            use_container_width=True,
-            height=600
-        )
-    
-        # ===== EXPORT OPTIONS =====
-        st.divider()
-        st.subheader("💾 Xuất dữ liệu")
-    
-        col1, col2 = st.columns(2)
-    
-        with col1:
-            # Export danh sách bán
-            if quick_sell_count > 0:
-                sell_csv = sell_df[available_columns].to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label=f"⬇️ Tải danh sách BÁN ({quick_sell_count} cầu thủ)",
-                    data=sell_csv,
-                    file_name="players_to_sell.csv",
-                    mime="text/csv"
-                )
-    
-        with col2:
-            # Export tất cả với gợi ý
-            all_csv = rec_df[available_columns].to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label=f"⬇️ Tải tất cả với gợi ý ({len(rec_df)} cầu thủ)",
-                data=all_csv,
-                file_name="players_with_suggestions.csv",
-                mime="text/csv"
-            )
+
+        # ===== BỘ LỌC NÂNG CAO =====
+        st.subheader("🔍 Tìm kiếm & Lọc")
         
-        f1, f2, f3, f4 = st.columns(4)
-        with f1:
-            search_query = st.text_input("🔍 Tìm kiếm", placeholder="Nhập tên cầu thủ...")
-        with f2:
+        # Row 1: Tìm kiếm + Action filter
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            search_query = st.text_input("🔍 Tìm cầu thủ", placeholder="Nhập tên cầu thủ...")
+        with col2:
+            action_filter = st.selectbox("Hành động", ["Tất cả", "✅ GIỮ", "❌ BÁN"])
+        
+        # Row 2: Position, Type, League, Position Style
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
             position_filter = st.selectbox("Vị trí", ["Tất cả"] + get_unique_values(df, 'Position'))
-        with f3:
+        with col2:
             type_filter = st.selectbox("Loại", ["Tất cả"] + get_unique_values(df, 'Player Type'))
-        with f4:
+        with col3:
             league_filter = st.selectbox("League", ["Tất cả"] + get_unique_values(df, 'League'))
-
-        g1, g2 = st.columns(2)
-        with g1:
+        with col4:
+            pos_style = st.selectbox("Phong cách", ["Tất cả"] + get_unique_values(df, 'Position Style'))
+        
+        # Row 3: Club, Nation, Rating, Epic only
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
             club_filter = st.selectbox("Club", ["Tất cả"] + get_unique_values(df, 'Club'))
-        with g2:
+        with col2:
             nation_filter = st.selectbox("Nation", ["Tất cả"] + get_unique_values(df, 'Nation'))
-
-        h1, h2, h3 = st.columns(3)
-        with h1:
+        with col3:
             rmin, rmax = int(df['Rating'].min()), int(df['Rating'].max())
-            rating_range = st.slider("Khoảng Rating", rmin, rmax, (rmin, rmax))
-        with h2:
-            pos_style = st.selectbox("Nhóm vị trí", ["Tất cả"] + get_unique_values(df, 'Position Style'))
-        with h3:
-            epic_only = st.toggle("Chỉ EPIC", value=False)
-
-        skill_query = st.text_input("Tìm trong Skills (chứa)", placeholder="vd: Long Range Shooting")
-
-        filtered_df = df.copy()
+            rating_range = st.slider("Rating", rmin, rmax, (rmin, rmax))
+        with col4:
+            epic_only = st.checkbox("Chỉ EPIC", value=False)
+        
+        # Row 4: Skills search
+        skill_query = st.text_input("Tìm trong Skills", placeholder="vd: Long Range Shooting")
+        
+        # ===== APPLY FILTERS =====
+        filtered_df = rec_df.copy()
+        
         if search_query:
             filtered_df = filtered_df[filtered_df['Player'].str.contains(search_query, case=False, na=False)]
+        if action_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Action'] == action_filter]
         if position_filter != "Tất cả":
             filtered_df = filtered_df[filtered_df['Position'] == position_filter]
         if type_filter != "Tất cả":
@@ -830,115 +757,128 @@ def main():
             filtered_df = filtered_df[filtered_df['Club'] == club_filter]
         if nation_filter != "Tất cả":
             filtered_df = filtered_df[filtered_df['Nation'] == nation_filter]
-        filtered_df = filtered_df[(filtered_df['Rating'] >= rating_range[0]) & (filtered_df['Rating'] <= rating_range[1])]
         if pos_style != "Tất cả":
             filtered_df = filtered_df[filtered_df['Position Style'] == pos_style]
         if epic_only:
             filtered_df = filtered_df[filtered_df['Player Type'].astype(str).str.upper() == 'EPIC']
         if skill_query:
             filtered_df = filtered_df[filtered_df['Skills'].astype(str).str.contains(re.escape(skill_query), case=False, na=False)]
-
-        st.caption(f"Hiển thị {len(filtered_df)}/{len(df)} cầu thủ")
-
-        sort_col = st.selectbox("Sắp xếp theo", options=[
-            'Rating','Player','Position','Player Type','Club','Nation','League'
-        ], index=0)
-        sort_order = st.radio("Thứ tự", ["Giảm dần","Tăng dần"], horizontal=True, index=0)
+        
+        filtered_df = filtered_df[(filtered_df['Rating'] >= rating_range[0]) & (filtered_df['Rating'] <= rating_range[1])]
+        
+        # ===== SORTING =====
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            sort_col = st.selectbox("Sắp xếp theo", options=[
+                'Rating', 'Player', 'Position', 'Player Type', 'Club', 'Nation', 'League'
+            ], index=0)
+        with col2:
+            sort_order = st.radio("Thứ tự", ["Giảm dần", "Tăng dần"], horizontal=True, index=0)
         
         if sort_col == 'Position':
             filtered_df['_pos_order'] = filtered_df['Position'].map(POSITION_ORDER)
-            filtered_df = filtered_df.sort_values(by='_pos_order', ascending=(sort_order=="Tăng dần"), kind='mergesort')
+            filtered_df = filtered_df.sort_values(by='_pos_order', ascending=(sort_order == "Tăng dần"))
             filtered_df = filtered_df.drop(columns=['_pos_order'])
         else:
-            filtered_df = filtered_df.sort_values(by=sort_col, ascending=(sort_order=="Tăng dần"), kind='mergesort')
-
-        view_cols = [
+            filtered_df = filtered_df.sort_values(by=sort_col, ascending=(sort_order == "Tăng dần"))
+        
+        # ===== DISPLAY TABLE =====
+        st.info(f"📊 Hiển thị **{len(filtered_df)}** / {len(rec_df)} cầu thủ")
+        
+        display_columns = [
             'Player', 'Rating', 'Position', 'Position Style', 'Player Type',
-            'Club', 'Nation', 'League', 'Skills',
+            'Club', 'Nation', 'League', 'Action', 'Reasons', 'Skills'
         ]
-        view_cols = [c for c in view_cols if c in filtered_df.columns]
-
-        display_df = filtered_df[view_cols].copy()
+        available_columns = [c for c in display_columns if c in filtered_df.columns]
+        
+        display_df = filtered_df[available_columns].copy()
         display_df.insert(0, 'STT', range(1, len(display_df) + 1))
-        display_df['_Position_Order'] = display_df['Position'].map(POSITION_ORDER).fillna(999)
-
+        
         st.dataframe(
             display_df,
             column_config={
-                "STT": st.column_config.NumberColumn("STT", width="small", help="Số thứ tự"),
-                "Player": st.column_config.TextColumn("Player", width="small", help="Tên cầu thủ"),
-                "Rating": st.column_config.NumberColumn("Rating", width="small", help="Chỉ số"),
-                "Position": st.column_config.TextColumn("Position", width="small", help="Vị trí"),
-                "Position Style": st.column_config.TextColumn("Position Style", width="small", help="Phong cách"),
-                "Player Type": st.column_config.TextColumn("Player Type", width="small", help="Loại"),
-                "Club": st.column_config.TextColumn("Club", width="small", help="Câu lạc bộ"),
-                "Nation": st.column_config.TextColumn("Nation", width="small", help="Quốc gia"),
-                "League": st.column_config.TextColumn("League", width="small", help="Giải đấu"),
-                "Skills": st.column_config.TextColumn("Skills", width="large", help="Kỹ năng"),
-                "_Position_Order": None,
+                "STT": st.column_config.NumberColumn("STT", width="small"),
+                "Player": st.column_config.TextColumn("Player", width="medium"),
+                "Rating": st.column_config.NumberColumn("Rating", width="small"),
+                "Position": st.column_config.TextColumn("Vị trí", width="small"),
+                "Position Style": st.column_config.TextColumn("Phong cách", width="small"),
+                "Player Type": st.column_config.TextColumn("Loại", width="small"),
+                "Club": st.column_config.TextColumn("Club", width="medium"),
+                "Nation": st.column_config.TextColumn("Nation", width="small"),
+                "League": st.column_config.TextColumn("League", width="small"),
+                "Action": st.column_config.TextColumn("Hành động", width="small"),
+                "Reasons": st.column_config.TextColumn("Lý do", width="large"),
+                "Skills": st.column_config.TextColumn("Skills", width="large"),
             },
             use_container_width=True,
-            hide_index=True,
+            height=600,
+            hide_index=True
         )
-
-        with st.expander("🧠 Gợi ý bán", expanded=st.session_state.get('scroll_to_sell', False)):
-            st.info("💡 Gợi ý BÁN: Cầu thủ KHÔNG thuộc Club/Nation/League mục tiêu")
-
-            rec_df = df.copy()
-            def suggest_action(row):
-                club = str(row.get('Club', ''))
-                nation = str(row.get('Nation', ''))
-                league = str(row.get('League', ''))
-                reasons = []
-                
-                if club in target_clubs:
-                    reasons.append('Club mục tiêu')
-                if nation in target_nations:
-                    reasons.append('Nation mục tiêu')
-                if league in target_leagues:
-                    reasons.append('League mục tiêu')
-                
-                action = '✅ GIỮ' if reasons else '❌ BÁN'
-                return action, ", ".join(reasons) if reasons else "Không thuộc mục tiêu"
+        
+        # ===== EXPORT & ACTIONS =====
+        st.divider()
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if len(sell_df) > 0:
+                sell_csv = sell_df[available_columns].to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label=f"⬇️ Tải danh sách BÁN ({len(sell_df)})",
+                    data=sell_csv,
+                    file_name="players_to_sell.csv",
+                    mime="text/csv"
+                )
+        
+        with col2:
+            all_csv = rec_df[available_columns].to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label=f"⬇️ Tải tất cả ({len(rec_df)})",
+                data=all_csv,
+                file_name="players_with_suggestions.csv",
+                mime="text/csv"
+            )
+        
+        with col3:
+            filtered_csv = filtered_df[available_columns].to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label=f"⬇️ Tải kết quả lọc ({len(filtered_df)})",
+                data=filtered_csv,
+                file_name="players_filtered.csv",
+                mime="text/csv"
+            )
+        
+        # ===== BÁN CẦU THỦ =====
+        with st.expander("🗑️ Bán cầu thủ (Xóa khỏi dữ liệu)"):
+            st.warning("⚠️ Hành động này sẽ xóa vĩnh viễn cầu thủ khỏi Google Sheets")
             
-            recs = rec_df.apply(lambda r: suggest_action(r), axis=1)
-            rec_df['Action'], rec_df['Reasons'] = zip(*recs)
-            sell_df = rec_df[rec_df['Action'] == '❌ BÁN']
-            st.caption(f"Gợi ý bán: {len(sell_df)} cầu thủ")
-            
-            sell_display = sell_df[['Player','Rating','Position','Player Type','Club','Nation','League','Reasons']].copy()
+            # Hiển thị danh sách đề xuất bán
+            sell_display = sell_df[['Player', 'Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Reasons']].copy()
             sell_display.insert(0, 'STT', range(1, len(sell_display) + 1))
-            st.dataframe(sell_display, 
-                column_config={
-                    "STT": st.column_config.NumberColumn("STT", width="small"),
-                    "Player": st.column_config.TextColumn("Player", width="small"),
-                    "Rating": st.column_config.NumberColumn("Rating", width="small"),
-                    "Position": st.column_config.TextColumn("Position", width="small"),
-                    "Player Type": st.column_config.TextColumn("Type", width="small"),
-                    "Club": st.column_config.TextColumn("Club", width="small"),
-                    "Nation": st.column_config.TextColumn("Nation", width="small"),
-                    "League": st.column_config.TextColumn("League", width="small"),
-                    "Reasons": st.column_config.TextColumn("Lý do", width="medium"),
-                },
-                use_container_width=True, 
-                hide_index=True)
-
+            st.dataframe(sell_display, use_container_width=True, hide_index=True)
+            
             idx_options = sell_df.index.tolist()
-            labels = {i: f"{sell_df.loc[i, 'Player']} ({sell_df.loc[i, 'Position']}) – {sell_df.loc[i, 'Rating']}" for i in idx_options}
-            to_sell = st.multiselect("Chọn cầu thủ để bán (xóa)", options=idx_options, format_func=lambda x: labels.get(x, str(x)))
-            if st.button("Bán (xóa khỏi dữ liệu)", disabled=len(to_sell) == 0):
+            labels = {i: f"{sell_df.loc[i, 'Player']} ({sell_df.loc[i, 'Position']}) – {sell_df.loc[i, 'Rating']}" 
+                      for i in idx_options}
+            to_sell = st.multiselect(
+                "Chọn cầu thủ để bán",
+                options=idx_options,
+                format_func=lambda x: labels.get(x, str(x))
+            )
+            
+            if st.button("🗑️ Bán cầu thủ đã chọn", type="primary", disabled=len(to_sell) == 0):
                 try:
                     new_df = df.drop(index=to_sell, errors='ignore')
                     if save_data_to_gsheet(new_df):
-                        st.success("Đã bán (xóa) các cầu thủ đã chọn")
-                        st.session_state['scroll_to_sell'] = False
+                        st.success(f"✅ Đã bán (xóa) {len(to_sell)} cầu thủ")
                         st.cache_data.clear()
                         st.rerun()
                 except Exception as e:
-                    st.error(f"Lỗi khi bán: {e}")
-
-        with st.expander("📈 Thống kê 23+"):
+                    st.error(f"❌ Lỗi khi bán: {e}")
+        
+        # ===== THỐNG KÊ 23+ =====
+        with st.expander("📈 Thống kê đội hình 23+"):
             threshold = st.slider("Ngưỡng tối thiểu", 1, 50, 23, key="stats23_threshold")
+            
             def show_table(title, series):
                 st.subheader(title)
                 counts = series.value_counts()
@@ -946,16 +886,10 @@ def main():
                 if enough.empty:
                     st.info("Chưa có nhóm nào đủ ngưỡng")
                 else:
-                    out = enough.rename_axis(title).reset_index(name='Count')
+                    out = enough.rename_axis(title).reset_index(name='Số lượng')
                     out.insert(0, 'STT', range(1, len(out) + 1))
-                    st.dataframe(out, 
-                        column_config={
-                            "STT": st.column_config.NumberColumn("STT", width="small"),
-                            title: st.column_config.TextColumn(title, width="large"),
-                            "Count": st.column_config.NumberColumn("Số lượng", width="small"),
-                        },
-                        use_container_width=True, 
-                        hide_index=True)
+                    st.dataframe(out, use_container_width=True, hide_index=True)
+            
             show_table("Club", df['Club'].astype(str))
             show_table("Nation", df['Nation'].astype(str))
             show_table("League", df['League'].astype(str))
