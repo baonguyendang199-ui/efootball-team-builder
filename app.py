@@ -1199,7 +1199,10 @@ def main():
         existing_nations = [""] + sorted([x for x in df['Nation'].astype(str).unique() if str(x).strip()])
         existing_clubs = [""] + sorted([x for x in df['Club'].astype(str).unique() if str(x).strip()])
         existing_leagues = [""] + sorted([x for x in df['League'].astype(str).unique() if str(x).strip()])
-        existing_positions = sorted(df['Position'].unique().tolist())
+        existing_positions = sorted(
+            df['Position'].unique().tolist(),
+            key=lambda x: POSITION_ORDER.get(x, 999)
+        )
         
         with st.form("add_player_form"):
             c1, c2 = st.columns(2)
