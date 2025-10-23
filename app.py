@@ -80,9 +80,16 @@ def save_data_to_gsheet(df):
         # Remove Epic_Priority column before saving
         df_save = df.drop(columns=['Epic_Priority'], errors='ignore').copy()
         
-        # Check again after dropping column
+        # CRITICAL: Replace NaN/inf values with empty string or 0
+        # This prevents JSON error when saving to Google Sheets
+        df_save = df_save.fillna('')  # Fill NaN with empty string
+        
+        # Replace inf values if any
+        df_save = df_save.replace([float('inf'), float('-inf')], '')
+        
+        # Check again after cleaning
         if df_save.empty:
-            st.error("⚠️ Không thể lưu: DataFrame trống sau khi xóa cột!")
+            st.error("⚠️ Không thể lưu: DataFrame trống sau khi xử lý!")
             return False
         
         # Clear and update
@@ -91,6 +98,7 @@ def save_data_to_gsheet(df):
         return True
     except Exception as e:
         st.error(f"❌ Lỗi khi lưu dữ liệu: {e}")
+        # Don't clear sheet if there's an error!
         return False
 
 # --- SKILLS PRIORITY SYSTEM ---
