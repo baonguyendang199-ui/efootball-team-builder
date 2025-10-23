@@ -584,31 +584,36 @@ def main():
 
         # ===== TÍNH TOP 23 CHO MỖI TEAM =====
         def get_top_23_players(df, group_by, values):
-            """
-            Lấy top 23 cầu thủ rating cao nhất cho mỗi team
-            ✨ ĐẶC BIỆT: 
-            - Với Club: Lấy tất cả thẻ (không loại trùng tên)
-            - Với Nation/League: Nếu trùng tên → chỉ lấy thẻ rating cao nhất
-            """
             top_players = set()
             for value in values:
                 team_df = df[df[group_by].astype(str) == value].copy()
                 if not team_df.empty:
-                    # Nếu là Club → không loại trùng (vì 1 người không thể chơi cho 2 club cùng lúc)
-                    if group_by == 'Club':
-                        top_23 = team_df.sort_values(['Rating', 'Epic_Priority'], 
-                                                     ascending=[False, True]).head(SQUAD_SIZE)
-                        top_players.update(top_23.index.tolist())
-                    
-                    # Nếu là Nation/League → loại trùng tên (chỉ giữ rating cao nhất)
-                    else:
-                        team_df = team_df.sort_values(['Player', 'Rating', 'Epic_Priority'], 
+                    # Với Nation/League: loại trùng tên
+                    if group_by in ['Nation', 'League']:
+                        team_df = team_df.sort_values(['Player', 'Rating', 'Epic_Priority'],
                                                       ascending=[True, False, True])
                         team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
-                        
-                        top_23 = team_df.sort_values(['Rating', 'Epic_Priority'], 
-                                                     ascending=[False, True]).head(SQUAD_SIZE)
-                        top_players.update(top_23.index.tolist())
+
+                    # Bước 1: chọn GK tốt nhất (nếu có)
+                    gk_df = team_df[team_df['Position'] == 'GK']
+                    non_gk_df = team_df[team_df['Position'] != 'GK']
+
+                    squad = pd.DataFrame()
+                    remaining_slots = SQUAD_SIZE
+
+                    if not gk_df.empty:
+                        best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'],
+                                                    ascending=[False, True]).head(1)
+                        squad = pd.concat([squad, best_gk])
+                        remaining_slots -= 1
+
+                    # Bước 2: chọn các cầu thủ còn lại
+                    if not non_gk_df.empty:
+                        top_non_gk = non_gk_df.sort_values(['Rating', 'Epic_Priority'],
+                                                           ascending=[False, True]).head(remaining_slots)
+                        squad = pd.concat([squad, top_non_gk])
+
+                    top_players.update(squad.index.tolist())
             return top_players
 
         # Tính top 23 cho từng loại team
