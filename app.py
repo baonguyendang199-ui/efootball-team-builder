@@ -607,11 +607,12 @@ def main():
                         squad = pd.concat([squad, best_gk])
                         remaining_slots -= 1
 
-                    # Bước 2: chọn các cầu thủ còn lại
-                    if not non_gk_df.empty:
-                        top_non_gk = non_gk_df.sort_values(['Rating', 'Epic_Priority'],
-                                                           ascending=[False, True]).head(remaining_slots)
-                        squad = pd.concat([squad, top_non_gk])
+                    # Bước 2: chọn các cầu thủ còn lại (bao gồm cả GK nếu đủ mạnh)
+                    others = team_df.drop(squad.index)  # bỏ những cầu thủ đã chọn (GK bắt buộc)
+                    if not others.empty:
+                        top_rest = others.sort_values(['Rating', 'Epic_Priority'],
+                                                      ascending=[False, True]).head(remaining_slots)
+                        squad = pd.concat([squad, top_rest])
 
                     top_players.update(squad.index.tolist())
             return top_players
