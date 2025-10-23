@@ -554,8 +554,9 @@ def main():
                 "STT": st.column_config.NumberColumn("STT", width="small"),
                 "Nation": st.column_config.TextColumn("Quốc gia", width="small"),
                 "Count": st.column_config.NumberColumn("Số lượng", width="small"),
-            }, 
-            )
+            },
+            use_container_width=True, 
+            hide_index=True)
 
     elif current_tab == 'skills':
         st.header("🎮 Quản lý Skills")
