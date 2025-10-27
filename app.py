@@ -870,8 +870,8 @@ def main():
                 mime="text/csv"
             )
         
-        # ===== BÁN CẦU THỦ =====
-        with st.expander("🗑️ Bán cầu thủ (Xóa khỏi dữ liệu)"):
+        # ===== BÁN CẦU THỦ (ĐỀ XUẤT) =====
+        with st.expander("🗑️ Bán cầu thủ được đề xuất"):
             st.warning("⚠️ Hành động này sẽ xóa vĩnh viễn cầu thủ khỏi Google Sheets")
             
             # Hiển thị danh sách đề xuất bán
@@ -885,10 +885,11 @@ def main():
             to_sell = st.multiselect(
                 "Chọn cầu thủ để bán",
                 options=idx_options,
-                format_func=lambda x: labels.get(x, str(x))
+                format_func=lambda x: labels.get(x, str(x)),
+                key="sell_recommended"
             )
             
-            if st.button("🗑️ Bán cầu thủ đã chọn", type="primary", disabled=len(to_sell) == 0):
+            if st.button("🗑️ Bán cầu thủ đã chọn", type="primary", disabled=len(to_sell) == 0, key="btn_sell_recommended"):
                 try:
                     new_df = df.drop(index=to_sell, errors='ignore')
                     if save_data_to_gsheet(new_df):
@@ -897,6 +898,94 @@ def main():
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Lỗi khi bán: {e}")
+        
+        # ===== XÓA CẦU THỦ TÙY CHỌN =====
+        with st.expander("🗑️ Xóa cầu thủ tùy chọn (Nâng cao)"):
+            st.error("⚠️ **CẢNH BÁO:** Bạn có thể xóa BẤT KỲ cầu thủ nào, kể cả cầu thủ được đề xuất giữ!")
+            
+            st.markdown("---")
+            st.subheader("🔍 Tìm và chọn cầu thủ cần xóa")
+            
+            # Bộ lọc nhanh
+            del_col1, del_col2, del_col3 = st.columns(3)
+            with del_col1:
+                del_search = st.text_input("Tìm theo tên", placeholder="Nhập tên cầu thủ...", key="del_search")
+            with del_col2:
+                del_position = st.multiselect("Vị trí", sorted(df['Position'].unique().tolist()), key="del_position")
+            with del_col3:
+                del_club = st.multiselect("Club", sorted([x for x in df['Club'].unique() if str(x).strip()]), key="del_club")
+            
+            # Apply filters
+            del_df = rec_df.copy()
+            if del_search:
+                del_df = del_df[del_df['Player'].str.contains(del_search, case=False, na=False)]
+            if del_position:
+                del_df = del_df[del_df['Position'].isin(del_position)]
+            if del_club:
+                del_df = del_df[del_df['Club'].isin(del_club)]
+            
+            st.info(f"📊 Tìm thấy **{len(del_df)}** cầu thủ")
+            
+            if not del_df.empty:
+                # Hiển thị bảng
+                del_display = del_df[['Player', 'Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Action', 'Reasons']].copy()
+                del_display.insert(0, 'STT', range(1, len(del_display) + 1))
+                st.dataframe(del_display, use_container_width=True, hide_index=True, height=400)
+                
+                st.markdown("---")
+                
+                # Chọn cầu thủ
+                del_idx_options = del_df.index.tolist()
+                del_labels = {i: f"{del_df.loc[i, 'Player']} ({del_df.loc[i, 'Position']}) – {del_df.loc[i, 'Rating']} – {del_df.loc[i, 'Action']}" 
+                          for i in del_idx_options}
+                
+                to_delete = st.multiselect(
+                    "Chọn cầu thủ cần xóa",
+                    options=del_idx_options,
+                    format_func=lambda x: del_labels.get(x, str(x)),
+                    key="delete_custom"
+                )
+                
+                if to_delete:
+                    # Thống kê cầu thủ sẽ xóa
+                    delete_preview = del_df.loc[to_delete]
+                    protected_count = len(delete_preview[delete_preview['Club'].isin(PROTECTED_CLUBS)])
+                    keep_count = len(delete_preview[delete_preview['Action'] == '✅ GIỮ'])
+                    
+                    st.warning(f"🗑️ Sẽ xóa **{len(to_delete)}** cầu thủ:")
+                    warn_col1, warn_col2, warn_col3 = st.columns(3)
+                    with warn_col1:
+                        st.metric("Tổng", len(to_delete))
+                    with warn_col2:
+                        if protected_count > 0:
+                            st.metric("🛡️ Barcelona", protected_count, delta="Được bảo vệ!", delta_color="inverse")
+                    with warn_col3:
+                        if keep_count > 0:
+                            st.metric("✅ Đề xuất giữ", keep_count, delta="Cẩn thận!", delta_color="inverse")
+                    
+                    # Checkbox xác nhận
+                    confirm_delete = st.checkbox(
+                        f"✅ Tôi xác nhận xóa {len(to_delete)} cầu thủ này (KHÔNG THỂ HOÀN TÁC)",
+                        key="confirm_delete"
+                    )
+                    
+                    if st.button(
+                        f"🗑️ XÓA {len(to_delete)} CẦU THỦ", 
+                        type="primary", 
+                        disabled=not confirm_delete,
+                        key="btn_delete_custom",
+                        use_container_width=True
+                    ):
+                        try:
+                            new_df = df.drop(index=to_delete, errors='ignore')
+                            if save_data_to_gsheet(new_df):
+                                st.success(f"✅ Đã xóa {len(to_delete)} cầu thủ thành công!")
+                                st.cache_data.clear()
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi xóa: {e}")
+            else:
+                st.info("🔍 Không tìm thấy cầu thủ nào với bộ lọc hiện tại")
         
         # ===== THỐNG KÊ 23+ =====
         with st.expander("📈 Thống kê đội hình 23+"):
