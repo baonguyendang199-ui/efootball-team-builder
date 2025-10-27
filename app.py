@@ -1418,6 +1418,13 @@ def main():
     elif current_tab == 'add':
         st.header("➕ Thêm cầu thủ")
         
+        # Chọn chế độ
+        mode = st.radio(
+            "Chọn chế độ",
+            ["➕ Thêm mới", "🔄 Upgrade cầu thủ có sẵn"],
+            horizontal=True
+        )
+        
         existing_nations = [""] + sorted([x for x in df['Nation'].astype(str).unique() if str(x).strip()])
         existing_clubs = [""] + sorted([x for x in df['Club'].astype(str).unique() if str(x).strip()])
         existing_leagues = [""] + sorted([x for x in df['League'].astype(str).unique() if str(x).strip()])
@@ -1425,83 +1432,230 @@ def main():
             df['Position'].unique().tolist(),
             key=lambda x: POSITION_ORDER.get(x, 999)
         )
+        existing_players = sorted(df['Player'].astype(str).unique().tolist())
         
-        with st.form("add_player_form"):
-            c1, c2 = st.columns(2)
-            with c1:
-                # Danh sách tên cầu thủ có sẵn
-                existing_players = sorted(df['Player'].astype(str).unique().tolist())
-
-                player_name = st.selectbox(
-                    "Tên cầu thủ (gõ để tìm)", 
-                    options=[""] + existing_players
-                )
-
-                # Nếu không chọn, cho nhập mới
-                if not player_name:
-                    player_name = st.text_input("Hoặc nhập tên mới", placeholder="Ví dụ: Lionel Messi")
-                rating = st.number_input("Rating", min_value=1, max_value=150, value=90)
-                position = st.selectbox("Vị trí", existing_positions)
-                position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
-            with c2:
-                player_type = st.selectbox("Loại", ["NON-EPIC", "POTW", "EPIC"])
-                
-                nation = st.selectbox("Quốc gia", existing_nations, help="Chọn từ danh sách có sẵn")
-                if nation == "":
-                    nation_custom = st.text_input("Hoặc nhập quốc gia mới", key="nation_custom", placeholder="Ví dụ: Vietnam")
-                    if nation_custom:
-                        nation = nation_custom
-                
-                club = st.selectbox("CLB", existing_clubs, help="Chọn từ danh sách có sẵn")
-                if club == "":
-                    club_custom = st.text_input("Hoặc nhập CLB mới", key="club_custom", placeholder="Ví dụ: HAGL")
-                    if club_custom:
-                        club = club_custom
-                
-                league = st.selectbox("Giải đấu", existing_leagues, help="Chọn từ danh sách có sẵn")
-                if league == "":
-                    league_custom = st.text_input("Hoặc nhập giải đấu mới", key="league_custom", placeholder="Ví dụ: VLeague")
-                    if league_custom:
-                        league = league_custom
+        if mode == "➕ Thêm mới":
+            st.info("💡 Chế độ này thêm cầu thủ hoàn toàn mới, không kiểm tra trùng lặp")
             
-            player_url = st.text_input("URL eFootballHub (tùy chọn)", placeholder="https://efootballhub.net/efootball23/player/...")
-            
-            st.caption("💡 Skills sẽ được tự động trích xuất nếu có URL")
-            
-            submitted = st.form_submit_button("➕ Thêm cầu thủ", use_container_width=True)
-
-            if submitted:
-                if player_name and rating and position:
-                    new_player = {
-                        "Player": player_name,
-                        "Rating": int(rating),
-                        "Position": position,
-                        "Position Style": position_style,
-                        "Player Type": player_type,
-                        "Nation": nation,
-                        "Club": club,
-                        "League": league,
-                        "Player URL": player_url,
-                        "Player ID": extract_ehub_player_id(player_url) if player_url else "",
-                        "Skills": "",
-                        "Added Skills": "",
-                        "Epic_Priority": 0 if player_type == "EPIC" else 1,
-                    }
+            with st.form("add_player_form"):
+                c1, c2 = st.columns(2)
+                with c1:
+                    player_name = st.selectbox(
+                        "Tên cầu thủ (gõ để tìm)", 
+                        options=[""] + existing_players
+                    )
+                    if not player_name:
+                        player_name = st.text_input("Hoặc nhập tên mới", placeholder="Ví dụ: Lionel Messi")
+                    rating = st.number_input("Rating", min_value=1, max_value=150, value=90)
+                    position = st.selectbox("Vị trí", existing_positions)
+                    position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
+                with c2:
+                    player_type = st.selectbox("Loại", ["NON-EPIC", "POTW", "EPIC"])
                     
-                    if player_url:
-                        with st.spinner("Đang trích xuất skills..."):
-                            new_player["Skills"] = extract_player_skills(player_url)
+                    nation = st.selectbox("Quốc gia", existing_nations, help="Chọn từ danh sách có sẵn")
+                    if nation == "":
+                        nation_custom = st.text_input("Hoặc nhập quốc gia mới", key="nation_custom", placeholder="Ví dụ: Vietnam")
+                        if nation_custom:
+                            nation = nation_custom
+                    
+                    club = st.selectbox("CLB", existing_clubs, help="Chọn từ danh sách có sẵn")
+                    if club == "":
+                        club_custom = st.text_input("Hoặc nhập CLB mới", key="club_custom", placeholder="Ví dụ: HAGL")
+                        if club_custom:
+                            club = club_custom
+                    
+                    league = st.selectbox("Giải đấu", existing_leagues, help="Chọn từ danh sách có sẵn")
+                    if league == "":
+                        league_custom = st.text_input("Hoặc nhập giải đấu mới", key="league_custom", placeholder="Ví dụ: VLeague")
+                        if league_custom:
+                            league = league_custom
+                
+                player_url = st.text_input("URL eFootballHub (tùy chọn)", placeholder="https://efootballhub.net/efootball23/player/...")
+                
+                st.caption("💡 Skills sẽ được tự động trích xuất nếu có URL")
+                
+                submitted = st.form_submit_button("➕ Thêm cầu thủ", use_container_width=True)
 
-                    new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
-                    try:
-                        if save_data_to_gsheet(new_df):
-                            st.success(f"✅ Đã thêm cầu thủ {player_name} thành công!")
-                            st.cache_data.clear()
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi khi lưu: {e}")
-                else:
-                    st.error("Vui lòng điền đầy đủ thông tin bắt buộc!")
+                if submitted:
+                    if player_name and rating and position:
+                        new_player = {
+                            "Player": player_name,
+                            "Rating": int(rating),
+                            "Position": position,
+                            "Position Style": position_style,
+                            "Player Type": player_type,
+                            "Nation": nation,
+                            "Club": club,
+                            "League": league,
+                            "Player URL": player_url,
+                            "Player ID": extract_ehub_player_id(player_url) if player_url else "",
+                            "Skills": "",
+                            "Added Skills": "",
+                            "Epic_Priority": 0 if player_type == "EPIC" else 1,
+                        }
+                        
+                        if player_url:
+                            with st.spinner("Đang trích xuất skills..."):
+                                new_player["Skills"] = extract_player_skills(player_url)
+
+                        new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
+                        try:
+                            if save_data_to_gsheet(new_df):
+                                st.success(f"✅ Đã thêm cầu thủ {player_name} thành công!")
+                                st.cache_data.clear()
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi khi lưu: {e}")
+                    else:
+                        st.error("Vui lòng điền đầy đủ thông tin bắt buộc!")
+        
+        else:  # Chế độ Upgrade
+            st.info("💡 Chế độ này tự động phát hiện và thay thế thẻ cũ (cùng tên + club + nation + league)")
+            
+            # Bước 1: Chọn cầu thủ
+            selected_player = st.selectbox(
+                "1️⃣ Chọn cầu thủ cần upgrade",
+                options=[""] + existing_players,
+                help="Chọn cầu thủ từ danh sách có sẵn"
+            )
+            
+            if selected_player:
+                # Hiển thị tất cả phiên bản hiện có
+                player_versions = df[df['Player'] == selected_player].copy()
+                player_versions = player_versions.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+                
+                st.subheader(f"📋 Phiên bản hiện có của {selected_player}")
+                version_display = player_versions[['Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Skills']].copy()
+                version_display.insert(0, 'STT', range(1, len(version_display) + 1))
+                st.dataframe(version_display, use_container_width=True, hide_index=True)
+                
+                st.divider()
+                
+                # Form nhập thông tin mới
+                with st.form("upgrade_player_form"):
+                    st.subheader("2️⃣ Nhập thông tin phiên bản mới")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        new_rating = st.number_input("Rating mới", min_value=1, max_value=150, value=90)
+                        new_position = st.selectbox("Vị trí", existing_positions)
+                        new_position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
+                    with c2:
+                        new_player_type = st.selectbox("Loại", ["NON-EPIC", "POTW", "EPIC"])
+                        
+                        new_nation = st.selectbox("Quốc gia", existing_nations, key="upgrade_nation")
+                        if new_nation == "":
+                            new_nation = st.text_input("Nhập quốc gia mới", key="upgrade_nation_custom")
+                        
+                        new_club = st.selectbox("CLB", existing_clubs, key="upgrade_club")
+                        if new_club == "":
+                            new_club = st.text_input("Nhập CLB mới", key="upgrade_club_custom")
+                        
+                        new_league = st.selectbox("Giải đấu", existing_leagues, key="upgrade_league")
+                        if new_league == "":
+                            new_league = st.text_input("Nhập giải đấu mới", key="upgrade_league_custom")
+                    
+                    new_player_url = st.text_input("URL eFootballHub (bắt buộc)", placeholder="https://efootballhub.net/efootball23/player/...", key="upgrade_url")
+                    
+                    st.caption("💡 Skills sẽ được tự động trích xuất từ URL")
+                    
+                    # Preview upgrade
+                    if new_club and new_nation and new_league:
+                        matching_card = player_versions[
+                            (player_versions['Club'].astype(str) == new_club) &
+                            (player_versions['Nation'].astype(str) == new_nation) &
+                            (player_versions['League'].astype(str) == new_league)
+                        ]
+                        
+                        if not matching_card.empty:
+                            old_rating = matching_card.iloc[0]['Rating']
+                            old_type = matching_card.iloc[0]['Player Type']
+                            rating_diff = new_rating - old_rating
+                            
+                            st.success(f"✅ Tìm thấy thẻ cũ: {selected_player} {old_rating} ({old_type}) | {new_club} | {new_nation} | {new_league}")
+                            
+                            if rating_diff > 0:
+                                st.info(f"📈 Upgrade: Rating **{old_rating} → {new_rating}** (+{rating_diff})")
+                            elif rating_diff < 0:
+                                st.warning(f"📉 Downgrade: Rating **{old_rating} → {new_rating}** ({rating_diff})")
+                            else:
+                                st.info(f"🔄 Cập nhật: Rating giữ nguyên **{new_rating}**")
+                            
+                            st.caption("⚠️ Added Skills sẽ bị reset vì skills gốc thay đổi")
+                        else:
+                            st.warning(f"⚠️ Không tìm thấy thẻ cũ với Club/Nation/League này → Sẽ thêm mới thay vì upgrade")
+                    
+                    submitted_upgrade = st.form_submit_button("🔄 Xác nhận Upgrade", use_container_width=True, type="primary")
+                    
+                    if submitted_upgrade:
+                        if not new_player_url:
+                            st.error("❌ Vui lòng nhập URL eFootballHub!")
+                        elif not new_club or not new_nation or not new_league:
+                            st.error("❌ Vui lòng điền đầy đủ Club, Nation, League!")
+                        else:
+                            with st.spinner("Đang xử lý..."):
+                                # Trích xuất skills mới
+                                new_skills = extract_player_skills(new_player_url) if new_player_url else ""
+                                
+                                # Tìm thẻ cũ
+                                matching_card = player_versions[
+                                    (player_versions['Club'].astype(str) == new_club) &
+                                    (player_versions['Nation'].astype(str) == new_nation) &
+                                    (player_versions['League'].astype(str) == new_league)
+                                ]
+                                
+                                new_df = df.copy()
+                                
+                                if not matching_card.empty:
+                                    # UPGRADE: Thay thế thẻ cũ
+                                    old_idx = matching_card.index[0]
+                                    old_rating = matching_card.iloc[0]['Rating']
+                                    
+                                    new_df.at[old_idx, 'Rating'] = int(new_rating)
+                                    new_df.at[old_idx, 'Position'] = new_position
+                                    new_df.at[old_idx, 'Position Style'] = new_position_style
+                                    new_df.at[old_idx, 'Player Type'] = new_player_type
+                                    new_df.at[old_idx, 'Player URL'] = new_player_url
+                                    new_df.at[old_idx, 'Player ID'] = extract_ehub_player_id(new_player_url)
+                                    new_df.at[old_idx, 'Skills'] = new_skills
+                                    new_df.at[old_idx, 'Added Skills'] = ""  # Reset Added Skills
+                                    new_df.at[old_idx, 'Epic_Priority'] = 0 if new_player_type == "EPIC" else 1
+                                    
+                                    try:
+                                        if save_data_to_gsheet(new_df):
+                                            rating_diff = new_rating - old_rating
+                                            st.success(f"✅ Đã upgrade {selected_player}: {old_rating} → {new_rating} ({rating_diff:+d})")
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi khi lưu: {e}")
+                                else:
+                                    # THÊM MỚI: Không tìm thấy thẻ cũ
+                                    new_player_data = {
+                                        "Player": selected_player,
+                                        "Rating": int(new_rating),
+                                        "Position": new_position,
+                                        "Position Style": new_position_style,
+                                        "Player Type": new_player_type,
+                                        "Nation": new_nation,
+                                        "Club": new_club,
+                                        "League": new_league,
+                                        "Player URL": new_player_url,
+                                        "Player ID": extract_ehub_player_id(new_player_url),
+                                        "Skills": new_skills,
+                                        "Added Skills": "",
+                                        "Epic_Priority": 0 if new_player_type == "EPIC" else 1,
+                                    }
+                                    
+                                    new_df = pd.concat([new_df, pd.DataFrame([new_player_data])], ignore_index=True)
+                                    
+                                    try:
+                                        if save_data_to_gsheet(new_df):
+                                            st.success(f"✅ Đã thêm phiên bản mới: {selected_player} {new_rating} | {new_club} | {new_nation} | {new_league}")
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi khi lưu: {e}")
 
     elif current_tab == 'inventory':
         st.header("📦 Kho Skills")
