@@ -1305,25 +1305,34 @@ def main():
 
             # Với Club: không loại trùng (1 người không thể chơi cho 2 club cùng lúc)
             
-            # ===== CHỌN TOP 23 VỚI BẮT BUỘC 1 GK =====
-            # Bước 1: Tìm GK rating cao nhất
+            # ===== CHỌN TOP 23 VỚI BẮT BUỘC 1 GK VÀ 2 CB =====
+            # Bước 1: Tìm GK và CB rating cao nhất
             gk_df = df_src[df_src['Position'] == 'GK']
-            non_gk_df = df_src[df_src['Position'] != 'GK']
-            
+            cb_df = df_src[df_src['Position'] == 'CB']
+
             squad = pd.DataFrame()
             has_gk = False
+            has_cb = 0
             remaining_slots = 23
-            
+
+            # Chọn 1 GK tốt nhất
             if not gk_df.empty:
-                # Ép chọn 1 GK tốt nhất để đảm bảo có GK
                 best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'],
                                             ascending=[False, True]).head(1)
                 squad = pd.concat([squad, best_gk])
                 has_gk = True
-                remaining_slots = 22
+                remaining_slots -= 1
 
-            # Bước 2: Chọn các cầu thủ còn lại (bao gồm cả GK khác nếu đủ mạnh)
-            others = df_src.drop(squad.index)  # bỏ GK đã chọn bắt buộc
+            # Chọn 2 CB tốt nhất
+            if not cb_df.empty:
+                best_cb = cb_df.sort_values(['Rating', 'Epic_Priority'],
+                                            ascending=[False, True]).head(2)
+                squad = pd.concat([squad, best_cb])
+                has_cb = len(best_cb)
+                remaining_slots -= has_cb
+
+            # Bước 2: Chọn các cầu thủ còn lại (bao gồm cả GK/CB khác nếu đủ mạnh)
+            others = df_src.drop(squad.index)  # bỏ GK và CB đã chọn bắt buộc
             if not others.empty:
                 top_rest = others.sort_values(['Rating', 'Epic_Priority'],
                                               ascending=[False, True]).head(remaining_slots)
