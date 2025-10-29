@@ -1069,6 +1069,9 @@ def main():
             sm_df = sm_df[sm_df['League'].isin(sm_league)]
         
         sm_df = sm_df[(sm_df['Rating'] >= rating_min) & (sm_df['Rating'] <= rating_max)]
+
+        # Tự động sort theo Rating giảm dần
+        sm_df = sm_df.sort_values('Rating', ascending=False)
         
         if sm_filter == "Không thể thêm skills":
             sm_df = sm_df[sm_df['Player Type'].astype(str).str.upper() == 'POTW']
