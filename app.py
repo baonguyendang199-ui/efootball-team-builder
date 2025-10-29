@@ -597,17 +597,26 @@ def main():
 
                     # Bước 1: chọn GK tốt nhất (nếu có) để đảm bảo có ít nhất 1 GK
                     gk_df = team_df[team_df['Position'] == 'GK']
+                    cb_df = team_df[team_df['Position'] == 'CB']
                     squad = pd.DataFrame()
                     remaining_slots = SQUAD_SIZE
 
+                    # Chọn 1 GK tốt nhất
                     if not gk_df.empty:
                         best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'],
                                                     ascending=[False, True]).head(1)
                         squad = pd.concat([squad, best_gk])
                         remaining_slots -= 1
 
-                    # Bước 2: chọn các cầu thủ còn lại (bao gồm cả GK khác nếu đủ mạnh)
-                    others = team_df.drop(squad.index)  # bỏ GK đã chọn bắt buộc
+                    # Chọn 2 CB tốt nhất
+                    if not cb_df.empty:
+                        best_cb = cb_df.sort_values(['Rating', 'Epic_Priority'],
+                                                    ascending=[False, True]).head(2)
+                        squad = pd.concat([squad, best_cb])
+                        remaining_slots -= len(best_cb)
+
+                    # Bước 2: chọn các cầu thủ còn lại (bao gồm cả GK/CB khác nếu đủ mạnh)
+                    others = team_df.drop(squad.index)  # bỏ GK và CB đã chọn bắt buộc
                     if not others.empty:
                         top_rest = others.sort_values(['Rating', 'Epic_Priority'],
                                               ascending=[False, True]).head(remaining_slots)
