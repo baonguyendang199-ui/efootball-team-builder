@@ -283,6 +283,8 @@ def check_inventory_availability(skill_name):
 
 # --- CONFIG ---
 MAX_SQUAD_SIZE = 23
+# Clubs luôn được bảo vệ (không bao giờ bán / ưu tiên giữ)
+PROTECTED_CLUBS = ["Barcelona"]
 
 st.set_page_config(
     page_title="Efootball Team Builder",
