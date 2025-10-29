@@ -283,8 +283,6 @@ def check_inventory_availability(skill_name):
 
 # --- CONFIG ---
 MAX_SQUAD_SIZE = 23
-# Clubs luôn được bảo vệ (không bao giờ bán / ưu tiên giữ)
-PROTECTED_CLUBS = ["Barcelona"]
 
 st.set_page_config(
     page_title="Efootball Team Builder",
@@ -1290,6 +1288,9 @@ def main():
 
         # Loại trùng cùng Player+Rating: ưu tiên Protected Club nếu có, ngẫu nhiên nếu không
         import random
+        # đảm bảo PROTECTED_CLUBS tồn tại khi vào tab squad
+        if 'PROTECTED_CLUBS' not in globals():
+            PROTECTED_CLUBS = ["Barcelona"]
         duplicates = df_src[df_src.duplicated(subset=['Player','Rating'], keep=False)]
         for player in duplicates['Player'].unique():
             same_cards = duplicates[duplicates['Player'] == player]
