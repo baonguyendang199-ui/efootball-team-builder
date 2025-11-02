@@ -232,6 +232,13 @@ def get_recommended_skills(position: str, base_skills: str, added_skills: str, m
     
     return missing_skills[:remaining_slots]
 
+def get_all_known_skills():
+    """Get all unique skills from POSITION_SKILLS_PRIORITY"""
+    all_skills = set()
+    for skills_list in POSITION_SKILLS_PRIORITY.values():
+        all_skills.update(skills_list)
+    return sorted(list(all_skills))
+
 # --- SKILL INVENTORY MANAGEMENT ---
 APP_DIR = Path(__file__).resolve().parent
 INVENTORY_FILE = APP_DIR / "skill_inventory.json"
