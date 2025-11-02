@@ -958,7 +958,8 @@ def main():
                 use_container_width=True,
                 height=600,
                 hide_index=True
-            )        
+            )       
+ 
         # ===== EXPORT & ACTIONS =====
         st.divider()
         col1, col2, col3 = st.columns(3)
