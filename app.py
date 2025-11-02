@@ -876,6 +876,7 @@ def main():
                 action = row.get('Action', '')
                 reasons = row.get('Reasons', '')
                 skills = row.get('Skills', '')
+                added_skills = row.get('Added Skills', '')
                 player_id = row.get('Player ID', '')
                 player_url = row.get('Player URL', '')
                 
@@ -921,15 +922,31 @@ def main():
                             st.markdown(f"**CLB:** {club}")
                             st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
                         
-                        if skills:
-                            with st.expander("📋 Skills"):
-                                skills_list = [s.strip() for s in skills.split(',') if s.strip()]
-                                skills_html = " ".join([
-                                    f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
-                                    f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">{s}</span>'
-                                    for s in skills_list
-                                ])
-                                st.markdown(skills_html, unsafe_allow_html=True)
+                        # Hiển thị Skills
+                        added_skills = row.get('Added Skills', '')
+                        base_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
+                        added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
+                        total_skills = len(base_skills_list) + len(added_skills_list)
+                        
+                        if base_skills_list or added_skills_list:
+                            with st.expander(f"📋 Skills ({total_skills})"):
+                                if base_skills_list:
+                                    st.caption(f"🎮 Gốc ({len(base_skills_list)}):")
+                                    base_html = " ".join([
+                                        f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
+                                        f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">⭐ {s}</span>'
+                                        for s in base_skills_list
+                                    ])
+                                    st.markdown(base_html, unsafe_allow_html=True)
+        
+                                if added_skills_list:
+                                    st.caption(f"➕ Đã thêm ({len(added_skills_list)}):")
+                                    added_html = " ".join([
+                                        f'<span style="background:#d4edda;color:#155724;padding:3px 8px;'
+                                        f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">✅ {s}</span>'
+                                        for s in added_skills_list
+                                    ])
+                                    st.markdown(added_html, unsafe_allow_html=True)
                     
                     with col_action:
                         st.markdown(action_badge, unsafe_allow_html=True)
