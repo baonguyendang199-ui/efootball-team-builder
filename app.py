@@ -1539,27 +1539,117 @@ def main():
     
         st.divider()
     
-        # Hiển thị danh sách đội hình
-        show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Skills']
-        show_cols = [c for c in show_cols if c in squad.columns]
-        squad_display = squad[show_cols].copy()
-        squad_display.insert(0, 'STT', range(1, len(squad_display) + 1))
-        st.dataframe(
-            squad_display,
-            column_config={
-                "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Player": st.column_config.TextColumn("Player", width="medium"),
-                "Rating": st.column_config.NumberColumn("Rating", width="small"),
-                "Position": st.column_config.TextColumn("Position", width="small"),
-                "Player Type": st.column_config.TextColumn("Type", width="small"),
-                "Club": st.column_config.TextColumn("Club", width="medium"),
-                "Nation": st.column_config.TextColumn("Nation", width="small"),
-                "League": st.column_config.TextColumn("League", width="small"),
-                "Skills": st.column_config.TextColumn("Skills", width="large"),
-            },
-            use_container_width=True,
-            hide_index=True
-        )
+        # Chế độ hiển thị
+        squad_view = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=0, key="squad_view")
+        
+        if squad_view == "🎴 Card":
+            # Hiển thị dạng card với hình ảnh
+            st.caption(f"Hiển thị {len(squad)} cầu thủ trong đội hình")
+            
+            # Nhóm theo vị trí
+            positions_order = ['GK', 'CB', 'LB', 'RB', 'DMF', 'CMF', 'AMF', 'LMF', 'RMF', 'LWF', 'RWF', 'SS', 'CF']
+            
+            for pos in positions_order:
+                pos_players = squad[squad['Position'] == pos]
+                if not pos_players.empty:
+                    st.subheader(f"📍 {pos} ({len(pos_players)})")
+                    
+                    for idx, row in pos_players.iterrows():
+                        player_name = row['Player']
+                        rating = row['Rating']
+                        player_type = row['Player Type']
+                        club = row.get('Club', '')
+                        nation = row.get('Nation', '')
+                        league = row.get('League', '')
+                        skills = row.get('Skills', '')
+                        added_skills = row.get('Added Skills', '')
+                        player_id = row.get('Player ID', '')
+                        player_url = row.get('Player URL', '')
+                        
+                        # Tạo URL hình ảnh
+                        image_url = make_ehub_player_image_url(player_id if player_id else player_url)
+                        
+                        # Màu sắc theo loại thẻ
+                        if str(player_type).upper() == "EPIC":
+                            card_color = "🟡"
+                        elif str(player_type).upper() == "POTW":
+                            card_color = "🟣"
+                        else:
+                            card_color = "🔵"
+                        
+                        with st.container(border=True):
+                            col_img, col_info = st.columns([1, 4])
+                            
+                            with col_img:
+                                if image_url:
+                                    st.image(image_url, width=100)
+                                else:
+                                    st.markdown(
+                                        '<div style="width:100px;height:130px;background:#f0f0f0;'
+                                        'display:flex;align-items:center;justify-content:center;'
+                                        'border-radius:8px;font-size:40px;">❓</div>',
+                                        unsafe_allow_html=True
+                                    )
+                            
+                            with col_info:
+                                st.markdown(f"### {card_color} {player_name}")
+                                
+                                info_col1, info_col2, info_col3 = st.columns(3)
+                                with info_col1:
+                                    st.markdown(f"**Rating:** {rating}")
+                                    st.markdown(f"**Loại:** {player_type}")
+                                with info_col2:
+                                    st.markdown(f"**CLB:** {club}")
+                                    st.markdown(f"**Quốc gia:** {nation}")
+                                with info_col3:
+                                    st.markdown(f"**League:** {league}")
+                                
+                                # Hiển thị Skills giống tab players
+                                base_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
+                                added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
+                                total_skills = len(base_skills_list) + len(added_skills_list)
+                                
+                                if base_skills_list or added_skills_list:
+                                    with st.expander(f"📋 Skills ({total_skills})", expanded=False):
+                                        if base_skills_list:
+                                            st.caption(f"🎮 Gốc ({len(base_skills_list)}):")
+                                            base_html = " ".join([
+                                                f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
+                                                f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">⭐ {s}</span>'
+                                                for s in base_skills_list
+                                            ])
+                                            st.markdown(base_html, unsafe_allow_html=True)
+                                        
+                                        if added_skills_list:
+                                            st.caption(f"➕ Đã thêm ({len(added_skills_list)}):")
+                                            added_html = " ".join([
+                                                f'<span style="background:#d4edda;color:#155724;padding:3px 8px;'
+                                                f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">✅ {s}</span>'
+                                                for s in added_skills_list
+                                            ])
+                                            st.markdown(added_html, unsafe_allow_html=True)
+        else:
+            # Hiển thị dạng bảng (CODE CŨ - GIỮ NGUYÊN)
+            show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Skills']
+            show_cols = [c for c in show_cols if c in squad.columns]
+            squad_display = squad[show_cols].copy()
+            squad_display.insert(0, 'STT', range(1, len(squad_display) + 1))
+            st.dataframe(
+                squad_display,
+                column_config={
+                    "STT": st.column_config.NumberColumn("STT", width="small"),
+                    "Player": st.column_config.TextColumn("Player", width="medium"),
+                    "Rating": st.column_config.NumberColumn("Rating", width="small"),
+                    "Position": st.column_config.TextColumn("Position", width="small"),
+                    "Player Type": st.column_config.TextColumn("Type", width="small"),
+                    "Club": st.column_config.TextColumn("Club", width="medium"),
+                    "Nation": st.column_config.TextColumn("Nation", width="small"),
+                    "League": st.column_config.TextColumn("League", width="small"),
+                    "Skills": st.column_config.TextColumn("Skills", width="large"),
+                },
+                use_container_width=True,
+                hide_index=True
+            )
     
         # Phân tích đội hình
         with st.expander("📊 Phân tích đội hình"):
