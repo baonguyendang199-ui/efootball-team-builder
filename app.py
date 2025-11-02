@@ -448,6 +448,19 @@ def main():
         
         st.divider()
         st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
+        
+        # === DEBUG MODE ===
+        st.divider()
+        if st.checkbox("🐛 Debug Mode"):
+            st.caption("**Inventory State:**")
+            inv = load_skill_inventory()
+            st.json(inv if inv else {"status": "empty"})
+            
+            st.caption("**Session State:**")
+            st.write({
+                'current_tab': st.session_state.current_tab,
+                'checkbox_reset_counter': st.session_state.get('checkbox_reset_counter', 0)
+            })
 
     with st.spinner("⏳ Đang tải dữ liệu từ Google Sheets..."):
         df = load_data_from_gsheet()
