@@ -851,116 +851,116 @@ def main():
             filtered_df = filtered_df.sort_values(by=sort_col, ascending=(sort_order == "Tăng dần"))
         
         # ===== DISPLAY TABLE =====
-       st.info(f"📊 Hiển thị **{len(filtered_df)}** / {len(rec_df)} cầu thủ")
+        st.info(f"📊 Hiển thị **{len(filtered_df)}** / {len(rec_df)} cầu thủ")
 
-       # ===== ĐỊNH NGHĨA COLUMNS TRƯỚC (ĐỂ DÙNG CHO EXPORT) =====
-       display_columns = [
-           'Player', 'Rating', 'Position', 'Position Style', 'Player Type',
-           'Club', 'Nation', 'League', 'Action', 'Reasons', 'Skills'
-       ]
-       available_columns = [c for c in display_columns if c in filtered_df.columns]
-       
-       # ===== NÚT CHUYỂN ĐỔI CHỂ ĐỘ HIỂN THỊ =====
-       view_mode = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=0)
-       
-       if view_mode == "🎴 Card":
-           # ===== CHẾ ĐỘ CARD =====
-           for idx, row in filtered_df.iterrows():
-               player_name = row['Player']
-               rating = row['Rating']
-               position = row['Position']
-               player_type = row['Player Type']
-               club = row.get('Club', '')
-               nation = row.get('Nation', '')
-               league = row.get('League', '')
-               action = row.get('Action', '')
-               reasons = row.get('Reasons', '')
-               skills = row.get('Skills', '')
-               player_id = row.get('Player ID', '')
-               player_url = row.get('Player URL', '')
-               
-               # Tạo URL hình ảnh
-               image_url = make_ehub_player_image_url(player_id if player_id else player_url)
-               
-               # Màu sắc theo loại thẻ
-               if str(player_type).upper() == "EPIC":
-                   card_color = "🟡"
-               elif str(player_type).upper() == "POTW":
-                   card_color = "🟣"
-               else:
-                   card_color = "🔵"
-               
-               # Màu action
-               if action == "❌ BÁN":
-                   action_badge = f'<span style="background:#ffebee;color:#c62828;padding:4px 12px;border-radius:12px;font-weight:bold;">{action}</span>'
-               else:
-                   action_badge = f'<span style="background:#e8f5e9;color:#2e7d32;padding:4px 12px;border-radius:12px;font-weight:bold;">{action}</span>'
-               
-               with st.container(border=True):
-                   col_img, col_info, col_action = st.columns([1, 3, 2])
-                   
-                   with col_img:
-                       if image_url:
-                           st.image(image_url, width=100)
-                       else:
-                           st.markdown(
-                               '<div style="width:100px;height:130px;background:#f0f0f0;'
-                               'display:flex;align-items:center;justify-content:center;'
-                               'border-radius:8px;font-size:40px;">❓</div>',
-                               unsafe_allow_html=True
-                           )
-                   
-                   with col_info:
-                       st.markdown(f"### {card_color} {player_name}")
-                       
-                       info_col1, info_col2 = st.columns(2)
-                       with info_col1:
-                           st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
-                           st.markdown(f"**Loại:** {player_type}")
-                       with info_col2:
-                           st.markdown(f"**CLB:** {club}")
-                           st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
-                       
-                       if skills:
-                           with st.expander("📋 Skills"):
-                               skills_list = [s.strip() for s in skills.split(',') if s.strip()]
-                               skills_html = " ".join([
-                                   f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
-                                   f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">{s}</span>'
-                                   for s in skills_list
-                               ])
-                               st.markdown(skills_html, unsafe_allow_html=True)
-                   
-                   with col_action:
-                       st.markdown(action_badge, unsafe_allow_html=True)
-                       st.caption(f"**Lý do:** {reasons}")
-       
-       else:
-           # ===== CHẾ ĐỘ BẢNG =====
-           display_df = filtered_df[available_columns].copy()
-           display_df.insert(0, 'STT', range(1, len(display_df) + 1))
-           
-           st.dataframe(
-               display_df,
-               column_config={
-                   "STT": st.column_config.NumberColumn("STT", width="small"),
-                   "Player": st.column_config.TextColumn("Player", width="medium"),
-                   "Rating": st.column_config.NumberColumn("Rating", width="small"),
-                   "Position": st.column_config.TextColumn("Vị trí", width="small"),
-                   "Position Style": st.column_config.TextColumn("Phong cách", width="small"),
-                   "Player Type": st.column_config.TextColumn("Loại", width="small"),
-                   "Club": st.column_config.TextColumn("Club", width="medium"),
-                   "Nation": st.column_config.TextColumn("Nation", width="small"),
-                   "League": st.column_config.TextColumn("League", width="small"),
-                   "Action": st.column_config.TextColumn("Hành động", width="small"),
-                   "Reasons": st.column_config.TextColumn("Lý do", width="large"),
-                   "Skills": st.column_config.TextColumn("Skills", width="large"),
-               },
-               use_container_width=True,
-               height=600,
-               hide_index=True
-           )
-        # ===== EXPORT & ACTIONS =====
+        # ===== ĐỊNH NGHĨA COLUMNS TRƯỚC (ĐỂ DÙNG CHO EXPORT) =====
+        display_columns = [
+            'Player', 'Rating', 'Position', 'Position Style', 'Player Type',
+            'Club', 'Nation', 'League', 'Action', 'Reasons', 'Skills'
+        ]
+        available_columns = [c for c in display_columns if c in filtered_df.columns]
+        
+        # ===== NÚT CHUYỂN ĐỔI CHỂ ĐỘ HIỂN THỊ =====
+        view_mode = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=0)
+        
+        if view_mode == "🎴 Card":
+            # ===== CHẾ ĐỘ CARD =====
+            for idx, row in filtered_df.iterrows():
+                player_name = row['Player']
+                rating = row['Rating']
+                position = row['Position']
+                player_type = row['Player Type']
+                club = row.get('Club', '')
+                nation = row.get('Nation', '')
+                league = row.get('League', '')
+                action = row.get('Action', '')
+                reasons = row.get('Reasons', '')
+                skills = row.get('Skills', '')
+                player_id = row.get('Player ID', '')
+                player_url = row.get('Player URL', '')
+                
+                # Tạo URL hình ảnh
+                image_url = make_ehub_player_image_url(player_id if player_id else player_url)
+                
+                # Màu sắc theo loại thẻ
+                if str(player_type).upper() == "EPIC":
+                    card_color = "🟡"
+                elif str(player_type).upper() == "POTW":
+                    card_color = "🟣"
+                else:
+                    card_color = "🔵"
+                
+                # Màu action
+                if action == "❌ BÁN":
+                    action_badge = f'<span style="background:#ffebee;color:#c62828;padding:4px 12px;border-radius:12px;font-weight:bold;">{action}</span>'
+                else:
+                    action_badge = f'<span style="background:#e8f5e9;color:#2e7d32;padding:4px 12px;border-radius:12px;font-weight:bold;">{action}</span>'
+                
+                with st.container(border=True):
+                    col_img, col_info, col_action = st.columns([1, 3, 2])
+                    
+                    with col_img:
+                        if image_url:
+                            st.image(image_url, width=100)
+                        else:
+                            st.markdown(
+                                '<div style="width:100px;height:130px;background:#f0f0f0;'
+                                'display:flex;align-items:center;justify-content:center;'
+                                'border-radius:8px;font-size:40px;">❓</div>',
+                                unsafe_allow_html=True
+                            )
+                    
+                    with col_info:
+                        st.markdown(f"### {card_color} {player_name}")
+                        
+                        info_col1, info_col2 = st.columns(2)
+                        with info_col1:
+                            st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
+                            st.markdown(f"**Loại:** {player_type}")
+                        with info_col2:
+                            st.markdown(f"**CLB:** {club}")
+                            st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
+                        
+                        if skills:
+                            with st.expander("📋 Skills"):
+                                skills_list = [s.strip() for s in skills.split(',') if s.strip()]
+                                skills_html = " ".join([
+                                    f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
+                                    f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">{s}</span>'
+                                    for s in skills_list
+                                ])
+                                st.markdown(skills_html, unsafe_allow_html=True)
+                    
+                    with col_action:
+                        st.markdown(action_badge, unsafe_allow_html=True)
+                        st.caption(f"**Lý do:** {reasons}")
+        
+        else:
+            # ===== CHẾ ĐỘ BẢNG =====
+            display_df = filtered_df[available_columns].copy()
+            display_df.insert(0, 'STT', range(1, len(display_df) + 1))
+            
+            st.dataframe(
+                display_df,
+                column_config={
+                    "STT": st.column_config.NumberColumn("STT", width="small"),
+                    "Player": st.column_config.TextColumn("Player", width="medium"),
+                    "Rating": st.column_config.NumberColumn("Rating", width="small"),
+                    "Position": st.column_config.TextColumn("Vị trí", width="small"),
+                    "Position Style": st.column_config.TextColumn("Phong cách", width="small"),
+                    "Player Type": st.column_config.TextColumn("Loại", width="small"),
+                    "Club": st.column_config.TextColumn("Club", width="medium"),
+                    "Nation": st.column_config.TextColumn("Nation", width="small"),
+                    "League": st.column_config.TextColumn("League", width="small"),
+                    "Action": st.column_config.TextColumn("Hành động", width="small"),
+                    "Reasons": st.column_config.TextColumn("Lý do", width="large"),
+                    "Skills": st.column_config.TextColumn("Skills", width="large"),
+                },
+                use_container_width=True,
+                height=600,
+                hide_index=True
+            )        
+# ===== EXPORT & ACTIONS =====
         st.divider()
         col1, col2, col3 = st.columns(3)
         
