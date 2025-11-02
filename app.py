@@ -1123,137 +1123,160 @@ def main():
         st.divider()
         
         if sm_df.empty:
-            st.info("🔍 Không tìm thấy cầu thủ nào")
-        else:
-            MAX_SKILLS = 15
-            MAX_ADDED_SKILLS = 5
+        st.info("🔍 Không tìm thấy cầu thủ nào")
+    else:
+        MAX_SKILLS = 15
+        MAX_ADDED_SKILLS = 5
+        
+        for idx, row in sm_df.iterrows():
+            player_name = row['Player']
+            position = row['Position']
+            rating = row['Rating']
+            player_type = row['Player Type']
             
-            for idx, row in sm_df.iterrows():
-                player_name = row['Player']
-                position = row['Position']
-                rating = row['Rating']
-                player_type = row['Player Type']
-                
-                base_skills = str(df.loc[idx, 'Skills']).strip()
-                added_skills = str(df.loc[idx, 'Added Skills']).strip()
-                
-                base_skills_list = [s.strip() for s in base_skills.split(',') if s.strip()] if base_skills else []
-                added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
-                all_skills_list = base_skills_list + added_skills_list
-                
-                base_count = len(base_skills_list)
-                added_count = len(added_skills_list)
-                total_count = len(all_skills_list)
-                remaining_slots = MAX_ADDED_SKILLS - added_count
-                
-                recommended = get_recommended_skills(position, base_skills, added_skills, MAX_SKILLS)
-                recommended = recommended[:remaining_slots]
-                
-                is_epic = str(player_type).upper() == "EPIC"
-                is_potw = str(player_type).upper() == "POTW"
-                
-                if is_epic:
-                    card_color = "🟡"
-                elif is_potw:
-                    card_color = "🟣"
-                else:
-                    card_color = "🔵"
-                
-                with st.container(border=True):
-                    h1, h2, h3 = st.columns([3, 1, 1])
-                    with h1:
-                        st.markdown(f"### {card_color} {player_name}")
-                    with h2:
-                        st.markdown(f"**{position}** • {rating}")
-                    with h3:
-                        if is_potw:
-                            st.markdown(f"🔒 **POTW**")
-                        elif remaining_slots > 0:
-                            st.markdown(f"💡 **+{remaining_slots}** slot")
-                        else:
-                            st.markdown(f"✅ **Full**")
-                    
-                    st.markdown(f"**📋 Skills:** ({total_count})")
-                    
-                    if base_skills_list:
-                        st.caption(f"🎮 Gốc ({base_count}):")
-                        base_html = " ".join([f'<span style="background:#e3f2fd;color:#1565c0;padding:4px 10px;border-radius:12px;margin:2px;display:inline-block;font-size:13px;border:1px solid #90caf9;">⭐ {s}</span>' for s in base_skills_list])
-                        st.markdown(base_html, unsafe_allow_html=True)
-                    
-                    if added_skills_list:
-                        st.caption(f"➕ Đã thêm ({added_count}):")
-                        added_html = " ".join([f'<span style="background:#d4edda;color:#155724;padding:4px 10px;border-radius:12px;margin:2px;display:inline-block;font-size:13px;border:1px solid #c3e6cb;">✅ {s}</span>' for s in added_skills_list])
-                        st.markdown(added_html, unsafe_allow_html=True)
-                    
-                    if not base_skills_list and not added_skills_list:
-                        st.caption(f"_Chưa có skills (0/{MAX_SKILLS})_")
-                    
+            base_skills = str(df.loc[idx, 'Skills']).strip()
+            added_skills = str(df.loc[idx, 'Added Skills']).strip()
+            
+            base_skills_list = [s.strip() for s in base_skills.split(',') if s.strip()] if base_skills else []
+            added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
+            all_skills_list = base_skills_list + added_skills_list
+            
+            base_count = len(base_skills_list)
+            added_count = len(added_skills_list)
+            total_count = len(all_skills_list)
+            remaining_slots = MAX_ADDED_SKILLS - added_count
+            
+            recommended = get_recommended_skills(position, base_skills, added_skills, MAX_SKILLS)
+            recommended = recommended[:remaining_slots]
+            
+            is_epic = str(player_type).upper() == "EPIC"
+            is_potw = str(player_type).upper() == "POTW"
+            
+            if is_epic:
+                card_color = "🟡"
+            elif is_potw:
+                card_color = "🟣"
+            else:
+                card_color = "🔵"
+            
+            with st.container(border=True):
+                h1, h2, h3 = st.columns([3, 1, 1])
+                with h1:
+                    st.markdown(f"### {card_color} {player_name}")
+                with h2:
+                    st.markdown(f"**{position}** • {rating}")
+                with h3:
                     if is_potw:
-                        st.info("🔒 Cầu thủ POTW không thể thêm skills ngoài skills gốc")
-                    elif total_count >= MAX_SKILLS:
-                        st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
-                    elif recommended:
-                        st.markdown(f"**💡 Gợi ý thêm:** (Còn {remaining_slots} slot)")
-                        
-                        selected_skills = []
-                        num_cols = min(len(recommended), 5)
-                        cols = st.columns(num_cols)
-                        
-                        reset_key = st.session_state.get('checkbox_reset_counter', 0)
-                        inventory = load_skill_inventory()
-                        
-                        for i, skill in enumerate(recommended):
-                            with cols[i % num_cols]:
-                                stock_count = inventory.get(skill, 0)
-                                stock_display = f"({stock_count})" if stock_count > 0 else "(❌)"
-                                label = f"**#{i+1}** {skill} {stock_display}"
-                                
-                                if st.checkbox(label, key=f"skill_{idx}_{i}_{reset_key}", label_visibility="visible"):
-                                    selected_skills.append(skill)
-                        
-                        if selected_skills:
-                            new_total = total_count + len(selected_skills)
-                            
-                            if new_total > MAX_SKILLS:
-                                st.error(f"⚠️ Không thể thêm {len(selected_skills)} skills! (Vượt giới hạn {MAX_SKILLS})")
-                            else:
-                                inventory = load_skill_inventory()
-                                unavailable_skills = []
-                                for skill in selected_skills:
-                                    if inventory.get(skill, 0) <= 0:
-                                        unavailable_skills.append(skill)
-                                
-                                if unavailable_skills:
-                                    st.error(f"⚠️ Kho không đủ skills: {', '.join(unavailable_skills)}")
-                                    st.info("💡 Vui lòng kiểm tra tab 'Kho Skills' để thêm skills cần thiết")
-                                else:
-                                    if st.button(f"➕ Thêm {len(selected_skills)} skill → Tổng: {new_total}/{MAX_SKILLS}", key=f"add_{idx}_{reset_key}", type="primary", use_container_width=True):
-                                        new_added_skills = added_skills_list + selected_skills
-                                        new_added_skills_str = ', '.join(new_added_skills)
-                                        df.at[idx, 'Added Skills'] = new_added_skills_str
-                                        
-                                        try:
-                                            with st.spinner("💾 Đang lưu..."):
-                                                for skill in selected_skills:
-                                                    update_inventory_count(skill, -1)
-                                                
-                                                if save_data_to_gsheet(df):
-                                                    st.cache_data.clear()
-                                            
-                                            st.toast(f"✅ Đã thêm {len(selected_skills)} skills cho {player_name}!", icon="✅")
-                                            st.session_state.checkbox_reset_counter += 1
-                                            st.session_state.current_tab = 'skills'
-                                            
-                                            import time
-                                            time.sleep(0.5)
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(f"❌ Lỗi: {e}")
+                        st.markdown(f"🔒 **POTW**")
+                    elif remaining_slots > 0:
+                        st.markdown(f"💡 **+{remaining_slots}** slot")
                     else:
-                        if total_count < MAX_SKILLS:
-                            st.info(f"ℹ️ Không có gợi ý thêm cho vị trí {position} (Hiện có {total_count}/{MAX_SKILLS} skills)")
+                        st.markdown(f"✅ **Full**")
+                
+                st.markdown(f"**📋 Skills:** ({total_count})")
+                
+                if base_skills_list:
+                    st.caption(f"🎮 Gốc ({base_count}):")
+                    base_html = " ".join([f'<span style="background:#e3f2fd;color:#1565c0;padding:4px 10px;border-radius:12px;margin:2px;display:inline-block;font-size:13px;border:1px solid #90caf9;">⭐ {s}</span>' for s in base_skills_list])
+                    st.markdown(base_html, unsafe_allow_html=True)
+                
+                if added_skills_list:
+                    st.caption(f"➕ Đã thêm ({added_count}):")
+                    added_html = " ".join([f'<span style="background:#d4edda;color:#155724;padding:4px 10px;border-radius:12px;margin:2px;display:inline-block;font-size:13px;border:1px solid #c3e6cb;">✅ {s}</span>' for s in added_skills_list])
+                    st.markdown(added_html, unsafe_allow_html=True)
+                
+                if not base_skills_list and not added_skills_list:
+                    st.caption(f"_Chưa có skills (0/{MAX_SKILLS})_")
+                
+                if is_potw:
+                    st.info("🔒 Cầu thủ POTW không thể thêm skills ngoài skills gốc")
+                elif total_count >= MAX_SKILLS:
+                    st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
+                elif recommended:
+                    st.markdown(f"**💡 Gợi ý thêm:** (Còn {remaining_slots} slot)")
+                    
+                    selected_skills = []
+                    num_cols = min(len(recommended), 5)
+                    cols = st.columns(num_cols)
+                    
+                    reset_key = st.session_state.get('checkbox_reset_counter', 0)
+                    
+                    # 🔧 FIX: Load fresh inventory mỗi lần render
+                    current_inventory = load_skill_inventory()
+                    
+                    for i, skill in enumerate(recommended):
+                        with cols[i % num_cols]:
+                            stock_count = current_inventory.get(skill, 0)
+                            stock_display = f"({stock_count})" if stock_count > 0 else "(❌)"
+                            label = f"**#{i+1}** {skill} {stock_display}"
+                            
+                            # Disable checkbox nếu hết hàng
+                            disabled = stock_count <= 0
+                            
+                            if st.checkbox(label, key=f"skill_{idx}_{i}_{reset_key}", 
+                                         disabled=disabled,
+                                         label_visibility="visible"):
+                                selected_skills.append(skill)
+                    
+                    if selected_skills:
+                        new_total = total_count + len(selected_skills)
+                        
+                        if new_total > MAX_SKILLS:
+                            st.error(f"⚠️ Không thể thêm {len(selected_skills)} skills! (Vượt giới hạn {MAX_SKILLS})")
                         else:
-                            st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
+                            # 🔧 FIX: Kiểm tra inventory REALTIME
+                            fresh_inventory = load_skill_inventory()
+                            unavailable_skills = []
+                            for skill in selected_skills:
+                                if fresh_inventory.get(skill, 0) <= 0:
+                                    unavailable_skills.append(skill)
+                            
+                            if unavailable_skills:
+                                st.error(f"⚠️ Kho không đủ skills: {', '.join(unavailable_skills)}")
+                                st.info("💡 Vui lòng kiểm tra tab 'Kho Skills' để thêm skills cần thiết")
+                            else:
+                                if st.button(f"➕ Thêm {len(selected_skills)} skill → Tổng: {new_total}/{MAX_SKILLS}", 
+                                           key=f"add_{idx}_{reset_key}", 
+                                           type="primary", 
+                                           use_container_width=True):
+                                    
+                                    # 🔧 FIX: Transaction safety
+                                    try:
+                                        with st.spinner("💾 Đang lưu..."):
+                                            # STEP 1: Cập nhật DataFrame
+                                            new_added_skills = added_skills_list + selected_skills
+                                            new_added_skills_str = ', '.join(new_added_skills)
+                                            df.at[idx, 'Added Skills'] = new_added_skills_str
+                                            
+                                            # STEP 2: Lưu vào Google Sheets
+                                            save_success = save_data_to_gsheet(df)
+                                            
+                                            if not save_success:
+                                                raise Exception("Lỗi khi lưu vào Google Sheets")
+                                            
+                                            # STEP 3: CHỈ trừ inventory SAU KHI lưu thành công
+                                            for skill in selected_skills:
+                                                update_inventory_count(skill, -1)
+                                            
+                                            # STEP 4: Clear cache
+                                            st.cache_data.clear()
+                                        
+                                        st.toast(f"✅ Đã thêm {len(selected_skills)} skills cho {player_name}!", icon="✅")
+                                        st.session_state.checkbox_reset_counter += 1
+                                        st.session_state.current_tab = 'skills'
+                                        
+                                        import time
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                        
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi: {e}")
+                                        st.warning("⚠️ Dữ liệu không bị thay đổi - vui lòng thử lại")
+                else:
+                    if total_count < MAX_SKILLS:
+                        st.info(f"ℹ️ Không có gợi ý thêm cho vị trí {position} (Hiện có {total_count}/{MAX_SKILLS} skills)")
+                    else:
+                        st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
 
     elif current_tab == 'squad':
         st.header("⚽ Đội hình")
