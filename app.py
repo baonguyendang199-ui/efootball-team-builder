@@ -1122,7 +1122,7 @@ def main():
         
         st.divider()
         
-        if sm_df.empty:
+    if sm_df.empty:
         st.info("🔍 Không tìm thấy cầu thủ nào")
     else:
         MAX_SKILLS = 15
