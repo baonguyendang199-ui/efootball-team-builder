@@ -237,49 +237,60 @@ APP_DIR = Path(__file__).resolve().parent
 INVENTORY_FILE = APP_DIR / "skill_inventory.json"
 
 def load_skill_inventory():
-    """Load skill inventory from JSON file"""
+    """Load skill inventory from JSON file - NO CACHE"""
     if INVENTORY_FILE.exists():
         try:
             with open(INVENTORY_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
+                data = json.load(f)
+                return data
+        except Exception as e:
+            st.error(f"⚠️ Lỗi đọc inventory: {e}")
             return {}
     return {}
 
 def save_skill_inventory(inventory):
-    """Save skill inventory to JSON file"""
+    """Save skill inventory to JSON file with validation"""
     try:
-        with open(INVENTORY_FILE, 'w', encoding='utf-8') as f:
-            json.dump(inventory, f, ensure_ascii=False, indent=2)
+        # Validate data
+        if not isinstance(inventory, dict):
+            raise ValueError("Inventory phải là dictionary")
+        
+        # Ensure all values are integers
+        cleaned = {k: int(v) for k, v in inventory.items() if int(v) > 0}
+        
+        # Atomic write
+        temp_file = INVENTORY_FILE.with_suffix('.tmp')
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(cleaned, f, ensure_ascii=False, indent=2)
+        
+        # Rename (atomic on most systems)
+        temp_file.replace(INVENTORY_FILE)
         return True
-    except:
+        
+    except Exception as e:
+        st.error(f"⚠️ Lỗi lưu inventory: {e}")
         return False
 
-def get_all_known_skills():
-    """Get all skills from POSITION_SKILLS_PRIORITY"""
-    all_skills = set()
-    for skills_list in POSITION_SKILLS_PRIORITY.values():
-        all_skills.update(skills_list)
-    return sorted(list(all_skills))
-
 def update_inventory_count(skill_name, delta):
-    """Update skill count in inventory by delta (+1 or -1)"""
-    inventory = load_skill_inventory()
-    current = inventory.get(skill_name, 0)
-    new_count = max(0, current + delta)
-    
-    if new_count == 0 and skill_name in inventory:
-        del inventory[skill_name]
-    else:
-        inventory[skill_name] = new_count
-    
-    save_skill_inventory(inventory)
-    return new_count
-
-def check_inventory_availability(skill_name):
-    """Check if skill is available in inventory"""
-    inventory = load_skill_inventory()
-    return inventory.get(skill_name, 0) > 0
+    """Update skill count with file locking"""
+    try:
+        inventory = load_skill_inventory()
+        current = inventory.get(skill_name, 0)
+        new_count = max(0, current + delta)
+        
+        if new_count == 0 and skill_name in inventory:
+            del inventory[skill_name]
+        else:
+            inventory[skill_name] = new_count
+        
+        if save_skill_inventory(inventory):
+            return new_count
+        else:
+            raise Exception("Không thể lưu inventory")
+            
+    except Exception as e:
+        st.error(f"⚠️ Lỗi cập nhật {skill_name}: {e}")
+        return -1
 
 # --- CONFIG ---
 MAX_SQUAD_SIZE = 23
