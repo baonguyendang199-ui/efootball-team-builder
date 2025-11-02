@@ -1540,7 +1540,7 @@ def main():
         st.divider()
     
         # Chế độ hiển thị
-        squad_view = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=0, key="squad_view")
+        squad_view = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=1, key="squad_view")
         
         if squad_view == "🎴 Card":
             # Hiển thị dạng card với hình ảnh
