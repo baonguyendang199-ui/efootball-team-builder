@@ -861,7 +861,7 @@ def main():
         available_columns = [c for c in display_columns if c in filtered_df.columns]
         
         # ===== NÚT CHUYỂN ĐỔI CHỂ ĐỘ HIỂN THỊ =====
-        view_mode = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=0)
+        view_mode = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=1)
         
         if view_mode == "🎴 Card":
             # ===== CHẾ ĐỘ CARD =====
