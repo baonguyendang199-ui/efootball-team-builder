@@ -500,7 +500,7 @@ def main():
                 st.session_state.current_tab = "inventory"
     
         st.divider()
-        st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
+    st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
         
         # === DEBUG MODE ===
         st.divider()
@@ -1769,18 +1769,16 @@ def main():
         )
         existing_players = sorted(df['Player'].astype(str).unique().tolist())
         
-        if mode == "➕ Thêm mới":
-            st.info("💡 Chế độ này thêm cầu thủ hoàn toàn mới, không kiểm tra trùng lặp")
-            
-            with st.form("add_player_form"):
-                c1, c2 = st.columns(2)
-                with c1:
-
-                        player_name = st.text_input("Nhập tên cầu thủ", placeholder="Ví dụ: Lionel Messi")
-
-                    rating = st.number_input("Rating", min_value=1, max_value=150, value=90)
-                    position = st.selectbox("Vị trí", existing_positions)
-                    position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
+       if mode == "➕ Thêm mới":
+           st.info("💡 Chế độ này thêm cầu thủ hoàn toàn mới, không kiểm tra trùng lặp")
+           
+           with st.form("add_player_form"):
+               c1, c2 = st.columns(2)
+               with c1:
+                   player_name = st.text_input("Tên cầu thủ", placeholder="Ví dụ: Lionel Messi")
+                   rating = st.number_input("Rating", min_value=1, max_value=150, value=90)
+                   position = st.selectbox("Vị trí", existing_positions)
+                   position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
                 with c2:
                     player_type = st.selectbox("Loại", ["NON-EPIC", "POTW", "EPIC"])
                     
