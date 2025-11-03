@@ -854,10 +854,10 @@ def main():
             ranks = []
             club_rank = fast_rank(row.get('Club', ''), idx, club_top_map)
             if club_rank: ranks.append(club_rank)
-            league_rank = fast_rank(row.get('League', ''), idx, league_top_map)
-            if league_rank: ranks.append(league_rank)
             nation_rank = fast_rank(row.get('Nation', ''), idx, nation_top_map)
             if nation_rank: ranks.append(nation_rank)
+            league_rank = fast_rank(row.get('League', ''), idx, league_top_map)
+            if league_rank: ranks.append(league_rank)
             # Sắp xếp theo thứ tự Club → League → Nation
             rank_info_list.append("\n".join(ranks) if ranks else "")
         
