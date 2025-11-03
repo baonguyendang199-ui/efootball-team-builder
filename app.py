@@ -1082,30 +1082,30 @@ def main():
                                     ])
                                     st.markdown(added_html, unsafe_allow_html=True)
                     
-                   with col_action:
-                       # Action hiển thị như button
-                       action_html = f"""
-                       <span style="
-                           background:#ffe0e0;
-                           color:#c62828;
-                           padding:4px 10px;
-                           border-radius:12px;
-                           margin:2px;
-                           display:inline-block;
-                           font-size:13px;
-                           font-weight:bold;">
-                           {action_badge}
-                       </span>
-                       """
+                    with col_action:
+                        # Action hiển thị như button
+                        action_html = f"""
+                        <span style="
+                            background:#ffe0e0;
+                            color:#c62828;
+                            padding:4px 10px;
+                            border-radius:12px;
+                            margin:2px;
+                            display:inline-block;
+                            font-size:13px;
+                            font-weight:bold;">
+                            {action_badge}
+                        </span>
+                        """
+                    
+                        # Lý do hiển thị như chip nhỏ
+                        reason_html = " ".join([
+                            f'<span style="background:#f0f0f0;color:#555;padding:3px 8px;'
+                            f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">{r}</span>'
+                            for r in reasons.split(',') if r.strip()
+                        ]) 
                    
-                       # Lý do hiển thị như chip nhỏ
-                       reason_html = " ".join([
-                           f'<span style="background:#f0f0f0;color:#555;padding:3px 8px;'
-                           f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">{r}</span>'
-                           for r in reasons.split(',') if r.strip()
-                       ])
-                   
-                       st.markdown(action_html + "<br>" + reason_html, unsafe_allow_html=True)
+                        st.markdown(action_html + "<br>" + reason_html, unsafe_allow_html=True)
         
         else:
             # ===== CHẾ ĐỘ BẢNG =====
