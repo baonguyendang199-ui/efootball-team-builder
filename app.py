@@ -454,40 +454,51 @@ def main():
 
     with st.sidebar:
         st.header("⚙️ Điều khiển")
+    
+        # Nút tải lại dữ liệu
         if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
             st.rerun()
-        
+    
         st.divider()
-        
-        st.subheader("📑 Điều hướng")
-        
-        if st.button("📊 Tổng quan", use_container_width=True, type="secondary" if st.session_state.current_tab != 'overview' else "primary"):
-            st.session_state.current_tab = 'overview'
-            st.rerun()
-        
-        if st.button("👥 Cầu thủ", use_container_width=True, type="secondary" if st.session_state.current_tab != 'players' else "primary"):
-            st.session_state.current_tab = 'players'
-            st.rerun()
-        
-        if st.button("🎮 Quản lý Skills", use_container_width=True, type="secondary" if st.session_state.current_tab != 'skills' else "primary"):
-            st.session_state.current_tab = 'skills'
-            st.rerun()
-        
-        if st.button("📦 Kho Skills", use_container_width=True, type="secondary" if st.session_state.current_tab != 'inventory' else "primary"):
-            st.session_state.current_tab = 'inventory'
-            st.rerun()
-        
-        if st.button("⚽ Đội hình", use_container_width=True, type="secondary" if st.session_state.current_tab != 'squad' else "primary"):
-            st.session_state.current_tab = 'squad'
-            st.rerun()
-        
-        if st.button("➕ Thêm cầu thủ", use_container_width=True, type="secondary" if st.session_state.current_tab != 'add' else "primary"):
-            st.session_state.current_tab = 'add'
-            st.rerun()
-        
+    
+        # Menu chính
+        main_menu = st.radio(
+            "📑 Điều hướng",
+            ["📊 Tổng quan", "👥 Quản lý cầu thủ", "🎮 Quản lý Skills"],
+            index=0
+        )
+    
+        # Điều hướng chi tiết
+        if main_menu == "📊 Tổng quan":
+            st.session_state.current_tab = "overview"
+    
+        elif main_menu == "👥 Quản lý cầu thủ":
+            sub_menu = st.radio(
+                "⚽ Cầu thủ",
+                ["Danh sách", "Đội hình", "Thêm cầu thủ"],
+                index=0
+            )
+            if sub_menu == "Danh sách":
+                st.session_state.current_tab = "players"
+            elif sub_menu == "Đội hình":
+                st.session_state.current_tab = "squad"
+            else:
+                st.session_state.current_tab = "add"
+    
+        elif main_menu == "🎮 Quản lý Skills":
+            sub_menu = st.radio(
+                "🛠️ Skills",
+                ["Quản lý", "Kho Skills"],
+                index=0
+            )
+            if sub_menu == "Quản lý":
+                st.session_state.current_tab = "skills"
+            else:
+                st.session_state.current_tab = "inventory"
+    
         st.divider()
         st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
         
