@@ -1756,23 +1756,17 @@ def main():
                                 with info_col3:
                                     st.markdown(f"**League:** {league}")
                                     ranks = []
-                                    # Chỉ hiển thị nếu Club nằm trong target_clubs
-                                    if row.get('Club') in target_clubs:
-                                        cr = fast_rank(row.get('Club',''), row.name, club_top_map)
-                                        if cr: ranks.append(cr)
-                                    # Chỉ hiển thị nếu League nằm trong target_leagues
-                                    if row.get('League') in target_leagues:
-                                        lr = fast_rank(row.get('League',''), row.name, league_top_map)
-                                        if lr: ranks.append(lr)
-                                    # Chỉ hiển thị nếu Nation nằm trong target_nations
-                                    if row.get('Nation') in target_nations:
-                                        nr = fast_rank(row.get('Nation',''), row.name, nation_top_map)
-                                        if nr: ranks.append(nr)
-                                
+                                    cr = fast_rank(row.get('Club',''), row.name, club_top_map)
+                                    if cr: ranks.append(cr)
+                                    lr = fast_rank(row.get('League',''), row.name, league_top_map)
+                                    if lr: ranks.append(lr)
+                                    nr = fast_rank(row.get('Nation',''), row.name, nation_top_map)
+                                    if nr: ranks.append(nr)
+                                    
                                     if ranks:
                                         st.markdown("**Rank:**")
                                         st.markdown(f"<pre style='margin-top:-8px'>{chr(10).join(ranks)}</pre>", unsafe_allow_html=True)
-                                                                
+                                
                                 # Hiển thị Skills giống tab players
                                 base_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
                                 added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
