@@ -613,7 +613,7 @@ def main():
         st.divider()
 
         import plotly.express as px
-
+        
         # ⚽ Top 10 Clubs
         st.subheader("⚽ Top 10 Clubs")
         club_counts = df['Club'].value_counts().reset_index(name='Số lượng')
@@ -622,15 +622,14 @@ def main():
         
         fig_club = px.bar(
             club_counts,
-            x="Số lượng",
-            y="Câu lạc bộ",
-            orientation="v",
+            x="Câu lạc bộ",   # trục X là tên CLB
+            y="Số lượng",     # trục Y là số lượng
             text="Số lượng"
         )
         fig_club.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_club.update_layout(
-            yaxis=dict(categoryorder="total ascending", autorange=True),
-            xaxis=dict(autorange=True),
+            xaxis=dict(categoryorder="total descending", autorange=True),
+            yaxis=dict(autorange=True),
             dragmode="pan"
         )
         config = {
@@ -654,15 +653,14 @@ def main():
         
         fig_nation = px.bar(
             nation_counts,
-            x="Số lượng",
-            y="Quốc gia",
-            orientation="v",
+            x="Quốc gia",
+            y="Số lượng",
             text="Số lượng"
         )
         fig_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_nation.update_layout(
-            yaxis=dict(categoryorder="total ascending", autorange=True),
-            xaxis=dict(autorange=True),
+            xaxis=dict(categoryorder="total descending", autorange=True),
+            yaxis=dict(autorange=True),
             dragmode="pan"
         )
         st.plotly_chart(fig_nation, use_container_width=True, config=config)
@@ -677,15 +675,14 @@ def main():
         
         fig_league = px.bar(
             league_counts,
-            x="Số lượng",
-            y="Giải đấu",
-            orientation="v",
+            x="Giải đấu",
+            y="Số lượng",
             text="Số lượng"
         )
         fig_league.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_league.update_layout(
-            yaxis=dict(categoryorder="total ascending", autorange=True),
-            xaxis=dict(autorange=True),
+            xaxis=dict(categoryorder="total descending", autorange=True),
+            yaxis=dict(autorange=True),
             dragmode="pan"
         )
         st.plotly_chart(fig_league, use_container_width=True, config=config)
