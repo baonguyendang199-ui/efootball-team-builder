@@ -566,17 +566,15 @@ def main():
         club_counts = df['Club'].value_counts().reset_index(name='Số lượng')
         club_counts.columns = ['Câu lạc bộ', 'Số lượng']
         club_counts = club_counts.head(10)
-        club_counts['Hiển thị'] = club_counts['Câu lạc bộ'] + " (" + club_counts['Số lượng'].astype(str) + ")"
         
         fig_club = px.bar(
             club_counts,
             x="Số lượng",
-            y="Hiển thị",
+            y="Câu lạc bộ",
             orientation="h",
-            text="Số lượng",
-            hover_data={"Số lượng": True, "Câu lạc bộ": False, "Hiển thị": False}
+            text="Số lượng"
         )
-        fig_club.update_traces(textposition="outside")
+        fig_club.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_club.update_layout(yaxis=dict(categoryorder="total ascending"))
         st.plotly_chart(fig_club, use_container_width=True)
         
@@ -587,17 +585,15 @@ def main():
         nation_counts = df['Nation'].value_counts().reset_index(name='Số lượng')
         nation_counts.columns = ['Quốc gia', 'Số lượng']
         nation_counts = nation_counts.head(10)
-        nation_counts['Hiển thị'] = nation_counts['Quốc gia'] + " (" + nation_counts['Số lượng'].astype(str) + ")"
         
         fig_nation = px.bar(
             nation_counts,
             x="Số lượng",
-            y="Hiển thị",
+            y="Quốc gia",
             orientation="h",
-            text="Số lượng",
-            hover_data={"Số lượng": True, "Quốc gia": False, "Hiển thị": False}
+            text="Số lượng"
         )
-        fig_nation.update_traces(textposition="outside")
+        fig_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_nation.update_layout(yaxis=dict(categoryorder="total ascending"))
         st.plotly_chart(fig_nation, use_container_width=True)
         
@@ -608,17 +604,15 @@ def main():
         league_counts = df['League'].value_counts().reset_index(name='Số lượng')
         league_counts.columns = ['Giải đấu', 'Số lượng']
         league_counts = league_counts.head(10)
-        league_counts['Hiển thị'] = league_counts['Giải đấu'] + " (" + league_counts['Số lượng'].astype(str) + ")"
         
         fig_league = px.bar(
             league_counts,
             x="Số lượng",
-            y="Hiển thị",
+            y="Giải đấu",
             orientation="h",
-            text="Số lượng",
-            hover_data={"Số lượng": True, "Giải đấu": False, "Hiển thị": False}
+            text="Số lượng"
         )
-        fig_league.update_traces(textposition="outside")
+        fig_league.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_league.update_layout(yaxis=dict(categoryorder="total ascending"))
         st.plotly_chart(fig_league, use_container_width=True)
         
@@ -629,17 +623,15 @@ def main():
         pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
         pos_counts.columns = ['Vị trí', 'Số lượng']
         pos_counts = pos_counts.sort_values('Số lượng', ascending=False)
-        pos_counts['Hiển thị'] = pos_counts['Vị trí'] + " (" + pos_counts['Số lượng'].astype(str) + ")"
         
         fig_pos = px.bar(
             pos_counts,
             x="Số lượng",
-            y="Hiển thị",
+            y="Vị trí",
             orientation="h",
-            text="Số lượng",
-            hover_data={"Số lượng": True, "Vị trí": False, "Hiển thị": False}
+            text="Số lượng"
         )
-        fig_pos.update_traces(textposition="outside")
+        fig_pos.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_pos.update_layout(yaxis=dict(categoryorder="total ascending"))
         st.plotly_chart(fig_pos, use_container_width=True)
         
@@ -650,20 +642,18 @@ def main():
         type_counts = df['Player Type'].value_counts().reset_index(name='Số lượng')
         type_counts.columns = ['Loại', 'Số lượng']
         type_counts = type_counts.sort_values('Số lượng', ascending=False)
-        type_counts['Hiển thị'] = type_counts['Loại'] + " (" + type_counts['Số lượng'].astype(str) + ")"
         
         fig_type = px.bar(
             type_counts,
             x="Số lượng",
-            y="Hiển thị",
+            y="Loại",
             orientation="h",
-            text="Số lượng",
-            hover_data={"Số lượng": True, "Loại": False, "Hiển thị": False}
+            text="Số lượng"
         )
-        fig_type.update_traces(textposition="outside")
+        fig_type.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_type.update_layout(yaxis=dict(categoryorder="total ascending"))
         st.plotly_chart(fig_type, use_container_width=True)
-                
+                        
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
 
