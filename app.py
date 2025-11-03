@@ -1026,7 +1026,7 @@ def main():
                     action_badge = f'<span style="background:#e8f5e9;color:#2e7d32;padding:4px 12px;border-radius:12px;font-weight:bold;">{action}</span>'
                 
                 with st.container(border=True):
-                    col_img, col_info, col_action = st.columns([1, 3, 2])
+                    col_img, col_info = st.columns([1, 5])
                     
                     with col_img:
                         if image_url:
