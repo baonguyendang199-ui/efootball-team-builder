@@ -1755,17 +1755,27 @@ def main():
                                     st.markdown(f"**Quốc gia:** {nation}")
                                 with info_col3:
                                     st.markdown(f"**League:** {league}")
-                                    ranks = []
-                                    cr = fast_rank(row.get('Club',''), row.name, club_top_map)
-                                    if cr: ranks.append(cr)
-                                    lr = fast_rank(row.get('League',''), row.name, league_top_map)
-                                    if lr: ranks.append(lr)
-                                    nr = fast_rank(row.get('Nation',''), row.name, nation_top_map)
-                                    if nr: ranks.append(nr)
+                                    rank_info_list = []
+                                    for idx, row in rec_df.iterrows():
+                                        ranks = []
+                                        # Chỉ hiển thị nếu Club nằm trong target_clubs
+                                        if row.get('Club') in target_clubs:
+                                            club_rank = fast_rank(row.get('Club', ''), idx, club_top_map)
+                                            if club_rank: ranks.append(club_rank)
                                     
-                                    if ranks:
-                                        st.markdown("**Rank:**")
-                                        st.markdown(f"<pre style='margin-top:-8px'>{chr(10).join(ranks)}</pre>", unsafe_allow_html=True)
+                                        # Chỉ hiển thị nếu League nằm trong target_leagues
+                                        if row.get('League') in target_leagues:
+                                            league_rank = fast_rank(row.get('League', ''), idx, league_top_map)
+                                            if league_rank: ranks.append(league_rank)
+                                    
+                                        # Chỉ hiển thị nếu Nation nằm trong target_nations
+                                        if row.get('Nation') in target_nations:
+                                            nation_rank = fast_rank(row.get('Nation', ''), idx, nation_top_map)
+                                            if nation_rank: ranks.append(nation_rank)
+                                    
+                                        rank_info_list.append("\n".join(ranks) if ranks else "")
+                                    
+                                    rec_df['Rank_Info'] = rank_info_list
                                 
                                 # Hiển thị Skills giống tab players
                                 base_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
