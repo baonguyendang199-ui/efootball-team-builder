@@ -628,8 +628,21 @@ def main():
             text="Số lượng"
         )
         fig_club.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-        fig_club.update_layout(yaxis=dict(categoryorder="total ascending"))
-        st.plotly_chart(fig_club, use_container_width=True)
+        fig_club.update_layout(
+            yaxis=dict(categoryorder="total ascending", autorange=True),
+            xaxis=dict(autorange=True),
+            dragmode="pan"
+        )
+        config = {
+            "displayModeBar": True,
+            "modeBarButtonsToRemove": [
+                "zoom2d", "zoomIn2d", "zoomOut2d",
+                "autoScale2d", "resetScale2d",
+                "select2d", "lasso2d"
+            ],
+            "displaylogo": False
+        }
+        st.plotly_chart(fig_club, use_container_width=True, config=config)
         
         st.divider()
         
@@ -647,8 +660,12 @@ def main():
             text="Số lượng"
         )
         fig_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-        fig_nation.update_layout(yaxis=dict(categoryorder="total ascending"))
-        st.plotly_chart(fig_nation, use_container_width=True)
+        fig_nation.update_layout(
+            yaxis=dict(categoryorder="total ascending", autorange=True),
+            xaxis=dict(autorange=True),
+            dragmode="pan"
+        )
+        st.plotly_chart(fig_nation, use_container_width=True, config=config)
         
         st.divider()
         
@@ -666,8 +683,12 @@ def main():
             text="Số lượng"
         )
         fig_league.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-        fig_league.update_layout(yaxis=dict(categoryorder="total ascending"))
-        st.plotly_chart(fig_league, use_container_width=True)
+        fig_league.update_layout(
+            yaxis=dict(categoryorder="total ascending", autorange=True),
+            xaxis=dict(autorange=True),
+            dragmode="pan"
+        )
+        st.plotly_chart(fig_league, use_container_width=True, config=config)
         
         st.divider()
         
@@ -679,7 +700,7 @@ def main():
         fig_pos = px.pie(
             pos_counts,
             names="Vị trí",
-        values="Số lượng",
+            values="Số lượng",
             hole=0.3
         )
         fig_pos.update_traces(
@@ -687,7 +708,8 @@ def main():
             hoverinfo="skip",
             hovertemplate=None
         )
-        st.plotly_chart(fig_pos, use_container_width=True)
+        fig_pos.update_layout(dragmode="pan")
+        st.plotly_chart(fig_pos, use_container_width=True, config=config)
         
         st.divider()
         
@@ -707,7 +729,8 @@ def main():
             hoverinfo="skip",
             hovertemplate=None
         )
-        st.plotly_chart(fig_type, use_container_width=True)
+        fig_type.update_layout(dragmode="pan")
+        st.plotly_chart(fig_type, use_container_width=True, config=config)
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
