@@ -624,7 +624,7 @@ def main():
             club_counts,
             x="Số lượng",
             y="Câu lạc bộ",
-            orientation="h",
+            orientation="v",
             text="Số lượng"
         )
         fig_club.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
@@ -656,7 +656,7 @@ def main():
             nation_counts,
             x="Số lượng",
             y="Quốc gia",
-            orientation="h",
+            orientation="v",
             text="Số lượng"
         )
         fig_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
@@ -679,7 +679,7 @@ def main():
             league_counts,
             x="Số lượng",
             y="Giải đấu",
-            orientation="h",
+            orientation="v",
             text="Số lượng"
         )
         fig_league.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
