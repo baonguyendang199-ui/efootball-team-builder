@@ -239,49 +239,85 @@ def get_all_known_skills():
         all_skills.update(skills_list)
     return sorted(list(all_skills))
 
-# --- SKILL INVENTORY MANAGEMENT ---
-APP_DIR = Path(__file__).resolve().parent
-INVENTORY_FILE = APP_DIR / "skill_inventory.json"
-
-def load_skill_inventory():
-    """Load skill inventory from JSON file - NO CACHE"""
-    if INVENTORY_FILE.exists():
-        try:
-            with open(INVENTORY_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data
-        except Exception as e:
-            st.error(f"⚠️ Lỗi đọc inventory: {e}")
-            return {}
-    return {}
-
-def save_skill_inventory(inventory):
-    """Save skill inventory to JSON file with validation"""
+# --- SKILL INVENTORY MANAGEMENT (Google Sheets) ---
+@st.cache_data(ttl=10)
+def load_skill_inventory_from_gsheet():
+    """Đọc skill inventory từ Google Sheets"""
     try:
-        # Validate data
-        if not isinstance(inventory, dict):
-            raise ValueError("Inventory phải là dictionary")
+        client = get_gsheet_connection()
+        spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
         
-        # Ensure all values are integers
-        cleaned = {k: int(v) for k, v in inventory.items() if int(v) > 0}
+        # Tìm hoặc tạo sheet "Skill_Inventory"
+        try:
+            sheet = spreadsheet.worksheet("Skill_Inventory")
+        except:
+            # Nếu chưa có sheet, tạo mới
+            sheet = spreadsheet.add_worksheet(title="Skill_Inventory", rows=100, cols=2)
+            sheet.update([["Skill Name", "Quantity"]])
+            return {}
         
-        # Atomic write
-        temp_file = INVENTORY_FILE.with_suffix('.tmp')
-        with open(temp_file, 'w', encoding='utf-8') as f:
-            json.dump(cleaned, f, ensure_ascii=False, indent=2)
+        data = sheet.get_all_records()
         
-        # Rename (atomic on most systems)
-        temp_file.replace(INVENTORY_FILE)
+        if not data:
+            return {}
+        
+        # Convert to dict
+        inventory = {}
+        for row in data:
+            skill_name = str(row.get('Skill Name', '')).strip()
+            quantity = row.get('Quantity', 0)
+            
+            if skill_name:
+                try:
+                    inventory[skill_name] = int(quantity)
+                except:
+                    inventory[skill_name] = 0
+        
+        return inventory
+        
+    except Exception as e:
+        st.error(f"❌ Lỗi đọc inventory từ Google Sheets: {e}")
+        return {}
+
+def save_skill_inventory_to_gsheet(inventory):
+    """Lưu skill inventory lên Google Sheets"""
+    try:
+        client = get_gsheet_connection()
+        spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
+        
+        # Tìm hoặc tạo sheet
+        try:
+            sheet = spreadsheet.worksheet("Skill_Inventory")
+        except:
+            sheet = spreadsheet.add_worksheet(title="Skill_Inventory", rows=100, cols=2)
+        
+        # Prepare data
+        rows = [["Skill Name", "Quantity"]]
+        for skill_name, quantity in sorted(inventory.items()):
+            if quantity > 0:  # Chỉ lưu skills có số lượng > 0
+                rows.append([skill_name, int(quantity)])
+        
+        # Clear and update
+        sheet.clear()
+        sheet.update(rows)
+        
+        # Clear cache để load lại data mới
+        st.cache_data.clear()
+        
         return True
         
     except Exception as e:
-        st.error(f"⚠️ Lỗi lưu inventory: {e}")
+        st.error(f"❌ Lỗi lưu inventory: {e}")
         return False
 
+def get_inventory():
+    """Get inventory (with cache)"""
+    return load_skill_inventory_from_gsheet()
+
 def update_inventory_count(skill_name, delta):
-    """Update skill count with file locking"""
+    """Update skill count trực tiếp trên Google Sheets"""
     try:
-        inventory = load_skill_inventory()
+        inventory = get_inventory()
         current = inventory.get(skill_name, 0)
         new_count = max(0, current + delta)
         
@@ -290,7 +326,8 @@ def update_inventory_count(skill_name, delta):
         else:
             inventory[skill_name] = new_count
         
-        if save_skill_inventory(inventory):
+        # Lưu lại Google Sheets
+        if save_skill_inventory_to_gsheet(inventory):
             return new_count
         else:
             raise Exception("Không thể lưu inventory")
