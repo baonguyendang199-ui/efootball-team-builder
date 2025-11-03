@@ -1766,8 +1766,8 @@ def main():
                                     if lr: ranks.append(lr)
                                  
                                     if ranks:
-                                        st.markdown("**Rank:**")
-                                        st.markdown(f"<pre style='margin-top:-8px'>{chr(10).join(ranks)}</pre>", unsafe_allow_html=True)
+                                        rank_inline = ", ".join(ranks)
+                                        st.markdown(f"**Rank:** {rank_inline}")
                                 
                                 # Hiển thị Skills giống tab players
                                 base_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
