@@ -232,6 +232,31 @@ def get_recommended_skills(position: str, base_skills: str, added_skills: str, m
     
     return missing_skills[:remaining_slots]
 
+def get_player_rank(df, row, group_by, max_size=23):
+    """Trả về rank của 1 cầu thủ trong group (Club/Nation/League) theo Top 23."""
+    value = row.get(group_by, "")
+    if not value:
+        return None
+    
+    group_df = df[df[group_by].astype(str) == str(value)].copy()
+    if group_df.empty:
+        return None
+    
+    # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
+    if group_by in ['Nation', 'League']:
+        group_df = group_df.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+        group_df = group_df.drop_duplicates(subset=['Player'], keep='first')
+
+    # Sắp xếp theo Rating (giảm dần), ưu tiên EPIC (Epic_Priority nhỏ hơn)
+    group_df = group_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(max_size)
+    
+    # Tìm vị trí của cầu thủ theo index gốc
+    try:
+        rank = group_df.index.get_loc(row.name) + 1
+        return f"{rank}/{len(group_df)} {value}"
+    except KeyError:
+        return None
+
 def get_all_known_skills():
     """Get all unique skills from POSITION_SKILLS_PRIORITY"""
     all_skills = set()
@@ -517,10 +542,38 @@ def main():
 
     with st.spinner("⏳ Đang tải dữ liệu từ Google Sheets..."):
         df = load_data_from_gsheet()
+
+    def build_top23_map(df, group_by, max_size=23):
+        """Tạo mapping {(group_value, player_index) -> 'rank/size group_value'}."""
+        top_map = {}
+        values = [v for v in df[group_by].dropna().astype(str).unique() if v.strip()]
+        for value in values:
+            gdf = df[df[group_by].astype(str) == value].copy()
+            if gdf.empty:
+                continue
+            # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
+            if group_by in ['Nation', 'League']:
+                gdf = gdf.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+                gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
+            # Sắp xếp theo Rating và Epic_Priority
+            gdf = gdf.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(max_size)
+            size = len(gdf)
+            for rank, idx in enumerate(gdf.index.tolist(), start=1):
+                top_map[(value, idx)] = f"{rank}/{size} {value}"
+        return top_map
     
-    if df.empty:
-        st.error("Không có dữ liệu cầu thủ!")
-        return
+    # Tạo map cho 3 nhóm
+    club_top_map = build_top23_map(df, 'Club')
+    league_top_map = build_top23_map(df, 'League')
+    nation_top_map = build_top23_map(df, 'Nation')
+    
+    # Hàm tra cứu nhanh
+    def fast_rank(value, idx, mapping):
+        return mapping.get((str(value), idx), None)
+        
+        if df.empty:
+            st.error("Không có dữ liệu cầu thủ!")
+            return
 
     needs_extraction = df[
         (df['Player URL'].astype(str).str.startswith('http')) & 
