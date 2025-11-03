@@ -631,7 +631,8 @@ def main():
         )
         fig_pos.update_traces(
             textinfo="percent+label",
-            hovertemplate="%{label}: %{percent}"
+            hoverinfo="skip",
+            hovertemplate=None
         )
         st.plotly_chart(fig_pos, use_container_width=True)
         
@@ -650,7 +651,8 @@ def main():
         )
         fig_type.update_traces(
             textinfo="percent+label",
-            hovertemplate="%{label}: %{percent}"
+            hoverinfo="skip",
+            hovertemplate=None
         )
         st.plotly_chart(fig_type, use_container_width=True)
 
