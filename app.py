@@ -562,7 +562,7 @@ def main():
         import plotly.express as px
 
         # ⚽ Top 10 Clubs
-        .subheader("⚽ Top 10 Clubs")
+        st.subheader("⚽ Top 10 Clubs")
         club_counts = df['Club'].value_counts().reset_index(name='Số lượng')
         club_counts.columns = ['Câu lạc bộ', 'Số lượng']
         club_counts = club_counts.head(10)
