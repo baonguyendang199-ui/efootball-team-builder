@@ -618,42 +618,42 @@ def main():
         
         st.divider()
         
-        # 📍 Phân bố theo vị trí
+        # 📍 Phân bố theo vị trí (Pie Chart)
         st.subheader("📍 Phân bố theo vị trí")
         pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
         pos_counts.columns = ['Vị trí', 'Số lượng']
-        pos_counts = pos_counts.sort_values('Số lượng', ascending=False)
         
-        fig_pos = px.bar(
+        fig_pos = px.pie(
             pos_counts,
-            x="Số lượng",
-            y="Vị trí",
-            orientation="h",
-            text="Số lượng"
+            names="Vị trí",
+        values="Số lượng",
+            hole=0.3
         )
-        fig_pos.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-        fig_pos.update_layout(yaxis=dict(categoryorder="total ascending"))
+        fig_pos.update_traces(
+            textinfo="percent+label",
+            hovertemplate="%{label}: %{percent}"
+        )
         st.plotly_chart(fig_pos, use_container_width=True)
         
         st.divider()
         
-        # 🏷️ Phân bố theo loại
+        # 🏷️ Phân bố theo loại (Pie Chart)
         st.subheader("🏷️ Phân bố theo loại")
         type_counts = df['Player Type'].value_counts().reset_index(name='Số lượng')
         type_counts.columns = ['Loại', 'Số lượng']
-        type_counts = type_counts.sort_values('Số lượng', ascending=False)
         
-        fig_type = px.bar(
+        fig_type = px.pie(
             type_counts,
-            x="Số lượng",
-            y="Loại",
-            orientation="h",
-            text="Số lượng"
+            names="Loại",
+            values="Số lượng",
+            hole=0.3
         )
-        fig_type.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-        fig_type.update_layout(yaxis=dict(categoryorder="total ascending"))
+        fig_type.update_traces(
+            textinfo="percent+label",
+            hovertemplate="%{label}: %{percent}"
+        )
         st.plotly_chart(fig_type, use_container_width=True)
-                        
+
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
 
