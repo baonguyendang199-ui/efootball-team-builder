@@ -559,90 +559,54 @@ def main():
 
         st.divider()
 
-        # Phân bố theo vị trí
+        # 📍 Phân bố theo vị trí
         st.subheader("📍 Phân bố theo vị trí")
-        pos_counts = df['Position'].value_counts().reset_index(name='Count')
-        pos_counts.columns = ['Position', 'Count']
-        pos_counts = pos_counts.sort_values('Count', ascending=False)
-
-        # Căn giữa và hiển thị không scroll
-        pos_counts_styled = pos_counts.style.set_properties(**{
-            'text-align': 'center'
-        }).set_table_styles([{
-            'selector': 'th',
-            'props': [('text-align', 'center')]
-        }])
-
-        st.table(pos_counts_styled)
-
+        pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
+        pos_counts.columns = ['Vị trí', 'Số lượng']
+        pos_counts = pos_counts.sort_values('Số lượng', ascending=False)
+        pos_counts.insert(0, 'STT', range(1, len(pos_counts) + 1))
+        st.table(pos_counts)
+        
         st.divider()
-
-        # Phân bố theo loại
+        
+        # 🏷️ Phân bố theo loại
         st.subheader("🏷️ Phân bố theo loại")
-        type_counts = df['Player Type'].value_counts().reset_index(name='Count')
-        type_counts.columns = ['Player Type', 'Count']
-        type_counts = type_counts.sort_values('Count', ascending=False)
+        type_counts = df['Player Type'].value_counts().reset_index(name='Số lượng')
+        type_counts.columns = ['Loại', 'Số lượng']
+        type_counts = type_counts.sort_values('Số lượng', ascending=False)
         type_counts.insert(0, 'STT', range(1, len(type_counts) + 1))
-        st.dataframe(type_counts, 
-            column_config={
-                "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Player Type": st.column_config.TextColumn("Loại", width="small"),
-                "Count": st.column_config.NumberColumn("Số lượng", width="small"),
-            },
-            use_container_width=True, 
-            hide_index=True)
-
+        st.table(type_counts)
+        
         st.divider()
-
-        # Top Leagues
+        
+        # 🏆 Top 10 Leagues
         st.subheader("🏆 Top 10 Leagues")
-        league_counts = df['League'].value_counts().reset_index(name='Count')
-        league_counts.columns = ['League', 'Count']
+        league_counts = df['League'].value_counts().reset_index(name='Số lượng')
+        league_counts.columns = ['Giải đấu', 'Số lượng']
         league_counts = league_counts.head(10)
         league_counts.insert(0, 'STT', range(1, len(league_counts) + 1))
-        st.dataframe(league_counts, 
-            column_config={
-                "STT": st.column_config.NumberColumn("STT", width="small"),
-                "League": st.column_config.TextColumn("Giải đấu", width="small"),
-                "Count": st.column_config.NumberColumn("Số lượng", width="small"),
-            },
-            use_container_width=True, 
-            hide_index=True)
-
+        st.table(league_counts)
+        
         st.divider()
-
-        # Top Clubs
+        
+        # ⚽ Top 10 Clubs
         st.subheader("⚽ Top 10 Clubs")
-        club_counts = df['Club'].value_counts().reset_index(name='Count')
-        club_counts.columns = ['Club', 'Count']
+        club_counts = df['Club'].value_counts().reset_index(name='Số lượng')
+        club_counts.columns = ['Câu lạc bộ', 'Số lượng']
         club_counts = club_counts.head(10)
         club_counts.insert(0, 'STT', range(1, len(club_counts) + 1))
-        st.dataframe(club_counts, 
-            column_config={
-                "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Club": st.column_config.TextColumn("Câu lạc bộ", width="small"),
-                "Count": st.column_config.NumberColumn("Số lượng", width="small"),
-            },
-            use_container_width=True, 
-            hide_index=True)
-
+        st.table(club_counts)
+        
         st.divider()
-
-        # Top Nations
+        
+        # 🌍 Top 10 Nations
         st.subheader("🌍 Top 10 Nations")
-        nation_counts = df['Nation'].value_counts().reset_index(name='Count')
-        nation_counts.columns = ['Nation', 'Count']
+        nation_counts = df['Nation'].value_counts().reset_index(name='Số lượng')
+        nation_counts.columns = ['Quốc gia', 'Số lượng']
         nation_counts = nation_counts.head(10)
         nation_counts.insert(0, 'STT', range(1, len(nation_counts) + 1))
-        st.dataframe(nation_counts, 
-            column_config={
-                "STT": st.column_config.NumberColumn("STT", width="small"),
-                "Nation": st.column_config.TextColumn("Quốc gia", width="small"),
-                "Count": st.column_config.NumberColumn("Số lượng", width="small"),
-            },
-            use_container_width=True, 
-            hide_index=True)
-
+        st.table(nation_counts)
+        
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
 
