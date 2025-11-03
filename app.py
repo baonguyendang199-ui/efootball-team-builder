@@ -241,7 +241,7 @@ def get_all_known_skills():
 
 # --- SKILL INVENTORY MANAGEMENT (Google Sheets) ---
 @st.cache_data(ttl=10)
-def load_skill_inventory_from_gsheet():
+def get_inventory_from_gsheet():
     """Đọc skill inventory từ Google Sheets"""
     try:
         client = get_gsheet_connection()
@@ -312,7 +312,7 @@ def save_skill_inventory_to_gsheet(inventory):
 
 def get_inventory():
     """Get inventory (with cache)"""
-    return load_skill_inventory_from_gsheet()
+    return get_inventory_from_gsheet()
 
 def update_inventory_count(skill_name, delta):
     """Update skill count trực tiếp trên Google Sheets"""
@@ -495,7 +495,7 @@ def main():
         st.divider()
         if st.checkbox("🐛 Debug Mode"):
             st.caption("**Inventory State:**")
-            inv = load_skill_inventory()
+            inv = get_inventory()
             st.json(inv if inv else {"status": "empty"})
             
             st.caption("**Session State:**")
@@ -1369,7 +1369,7 @@ def main():
                         reset_key = st.session_state.get('checkbox_reset_counter', 0)
                         
                         # 🔧 FIX: Load fresh inventory mỗi lần render
-                        current_inventory = load_skill_inventory()
+                        current_inventory = get_inventory()
                         
                         for i, skill in enumerate(recommended):
                             with cols[i % num_cols]:
@@ -1392,7 +1392,7 @@ def main():
                                 st.error(f"⚠️ Không thể thêm {len(selected_skills)} skills! (Vượt giới hạn {MAX_SKILLS})")
                             else:
                                 # 🔧 FIX: Kiểm tra inventory REALTIME
-                                fresh_inventory = load_skill_inventory()
+                                fresh_inventory = get_inventory()
                                 unavailable_skills = []
                                 for skill in selected_skills:
                                     if fresh_inventory.get(skill, 0) <= 0:
@@ -1984,7 +1984,7 @@ def main():
     elif current_tab == 'inventory':
         st.header("📦 Kho Skills")
         
-        inventory = load_skill_inventory()
+        inventory = get_inventory()
         all_known_skills = get_all_known_skills()
         
         col1, col2, col3 = st.columns(3)
@@ -2096,7 +2096,7 @@ def main():
                 try:
                     imported_data = json.load(uploaded_file)
                     if st.button("✅ Xác nhận nhập kho", type="primary"):
-                        save_skill_inventory(imported_data)
+                        save_skill_inventory_to_gsheet(imported_data)
                         st.success("✅ Đã nhập kho thành công!")
                         st.rerun()
                 except Exception as e:
@@ -2107,7 +2107,7 @@ def main():
             st.subheader("⚠️ Xóa kho")
             if st.button("🗑️ Xóa toàn bộ kho", type="secondary", use_container_width=True):
                 if st.checkbox("Xác nhận xóa toàn bộ kho skills"):
-                    save_skill_inventory({})
+                    save_skill_inventory_to_gsheet({})
                     st.success("✅ Đã xóa toàn bộ kho")
                     st.rerun()
 
