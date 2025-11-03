@@ -1776,6 +1776,7 @@ def main():
                 c1, c2 = st.columns(2)
                 with c1:
                         player_name = st.text_input("Nhập tên cầu thủ", placeholder="Ví dụ: Lionel Messi")
+
                     rating = st.number_input("Rating", min_value=1, max_value=150, value=90)
                     position = st.selectbox("Vị trí", existing_positions)
                     position_style = st.selectbox("Nhóm vị trí", POSITION_STYLES)
