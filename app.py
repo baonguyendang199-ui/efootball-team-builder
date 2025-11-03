@@ -1062,30 +1062,31 @@ def main():
                         added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
                         total_skills = len(base_skills_list) + len(added_skills_list)
                         
-                        if base_skills_list or added_skills_list:
-                            with st.expander(f"📋 Skills ({total_skills})"):
-                                if base_skills_list:
-                                    st.caption(f"🎮 Gốc ({len(base_skills_list)}):")
-                                    base_html = " ".join([
-                                        f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
-                                        f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">⭐ {s}</span>'
-                                        for s in base_skills_list
-                                    ])
-                                    st.markdown(base_html, unsafe_allow_html=True)
-        
-                                if added_skills_list:
-                                    st.caption(f"➕ Đã thêm ({len(added_skills_list)}):")
-                                    added_html = " ".join([
-                                        f'<span style="background:#d4edda;color:#155724;padding:3px 8px;'
-                                        f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">✅ {s}</span>'
-                                        for s in added_skills_list
-                                    ])
-                                    st.markdown(added_html, unsafe_allow_html=True)
-                    
-                    with col_action:
-                        with st.expander("🎯 Action & Lý do", expanded=False):
-                            st.markdown(action_badge, unsafe_allow_html=True)
-                            st.caption(f"**Lý do:** {reasons}")
+                        with st.container():  # bọc chung để 2 expander sát nhau
+                            if base_skills_list or added_skills_list:
+                                with st.expander(f"📋 Skills ({total_skills})", expanded=False):
+                                    if base_skills_list:
+                                        st.caption(f"🎮 Gốc ({len(base_skills_list)}):")
+                                        base_html = " ".join([
+                                            f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
+                                            f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">⭐ {s}</span>'
+                                            for s in base_skills_list
+                                        ])
+                                        st.markdown(base_html, unsafe_allow_html=True)
+                        
+                                    if added_skills_list:
+                                        st.caption(f"➕ Đã thêm ({len(added_skills_list)}):")
+                                        added_html = " ".join([
+                                            f'<span style="background:#d4edda;color:#155724;padding:3px 8px;'
+                                            f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">✅ {s}</span>'
+                                            for s in added_skills_list
+                                        ])
+                                        st.markdown(added_html, unsafe_allow_html=True)
+                        
+                            # Action & Lý do cũng trong expander, ngay sát Skills
+                            with st.expander("🎯 Action & Lý do", expanded=False):
+                                st.markdown(action_badge, unsafe_allow_html=True)
+                                st.caption(f"**Lý do:** {reasons}")
         
         else:
             # ===== CHẾ ĐỘ BẢNG =====
