@@ -564,8 +564,10 @@ def main():
         pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
         pos_counts.columns = ['Vị trí', 'Số lượng']
         pos_counts = pos_counts.sort_values('Số lượng', ascending=False)
-        pos_counts.insert(0, 'STT', range(1, len(pos_counts) + 1))
-        st.table(pos_counts)
+        st.table(
+            pos_counts.style.set_properties(**{'text-align': 'center'})
+            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+        )
         
         st.divider()
         
@@ -574,8 +576,10 @@ def main():
         type_counts = df['Player Type'].value_counts().reset_index(name='Số lượng')
         type_counts.columns = ['Loại', 'Số lượng']
         type_counts = type_counts.sort_values('Số lượng', ascending=False)
-        type_counts.insert(0, 'STT', range(1, len(type_counts) + 1))
-        st.table(type_counts)
+        st.table(
+            type_counts.style.set_properties(**{'text-align': 'center'})
+            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+        )
         
         st.divider()
         
@@ -584,8 +588,10 @@ def main():
         league_counts = df['League'].value_counts().reset_index(name='Số lượng')
         league_counts.columns = ['Giải đấu', 'Số lượng']
         league_counts = league_counts.head(10)
-        league_counts.insert(0, 'STT', range(1, len(league_counts) + 1))
-        st.table(league_counts)
+        st.table(
+            league_counts.style.set_properties(**{'text-align': 'center'})
+            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+        )
         
         st.divider()
         
@@ -594,8 +600,10 @@ def main():
         club_counts = df['Club'].value_counts().reset_index(name='Số lượng')
         club_counts.columns = ['Câu lạc bộ', 'Số lượng']
         club_counts = club_counts.head(10)
-        club_counts.insert(0, 'STT', range(1, len(club_counts) + 1))
-        st.table(club_counts)
+        st.table(
+            club_counts.style.set_properties(**{'text-align': 'center'})
+            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+        )
         
         st.divider()
         
@@ -604,8 +612,10 @@ def main():
         nation_counts = df['Nation'].value_counts().reset_index(name='Số lượng')
         nation_counts.columns = ['Quốc gia', 'Số lượng']
         nation_counts = nation_counts.head(10)
-        nation_counts.insert(0, 'STT', range(1, len(nation_counts) + 1))
-        st.table(nation_counts)
+        st.table(
+            nation_counts.style.set_properties(**{'text-align': 'center'})
+            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
+        )
         
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
