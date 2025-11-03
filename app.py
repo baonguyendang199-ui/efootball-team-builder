@@ -1049,6 +1049,12 @@ def main():
                         with info_col2:
                             st.markdown(f"**CLB:** {club}")
                             st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
+
+                            rank_info = row.get('Rank_Info', '')
+                            if rank_info:
+                                st.markdown("**Rank:**")
+                                # Dùng <pre> để giữ format xuống dòng
+                                st.markdown(f"<pre style='margin-top:-8px'>{rank_info}</pre>", unsafe_allow_html=True)
                         
                         # Hiển thị Skills
                         added_skills = row.get('Added Skills', '')
