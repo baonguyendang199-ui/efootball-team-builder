@@ -559,51 +559,23 @@ def main():
 
         st.divider()
 
-        # 📍 Phân bố theo vị trí
-        st.subheader("📍 Phân bố theo vị trí")
-        pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
-        pos_counts.columns = ['Vị trí', 'Số lượng']
-        pos_counts = pos_counts.sort_values('Số lượng', ascending=False)
-        st.table(
-            pos_counts.style.set_properties(**{'text-align': 'center'})
-            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
-        )
-        
-        st.divider()
-        
-        # 🏷️ Phân bố theo loại
-        st.subheader("🏷️ Phân bố theo loại")
-        type_counts = df['Player Type'].value_counts().reset_index(name='Số lượng')
-        type_counts.columns = ['Loại', 'Số lượng']
-        type_counts = type_counts.sort_values('Số lượng', ascending=False)
-        st.table(
-            type_counts.style.set_properties(**{'text-align': 'center'})
-            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
-        )
-        
-        st.divider()
-        
-        # 🏆 Top 10 Leagues
-        st.subheader("🏆 Top 10 Leagues")
-        league_counts = df['League'].value_counts().reset_index(name='Số lượng')
-        league_counts.columns = ['Giải đấu', 'Số lượng']
-        league_counts = league_counts.head(10)
-        st.table(
-            league_counts.style.set_properties(**{'text-align': 'center'})
-            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
-        )
-        
-        st.divider()
+        # Hàm tiện ích căn giữa
+        def center_table(df):
+            return (
+                df.style
+                .set_properties(**{'text-align': 'center'})
+                .set_table_styles([
+                    {'selector': 'th', 'props': [('text-align', 'center')]},
+                    {'selector': 'td', 'props': [('text-align', 'center')]}
+                ])
+            )
         
         # ⚽ Top 10 Clubs
         st.subheader("⚽ Top 10 Clubs")
         club_counts = df['Club'].value_counts().reset_index(name='Số lượng')
         club_counts.columns = ['Câu lạc bộ', 'Số lượng']
         club_counts = club_counts.head(10)
-        st.table(
-            club_counts.style.set_properties(**{'text-align': 'center'})
-            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
-        )
+        st.table(center_table(club_counts))
         
         st.divider()
         
@@ -612,10 +584,34 @@ def main():
         nation_counts = df['Nation'].value_counts().reset_index(name='Số lượng')
         nation_counts.columns = ['Quốc gia', 'Số lượng']
         nation_counts = nation_counts.head(10)
-        st.table(
-            nation_counts.style.set_properties(**{'text-align': 'center'})
-            .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
-        )
+        st.table(center_table(nation_counts))
+        
+        st.divider()
+        
+        # 🏆 Top 10 Leagues
+        st.subheader("🏆 Top 10 Leagues")
+        league_counts = df['League'].value_counts().reset_index(name='Số lượng')
+        league_counts.columns = ['Giải đấu', 'Số lượng']
+        league_counts = league_counts.head(10)
+        st.table(center_table(league_counts))
+        
+        st.divider()
+        
+        # 📍 Phân bố theo vị trí
+        st.subheader("📍 Phân bố theo vị trí")
+        pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
+        pos_counts.columns = ['Vị trí', 'Số lượng']
+        pos_counts = pos_counts.sort_values('Số lượng', ascending=False)
+        st.table(center_table(pos_counts))
+        
+        st.divider()
+        
+        # 🏷️ Phân bố theo loại
+        st.subheader("🏷️ Phân bố theo loại")
+        type_counts = df['Player Type'].value_counts().reset_index(name='Số lượng')
+        type_counts.columns = ['Loại', 'Số lượng']
+        type_counts = type_counts.sort_values('Số lượng', ascending=False)
+        st.table(center_table(type_counts))
         
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
