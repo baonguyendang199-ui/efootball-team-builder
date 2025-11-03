@@ -1052,9 +1052,9 @@ def main():
 
                             rank_info = row.get('Rank_Info', '')
                             if rank_info:
-                                st.markdown("**Rank:**")
-                                # Dùng <pre> để giữ format xuống dòng
-                                st.markdown(f"<pre style='margin-top:-8px'>{rank_info}</pre>", unsafe_allow_html=True)
+                                # tách các dòng rồi nối lại bằng dấu phẩy
+                                rank_inline = ", ".join(rank_info.splitlines())
+                                st.markdown(f"**Rank:** {rank_inline}")
                         
                         # Hiển thị Skills
                         added_skills = row.get('Added Skills', '')
