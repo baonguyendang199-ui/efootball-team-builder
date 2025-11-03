@@ -1410,29 +1410,47 @@ def main():
 
     elif current_tab == 'squad':
         st.header("⚽ Đội hình")
-
+        
         # Chọn nhóm theo Club / Nation / League
         g1, g2 = st.columns(2)
         with g1:
             group_by = st.selectbox("Theo", ["Club", "Nation", "League"], index=0)
         with g2:
+            # 🔧 FIX: Sort theo số lượng giảm dần (nhiều nhất → ít nhất)
             group_counts = df[group_by].value_counts().to_dict()
-            group_options = sorted([x for x in df[group_by].astype(str).unique() if str(x).strip()])
-            formatted_options = ["(Tất cả)"] + [f"{opt} ({group_counts.get(opt, 0)})" for opt in group_options]
+            
+            # Lấy danh sách unique values
+            group_options = [x for x in df[group_by].astype(str).unique() if str(x).strip()]
+            
+            # Sort theo COUNT giảm dần (nhiều → ít)
+            group_options_sorted = sorted(
+                group_options, 
+                key=lambda x: group_counts.get(x, 0),  # Sort theo count
+                reverse=True  # Giảm dần (nhiều nhất trên cùng)
+            )
+            
+            # Format hiển thị: "Barcelona (45)"
+            formatted_options = ["(Tất cả)"] + [
+                f"{opt} ({group_counts.get(opt, 0)})" 
+                for opt in group_options_sorted
+            ]
+            
             selected_display = st.selectbox(f"Chọn {group_by}", formatted_options)
-
+        
         if selected_display == "(Tất cả)":
             group_value = "(Tất cả)"
         else:
             group_value = selected_display.rsplit(" (", 1)[0]
-
+        
         df_src = df.copy()
         if group_value != "(Tất cả)":
             df_src = df_src[df_src[group_by].astype(str) == group_value]
-
+        
         if df_src.empty:
             st.warning("Không có cầu thủ cho lựa chọn này.")
             return
+    
+    # ... (phần còn lại giữ nguyên)
 
         # Nếu nhóm là Nation hoặc League thì loại trùng tên giữ rating cao nhất
         if group_by in ['Nation', 'League']:
