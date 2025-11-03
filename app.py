@@ -1732,7 +1732,7 @@ def main():
                             card_color = "🔵"
                         
                         with st.container(border=True):
-                            col_img, col_info = st.columns([1, 4])
+                            col_img, col_info = st.columns([1, 5])
                             
                             with col_img:
                                 if image_url:
