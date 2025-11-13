@@ -737,7 +737,7 @@ def main():
             "Barcelona", "Real Madrid", "Munich", "Inter", "Manchester City", "Liverpool", 
             "PSG", "Dortmund", "Leverkusen", "Atletico Madrid", "Arsenal", 
             "Chelsea", "Man United", "Atalanta", "AC Milan", "Tottenham", 
-            "Juventus", "Napoli"
+            "Juventus", "Napoli", "Roma"
         ]
         
         # Club được miễn trừ (không bao giờ bán)
