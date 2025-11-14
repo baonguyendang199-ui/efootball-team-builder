@@ -1,5 +1,10 @@
 # app.py – Efootball Team Builder (Google Sheets version)
 import cloudscraper
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
 import os
 import shutil
 from pathlib import Path
@@ -423,9 +428,69 @@ def make_ehub_player_image_url(player_id: str) -> str:
     pid = extract_ehub_player_id(player_id)
     return f"https://efootballhub.net/images/efootball24/players/{pid}_l.webp" if pid else ""
 
-@st.cache_data(ttl=86400)
+# ==================== THÊM HÀM NÀY (trước hàm fetch_ehub_raw_html cũ) ====================
+@st.cache_resource
+def get_selenium_driver():
+    """Tạo Chrome driver với undetected-chromedriver"""
+    try:
+        options = uc.ChromeOptions()
+        options.add_argument('--headless=new')  # Chạy ẩn
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        
+        # User agent giả lập browser thật
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        
+        driver = uc.Chrome(options=options, version_main=120)
+        return driver
+        
+    except Exception as e:
+        st.error(f"❌ Không thể tạo Selenium driver: {e}")
+        return None
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_ehub_raw_html_selenium(url: str) -> str:
+    """Lấy HTML bằng Selenium (bypass Cloudflare 100%)"""
+    try:
+        driver = get_selenium_driver()
+        if not driver:
+            return ""
+        
+        driver.get(url)
+        
+        # Đợi page load (max 15s)
+        try:
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "player-skill-container"))
+            )
+        except:
+            pass  # Timeout OK, có thể vẫn lấy được HTML
+        
+        # Thêm delay nhỏ để JS render xong
+        time.sleep(2)
+        
+        html = driver.page_source
+        
+        # Kiểm tra Cloudflare
+        if 'challenge' in html.lower() or len(html) < 1000:
+            print(f"⚠️ Possible Cloudflare block for {url}")
+            return ""
+        
+        print(f"✅ Selenium fetched {len(html)} chars from {url}")
+        return html
+        
+    except Exception as e:
+        print(f"❌ Selenium error for {url}: {e}")
+        return ""
+
+@st.cache_data(ttl=86400, show_spinner=False)
 def fetch_ehub_raw_html(url: str) -> str:
-    """Lấy HTML từ eFootballHub bằng CloudScraper"""
+    """Lấy HTML - tự động chọn CloudScraper hoặc Selenium"""
+    
+    # Thử CloudScraper trước (nhanh hơn)
     try:
         scraper = cloudscraper.create_scraper(
             browser={
@@ -435,14 +500,28 @@ def fetch_ehub_raw_html(url: str) -> str:
             }
         )
         
-        resp = scraper.get(url, timeout=20)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        }
+        
+        resp = scraper.get(url, headers=headers, timeout=20)
         resp.raise_for_status()
-        return resp.text
+        
+        html = resp.text
+        
+        # Nếu bị Cloudflare → fallback sang Selenium
+        if 'challenge' in html.lower() or len(html) < 1000:
+            print(f"⚠️ CloudScraper blocked, trying Selenium...")
+            return fetch_ehub_raw_html_selenium(url)
+        
+        print(f"✅ CloudScraper OK: {len(html)} chars")
+        return html
         
     except Exception as e:
-        # Log error nhưng không dùng st.error() vì đang trong cached function
-        print(f"Error fetching {url}: {e}")
-        return ""
+        # CloudScraper fail → dùng Selenium
+        print(f"⚠️ CloudScraper failed: {e}, trying Selenium...")
+        return fetch_ehub_raw_html_selenium(url)
 
 def extract_player_skills(player_url: str) -> str:
     """Trích xuất Skills từ eFootballHub player page"""
@@ -453,12 +532,14 @@ def extract_player_skills(player_url: str) -> str:
         html = fetch_ehub_raw_html(player_url)
         
         if not html:
+            print(f"⚠️ No HTML for {player_url}")
             return ""
             
         soup = BeautifulSoup(html, 'html.parser')
         
         skill_container = soup.find('div', class_='player-skill-container')
         if not skill_container:
+            print(f"⚠️ No skill container in {player_url}")
             return ""
         
         skill_labels = skill_container.find_all('label', class_='lbl-block', hidden=False)
@@ -470,11 +551,13 @@ def extract_player_skills(player_url: str) -> str:
                 skills.append(skill_name)
         
         skills = sorted(list(set(x for x in skills if x)))
-        return ', '.join(skills)
+        result = ', '.join(skills)
+        
+        print(f"✅ Extracted {len(skills)} skills from {player_url}")
+        return result
         
     except Exception as e:
-        # Log error nhưng không crash app
-        print(f"Error extracting skills from {player_url}: {e}")
+        print(f"❌ Extract error for {player_url}: {e}")
         return ""
 
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
