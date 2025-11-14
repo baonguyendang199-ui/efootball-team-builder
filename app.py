@@ -425,25 +425,36 @@ def make_ehub_player_image_url(player_id: str) -> str:
 
 @st.cache_data(ttl=86400)
 def fetch_ehub_raw_html(url: str) -> str:
-    scraper = cloudscraper.create_scraper(
-        browser={
-            'browser': 'chrome',
-            'platform': 'windows',
-            'mobile': False
-        }
-    )
-    
-    resp = scraper.get(url, timeout=20)
-    
-    resp.raise_for_status()
-    return resp.text
+    """Lấy HTML từ eFootballHub bằng CloudScraper"""
+    try:
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'mobile': False
+            }
+        )
+        
+        resp = scraper.get(url, timeout=20)
+        resp.raise_for_status()
+        return resp.text
+        
+    except Exception as e:
+        # Log error nhưng không dùng st.error() vì đang trong cached function
+        print(f"Error fetching {url}: {e}")
+        return ""
 
 def extract_player_skills(player_url: str) -> str:
     """Trích xuất Skills từ eFootballHub player page"""
     try:
         if not player_url or not str(player_url).startswith('http'):
             return ""
+            
         html = fetch_ehub_raw_html(player_url)
+        
+        if not html:
+            return ""
+            
         soup = BeautifulSoup(html, 'html.parser')
         
         skill_container = soup.find('div', class_='player-skill-container')
@@ -460,7 +471,10 @@ def extract_player_skills(player_url: str) -> str:
         
         skills = sorted(list(set(x for x in skills if x)))
         return ', '.join(skills)
-    except Exception:
+        
+    except Exception as e:
+        # Log error nhưng không crash app
+        print(f"Error extracting skills from {player_url}: {e}")
         return ""
 
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
