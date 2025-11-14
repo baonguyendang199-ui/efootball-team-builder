@@ -99,6 +99,36 @@ def save_data_to_gsheet(df):
         # Don't clear sheet if there's an error!
         return False
 
+# --- NEW: Skill groups for Add form (6 types)
+SKILL_GROUPS = {
+    "Dribbling": [
+        "Double Touch", "Scissors Feint", "Flip Flap", "Marseille Turn",
+        "Sombrero", "Chop Turn", "Step on Skill Control", "Cut Behind & Turn", "Scotch Move"
+    ],
+    "Shooting": [
+        "Heading", "Long Range Drive", "Chip Shot Control", "Knuckle Shot",
+        "Dipping Shot", "Rising Shot", "Long Range Shooting", "Acrobatic Finishing",
+        "Heel Trick", "First Time Shot"
+    ],
+    "Passing": [
+        "One Touch Pass", "Through Passing", "Weighted Pass", "Pinpoint Crossing",
+        "Outside Curler", "Rabona", "No Look Pass", "Low Lofted Pass"
+    ],
+    "Defending": [
+        "Man Marking", "Track Back", "Interception", "Blocker",
+        "Aerial Superiority", "Sliding Tackle", "Acrobatic Clear"
+    ],
+    "Goalkeeping": [
+        "GK High Punt", "GK Long Throw", "GK Low Punt", "GK Penalty Saver"
+    ],
+    "Special": [
+        "Long Throw", "Penalty Specialist", "Gamesmanship", "Captaincy",
+        "Super Sub", "Fighting Spirit"
+    ]
+}
+# Flatten helper (optional) to keep all_known_skills in sync
+ALL_KNOWN_SKILLS_FROM_GROUPS = sorted({s for grp in SKILL_GROUPS.values() for s in grp})
+
 # --- SKILLS PRIORITY SYSTEM ---
 POSITION_SKILLS_PRIORITY = {
     "CF": [
@@ -1654,19 +1684,30 @@ def main():
                 
                 st.divider()
                 
-                # ✨ CHỌN SKILLS THỦ CÔNG
-                st.subheader("🎮 Chọn Skills")
-                st.caption(f"Chọn tối đa 15 skills (POTW không thể thêm skills sau này)")
+                # ✨ CHỌN SKILLS THỦ CÔNG -- grouped by 6 types
+                st.subheader("🎮 Chọn Skills theo nhóm (6 types)")
+                st.caption("Tổng tối đa 15 skills; POTW không thể thêm skills sau này")
                 
-                selected_skills = st.multiselect(
-                    "Skills gốc",
-                    options=all_known_skills,
-                    default=[],
-                    max_selections=15,
-                    help="Chọn tối đa 15 skills"
-                )
+                # Per-group multiselects
+                sel_dribbling = st.multiselect("1. Dribbling", options=SKILL_GROUPS["Dribbling"], default=[])
+                sel_shooting = st.multiselect("2. Shooting", options=SKILL_GROUPS["Shooting"], default=[])
+                sel_passing = st.multiselect("3. Passing", options=SKILL_GROUPS["Passing"], default=[])
+                sel_defending = st.multiselect("4. Defending", options=SKILL_GROUPS["Defending"], default=[])
+                sel_goalkeeping = st.multiselect("5. Goalkeeping", options=SKILL_GROUPS["Goalkeeping"], default=[])
+                sel_special = st.multiselect("6. Special", options=SKILL_GROUPS["Special"], default=[])
                 
-                st.caption(f"Đã chọn: {len(selected_skills)}/15 skills")
+                # Combine selections and enforce max limit
+                selected_skills = []
+                for lst in [sel_dribbling, sel_shooting, sel_passing, sel_defending, sel_goalkeeping, sel_special]:
+                    for s in lst:
+                        if s not in selected_skills:
+                            selected_skills.append(s)
+                
+                MAX_SKILLS_ALLOWED = 15
+                st.caption(f"Đã chọn tổng: {len(selected_skills)}/{MAX_SKILLS_ALLOWED} skills")
+
+                if len(selected_skills) > MAX_SKILLS_ALLOWED:
+                    st.error(f"⚠️ Đã chọn quá {MAX_SKILLS_ALLOWED} skills. Vui lòng bớt lựa chọn.")
                 
                 submitted = st.form_submit_button("➕ Thêm cầu thủ", use_container_width=True)
     
@@ -1750,20 +1791,30 @@ def main():
                     
                     st.divider()
                     
-                    # ✨ CHỌN SKILLS THỦ CÔNG
-                    st.subheader("🎮 Chọn Skills mới")
-                    st.caption(f"Chọn tối đa 15 skills (Added Skills sẽ bị reset)")
-                    
-                    new_selected_skills = st.multiselect(
-                        "Skills gốc mới",
-                        options=all_known_skills,
-                        default=[],
-                        max_selections=15,
-                        help="Chọn tối đa 15 skills",
-                        key="upgrade_skills"
-                    )
-                    
-                    st.caption(f"Đã chọn: {len(new_selected_skills)}/15 skills")
+                   # ✨ CHỌN SKILLS MỚI THEO NHÓM (dùng khi upgrade; Added Skills sẽ bị reset)
+                   st.subheader("🎮 Chọn Skills mới theo nhóm (6 types)")
+                   st.caption("Tối đa 15 skills (Added Skills sẽ bị reset khi upgrade)")
+                   
+                   u_sel_dribbling = st.multiselect("1. Dribbling", options=SKILL_GROUPS["Dribbling"], default=[], key="u_dribbling")
+                   u_sel_shooting   = st.multiselect("2. Shooting", options=SKILL_GROUPS["Shooting"], default=[], key="u_shooting")
+                   u_sel_passing    = st.multiselect("3. Passing", options=SKILL_GROUPS["Passing"], default=[], key="u_passing")
+                   u_sel_defending  = st.multiselect("4. Defending", options=SKILL_GROUPS["Defending"], default=[], key="u_defending")
+                   u_sel_goalkeeping= st.multiselect("5. Goalkeeping", options=SKILL_GROUPS["Goalkeeping"], default=[], key="u_goalkeeping")
+                   u_sel_special    = st.multiselect("6. Special", options=SKILL_GROUPS["Special"], default=[], key="u_special")
+                   
+                   # Combine and dedupe
+                   new_selected_skills = []
+                   for lst in [u_sel_dribbling, u_sel_shooting, u_sel_passing, u_sel_defending, u_sel_goalkeeping, u_sel_special]:
+                       for s in lst:
+                           if s not in new_selected_skills:
+                               new_selected_skills.append(s)
+                   
+                   MAX_SKILLS_ALLOWED = 15
+                   st.caption(f"Đã chọn tổng: {len(new_selected_skills)}/{MAX_SKILLS_ALLOWED} skills")
+                   if len(new_selected_skills) > MAX_SKILLS_ALLOWED:
+                       st.error(f"⚠️ Đã chọn quá {MAX_SKILLS_ALLOWED} skills. Vui lòng bớt lựa chọn.")
+                   # When building new_skills_str:
+                   # new_skills_str = ', '.join(new_selected_skills) if new_selected_skills else ""
                     
                     # Preview upgrade
                     if new_club and new_nation and new_league:
