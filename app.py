@@ -1703,8 +1703,8 @@ def main():
                         if s not in selected_skills:
                             selected_skills.append(s)
                 
-                MAX_SKILLS_ALLOWED = 15
-                st.caption(f"Đã chọn tổng: {len(selected_skills)}/{MAX_SKILLS_ALLOWED} skills")
+                MAX_SKILLS_ALLOWED = 15{MAX_SKILLS_ALLOWED}
+                st.caption(f"Đã chọn tổng: {len(selected_skills)}/10 skills")
 
                 if len(selected_skills) > MAX_SKILLS_ALLOWED:
                     st.error(f"⚠️ Đã chọn quá {MAX_SKILLS_ALLOWED} skills. Vui lòng bớt lựa chọn.")
@@ -1810,7 +1810,7 @@ def main():
                                 new_selected_skills.append(s)
                     
                     MAX_SKILLS_ALLOWED = 15
-                    st.caption(f"Đã chọn tổng: {len(new_selected_skills)}/{MAX_SKILLS_ALLOWED} skills")
+                    st.caption(f"Đã chọn tổng: {len(new_selected_skills)}/10 skills")
                     if len(new_selected_skills) > MAX_SKILLS_ALLOWED:
                         st.error(f"⚠️ Đã chọn quá {MAX_SKILLS_ALLOWED} skills. Vui lòng bớt lựa chọn.")
                     # When building new_skills_str:
