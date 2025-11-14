@@ -1792,29 +1792,29 @@ def main():
                     st.divider()
                     
                    # ✨ CHỌN SKILLS MỚI THEO NHÓM (dùng khi upgrade; Added Skills sẽ bị reset)
-                   st.subheader("🎮 Chọn Skills mới theo nhóm (6 types)")
-                   st.caption("Tối đa 15 skills (Added Skills sẽ bị reset khi upgrade)")
-                   
-                   u_sel_dribbling = st.multiselect("1. Dribbling", options=SKILL_GROUPS["Dribbling"], default=[], key="u_dribbling")
-                   u_sel_shooting   = st.multiselect("2. Shooting", options=SKILL_GROUPS["Shooting"], default=[], key="u_shooting")
-                   u_sel_passing    = st.multiselect("3. Passing", options=SKILL_GROUPS["Passing"], default=[], key="u_passing")
-                   u_sel_defending  = st.multiselect("4. Defending", options=SKILL_GROUPS["Defending"], default=[], key="u_defending")
-                   u_sel_goalkeeping= st.multiselect("5. Goalkeeping", options=SKILL_GROUPS["Goalkeeping"], default=[], key="u_goalkeeping")
-                   u_sel_special    = st.multiselect("6. Special", options=SKILL_GROUPS["Special"], default=[], key="u_special")
-                   
-                   # Combine and dedupe
-                   new_selected_skills = []
-                   for lst in [u_sel_dribbling, u_sel_shooting, u_sel_passing, u_sel_defending, u_sel_goalkeeping, u_sel_special]:
-                       for s in lst:
-                           if s not in new_selected_skills:
-                               new_selected_skills.append(s)
-                   
-                   MAX_SKILLS_ALLOWED = 15
-                   st.caption(f"Đã chọn tổng: {len(new_selected_skills)}/{MAX_SKILLS_ALLOWED} skills")
-                   if len(new_selected_skills) > MAX_SKILLS_ALLOWED:
-                       st.error(f"⚠️ Đã chọn quá {MAX_SKILLS_ALLOWED} skills. Vui lòng bớt lựa chọn.")
-                   # When building new_skills_str:
-                   # new_skills_str = ', '.join(new_selected_skills) if new_selected_skills else ""
+                    st.subheader("🎮 Chọn Skills mới theo nhóm (6 types)")
+                    st.caption("Tối đa 15 skills (Added Skills sẽ bị reset khi upgrade)")
+                    
+                    u_sel_dribbling = st.multiselect("1. Dribbling", options=SKILL_GROUPS["Dribbling"], default=[], key="u_dribbling")
+                    u_sel_shooting   = st.multiselect("2. Shooting", options=SKILL_GROUPS["Shooting"], default=[], key="u_shooting")
+                    u_sel_passing    = st.multiselect("3. Passing", options=SKILL_GROUPS["Passing"], default=[], key="u_passing")
+                    u_sel_defending  = st.multiselect("4. Defending", options=SKILL_GROUPS["Defending"], default=[], key="u_defending")
+                    u_sel_goalkeeping= st.multiselect("5. Goalkeeping", options=SKILL_GROUPS["Goalkeeping"], default=[], key="u_goalkeeping")
+                    u_sel_special    = st.multiselect("6. Special", options=SKILL_GROUPS["Special"], default=[], key="u_special")
+                    
+                    # Combine and dedupe
+                    new_selected_skills = []
+                    for lst in [u_sel_dribbling, u_sel_shooting, u_sel_passing, u_sel_defending, u_sel_goalkeeping, u_sel_special]:
+                        for s in lst:
+                            if s not in new_selected_skills:
+                                new_selected_skills.append(s)
+                    
+                    MAX_SKILLS_ALLOWED = 15
+                    st.caption(f"Đã chọn tổng: {len(new_selected_skills)}/{MAX_SKILLS_ALLOWED} skills")
+                    if len(new_selected_skills) > MAX_SKILLS_ALLOWED:
+                        st.error(f"⚠️ Đã chọn quá {MAX_SKILLS_ALLOWED} skills. Vui lòng bớt lựa chọn.")
+                    # When building new_skills_str:
+                    # new_skills_str = ', '.join(new_selected_skills) if new_selected_skills else ""
                     
                     # Preview upgrade
                     if new_club and new_nation and new_league:
