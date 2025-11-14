@@ -431,7 +431,15 @@ def fetch_ehub_raw_html(url: str) -> str:
             'mobile': False
         }
     )
+    
     resp = scraper.get(url, timeout=20)
+    
+    # DEBUG: Kiểm tra Cloudflare
+    if "cloudflare" in resp.text.lower() or "just a moment" in resp.text.lower():
+        st.error(f"🚫 Cloudflare đang chặn: {url}")
+        st.code(resp.text[:500])
+        return ""
+    
     resp.raise_for_status()
     return resp.text
 
