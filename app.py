@@ -424,7 +424,14 @@ def make_ehub_player_image_url(player_id: str) -> str:
 
 @st.cache_data(ttl=86400)
 def fetch_ehub_raw_html(url: str) -> str:
-    resp = requests.get(url, headers=HEADERS, timeout=20)
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'mobile': False
+        }
+    )
+    resp = scraper.get(url, timeout=20)
     resp.raise_for_status()
     return resp.text
 
