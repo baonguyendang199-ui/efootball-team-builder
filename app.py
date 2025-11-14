@@ -1,14 +1,10 @@
 # app.py – Efootball Team Builder (Google Sheets version)
-import cloudscraper
 import time
 import os
 import shutil
 from pathlib import Path
 from datetime import datetime
 import re
-from io import BytesIO
-import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 import altair as alt
 import streamlit as st
@@ -41,10 +37,10 @@ def load_data_from_gsheet():
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
-        # Ensure required columns
+        # ✨ CẬP NHẬT: Không còn cần Player URL và Player ID
         required_cols = [
             "Player", "Rating", "Position", "Position Style", "Player Type",
-            "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills",
+            "Nation", "Club", "League", "Skills", "Added Skills",
         ]
         for col in required_cols:
             if col not in df.columns:
@@ -57,7 +53,7 @@ def load_data_from_gsheet():
         df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0).astype(int)
         df = df[df["Rating"] > 0].copy()
         
-        for col in ["Player", "Position", "Position Style", "Player Type", "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills"]:
+        for col in ["Player", "Position", "Position Style", "Player Type", "Nation", "Club", "League", "Skills", "Added Skills"]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
         
@@ -407,191 +403,6 @@ EFOOTBALLHUB_PLAYER_URL_BASE = "https://efootballhub.net/efootball23/player/"
 
 # --- UTILITIES ---
 
-def extract_ehub_player_id(value: str) -> str:
-    """Extract numeric player id from an efootballhub URL or a raw id string."""
-    if not value:
-        return ""
-    s = str(value).strip()
-    m = re.search(r"(\d{6,})", s)
-    return m.group(1) if m else ""
-
-def make_ehub_player_url(player_id: str) -> str:
-    pid = extract_ehub_player_id(player_id)
-    return f"{EFOOTBALLHUB_PLAYER_URL_BASE}{pid}" if pid else ""
-
-def make_ehub_player_image_url(player_id: str) -> str:
-    """Tạo URL hình ảnh cầu thủ từ player_id"""
-    pid = extract_ehub_player_id(player_id)
-    return f"https://efootballhub.net/images/efootball24/players/{pid}_l.webp" if pid else ""
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def fetch_ehub_raw_html(url: str) -> str:
-    """Fetch HTML với CloudScraper - bypass Cloudflare"""
-    try:
-        scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'windows',
-                'mobile': False,
-                'desktop': True
-            },
-            delay=10  # Đợi 10s nếu gặp challenge
-        )
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0',
-        }
-        
-        resp = scraper.get(url, headers=headers, timeout=30)
-        resp.raise_for_status()
-        
-        html = resp.text
-        
-        # Debug log
-        if len(html) < 1000:
-            print(f"⚠️ HTML quá ngắn ({len(html)} chars), có thể bị chặn")
-            return ""
-        
-        print(f"✅ Fetched {len(html)} chars from {url}")
-        return html
-        
-    except Exception as e:
-        print(f"❌ CloudScraper error: {e}")
-        return ""
-
-import cloudscraper
-import time
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
-    """Fetch HTML với CloudScraper - Enhanced version"""
-    
-    for attempt in range(max_retries):
-        try:
-            # Tạo scraper mới mỗi lần thử
-            scraper = cloudscraper.create_scraper(
-                browser={
-                    'browser': 'chrome',
-                    'platform': 'windows',
-                    'mobile': False,
-                    'desktop': True
-                },
-                delay=10,  # Đợi 10s nếu gặp challenge
-                
-                # ✨ THÊM CÁC THAM SỐ NÀY
-                interpreter='native',  # Dùng JavaScript interpreter native
-                captcha={
-                    'provider': 'return_response'  # Trả về response ngay cả khi gặp captcha
-                }
-            )
-            
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0',
-                'DNT': '1',
-                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                'Sec-Ch-Ua-Mobile': '?0',
-                'Sec-Ch-Ua-Platform': '"Windows"',
-            }
-            
-            # Thêm delay giữa các request
-            if attempt > 0:
-                wait_time = 2 ** attempt  # Exponential backoff: 2s, 4s, 8s
-                print(f"⏳ Đợi {wait_time}s trước khi thử lại...")
-                time.sleep(wait_time)
-            
-            print(f"🔄 Attempt {attempt + 1}/{max_retries}: Fetching {url}")
-            
-            resp = scraper.get(url, headers=headers, timeout=30)
-            resp.raise_for_status()
-            
-            html = resp.text
-            
-            # Kiểm tra kỹ hơn
-            if len(html) < 1000:
-                print(f"⚠️ HTML quá ngắn ({len(html)} chars)")
-                if attempt < max_retries - 1:
-                    continue
-                return ""
-            
-            # Kiểm tra có phải challenge page không
-            if 'challenge-platform' in html.lower() or 'cf-browser-verification' in html.lower():
-                print(f"⚠️ Phát hiện Cloudflare challenge page")
-                if attempt < max_retries - 1:
-                    continue
-                return ""
-            
-            print(f"✅ Fetched {len(html)} chars from {url}")
-            return html
-            
-        except cloudscraper.exceptions.CloudflareChallengeError as e:
-            print(f"❌ Cloudflare Challenge Error (attempt {attempt + 1}): {e}")
-            if attempt == max_retries - 1:
-                return ""
-                
-        except Exception as e:
-            print(f"❌ Error (attempt {attempt + 1}): {e}")
-            if attempt == max_retries - 1:
-                return ""
-    
-    return ""
-
-def extract_player_skills(player_url: str) -> str:
-    """Trích xuất Skills từ eFootballHub player page"""
-    try:
-        if not player_url or not str(player_url).startswith('http'):
-            return ""
-            
-        html = fetch_ehub_raw_html(player_url)
-        
-        if not html:
-            print(f"⚠️ No HTML for {player_url}")
-            return ""
-            
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        skill_container = soup.find('div', class_='player-skill-container')
-        if not skill_container:
-            print(f"⚠️ No skill container in {player_url}")
-            return ""
-        
-        skill_labels = skill_container.find_all('label', class_='lbl-block', hidden=False)
-        
-        skills = []
-        for label in skill_labels:
-            skill_name = label.get_text(strip=True)
-            if skill_name and skill_name.lower() != 'skills':
-                skills.append(skill_name)
-        
-        skills = sorted(list(set(x for x in skills if x)))
-        result = ', '.join(skills)
-        
-        print(f"✅ Extracted {len(skills)} skills from {player_url}")
-        return result
-        
-    except Exception as e:
-        print(f"❌ Extract error for {player_url}: {e}")
-        return ""
-
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
     if column in df.columns:
         vals = [str(x) for x in df[column].unique() if pd.notna(x) and str(x).strip()]
@@ -713,27 +524,6 @@ def main():
         if df.empty:
             st.error("Không có dữ liệu cầu thủ!")
             return
-
-    needs_extraction = df[
-        (df['Player URL'].astype(str).str.startswith('http')) & 
-        ((df['Skills'].astype(str).str.strip() == '') | (df['Skills'].isna()))
-    ]
-    
-    if not needs_extraction.empty and not st.session_state.get('auto_extracting', False):
-        st.session_state['auto_extracting'] = True
-        updated = False
-        
-        for i, row in needs_extraction.iterrows():
-            skills = extract_player_skills(row['Player URL'])
-            if skills:
-                df.at[i, 'Skills'] = skills
-                updated = True
-        
-        if updated:
-            save_data_to_gsheet(df)
-            st.cache_data.clear()
-        
-        st.session_state['auto_extracting'] = False
 
     current_tab = st.session_state.current_tab
 
@@ -1828,6 +1618,9 @@ def main():
         )
         existing_players = sorted(df['Player'].astype(str).unique().tolist())
         
+        # Danh sách skills có sẵn
+        all_known_skills = get_all_known_skills()
+        
         if mode == "➕ Thêm mới":
             st.info("💡 Chế độ này thêm cầu thủ hoàn toàn mới, không kiểm tra trùng lặp")
            
@@ -1859,14 +1652,29 @@ def main():
                         if league_custom:
                             league = league_custom
                 
-                player_url = st.text_input("URL eFootballHub (tùy chọn)", placeholder="https://efootballhub.net/efootball23/player/...")
+                st.divider()
                 
-                st.caption("💡 Skills sẽ được tự động trích xuất nếu có URL")
+                # ✨ CHỌN SKILLS THỦ CÔNG
+                st.subheader("🎮 Chọn Skills")
+                st.caption(f"Chọn tối đa 15 skills (POTW không thể thêm skills sau này)")
+                
+                selected_skills = st.multiselect(
+                    "Skills gốc",
+                    options=all_known_skills,
+                    default=[],
+                    max_selections=15,
+                    help="Chọn tối đa 15 skills"
+                )
+                
+                st.caption(f"Đã chọn: {len(selected_skills)}/15 skills")
                 
                 submitted = st.form_submit_button("➕ Thêm cầu thủ", use_container_width=True)
-
+    
                 if submitted:
                     if player_name and rating and position:
+                        # Tạo skills string
+                        skills_str = ', '.join(selected_skills) if selected_skills else ""
+                        
                         new_player = {
                             "Player": player_name,
                             "Rating": int(rating),
@@ -1876,21 +1684,17 @@ def main():
                             "Nation": nation,
                             "Club": club,
                             "League": league,
-                            "Player URL": player_url,
-                            "Player ID": extract_ehub_player_id(player_url) if player_url else "",
-                            "Skills": "",
+                            "Player URL": "",  # Không còn dùng URL
+                            "Player ID": "",   # Không còn dùng ID
+                            "Skills": skills_str,
                             "Added Skills": "",
                             "Epic_Priority": 0 if player_type == "EPIC" else 1,
                         }
-                        
-                        if player_url:
-                            with st.spinner("Đang trích xuất skills..."):
-                                new_player["Skills"] = extract_player_skills(player_url)
-
+    
                         new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
                         try:
                             if save_data_to_gsheet(new_df):
-                                st.success(f"✅ Đã thêm cầu thủ {player_name} thành công!")
+                                st.success(f"✅ Đã thêm cầu thủ {player_name} ({len(selected_skills)} skills)")
                                 st.cache_data.clear()
                                 st.rerun()
                         except Exception as e:
@@ -1944,9 +1748,22 @@ def main():
                         if new_league == "":
                             new_league = st.text_input("Nhập giải đấu mới", key="upgrade_league_custom")
                     
-                    new_player_url = st.text_input("URL eFootballHub (bắt buộc)", placeholder="https://efootballhub.net/efootball23/player/...", key="upgrade_url")
+                    st.divider()
                     
-                    st.caption("💡 Skills sẽ được tự động trích xuất từ URL")
+                    # ✨ CHỌN SKILLS THỦ CÔNG
+                    st.subheader("🎮 Chọn Skills mới")
+                    st.caption(f"Chọn tối đa 15 skills (Added Skills sẽ bị reset)")
+                    
+                    new_selected_skills = st.multiselect(
+                        "Skills gốc mới",
+                        options=all_known_skills,
+                        default=[],
+                        max_selections=15,
+                        help="Chọn tối đa 15 skills",
+                        key="upgrade_skills"
+                    )
+                    
+                    st.caption(f"Đã chọn: {len(new_selected_skills)}/15 skills")
                     
                     # Preview upgrade
                     if new_club and new_nation and new_league:
@@ -1977,74 +1794,71 @@ def main():
                     submitted_upgrade = st.form_submit_button("🔄 Xác nhận Upgrade", use_container_width=True, type="primary")
                     
                     if submitted_upgrade:
-                        if not new_player_url:
-                            st.error("❌ Vui lòng nhập URL eFootballHub!")
-                        elif not new_club or not new_nation or not new_league:
+                        if not new_club or not new_nation or not new_league:
                             st.error("❌ Vui lòng điền đầy đủ Club, Nation, League!")
                         else:
-                            with st.spinner("Đang xử lý..."):
-                                # Trích xuất skills mới
-                                new_skills = extract_player_skills(new_player_url) if new_player_url else ""
+                            # Tạo skills string
+                            new_skills_str = ', '.join(new_selected_skills) if new_selected_skills else ""
+                            
+                            # Tìm thẻ cũ
+                            matching_card = player_versions[
+                                (player_versions['Club'].astype(str) == new_club) &
+                                (player_versions['Nation'].astype(str) == new_nation) &
+                                (player_versions['League'].astype(str) == new_league)
+                            ]
+                            
+                            new_df = df.copy()
+                            
+                            if not matching_card.empty:
+                                # UPGRADE: Thay thế thẻ cũ
+                                old_idx = matching_card.index[0]
+                                old_rating = matching_card.iloc[0]['Rating']
                                 
-                                # Tìm thẻ cũ
-                                matching_card = player_versions[
-                                    (player_versions['Club'].astype(str) == new_club) &
-                                    (player_versions['Nation'].astype(str) == new_nation) &
-                                    (player_versions['League'].astype(str) == new_league)
-                                ]
+                                new_df.at[old_idx, 'Rating'] = int(new_rating)
+                                new_df.at[old_idx, 'Position'] = new_position
+                                new_df.at[old_idx, 'Position Style'] = new_position_style
+                                new_df.at[old_idx, 'Player Type'] = new_player_type
+                                new_df.at[old_idx, 'Player URL'] = ""
+                                new_df.at[old_idx, 'Player ID'] = ""
+                                new_df.at[old_idx, 'Skills'] = new_skills_str
+                                new_df.at[old_idx, 'Added Skills'] = ""  # Reset Added Skills
+                                new_df.at[old_idx, 'Epic_Priority'] = 0 if new_player_type == "EPIC" else 1
                                 
-                                new_df = df.copy()
+                                try:
+                                    if save_data_to_gsheet(new_df):
+                                        rating_diff = new_rating - old_rating
+                                        st.success(f"✅ Đã upgrade {selected_player}: {old_rating} → {new_rating} ({rating_diff:+d}) với {len(new_selected_skills)} skills")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi khi lưu: {e}")
+                            else:
+                                # THÊM MỚI: Không tìm thấy thẻ cũ
+                                new_player_data = {
+                                    "Player": selected_player,
+                                    "Rating": int(new_rating),
+                                    "Position": new_position,
+                                    "Position Style": new_position_style,
+                                    "Player Type": new_player_type,
+                                    "Nation": new_nation,
+                                    "Club": new_club,
+                                    "League": new_league,
+                                    "Player URL": "",
+                                    "Player ID": "",
+                                    "Skills": new_skills_str,
+                                    "Added Skills": "",
+                                    "Epic_Priority": 0 if new_player_type == "EPIC" else 1,
+                                }
                                 
-                                if not matching_card.empty:
-                                    # UPGRADE: Thay thế thẻ cũ
-                                    old_idx = matching_card.index[0]
-                                    old_rating = matching_card.iloc[0]['Rating']
-                                    
-                                    new_df.at[old_idx, 'Rating'] = int(new_rating)
-                                    new_df.at[old_idx, 'Position'] = new_position
-                                    new_df.at[old_idx, 'Position Style'] = new_position_style
-                                    new_df.at[old_idx, 'Player Type'] = new_player_type
-                                    new_df.at[old_idx, 'Player URL'] = new_player_url
-                                    new_df.at[old_idx, 'Player ID'] = extract_ehub_player_id(new_player_url)
-                                    new_df.at[old_idx, 'Skills'] = new_skills
-                                    new_df.at[old_idx, 'Added Skills'] = ""  # Reset Added Skills
-                                    new_df.at[old_idx, 'Epic_Priority'] = 0 if new_player_type == "EPIC" else 1
-                                    
-                                    try:
-                                        if save_data_to_gsheet(new_df):
-                                            rating_diff = new_rating - old_rating
-                                            st.success(f"✅ Đã upgrade {selected_player}: {old_rating} → {new_rating} ({rating_diff:+d})")
-                                            st.cache_data.clear()
-                                            st.rerun()
-                                    except Exception as e:
-                                        st.error(f"❌ Lỗi khi lưu: {e}")
-                                else:
-                                    # THÊM MỚI: Không tìm thấy thẻ cũ
-                                    new_player_data = {
-                                        "Player": selected_player,
-                                        "Rating": int(new_rating),
-                                        "Position": new_position,
-                                        "Position Style": new_position_style,
-                                        "Player Type": new_player_type,
-                                        "Nation": new_nation,
-                                        "Club": new_club,
-                                        "League": new_league,
-                                        "Player URL": new_player_url,
-                                        "Player ID": extract_ehub_player_id(new_player_url),
-                                        "Skills": new_skills,
-                                        "Added Skills": "",
-                                        "Epic_Priority": 0 if new_player_type == "EPIC" else 1,
-                                    }
-                                    
-                                    new_df = pd.concat([new_df, pd.DataFrame([new_player_data])], ignore_index=True)
-                                    
-                                    try:
-                                        if save_data_to_gsheet(new_df):
-                                            st.success(f"✅ Đã thêm phiên bản mới: {selected_player} {new_rating} | {new_club} | {new_nation} | {new_league}")
-                                            st.cache_data.clear()
-                                            st.rerun()
-                                    except Exception as e:
-                                        st.error(f"❌ Lỗi khi lưu: {e}")
+                                new_df = pd.concat([new_df, pd.DataFrame([new_player_data])], ignore_index=True)
+                                
+                                try:
+                                    if save_data_to_gsheet(new_df):
+                                        st.success(f"✅ Đã thêm phiên bản mới: {selected_player} {new_rating} | {new_club} | {new_nation} | {new_league} với {len(new_selected_skills)} skills")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi khi lưu: {e}")
 
     elif current_tab == 'inventory':
         st.header("📦 Kho Skills")
