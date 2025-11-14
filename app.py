@@ -435,10 +435,17 @@ def fetch_ehub_raw_html(url: str) -> str:
     resp = scraper.get(url, timeout=20)
     
     # DEBUG: Kiểm tra Cloudflare
-    if "cloudflare" in resp.text.lower() or "just a moment" in resp.text.lower():
-        st.error(f"🚫 Cloudflare đang chặn: {url}")
-        st.code(resp.text[:500])
-        return ""
+# Trong sidebar debug
+    if st.checkbox("🐛 Test Cloudflare Bypass"):
+        test_url = st.text_input("URL test", "https://efootballhub.net/efootball23/player/106756780978095")
+        if st.button("Test"):
+            with st.spinner("Fetching..."):
+                html = fetch_ehub_raw_html(test_url)
+                if html:
+                    st.success(f"✅ Lấy được {len(html)} chars")
+                    st.code(html[:500])
+                else:
+                    st.error("❌ Không lấy được HTML")
     
     resp.raise_for_status()
     return resp.text
