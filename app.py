@@ -469,6 +469,92 @@ def fetch_ehub_raw_html(url: str) -> str:
         print(f"❌ CloudScraper error: {e}")
         return ""
 
+import cloudscraper
+import time
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
+    """Fetch HTML với CloudScraper - Enhanced version"""
+    
+    for attempt in range(max_retries):
+        try:
+            # Tạo scraper mới mỗi lần thử
+            scraper = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'windows',
+                    'mobile': False,
+                    'desktop': True
+                },
+                delay=10,  # Đợi 10s nếu gặp challenge
+                
+                # ✨ THÊM CÁC THAM SỐ NÀY
+                interpreter='native',  # Dùng JavaScript interpreter native
+                captcha={
+                    'provider': 'return_response'  # Trả về response ngay cả khi gặp captcha
+                }
+            )
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
+                'DNT': '1',
+                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+            }
+            
+            # Thêm delay giữa các request
+            if attempt > 0:
+                wait_time = 2 ** attempt  # Exponential backoff: 2s, 4s, 8s
+                print(f"⏳ Đợi {wait_time}s trước khi thử lại...")
+                time.sleep(wait_time)
+            
+            print(f"🔄 Attempt {attempt + 1}/{max_retries}: Fetching {url}")
+            
+            resp = scraper.get(url, headers=headers, timeout=30)
+            resp.raise_for_status()
+            
+            html = resp.text
+            
+            # Kiểm tra kỹ hơn
+            if len(html) < 1000:
+                print(f"⚠️ HTML quá ngắn ({len(html)} chars)")
+                if attempt < max_retries - 1:
+                    continue
+                return ""
+            
+            # Kiểm tra có phải challenge page không
+            if 'challenge-platform' in html.lower() or 'cf-browser-verification' in html.lower():
+                print(f"⚠️ Phát hiện Cloudflare challenge page")
+                if attempt < max_retries - 1:
+                    continue
+                return ""
+            
+            print(f"✅ Fetched {len(html)} chars from {url}")
+            return html
+            
+        except cloudscraper.exceptions.CloudflareChallengeError as e:
+            print(f"❌ Cloudflare Challenge Error (attempt {attempt + 1}): {e}")
+            if attempt == max_retries - 1:
+                return ""
+                
+        except Exception as e:
+            print(f"❌ Error (attempt {attempt + 1}): {e}")
+            if attempt == max_retries - 1:
+                return ""
+    
+    return ""
+
 def extract_player_skills(player_url: str) -> str:
     """Trích xuất Skills từ eFootballHub player page"""
     try:
