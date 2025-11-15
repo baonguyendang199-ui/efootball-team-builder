@@ -2159,7 +2159,7 @@ def main():
                     height=100,
                     help="Ví dụ: Heading, Man Marking, Interception"
                 )
-                
+            
                 st.divider()
                 
                 # Buttons
