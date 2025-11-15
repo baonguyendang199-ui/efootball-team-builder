@@ -1996,7 +1996,7 @@ def main():
         # ========== CHẾ ĐỘ THÊM MỚI ==========
         else:
             # ========== BƯỚC 1: NHẬP URL ==========
-            if not st.session_state.add_show_form:
+                if not st.session_state.add_show_form:
             st.markdown("### 🔗 Bước 1: Nhập URL từ PESDB")
             st.info("💡 Nhập link PESDB để tự động lấy toàn bộ thông tin cầu thủ")
             
