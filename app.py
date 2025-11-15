@@ -1170,12 +1170,12 @@ def main():
                     
                     with col_img:
                         if image_url:
-                            st.image(image_url, width=100)
+                            st.image(image_url, width=200)
                         else:
                             st.markdown(
-                                '<div style="width:100px;height:130px;background:#f0f0f0;'
+                                '<div style="width:200px;height:260px;background:#f0f0f0;'
                                 'display:flex;align-items:center;justify-content:center;'
-                                'border-radius:8px;font-size:40px;">❓</div>',
+                                'border-radius:16px;font-size:80px;">❓</div>',
                                 unsafe_allow_html=True
                             )
                     
@@ -1876,12 +1876,12 @@ def main():
                             
                             with col_img:
                                 if image_url:
-                                    st.image(image_url, width=100)
+                                    st.image(image_url, width=200)
                                 else:
                                     st.markdown(
-                                        '<div style="width:100px;height:130px;background:#f0f0f0;'
+                                        '<div style="width:200px;height:260px;background:#f0f0f0;'
                                         'display:flex;align-items:center;justify-content:center;'
-                                        'border-radius:8px;font-size:40px;">❓</div>',
+                                        'border-radius:16px;font-size:80px;">❓</div>',
                                         unsafe_allow_html=True
                                     )
                             
