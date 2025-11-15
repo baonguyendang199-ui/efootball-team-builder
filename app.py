@@ -503,6 +503,78 @@ def extract_player_skills(player_url: str) -> str:
     except Exception as e:
         return ""
 
+def extract_full_player_info(player_url: str) -> dict:
+    """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB
+    
+    Returns:
+        dict: {
+            'Player': str,
+            'Rating': int,
+            'Position': str,
+            'Nation': str,
+            'Club': str,
+            'League': str,
+            'Skills': str,
+        }
+    """
+    default_info = {
+        'Player': '',
+        'Rating': 0,
+        'Position': '',
+        'Nation': '',
+        'Club': '',
+        'League': '',
+        'Skills': '',
+    }
+    
+    try:
+        if not player_url or not str(player_url).startswith('http'):
+            return default_info
+        
+        html = fetch_ehub_raw_html(player_url)
+        if not html:
+            return default_info
+        
+        soup = BeautifulSoup(html, 'html.parser')
+        info = default_info.copy()
+        
+        # Mapping từ PESDB labels sang tên fields
+        field_mapping = {
+            'Player Name': 'Player',
+            'Team Name': 'Club',
+            'League': 'League',
+            'Nationality': 'Nation',
+        }
+        
+        # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
+        rows = soup.find_all('tr')
+        for row in rows:
+            th = row.find('th')
+            td = row.find('td')
+            if th and td:
+                key = th.get_text(strip=True).replace(':', '')
+                value = td.get_text(strip=True)
+                
+                # Map sang field name
+                if key in field_mapping:
+                    field_name = field_mapping[key]
+                    info[field_name] = value
+                
+                # Xử lý Position đặc biệt
+                if key == 'Position':
+                    pos_div = td.find('div', title=True)
+                    if pos_div:
+                        info['Position'] = pos_div.get_text(strip=True)
+        
+        # Lấy Skills
+        info['Skills'] = extract_player_skills(player_url)
+        
+        return info
+        
+    except Exception as e:
+        st.error(f"❌ Lỗi khi trích xuất thông tin: {e}")
+        return default_info
+
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
     if column in df.columns:
         vals = [str(x) for x in df[column].unique() if pd.notna(x) and str(x).strip()]
