@@ -1997,40 +1997,40 @@ def main():
         else:
             # ========== BƯỚC 1: NHẬP URL ==========
             if not st.session_state.add_show_form:
-            st.markdown("### 🔗 Bước 1: Nhập URL từ PESDB")
-            st.info("💡 Nhập link PESDB để tự động lấy toàn bộ thông tin cầu thủ")
-            
-            pesdb_url = st.text_input(
-                "URL PESDB",
-                placeholder="https://pesdb.net/efootball/?id=105809740719809",
-                help="Ví dụ: https://pesdb.net/efootball/?id=105809740719809"
-            )
-            
-            col1, col2, col3 = st.columns([1, 1, 2])
-            with col1:
-                if st.button("🔍 Lấy thông tin", type="primary", use_container_width=True, disabled=not pesdb_url):
-                    with st.spinner("⏳ Đang trích xuất dữ liệu từ PESDB..."):
-                        player_info = extract_full_player_info(pesdb_url)
-                        
-                        if player_info and player_info['Player']:
-                            # Lưu vào session state
-                            st.session_state.add_preview_data = {
-                                'Player': player_info['Player'],
-                                'Rating': 90,  # Mặc định 90, user sẽ điều chỉnh
-                                'Position': player_info['Position'],
-                                'Nation': player_info['Nation'],
-                                'Club': player_info['Club'],
-                                'League': player_info['League'],
-                                'Skills': player_info['Skills'],
-                                'Player_URL': pesdb_url,
-                                'Player_ID': extract_ehub_player_id(pesdb_url)
-                            }
-                            st.session_state.add_show_form = True
-                            st.success("✅ Đã lấy thông tin thành công!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Không thể lấy thông tin từ URL này. Vui lòng kiểm tra lại!")
-            
+                st.markdown("### 🔗 Bước 1: Nhập URL từ PESDB")
+                st.info("💡 Nhập link PESDB để tự động lấy toàn bộ thông tin cầu thủ")
+                
+                pesdb_url = st.text_input(
+                    "URL PESDB",
+                    placeholder="https://pesdb.net/efootball/?id=105809740719809",
+                    help="Ví dụ: https://pesdb.net/efootball/?id=105809740719809"
+                )
+                
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    if st.button("🔍 Lấy thông tin", type="primary", use_container_width=True, disabled=not pesdb_url):
+                        with st.spinner("⏳ Đang trích xuất dữ liệu từ PESDB..."):
+                            player_info = extract_full_player_info(pesdb_url)
+                            
+                            if player_info and player_info['Player']:
+                                # Lưu vào session state
+                                st.session_state.add_preview_data = {
+                                    'Player': player_info['Player'],
+                                    'Rating': 90,  # Mặc định 90, user sẽ điều chỉnh
+                                    'Position': player_info['Position'],
+                                    'Nation': player_info['Nation'],
+                                    'Club': player_info['Club'],
+                                    'League': player_info['League'],
+                                    'Skills': player_info['Skills'],
+                                    'Player_URL': pesdb_url,
+                                    'Player_ID': extract_ehub_player_id(pesdb_url)
+                                }
+                                st.session_state.add_show_form = True
+                                st.success("✅ Đã lấy thông tin thành công!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Không thể lấy thông tin từ URL này. Vui lòng kiểm tra lại!")
+                
             with col2:
                 if st.button("✍️ Nhập thủ công", use_container_width=True):
                     # Tạo data trống cho nhập thủ công
