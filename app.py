@@ -396,61 +396,97 @@ POSITION_STYLE_ORDER = {
     "Goalkeeper": 4,
 }
 
-# Scraper config
+# ==================== PESDB SCRAPER ====================
+PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/?id="
+PESDB_IMAGE_URL_BASE = "https://pesdb.net/assets/img/card/"
+
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Referer': 'https://pesdb.net/',
+    'Connection': 'keep-alive',
 }
 
-EFOOTBALLHUB_PLAYER_URL_BASE = "https://efootballhub.net/efootball23/player/"
-
-# --- UTILITIES ---
-
 def extract_ehub_player_id(value: str) -> str:
-    """Extract numeric player id from an efootballhub URL or a raw id string."""
+    """Extract player ID from URL or string"""
     if not value:
         return ""
     s = str(value).strip()
-    m = re.search(r"(\d{6,})", s)
+    m = re.search(r"(\d{14,})", s)
     return m.group(1) if m else ""
 
 def make_ehub_player_url(player_id: str) -> str:
+    """Tạo URL PESDB từ Player ID"""
     pid = extract_ehub_player_id(player_id)
-    return f"{EFOOTBALLHUB_PLAYER_URL_BASE}{pid}" if pid else ""
+    return f"{PESDB_PLAYER_URL_BASE}{pid}" if pid else ""
 
 def make_ehub_player_image_url(player_id: str) -> str:
-    """Tạo URL hình ảnh cầu thủ từ player_id"""
+    """Tạo URL hình ảnh từ Player ID - PESDB format"""
     pid = extract_ehub_player_id(player_id)
-    return f"https://efootballhub.net/images/efootball24/players/{pid}_l.webp" if pid else ""
+    if not pid:
+        return ""
+    return f"{PESDB_IMAGE_URL_BASE}f{pid}.png"
 
-@st.cache_data(ttl=86400)
-def fetch_ehub_raw_html(url: str) -> str:
-    resp = requests.get(url, headers=HEADERS, timeout=20)
-    resp.raise_for_status()
-    return resp.text
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
+    """Fetch HTML từ PESDB với retry logic"""
+    for attempt in range(max_retries):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=20)
+            resp.raise_for_status()
+            
+            html = resp.text
+            if len(html) < 1000:
+                raise Exception(f"HTML too short: {len(html)} chars")
+            
+            return html
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(1)
+            continue
+    return ""
 
 def extract_player_skills(player_url: str) -> str:
-    """Trích xuất Skills từ eFootballHub player page"""
+    """Trích xuất Skills từ PESDB"""
     try:
         if not player_url or not str(player_url).startswith('http'):
             return ""
-        html = fetch_ehub_raw_html(player_url)
-        soup = BeautifulSoup(html, 'html.parser')
         
-        skill_container = soup.find('div', class_='player-skill-container')
-        if not skill_container:
+        html = fetch_ehub_raw_html(player_url)
+        if not html:
             return ""
         
-        skill_labels = skill_container.find_all('label', class_='lbl-block', hidden=False)
-        
+        soup = BeautifulSoup(html, 'html.parser')
         skills = []
-        for label in skill_labels:
-            skill_name = label.get_text(strip=True)
-            if skill_name and skill_name.lower() != 'skills':
-                skills.append(skill_name)
         
-        skills = sorted(list(set(x for x in skills if x)))
+        # Tìm <h3>Player Skills</h3>
+        headers = soup.find_all('h3', string=re.compile(r'Player Skills', re.IGNORECASE))
+        
+        for header in headers:
+            ul_element = header.find_next_sibling('ul')
+            if ul_element:
+                li_elements = ul_element.find_all('li')
+                for li in li_elements:
+                    skill_name = li.get_text(strip=True)
+                    if skill_name:
+                        skills.append(skill_name)
+        
+        # Fallback method
+        if not skills:
+            for text in soup.find_all(string=re.compile(r'Player Skills', re.IGNORECASE)):
+                parent = text.find_parent()
+                if parent:
+                    ul = parent.find_next('ul')
+                    if ul:
+                        for li in ul.find_all('li'):
+                            skill_name = li.get_text(strip=True)
+                            if skill_name:
+                                skills.append(skill_name)
+        
+        skills = sorted(list(set(s for s in skills if s)))
         return ', '.join(skills)
-    except Exception:
+    except Exception as e:
         return ""
 
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
@@ -462,8 +498,6 @@ def get_unique_values(df: pd.DataFrame, column: str) -> list:
 def initialize_session_state():
     defaults = {
         'manual_reload_triggered': False,
-        'selected_player_detail': None,
-        'editing_player': None,
         'current_tab': 'overview',
         'checkbox_reset_counter': 0,
     }
