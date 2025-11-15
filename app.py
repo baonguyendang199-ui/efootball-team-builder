@@ -2052,7 +2052,7 @@ def main():
             st.caption("🎯 **Hướng dẫn:** Nhập URL PESDB để tự động lấy thông tin, hoặc chọn 'Nhập thủ công' để tự điền")
         
         # ========== BƯỚC 2: PREVIEW & CHỈNH SỬA ==========
-            else:
+        else:
             data = st.session_state.add_preview_data
             
             st.markdown("### 📋 Bước 2: Xem trước & Chỉnh sửa")
