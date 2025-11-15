@@ -1918,152 +1918,150 @@ def main():
             st.metric("Số EPIC", int(epic_count))
 
     elif current_tab == 'add':
-        st.header("➕ Thêm cầu thủ")
-        
-        # Initialize session state
-        if 'add_preview_data' not in st.session_state:
-            st.session_state.add_preview_data = None
-        if 'add_show_form' not in st.session_state:
-            st.session_state.add_show_form = False
-        if 'add_mode' not in st.session_state:
-            st.session_state.add_mode = 'new'  # 'new' hoặc 'upgrade'
-        
-        # ========== CHỌN CHẾ ĐỘ ==========
-        mode = st.radio(
-                "Chọn chế độ",
-            ["➕ Thêm mới", "🔄 Upgrade cầu thủ có sẵn"],
-            horizontal=True,
-            key="add_mode_radio"
-        )
-        
-    st.session_state.add_mode = 'upgrade' if mode == "🔄 Upgrade cầu thủ có sẵn" else 'new'
-        st.divider()
-        
-        # ========== CHẾ ĐỘ UPGRADE ==========
-        if st.session_state.add_mode == 'upgrade':
-            st.info("💡 Chế độ này tự động tìm và thay thế thẻ cũ (cùng tên + Club + Nation + League)")
+            st.header("➕ Thêm cầu thủ")
             
-            # Bước 1: Chọn cầu thủ
-            existing_players = sorted(df['Player'].astype(str).unique().tolist())
-            selected_player = st.selectbox(
-                "1️⃣ Chọn cầu thủ cần upgrade",
-                options=[""] + existing_players,
-                help="Chọn cầu thủ từ danh sách có sẵn"
+            # Initialize session state
+            if 'add_preview_data' not in st.session_state:
+                st.session_state.add_preview_data = None
+            if 'add_show_form' not in st.session_state:
+                st.session_state.add_show_form = False
+            if 'add_mode' not in st.session_state:
+                st.session_state.add_mode = 'new'
+            
+            # ========== CHỌN CHẾ ĐỘ ==========
+            mode = st.radio(
+                "Chọn chế độ",
+                ["➕ Thêm mới", "🔄 Upgrade cầu thủ có sẵn"],
+                horizontal=True,
+                key="add_mode_radio"
             )
             
-            if selected_player:
-                # Hiển thị tất cả phiên bản hiện có
-                player_versions = df[df['Player'] == selected_player].copy()
-                player_versions = player_versions.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+            st.session_state.add_mode = 'upgrade' if mode == "🔄 Upgrade cầu thủ có sẵn" else 'new'
+            
+            st.divider()
+            
+            # ========== CHẾ ĐỘ UPGRADE ==========
+            if st.session_state.add_mode == 'upgrade':
+                st.info("💡 Chế độ này tự động tìm và thay thế thẻ cũ (cùng tên + Club + Nation + League)")
                 
-                st.subheader(f"📋 Phiên bản hiện có của {selected_player}")
-                version_display = player_versions[['Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Skills']].copy()
-                version_display.insert(0, 'STT', range(1, len(version_display) + 1))
-                st.dataframe(version_display, use_container_width=True, hide_index=True)
-                
-                st.divider()
-                st.markdown("### 2️⃣ Nhập URL PESDB của phiên bản mới")
-                
-                upgrade_url = st.text_input(
-                    "URL PESDB",
-                    placeholder="https://pesdb.net/efootball/?id=...",
-                    key="upgrade_url"
+                # Bước 1: Chọn cầu thủ
+                existing_players = sorted(df['Player'].astype(str).unique().tolist())
+                selected_player = st.selectbox(
+                    "1️⃣ Chọn cầu thủ cần upgrade",
+                    options=[""] + existing_players,
+                    help="Chọn cầu thủ từ danh sách có sẵn"
                 )
                 
-                if st.button("🔍 Lấy thông tin & Preview", type="primary", disabled=not upgrade_url):
-                    with st.spinner("⏳ Đang trích xuất dữ liệu..."):
-                        player_info = extract_full_player_info(upgrade_url)
-                        
-                    if player_info and player_info['Player']:
-                            st.session_state.add_preview_data = {
-                                'Player': selected_player,  # Giữ tên cũ
-                                'Rating': 90,
-                                'Position': player_info['Position'],
-                                'Nation': player_info['Nation'],
-                                'Club': player_info['Club'],
-                                'League': player_info['League'],
-                                'Skills': player_info['Skills'],
-                                'Player_URL': upgrade_url,
-                            'Player_ID': extract_ehub_player_id(upgrade_url)
-                            }
-                            st.session_state.add_show_form = True
-                            st.success("✅ Đã lấy thông tin thành công!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Không thể lấy thông tin từ URL này!")
-        
-        # ========== CHẾ ĐỘ THÊM MỚI ==========
-        else:
-        # ========== BƯỚC 1: NHẬP URL ==========
-                if not st.session_state.add_show_form:
-            st.markdown("### 🔗 Bước 1: Nhập URL từ PESDB")
-                st.info("💡 Nhập link PESDB để tự động lấy toàn bộ thông tin cầu thủ")
-                
-                pesdb_url = st.text_input(
-                    "URL PESDB",
-                    placeholder="https://pesdb.net/efootball/?id=105809740719809",
-                    help="Ví dụ: https://pesdb.net/efootball/?id=105809740719809"
-                )
-                
-                col1, col2, col3 = st.columns([1, 1, 2])
-                with col1:
-                    if st.button("🔍 Lấy thông tin", type="primary", use_container_width=True, disabled=not pesdb_url):
-                        with st.spinner("⏳ Đang trích xuất dữ liệu từ PESDB..."):
-                            player_info = extract_full_player_info(pesdb_url)
+                if selected_player:
+                    # Hiển thị tất cả phiên bản hiện có
+                    player_versions = df[df['Player'] == selected_player].copy()
+                    player_versions = player_versions.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+                    
+                    st.subheader(f"📋 Phiên bản hiện có của {selected_player}")
+                    version_display = player_versions[['Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Skills']].copy()
+                    version_display.insert(0, 'STT', range(1, len(version_display) + 1))
+                    st.dataframe(version_display, use_container_width=True, hide_index=True)
+                    
+                    st.divider()
+                    st.markdown("### 2️⃣ Nhập URL PESDB của phiên bản mới")
+                    
+                    upgrade_url = st.text_input(
+                        "URL PESDB",
+                        placeholder="https://pesdb.net/efootball/?id=...",
+                        key="upgrade_url"
+                    )
+                    
+                    if st.button("🔍 Lấy thông tin & Preview", type="primary", disabled=not upgrade_url):
+                        with st.spinner("⏳ Đang trích xuất dữ liệu..."):
+                            player_info = extract_full_player_info(upgrade_url)
                             
                             if player_info and player_info['Player']:
-                                # Lưu vào session state
-                            st.session_state.add_preview_data = {
-                                    'Player': player_info['Player'],
-                                    'Rating': 90,  # Mặc định 90, user sẽ điều chỉnh
+                                st.session_state.add_preview_data = {
+                                    'Player': selected_player,
+                                    'Rating': 90,
                                     'Position': player_info['Position'],
                                     'Nation': player_info['Nation'],
                                     'Club': player_info['Club'],
                                     'League': player_info['League'],
                                     'Skills': player_info['Skills'],
-                                    'Player_URL': pesdb_url,
-                                    'Player_ID': extract_ehub_player_id(pesdb_url)
+                                    'Player_URL': upgrade_url,
+                                    'Player_ID': extract_ehub_player_id(upgrade_url)
                                 }
                                 st.session_state.add_show_form = True
                                 st.success("✅ Đã lấy thông tin thành công!")
                                 st.rerun()
                             else:
-                                st.error("❌ Không thể lấy thông tin từ URL này. Vui lòng kiểm tra lại!")
-                
-                with col2:
-                    if st.button("✍️ Nhập thủ công", use_container_width=True):
-                        # Tạo data trống cho nhập thủ công
-                        st.session_state.add_preview_data = {
-                            'Player': '',
-                            'Rating': 90,
-                            'Position': 'CF',
-                            'Nation': '',
-                            'Club': '',
-                            'League': '',
-                        'Skills': '',
-                            'Player_URL': '',
-                            'Player_ID': ''
-                        }
-                        st.session_state.add_show_form = True
-                        st.rerun()
-                
-                st.divider()
-                st.caption("🎯 **Hướng dẫn:** Nhập URL PESDB để tự động lấy thông tin, hoặc chọn 'Nhập thủ công' để tự điền")
+                                st.error("❌ Không thể lấy thông tin từ URL này!")
             
-            # ========== BƯỚC 2: PREVIEW & CHỈNH SỬA ==========
+            # ========== CHẾ ĐỘ THÊM MỚI ==========
             else:
+                if not st.session_state.add_show_form:
+                    st.markdown("### 🔗 Bước 1: Nhập URL từ PESDB")
+                    st.info("💡 Nhập link PESDB để tự động lấy toàn bộ thông tin cầu thủ")
+                    
+                    pesdb_url = st.text_input(
+                        "URL PESDB",
+                        placeholder="https://pesdb.net/efootball/?id=105809740719809",
+                        help="Ví dụ: https://pesdb.net/efootball/?id=105809740719809"
+                    )
+                    
+                    col1, col2, col3 = st.columns([1, 1, 2])
+                    with col1:
+                        if st.button("🔍 Lấy thông tin", type="primary", use_container_width=True, disabled=not pesdb_url):
+                            with st.spinner("⏳ Đang trích xuất dữ liệu từ PESDB..."):
+                                player_info = extract_full_player_info(pesdb_url)
+                                
+                                if player_info and player_info['Player']:
+                                    st.session_state.add_preview_data = {
+                                        'Player': player_info['Player'],
+                                        'Rating': 90,
+                                        'Position': player_info['Position'],
+                                        'Nation': player_info['Nation'],
+                                        'Club': player_info['Club'],
+                                        'League': player_info['League'],
+                                        'Skills': player_info['Skills'],
+                                        'Player_URL': pesdb_url,
+                                        'Player_ID': extract_ehub_player_id(pesdb_url)
+                                    }
+                                    st.session_state.add_show_form = True
+                                    st.success("✅ Đã lấy thông tin thành công!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Không thể lấy thông tin từ URL này. Vui lòng kiểm tra lại!")
+                    
+                    with col2:
+                        if st.button("✍️ Nhập thủ công", use_container_width=True):
+                            st.session_state.add_preview_data = {
+                                'Player': '',
+                                'Rating': 90,
+                                'Position': 'CF',
+                                'Nation': '',
+                                'Club': '',
+                                'League': '',
+                                'Skills': '',
+                                'Player_URL': '',
+                                'Player_ID': ''
+                            }
+                            st.session_state.add_show_form = True
+                            st.rerun()
+                    
+                    st.divider()
+                    st.caption("🎯 **Hướng dẫn:** Nhập URL PESDB để tự động lấy thông tin, hoặc chọn 'Nhập thủ công' để tự điền")
+            
+            # ========== BƯỚC 2: PREVIEW & CHỈNH SỬA (CHUNG CHO CẢ 2 MODE) ==========
+            if st.session_state.add_show_form and st.session_state.add_preview_data:
                 data = st.session_state.add_preview_data
                 
                 st.markdown("### 📋 Bước 2: Xem trước & Chỉnh sửa")
-                    
+                
                 # Hiển thị hình ảnh nếu có Player ID
-            if data.get('Player_ID'):
+                if data.get('Player_ID'):
                     col_img, col_info = st.columns([1, 3])
-                        with col_img:
+                    with col_img:
                         image_url = make_ehub_player_image_url(data['Player_ID'])
-                    st.image(image_url, width=200)
+                        st.image(image_url, width=200)
                     with col_info:
-                            st.markdown(f"## {data.get('Player', 'Unknown Player')}")
+                        st.markdown(f"## {data.get('Player', 'Unknown Player')}")
                 else:
                     st.markdown(f"## ✍️ Nhập thông tin cầu thủ mới")
                 
@@ -2075,7 +2073,7 @@ def main():
                     
                     # Row 1: Tên + Rating + Loại
                     col1, col2, col3 = st.columns(3)
-                with col1:
+                    with col1:
                         player_name = st.text_input("👤 Tên cầu thủ *", value=data.get('Player', ''), placeholder="Ví dụ: Lionel Messi")
                     with col2:
                         rating = st.number_input("⭐ Rating *", min_value=1, max_value=150, value=data.get('Rating', 90))
@@ -2087,7 +2085,7 @@ def main():
                     with col1:
                         existing_positions = sorted(df['Position'].unique().tolist(), key=lambda x: POSITION_ORDER.get(x, 999))
                         current_pos = data.get('Position', '')
-                    if current_pos and current_pos not in existing_positions:
+                        if current_pos and current_pos not in existing_positions:
                             existing_positions.insert(0, current_pos)
                         position_idx = existing_positions.index(current_pos) if current_pos in existing_positions else 0
                         position = st.selectbox("📍 Vị trí *", existing_positions, index=position_idx)
@@ -2106,29 +2104,23 @@ def main():
                     
                     with col1:
                         existing_nations = [""] + sorted([x for x in df['Nation'].astype(str).unique() if str(x).strip()])
-                    current_nation = data.get('Nation', '')
-                        
+                        current_nation = data.get('Nation', '')
                         if current_nation and current_nation not in existing_nations:
                             existing_nations.insert(1, current_nation)
-                        
                         nation_idx = existing_nations.index(current_nation) if current_nation in existing_nations else 0
                         nation = st.selectbox("🏴 Quốc gia", existing_nations, index=nation_idx)
-                            
-                    if nation == "":
-                                nation_new = st.text_input("Nhập quốc gia mới", key="nation_new")
+                        if nation == "":
+                            nation_new = st.text_input("Nhập quốc gia mới", key="nation_new")
                             if nation_new:
                                 nation = nation_new
-                
+                    
                     with col2:
                         existing_clubs = [""] + sorted([x for x in df['Club'].astype(str).unique() if str(x).strip()])
                         current_club = data.get('Club', '')
-                            
                         if current_club and current_club not in existing_clubs:
                             existing_clubs.insert(1, current_club)
-                        
                         club_idx = existing_clubs.index(current_club) if current_club in existing_clubs else 0
                         club = st.selectbox("⚽ CLB", existing_clubs, index=club_idx)
-                        
                         if club == "":
                             club_new = st.text_input("Nhập CLB mới", key="club_new")
                             if club_new:
@@ -2136,26 +2128,23 @@ def main():
                     
                     with col3:
                         existing_leagues = [""] + sorted([x for x in df['League'].astype(str).unique() if str(x).strip()])
-                    current_league = data.get('League', '')
-                        
+                        current_league = data.get('League', '')
                         if current_league and current_league not in existing_leagues:
                             existing_leagues.insert(1, current_league)
-                        
                         league_idx = existing_leagues.index(current_league) if current_league in existing_leagues else 0
                         league = st.selectbox("🏆 Giải đấu", existing_leagues, index=league_idx)
-                            
-                    if league == "":
+                        if league == "":
                             league_new = st.text_input("Nhập giải đấu mới", key="league_new")
                             if league_new:
                                 league = league_new
                     
                     # Skills
-                        st.divider()
+                    st.divider()
                     st.subheader("🎮 Skills")
                     skills = st.text_area(
-                    "Danh sách skills (cách nhau bởi dấu phẩy)",
-                            value=data.get('Skills', ''),
-                    height=100,
+                        "Danh sách skills (cách nhau bởi dấu phẩy)",
+                        value=data.get('Skills', ''),
+                        height=100,
                         help="Ví dụ: Heading, Man Marking, Interception"
                     )
                     
@@ -2175,7 +2164,6 @@ def main():
                         st.rerun()
                     
                     if save_btn:
-                    # Validation
                         if not player_name:
                             st.error("❌ Vui lòng nhập tên cầu thủ!")
                         elif not position:
@@ -2183,21 +2171,19 @@ def main():
                         else:
                             # CHẾ ĐỘ UPGRADE
                             if st.session_state.add_mode == 'upgrade':
-                                # Tìm thẻ cũ với cùng Club + Nation + League
-                            matching_cards = df[
-                                        (df['Player'] == player_name) &
+                                matching_cards = df[
+                                    (df['Player'] == player_name) &
                                     (df['Club'].astype(str) == club) &
                                     (df['Nation'].astype(str) == nation) &
                                     (df['League'].astype(str) == league)
-                            ]
+                                ]
                                 
                                 new_df = df.copy()
                                 
                                 if not matching_cards.empty:
-                                    # UPGRADE: Thay thế thẻ cũ
-                                        old_idx = matching_cards.index[0]
-                                old_rating = matching_cards.iloc[0]['Rating']
-                                        old_type = matching_cards.iloc[0]['Player Type']
+                                    old_idx = matching_cards.index[0]
+                                    old_rating = matching_cards.iloc[0]['Rating']
+                                    old_type = matching_cards.iloc[0]['Player Type']
                                     
                                     new_df.at[old_idx, 'Rating'] = int(rating)
                                     new_df.at[old_idx, 'Position'] = position
@@ -2206,7 +2192,7 @@ def main():
                                     new_df.at[old_idx, 'Player URL'] = data.get('Player_URL', '')
                                     new_df.at[old_idx, 'Player ID'] = data.get('Player_ID', '')
                                     new_df.at[old_idx, 'Skills'] = skills
-                                    new_df.at[old_idx, 'Added Skills'] = ""  # Reset Added Skills
+                                    new_df.at[old_idx, 'Added Skills'] = ""
                                     new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type == "EPIC" else 1
                                     
                                     try:
@@ -2215,13 +2201,12 @@ def main():
                                             st.success(f"✅ Đã upgrade **{player_name}**: {old_rating} ({old_type}) → {rating} ({player_type}) ({rating_diff:+d})")
                                             st.info(f"📍 {club} | {nation} | {league}")
                                             
-                                            # Reset
                                             st.session_state.add_preview_data = None
                                             st.session_state.add_show_form = False
                                             st.cache_data.clear()
                                             st.balloons()
                                             
-                                                import time
+                                            import time
                                             time.sleep(1.5)
                                             st.rerun()
                                         else:
@@ -2229,8 +2214,7 @@ def main():
                                     except Exception as e:
                                         st.error(f"❌ Lỗi: {e}")
                                 else:
-                                    # Không tìm thấy thẻ cũ → Thêm mới
-                                        st.warning(f"⚠️ Không tìm thấy thẻ cũ với Club/Nation/League này")
+                                    st.warning(f"⚠️ Không tìm thấy thẻ cũ với Club/Nation/League này")
                                     st.info("💡 Sẽ thêm phiên bản mới thay vì upgrade")
                                     
                                     new_player = {
@@ -2243,16 +2227,16 @@ def main():
                                         "Club": club,
                                         "League": league,
                                         "Player URL": data.get('Player_URL', ''),
-                                            "Player ID": data.get('Player_ID', ''),
+                                        "Player ID": data.get('Player_ID', ''),
                                         "Skills": skills,
                                         "Added Skills": "",
                                         "Epic_Priority": 0 if player_type == "EPIC" else 1,
                                     }
                                     
                                     new_df = pd.concat([new_df, pd.DataFrame([new_player])], ignore_index=True)
-                                
+                                    
                                     try:
-                                            if save_data_to_gsheet(new_df):
+                                        if save_data_to_gsheet(new_df):
                                             st.success(f"✅ Đã thêm phiên bản mới: **{player_name}** {rating} | {club} | {nation} | {league}")
                                             
                                             st.session_state.add_preview_data = None
@@ -2285,16 +2269,16 @@ def main():
                                     "Added Skills": "",
                                     "Epic_Priority": 0 if player_type == "EPIC" else 1,
                                 }
-                            
+                                
                                 new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
                                 
                                 try:
                                     if save_data_to_gsheet(new_df):
                                         st.success(f"✅ Đã thêm cầu thủ **{player_name}** thành công!")
                                         
-                                            st.session_state.add_preview_data = None
+                                        st.session_state.add_preview_data = None
                                         st.session_state.add_show_form = False
-                                    st.cache_data.clear()
+                                        st.cache_data.clear()
                                         st.balloons()
                                         
                                         import time
