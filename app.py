@@ -448,7 +448,16 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
     return ""
 
 def extract_player_skills(player_url: str) -> str:
-    """Trích xuất Skills từ PESDB"""
+    """Trích xuất Skills từ PESDB
+    
+    HTML Structure:
+    <tbody>
+        <tr><th>Player Skills</th></tr>
+        <tr><td>Heading</td></tr>
+        <tr><td>Man Marking</td></tr>
+        ...
+    </tbody>
+    """
     try:
         if not player_url or not str(player_url).startswith('http'):
             return ""
@@ -460,32 +469,37 @@ def extract_player_skills(player_url: str) -> str:
         soup = BeautifulSoup(html, 'html.parser')
         skills = []
         
-        # Tìm <h3>Player Skills</h3>
-        headers = soup.find_all('h3', string=re.compile(r'Player Skills', re.IGNORECASE))
+        # Tìm <th>Player Skills</th>
+        skill_headers = soup.find_all('th', string=re.compile(r'Player Skills', re.IGNORECASE))
         
-        for header in headers:
-            ul_element = header.find_next_sibling('ul')
-            if ul_element:
-                li_elements = ul_element.find_all('li')
-                for li in li_elements:
-                    skill_name = li.get_text(strip=True)
+        for header in skill_headers:
+            # Lấy parent <tr>
+            header_row = header.find_parent('tr')
+            if not header_row:
+                continue
+            
+            # Lấy tất cả <tr> kế tiếp cho đến khi gặp <th> khác
+            current_row = header_row.find_next_sibling('tr')
+            
+            while current_row:
+                # Nếu gặp <th> → dừng (đã sang section khác)
+                if current_row.find('th'):
+                    break
+                
+                # Lấy <td>
+                td = current_row.find('td')
+                if td:
+                    skill_name = td.get_text(strip=True)
                     if skill_name:
                         skills.append(skill_name)
+                
+                current_row = current_row.find_next_sibling('tr')
         
-        # Fallback method
-        if not skills:
-            for text in soup.find_all(string=re.compile(r'Player Skills', re.IGNORECASE)):
-                parent = text.find_parent()
-                if parent:
-                    ul = parent.find_next('ul')
-                    if ul:
-                        for li in ul.find_all('li'):
-                            skill_name = li.get_text(strip=True)
-                            if skill_name:
-                                skills.append(skill_name)
-        
+        # Remove duplicates và sort
         skills = sorted(list(set(s for s in skills if s)))
+        
         return ', '.join(skills)
+        
     except Exception as e:
         return ""
 
