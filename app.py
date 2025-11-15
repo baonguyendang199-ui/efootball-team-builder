@@ -104,93 +104,93 @@ def save_data_to_gsheet(df):
 # --- SKILLS PRIORITY SYSTEM ---
 POSITION_SKILLS_PRIORITY = {
     "CF": [
-        "First Time Shot", "Acrobatic Finishing", "Long Range Drive", 
+        "First-time Shot", "Acrobatic Finishing", "Long Range Drive", 
         "Long Range Shooting", "Outside Curler", "Heading", 
-        "Aerial Superiority", "One Touch Pass", "Through Passing",
+        "Aerial Superiority", "One-touch Pass", "Through Passing",
         "Weighted Pass", "Fighting Spirit", "Cut Behind & Turn",
-        "Step On Skill Control", "Heel Trick", "Track Back"
+        "Sole Control", "Heel Trick", "Track Back"
     ],
     "SS": [
-        "One Touch Pass", "Through Passing", "First Time Shot",
+        "One-touch Pass", "Through Passing", "First-time Shot",
         "Acrobatic Finishing", "Fighting Spirit", "Outside Curler",
-        "Long Range Shooting", "Weighted Pass", "Step On Skill Control",
+        "Long Range Shooting", "Weighted Pass", "Sole Control",
         "Long Range Drive", "Cut Behind & Turn", "Double Touch",
         "Pinpoint Crossing", "Heel Trick", "Super Sub"
     ],
     "LWF": [
-        "Pinpoint Crossing", "One Touch Pass", "Through Passing",
+        "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Weighted Pass", "Outside Curler", "Fighting Spirit",
-        "Step On Skill Control", "Long Range Drive", "Long Range Shooting",
-        "Cut Behind & Turn", "First Time Shot", "Heel Trick",
+        "Sole Control", "Long Range Drive", "Long Range Shooting",
+        "Cut Behind & Turn", "First-time Shot", "Heel Trick",
         "Double Touch", "Acrobatic Finishing", "Super Sub"
     ],
     "RWF": [
-        "Pinpoint Crossing", "One Touch Pass", "Through Passing",
+        "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Weighted Pass", "Outside Curler", "Fighting Spirit",
-        "Step On Skill Control", "Long Range Drive", "Long Range Shooting",
-        "Cut Behind & Turn", "First Time Shot", "Heel Trick",
+        "Sole Control", "Long Range Drive", "Long Range Shooting",
+        "Cut Behind & Turn", "First-time Shot", "Heel Trick",
         "Double Touch", "Acrobatic Finishing", "Super Sub"
     ],
     "AMF": [
-        "One Touch Pass", "Through Passing", "Weighted Pass",
-        "Long Range Drive", "Fighting Spirit", "First Time Shot",
+        "One-touch Pass", "Through Passing", "Weighted Pass",
+        "Long Range Drive", "Fighting Spirit", "First-time Shot",
         "Long Range Shooting", "Outside Curler", "Pinpoint Crossing",
-        "Cut Behind & Turn", "Step On Skill Control", "Heel Trick",
+        "Cut Behind & Turn", "Sole Control", "Heel Trick",
         "Acrobatic Finishing", "Double Touch", "Low Lofted Pass"
     ],
     "CMF": [
-        "One Touch Pass", "Through Passing", "Interception",
+        "One-touch Pass", "Through Passing", "Interception",
         "Weighted Pass", "Fighting Spirit", "Track Back",
-        "Step On Skill Control", "Cut Behind & Turn", "Pinpoint Crossing","Outside Curler", "Heel Trick", "Low Lofted Pass",
+        "Sole Control", "Cut Behind & Turn", "Pinpoint Crossing","Outside Curler", "Heel Trick", "Low Lofted Pass",
         "Blocker", "Long Range Shooting", "Double Touch"
     ],
     "DMF": [
-        "Interception", "Blocker", "One Touch Pass",
+        "Interception", "Blocker", "One-touch Pass",
         "Through Passing", "Weighted Pass", "Man Marking",
-        "Fighting Spirit", "Step On Skill Control", "Aerial Superiority",
+        "Fighting Spirit", "Sole Control", "Aerial Superiority",
         "Sliding Tackle", "Heading", "Low Lofted Pass",
-        "Cut Behind & Turn", "Outside Curler", "Acrobatic Clear"
+        "Cut Behind & Turn", "Outside Curler", "Acrobatic Clearanceance"
     ],
     "LMF": [
-        "Pinpoint Crossing", "One Touch Pass", "Through Passing",
+        "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Fighting Spirit", "Cut Behind & Turn", "Weighted Pass",
-        "Outside Curler", "Long Range Drive", "Step On Skill Control",
+        "Outside Curler", "Long Range Drive", "Sole Control",
         "Heel Trick", "Track Back", "Long Range Shooting",
-        "First Time Shot", "Acrobatic Finishing", "Double Touch"
+        "First-time Shot", "Acrobatic Finishing", "Double Touch"
     ],
     "RMF": [
-        "Pinpoint Crossing", "One Touch Pass", "Through Passing",
+        "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Fighting Spirit", "Cut Behind & Turn", "Weighted Pass",
-        "Outside Curler", "Long Range Drive", "Step On Skill Control",
+        "Outside Curler", "Long Range Drive", "Sole Control",
         "Heel Trick", "Track Back", "Long Range Shooting",
-        "First Time Shot", "Acrobatic Finishing", "Double Touch"
+        "First-time Shot", "Acrobatic Finishing", "Double Touch"
     ],
     "LB": [
         "Track Back", "Blocker", "Interception",
         "Man Marking", "Pinpoint Crossing", "Fighting Spirit",
-        "Sliding Tackle", "Acrobatic Clear", "Aerial Superiority",
-        "One Touch Pass", "Through Passing", "Weighted Pass",
-        "Outside Curler", "Step On Skill Control", "Low Lofted Pass"
+        "Sliding Tackle", "Acrobatic Clearanceance", "Aerial Superiority",
+        "One-touch Pass", "Through Passing", "Weighted Pass",
+        "Outside Curler", "Sole Control", "Low Lofted Pass"
     ],
     "RB": [
         "Track Back", "Blocker", "Interception",
         "Man Marking", "Pinpoint Crossing", "Fighting Spirit",
-        "Sliding Tackle", "Acrobatic Clear", "Aerial Superiority",
-        "One Touch Pass", "Through Passing", "Weighted Pass",
-        "Outside Curler", "Step On Skill Control", "Low Lofted Pass"
+        "Sliding Tackle", "Acrobatic Clearanceance", "Aerial Superiority",
+        "One-touch Pass", "Through Passing", "Weighted Pass",
+        "Outside Curler", "Sole Control", "Low Lofted Pass"
     ],
     "CB": [
         "Interception", "Blocker", "Man Marking",
         "Aerial Superiority", "Heading", "Sliding Tackle",
-        "Acrobatic Clear", "Fighting Spirit", "One Touch Pass",
+        "Acrobatic Clearanceance", "Fighting Spirit", "One-touch Pass",
         "Through Passing", "Weighted Pass", "Low Lofted Pass",
-        "Step On Skill Control", "Outside Curler", "Track Back"
+        "Sole Control", "Outside Curler", "Track Back"
     ],
     "GK": [
         "GK Low Punt", "GK High Punt", "GK Long Throw",
         "GK Penalty Saver", "Fighting Spirit", "Low Lofted Pass",
-        "One Touch Pass", "Through Passing", "Weighted Pass",
-        "Outside Curler", "Step On Skill Control", "Heel Trick",
+        "One-touch Pass", "Through Passing", "Weighted Pass",
+        "Outside Curler", "Sole Control", "Heel Trick",
         "Captaincy"
     ]
 }
