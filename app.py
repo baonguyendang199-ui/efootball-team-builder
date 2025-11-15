@@ -1937,7 +1937,6 @@ def main():
         )
         
     st.session_state.add_mode = 'upgrade' if mode == "🔄 Upgrade cầu thủ có sẵn" else 'new'
-        
         st.divider()
         
         # ========== CHẾ ĐỘ UPGRADE ==========
