@@ -1173,7 +1173,7 @@ def main():
                             st.image(image_url, width=200)
                         else:
                             st.markdown(
-                                '<div style="width:200px;height:260px;background:#f0f0f0;'
+                                '<div style="width:200px;height:325px;background:#f0f0f0;'
                                 'display:flex;align-items:center;justify-content:center;'
                                 'border-radius:16px;font-size:80px;">❓</div>',
                                 unsafe_allow_html=True
@@ -1879,7 +1879,7 @@ def main():
                                     st.image(image_url, width=200)
                                 else:
                                     st.markdown(
-                                        '<div style="width:200px;height:260px;background:#f0f0f0;'
+                                        '<div style="width:200px;height:325px;background:#f0f0f0;'
                                         'display:flex;align-items:center;justify-content:center;'
                                         'border-radius:16px;font-size:80px;">❓</div>',
                                         unsafe_allow_html=True
