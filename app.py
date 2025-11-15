@@ -1996,7 +1996,7 @@ def main():
         # ========== CHẾ ĐỘ THÊM MỚI ==========
         else:
             # ========== BƯỚC 1: NHẬP URL ==========
-                if not st.session_state.add_show_form:
+            if not st.session_state.add_show_form:
             st.markdown("### 🔗 Bước 1: Nhập URL từ PESDB")
             st.info("💡 Nhập link PESDB để tự động lấy toàn bộ thông tin cầu thủ")
             
@@ -2268,7 +2268,7 @@ def main():
                                         st.error("❌ Không thể lưu dữ liệu!")
                                 except Exception as e:
                                     st.error(f"❌ Lỗi: {e}")
-                            
+                        
                         # CHẾ ĐỘ THÊM MỚI
                         else:
                             new_player = {
@@ -2305,7 +2305,7 @@ def main():
                                     st.error("❌ Không thể lưu dữ liệu vào Google Sheets!")
                             except Exception as e:
                                 st.error(f"❌ Lỗi khi lưu: {e}")
-    
+        
     elif current_tab == 'inventory':
         st.header("📦 Kho Skills")
         
