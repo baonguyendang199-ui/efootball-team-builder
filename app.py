@@ -149,7 +149,7 @@ POSITION_SKILLS_PRIORITY = {
         "Through Passing", "Weighted Pass", "Man Marking",
         "Fighting Spirit", "Sole Control", "Aerial Superiority",
         "Sliding Tackle", "Heading", "Low Lofted Pass",
-        "Cut Behind & Turn", "Outside Curler", "Acrobatic Clearanceance"
+        "Cut Behind & Turn", "Outside Curler", "Acrobatic Clearance"
     ],
     "LMF": [
         "Pinpoint Crossing", "One-touch Pass", "Through Passing",
@@ -168,21 +168,21 @@ POSITION_SKILLS_PRIORITY = {
     "LB": [
         "Track Back", "Blocker", "Interception",
         "Man Marking", "Pinpoint Crossing", "Fighting Spirit",
-        "Sliding Tackle", "Acrobatic Clearanceance", "Aerial Superiority",
+        "Sliding Tackle", "Acrobatic Clearance", "Aerial Superiority",
         "One-touch Pass", "Through Passing", "Weighted Pass",
         "Outside Curler", "Sole Control", "Low Lofted Pass"
     ],
     "RB": [
         "Track Back", "Blocker", "Interception",
         "Man Marking", "Pinpoint Crossing", "Fighting Spirit",
-        "Sliding Tackle", "Acrobatic Clearanceance", "Aerial Superiority",
+        "Sliding Tackle", "Acrobatic Clearance", "Aerial Superiority",
         "One-touch Pass", "Through Passing", "Weighted Pass",
         "Outside Curler", "Sole Control", "Low Lofted Pass"
     ],
     "CB": [
         "Interception", "Blocker", "Man Marking",
         "Aerial Superiority", "Heading", "Sliding Tackle",
-        "Acrobatic Clearanceance", "Fighting Spirit", "One-touch Pass",
+        "Acrobatic Clearance", "Fighting Spirit", "One-touch Pass",
         "Through Passing", "Weighted Pass", "Low Lofted Pass",
         "Sole Control", "Outside Curler", "Track Back"
     ],
