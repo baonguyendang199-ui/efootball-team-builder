@@ -854,14 +854,14 @@ def main():
 
         # ===== CẤU HÌNH TEAMS CẦN BUILD =====
         target_clubs = [
-            "Barcelona", "Real Madrid", "Munich", "Inter", "Manchester City", "Liverpool", 
-            "PSG", "Dortmund", "Leverkusen", "Atletico Madrid", "Arsenal", 
-            "Chelsea", "Man United", "Atalanta", "AC Milan", "Tottenham", 
-            "Juventus", "Napoli", "Roma"
+            "FC Barcelona", "Madrid Chamartin B", "Munich", "Internazionale Milano", "Manchester B", "Liverpool R", 
+            "Paris Saint-Germain", "Borussia Dortmund", "Bayer 04 Leverkusen", "Madrid Rosas RB", "Arsenal FC", 
+            "Chelsea B", "Manchester United", "Atalanta BC", "AC Milan", "Tottenham WB", 
+            "Piemonte BN", "Napoli A", "Roma GR"
         ]
         
         # Club được miễn trừ (không bao giờ bán)
-        PROTECTED_CLUBS = ["Barcelona"]
+        PROTECTED_CLUBS = ["FC Barcelona"]
         
         target_nations = [
             "Spain", "France", "Argentina", "England", "Portugal", 
@@ -869,7 +869,7 @@ def main():
             "Uruguay", "Japan"
         ]
         
-        target_leagues = ["LaLiga", "EPL", "Serie A", "Bundesliga", "Ligue 1"]
+        target_leagues = ["Spanish League", "English League", "Italian League", "Bundesliga", "Ligue 1 McDonald's"]
 
         SQUAD_SIZE = 23  # Số cầu thủ mỗi team
 
@@ -956,7 +956,7 @@ def main():
             league = str(row.get('League', '')).strip()
             reasons = []
             
-            # 0. Kiểm tra club được bảo vệ (BARCELONA)
+            # 0. Kiểm tra club được bảo vệ (FC Barcelona)
             if club in PROTECTED_CLUBS:
                 return '✅ GIỮ', f"🛡️ {club} - Không bao giờ bán (Fan club)"
             
@@ -1009,7 +1009,7 @@ def main():
             st.metric("🎯 Tổng cầu thủ", len(df))
         with col2:
             protected_count = len(df[df['Club'].isin(PROTECTED_CLUBS)])
-            st.metric("🛡️ Barcelona", protected_count)
+            st.metric("🛡️ FC Barcelona", protected_count)
         with col3:
             st.metric("✅ Đề xuất giữ", len(df) - len(sell_df))
         with col4:
@@ -1373,7 +1373,7 @@ def main():
                         st.metric("Tổng", len(to_delete))
                     with warn_col2:
                         if protected_count > 0:
-                            st.metric("🛡️ Barcelona", protected_count, delta="Được bảo vệ!", delta_color="inverse")
+                            st.metric("🛡️ FC Barcelona", protected_count, delta="Được bảo vệ!", delta_color="inverse")
                     with warn_col3:
                         if keep_count > 0:
                             st.metric("✅ Đề xuất giữ", keep_count, delta="Cẩn thận!", delta_color="inverse")
@@ -1705,7 +1705,7 @@ def main():
                 reverse=True  # Giảm dần (nhiều nhất trên cùng)
             )
             
-            # Format hiển thị: "Barcelona (45)"
+            # Format hiển thị: "FC Barcelona (45)"
             formatted_options = ["(Tất cả)"] + [
                 f"{opt} ({group_counts.get(opt, 0)})" 
                 for opt in group_options_sorted
@@ -1737,7 +1737,7 @@ def main():
         import random
         # đảm bảo PROTECTED_CLUBS tồn tại khi vào tab squad
         if 'PROTECTED_CLUBS' not in globals():
-            PROTECTED_CLUBS = ["Barcelona"]
+            PROTECTED_CLUBS = ["FC Barcelona"]
         duplicates = df_src[df_src.duplicated(subset=['Player','Rating'], keep=False)]
         for player in duplicates['Player'].unique():
             same_cards = duplicates[duplicates['Player'] == player]
