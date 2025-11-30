@@ -301,22 +301,38 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
 
 def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Tính toán số lần một cầu thủ thuộc Top 23 Club hoặc League (các nhóm mục tiêu)
+    Tính toán số lần một cầu thủ thuộc Top 23 Club hoặc League (CHỈ TÍNH TARGET CLUBS/LEAGUES)
     Sử dụng để ưu tiên khi Nation/League Top 23 bị tie.
     """
     if 'Top23_Count' in df.columns:
         df = df.drop(columns=['Top23_Count'])
         
-    # Tính toán Top 23 indices cho Club và League
-    club_top_indices = get_top23_indices(df, 'Club')
-    league_top_indices = get_top23_indices(df, 'League')
+    # 1. Lấy danh sách index của Top 23 cho TẤT CẢ các team (dựa trên Rating)
+    raw_club_top_indices = get_top23_indices(df, 'Club')
+    raw_league_top_indices = get_top23_indices(df, 'League')
     
-    # Tính tổng số lần xuất hiện trong Top 23 của các nhóm mục tiêu
+    # 2. Tạo cột Count mặc định là 0
     df['Top23_Count'] = 0
-    # Thêm 1 nếu cầu thủ thuộc Top 23 Club
-    df.loc[df.index.isin(club_top_indices), 'Top23_Count'] += 1
-    # Thêm 1 nếu cầu thủ thuộc Top 23 League
-    df.loc[df.index.isin(league_top_indices), 'Top23_Count'] += 1
+    
+    # 3. CHỈ cộng điểm nếu:
+    #    a) Cầu thủ nằm trong Top 23 của team đó (raw indices)
+    #    b) Team đó nằm trong danh sách TARGET (Target list)
+    
+    # --- Xử lý Club ---
+    # Kiểm tra xem Club của cầu thủ có trong TARGET_CLUBS không
+    is_target_club = df['Club'].isin(TARGET_CLUBS)
+    # Kiểm tra xem cầu thủ có trong Top 23 Club không
+    is_top23_club = df.index.isin(raw_club_top_indices)
+    # Cộng 1 nếu thỏa mãn cả hai
+    df.loc[is_target_club & is_top23_club, 'Top23_Count'] += 1
+    
+    # --- Xử lý League ---
+    # Kiểm tra xem League của cầu thủ có trong TARGET_LEAGUES không
+    is_target_league = df['League'].isin(TARGET_LEAGUES)
+    # Kiểm tra xem cầu thủ có trong Top 23 League không
+    is_top23_league = df.index.isin(raw_league_top_indices)
+    # Cộng 1 nếu thỏa mãn cả hai
+    df.loc[is_target_league & is_top23_league, 'Top23_Count'] += 1
     
     return df
 
@@ -451,6 +467,26 @@ POSITION_STYLE_ORDER = {
     "Defender": 3,
     "Goalkeeper": 4,
 }
+
+# ===== CẤU HÌNH TEAMS CẦN BUILD =====
+target_clubs = [
+    "FC Barcelona", "Madrid Chamartin B", "Munich", "Internazionale Milano", "Manchester B", "Liverpool R", 
+    "Paris Saint-Germain", "Borussia Dortmund", "Bayer 04 Leverkusen", "Madrid Rosas RB", "Arsenal FC", 
+    "Chelsea B", "Manchester United", "Atalanta BC", "AC Milan", "Tottenham WB", 
+    "Piemonte BN", "Napoli A", "Roma GR"
+]
+        
+# Club được miễn trừ (không bao giờ bán)
+PROTECTED_CLUBS = ["FC Barcelona"]
+        
+target_nations = [
+    "Spain", "France", "Argentina", "England", "Portugal", 
+    "Brazil", "Netherlands", "Belgium", "Italy", "Germany", 
+    "Uruguay", "Japan"
+        ]
+        
+target_leagues = ["Spanish League", "English League", "Italian League", "Bundesliga", "Ligue 1 McDonald's"]
+
 
 # ==================== PESDB SCRAPER ====================
 PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/?id="
@@ -916,25 +952,6 @@ def main():
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
-
-        # ===== CẤU HÌNH TEAMS CẦN BUILD =====
-        target_clubs = [
-            "FC Barcelona", "Madrid Chamartin B", "Munich", "Internazionale Milano", "Manchester B", "Liverpool R", 
-            "Paris Saint-Germain", "Borussia Dortmund", "Bayer 04 Leverkusen", "Madrid Rosas RB", "Arsenal FC", 
-            "Chelsea B", "Manchester United", "Atalanta BC", "AC Milan", "Tottenham WB", 
-            "Piemonte BN", "Napoli A", "Roma GR"
-        ]
-        
-        # Club được miễn trừ (không bao giờ bán)
-        PROTECTED_CLUBS = ["FC Barcelona"]
-        
-        target_nations = [
-            "Spain", "France", "Argentina", "England", "Portugal", 
-            "Brazil", "Netherlands", "Belgium", "Italy", "Germany", 
-            "Uruguay", "Japan"
-        ]
-        
-        target_leagues = ["Spanish League", "English League", "Italian League", "Bundesliga", "Ligue 1 McDonald's"]
 
         SQUAD_SIZE = 23  # Số cầu thủ mỗi team
 
