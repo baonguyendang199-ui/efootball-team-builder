@@ -60,6 +60,10 @@ def load_data_from_gsheet():
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
         
         df["Epic_Priority"] = df["Player Type"].apply(lambda x: 0 if str(x).strip().upper() == "EPIC" else 1)
+
+        # === THÊM DÒNG NÀY ĐỂ TÍNH CỘT ƯU TIÊN MỚI ===
+        df = calculate_top23_count(df) # Tính toán số lần thuộc Top 23 Club/League
+        # ============================================
         
         return df
     except Exception as e:
@@ -247,8 +251,17 @@ def get_player_rank(df, row, group_by, max_size=23):
         group_df = group_df.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
         group_df = group_df.drop_duplicates(subset=['Player'], keep='first')
 
-    # Sắp xếp theo Rating (giảm dần), ưu tiên EPIC (Epic_Priority nhỏ hơn)
-    group_df = group_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(max_size)
+    # Xác định các tiêu chí sắp xếp
+    sort_keys = ['Rating', 'Epic_Priority']
+    sort_asc = [False, True]
+    
+    # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
+    if group_by in ['Nation', 'League'] and 'Top23_Count' in group_df.columns:
+        sort_keys.append('Top23_Count')
+        sort_asc.append(False) # False = Giảm dần
+    
+    # Sắp xếp theo các tiêu chí đã định
+    group_df = group_df.sort_values(sort_keys, ascending=sort_asc).head(max_size)
     
     # Tìm vị trí của cầu thủ theo index gốc
     try:
@@ -263,6 +276,49 @@ def get_all_known_skills():
     for skills_list in POSITION_SKILLS_PRIORITY.values():
         all_skills.update(skills_list)
     return sorted(list(all_skills))
+
+def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> set:
+    """Lấy index của Top 23 cầu thủ cho 1 nhóm (Nation/League/Club) - Logic tương tự build_top23_map nhưng chỉ lấy index."""
+    top_indices = set()
+    values = [v for v in df[group_by].dropna().astype(str).unique() if v.strip()]
+    
+    for value in values:
+        gdf = df[df[group_by].astype(str) == value].copy()
+        if gdf.empty:
+            continue
+            
+        if group_by in ['Nation', 'League']:
+            # Loại trùng tên, giữ thẻ tốt nhất
+            gdf = gdf.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+            gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
+            
+        # Sắp xếp cơ bản: Rating, Epic_Priority
+        # **Lưu ý: Không dùng Top23_Count ở đây để tránh vòng lặp phụ thuộc**
+        gdf = gdf.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(max_size)
+        top_indices.update(gdf.index.tolist())
+        
+    return top_indices
+
+def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Tính toán số lần một cầu thủ thuộc Top 23 Club hoặc League (các nhóm mục tiêu)
+    Sử dụng để ưu tiên khi Nation/League Top 23 bị tie.
+    """
+    if 'Top23_Count' in df.columns:
+        df = df.drop(columns=['Top23_Count'])
+        
+    # Tính toán Top 23 indices cho Club và League
+    club_top_indices = get_top23_indices(df, 'Club')
+    league_top_indices = get_top23_indices(df, 'League')
+    
+    # Tính tổng số lần xuất hiện trong Top 23 của các nhóm mục tiêu
+    df['Top23_Count'] = 0
+    # Thêm 1 nếu cầu thủ thuộc Top 23 Club
+    df.loc[df.index.isin(club_top_indices), 'Top23_Count'] += 1
+    # Thêm 1 nếu cầu thủ thuộc Top 23 League
+    df.loc[df.index.isin(league_top_indices), 'Top23_Count'] += 1
+    
+    return df
 
 # --- SKILL INVENTORY MANAGEMENT (Google Sheets) ---
 @st.cache_data(ttl=10)
@@ -675,8 +731,17 @@ def main():
             if group_by in ['Nation', 'League']:
                 gdf = gdf.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
                 gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
-            # Sắp xếp theo Rating và Epic_Priority
-            gdf = gdf.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(max_size)
+            # Xác định các tiêu chí sắp xếp
+            sort_keys = ['Rating', 'Epic_Priority']
+            sort_asc = [False, True]
+            
+            # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
+            if group_by in ['Nation', 'League'] and 'Top23_Count' in df.columns:
+                sort_keys.append('Top23_Count')
+                sort_asc.append(False) # False = Giảm dần, ưu tiên số count cao hơn (thuộc nhiều Top 23 target hơn)
+                
+            # Sắp xếp theo các tiêu chí đã định
+            gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
             size = len(gdf)
             for rank, idx in enumerate(gdf.index.tolist(), start=1):
                 top_map[(value, idx)] = f"{rank}/{size} {value}"
