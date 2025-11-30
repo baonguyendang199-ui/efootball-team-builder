@@ -1100,7 +1100,7 @@ def main():
         with col1:
             st.metric("🎯 Tổng cầu thủ", len(df))
         with col2:
-            protected_count = len(df[df['Club'].isin(PROTECTED_CLUBS)])
+            protected_count = len(df[df['Club'].isin(local_protected_clubs)])
             st.metric("🛡️ FC Barcelona", protected_count)
         with col3:
             st.metric("✅ Đề xuất giữ", len(df) - len(sell_df))
