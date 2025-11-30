@@ -1034,13 +1034,23 @@ def main():
         def suggest_action(row):
             idx = row.name
             club = str(row.get('Club', '')).strip()
+            
+            # === THÊM DÒNG NÀY ĐỂ SỬA LỖI ===
+            # Định nghĩa danh sách bảo vệ ngay tại đây nếu chưa tìm thấy biến global
+            local_protected_clubs = ["FC Barcelona"] 
+            if 'PROTECTED_CLUBS' in globals():
+                local_protected_clubs = globals()['PROTECTED_CLUBS']
+            # ================================
+        
             nation = str(row.get('Nation', '')).strip()
             league = str(row.get('League', '')).strip()
             reasons = []
-            
-            # 0. Kiểm tra club được bảo vệ (FC Barcelona)
-            if club in PROTECTED_CLUBS:
-                return '✅ GIỮ', f"🛡️ {club} - Không bao giờ bán (Fan club)"
+
+            # 0. Kiểm tra club được bảo vệ (SỬA DÙNG BIẾN MỚI)
+            if club in local_protected_clubs:
+                return ' ✅  GIỮ', f" 🛡 ️ {club} - Không bao giờ bán (Fan club)"
+
+    # ... (các phần dưới giữ nguyên)
             
             # 1. Kiểm tra thẻ trùng (cùng player + club + nation + league)
             is_duplicate = any(dup['index'] == idx for dup in duplicates)
