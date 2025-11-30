@@ -320,7 +320,7 @@ def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     
     # --- Xử lý Club ---
     # Kiểm tra xem Club của cầu thủ có trong TARGET_CLUBS không
-    is_target_club = df['Club'].isin(TARGET_CLUBS)
+    is_target_club = df['Club'].isin(target_clubs)
     # Kiểm tra xem cầu thủ có trong Top 23 Club không
     is_top23_club = df.index.isin(raw_club_top_indices)
     # Cộng 1 nếu thỏa mãn cả hai
@@ -328,7 +328,7 @@ def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     
     # --- Xử lý League ---
     # Kiểm tra xem League của cầu thủ có trong TARGET_LEAGUES không
-    is_target_league = df['League'].isin(TARGET_LEAGUES)
+    is_target_league = df['League'].isin(target_leagues)
     # Kiểm tra xem cầu thủ có trong Top 23 League không
     is_top23_league = df.index.isin(raw_league_top_indices)
     # Cộng 1 nếu thỏa mãn cả hai
