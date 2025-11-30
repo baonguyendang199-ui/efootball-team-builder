@@ -1827,9 +1827,6 @@ def main():
 
         # Loại trùng cùng Player+Rating: ưu tiên Protected Club nếu có, ngẫu nhiên nếu không
         import random
-        # đảm bảo PROTECTED_CLUBS tồn tại khi vào tab squad
-        if 'PROTECTED_CLUBS' not in globals():
-            PROTECTED_CLUBS = ["FC Barcelona"]
         duplicates = df_src[df_src.duplicated(subset=['Player','Rating'], keep=False)]
         for player in duplicates['Player'].unique():
             same_cards = duplicates[duplicates['Player'] == player]
