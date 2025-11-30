@@ -772,7 +772,7 @@ def main():
             sort_asc = [False, True]
             
             # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
-            if group_by in ['Nation', 'League'] and 'Top23_Count' in df.columns:
+            if group_by in ['Nation', 'League'] and 'Top23_Count' in gdf.columns:
                 sort_keys.append('Top23_Count')
                 sort_asc.append(False) # False = Giảm dần, ưu tiên số count cao hơn (thuộc nhiều Top 23 target hơn)
                 
@@ -963,40 +963,60 @@ def main():
                 if not team_df.empty:
                     # Với Nation/League: loại trùng tên
                     if group_by in ['Nation', 'League']:
-                        team_df = team_df.sort_values(['Player', 'Rating', 'Epic_Priority'],
-                                                      ascending=[True, False, True])
+                        team_df['TargetClubPriority'] = team_df['Club'].isin(target_clubs).astype(int)
+                        if 'Top23_Count' not in team_df.columns:
+                            team_df['Top23_Count'] = 0
+                        team_df = team_df.sort_values(
+                            ['Player', 'Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                            ascending=[True, False, True, False, False]
+                        )
                         team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
-
-                    # Bước 1: chọn GK tốt nhất (nếu có) để đảm bảo có ít nhất 1 GK
+        
+                    # Bước 1: chọn GK tốt nhất (nếu có)
                     gk_df = team_df[team_df['Position'] == 'GK']
                     cb_df = team_df[team_df['Position'] == 'CB']
                     squad = pd.DataFrame()
                     remaining_slots = SQUAD_SIZE
-
+        
                     # Chọn 1 GK tốt nhất
                     if not gk_df.empty:
-                        best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'],
-                                                    ascending=[False, True]).head(1)
+                        gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
+                        if 'Top23_Count' not in gk_df.columns:
+                            gk_df['Top23_Count'] = 0
+                        best_gk = gk_df.sort_values(
+                            ['Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                            ascending=[False, True, False, False]
+                        ).head(1)
                         squad = pd.concat([squad, best_gk])
                         remaining_slots -= 1
-
+        
                     # Chọn 2 CB tốt nhất
                     if not cb_df.empty:
-                        best_cb = cb_df.sort_values(['Rating', 'Epic_Priority'],
-                                                    ascending=[False, True]).head(2)
+                        cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
+                        if 'Top23_Count' not in cb_df.columns:
+                            cb_df['Top23_Count'] = 0
+                        best_cb = cb_df.sort_values(
+                            ['Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                            ascending=[False, True, False, False]
+                        ).head(2)
                         squad = pd.concat([squad, best_cb])
                         remaining_slots -= len(best_cb)
-
-                    # Bước 2: chọn các cầu thủ còn lại (bao gồm cả GK/CB khác nếu đủ mạnh)
-                    others = team_df.drop(squad.index)  # bỏ GK và CB đã chọn bắt buộc
+        
+                    # Bước 2: chọn các cầu thủ còn lại
+                    others = team_df.drop(squad.index)
                     if not others.empty:
-                        top_rest = others.sort_values(['Rating', 'Epic_Priority'],
-                                              ascending=[False, True]).head(remaining_slots)
+                        others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
+                        if 'Top23_Count' not in others.columns:
+                            others['Top23_Count'] = 0
+                        top_rest = others.sort_values(
+                            ['Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                            ascending=[False, True, False, False]
+                        ).head(remaining_slots)
                         squad = pd.concat([squad, top_rest])
-
+        
                     top_players.update(squad.index.tolist())
             return top_players
-
+        
         # Tính top 23 cho từng loại team
         top_club_players = get_top_23_players(df, 'Club', target_clubs)
         top_nation_players = get_top_23_players(df, 'Nation', target_nations)
