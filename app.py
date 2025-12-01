@@ -271,6 +271,7 @@ def get_player_rank(df, row, group_by, max_size=23):
     except KeyError:
         return None
 
+@st.cache_data(ttl=0)
 def get_all_known_skills():
     """Get all unique skills from POSITION_SKILLS_PRIORITY"""
     all_skills = set()
