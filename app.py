@@ -631,14 +631,56 @@ def extract_card_type_from_html(soup) -> str:
     - Epic, Legendary → EPIC
     - Standard, Highlight, Standard Featured → NON-EPIC
     """
+    def detect_from_text(text: str):
+        if not text:
+            return None
+        upper_text = text.upper()
+        if 'TRENDING' in upper_text or 'POTW' in upper_text:
+            return 'POTW'
+        if 'LEGENDARY' in upper_text:
+            return 'EPIC'
+        if 'EPIC' in upper_text:
+            return 'EPIC'
+        if 'HIGHLIGHT' in upper_text or 'FEATURED' in upper_text or 'STANDARD' in upper_text:
+            return 'NON-EPIC'
+        return None
+    
     try:
-        # Tìm tab đang active để xác định loại thẻ
+        candidate_texts = []
+        
+        # 1. Mode tabs (ưu tiên)
         mode_tabs = soup.find('div', class_='mode-tabs')
         if mode_tabs:
             active_tab = mode_tabs.find('a', class_='active')
             if active_tab:
-                tab_text = active_tab.get_text(strip=True)
-                return normalize_player_type(tab_text)
+                candidate_texts.append(active_tab.get_text(strip=True))
+        
+        # 2. Các badge / label khác
+        selectors = [
+            '.player-card-label', '.card-type', '.player-type', '.player-card__type',
+            '.player-card__badge', '.mode-title', '.player-info__type'
+        ]
+        for sel in selectors:
+            el = soup.select_one(sel)
+            if el:
+                candidate_texts.append(el.get_text(strip=True))
+        
+        # 3. Script / data attributes (ví dụ data-mode)
+        if mode_tabs:
+            active_tab = mode_tabs.find('a', class_='active')
+            if active_tab and active_tab.has_attr('data-mode'):
+                candidate_texts.append(active_tab['data-mode'])
+        
+        for text in candidate_texts:
+            detected = detect_from_text(text)
+            if detected:
+                return detected
+        
+        # 4. Fallback: quét toàn bộ text HTML
+        full_text = soup.get_text(separator=' ', strip=True)
+        detected = detect_from_text(full_text)
+        if detected:
+            return detected
         
         return 'NON-EPIC'  # Default
     except:
