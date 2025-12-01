@@ -222,6 +222,41 @@ def inject_modern_ui_theme():
             }}
         }}
         </style>
+        <script>
+        (function() {{
+            const fixSidebarCollapseIcon = () => {{
+                const btn = window.parent ? window.parent.document.querySelector('[data-testid="stSidebarCollapseButton"] button') : document.querySelector('[data-testid="stSidebarCollapseButton"] button');
+                if (!btn) return;
+                if (btn.getAttribute('title') && btn.getAttribute('title').includes('keyboard_double_arrow')) {{
+                    btn.removeAttribute('title');
+                }}
+                const iconSpan = btn.querySelector('span');
+                if (iconSpan && /keyboard_double_arrow/.test(iconSpan.textContent || '')) {{
+                    iconSpan.setAttribute('aria-hidden', 'true');
+                    iconSpan.style.fontSize = '0px';
+                }}
+                if (!btn.querySelector('.custom-sidebar-icon')) {{
+                    const replacement = document.createElement('span');
+                    replacement.className = 'material-symbols-outlined custom-sidebar-icon';
+                    replacement.textContent = btn.ariaExpanded === 'true' ? 'chevron_right' : 'chevron_left';
+                    replacement.style.fontSize = '20px';
+                    replacement.style.color = getComputedStyle(btn).color;
+                    replacement.style.pointerEvents = 'none';
+                    btn.appendChild(replacement);
+                    btn.addEventListener('mouseenter', () => {{
+                        replacement.textContent = btn.ariaExpanded === 'true' ? 'chevron_right' : 'chevron_left';
+                    }});
+                }} else {{
+                    const replacement = btn.querySelector('.custom-sidebar-icon');
+                    replacement.textContent = btn.ariaExpanded === 'true' ? 'chevron_right' : 'chevron_left';
+                }}
+            }};
+            const observer = new MutationObserver(() => fixSidebarCollapseIcon());
+            observer.observe(document.documentElement, {{ childList: true, subtree: true }});
+            document.addEventListener('DOMContentLoaded', fixSidebarCollapseIcon);
+            setTimeout(fixSidebarCollapseIcon, 500);
+        }})();
+        </script>
         """,
         unsafe_allow_html=True
     )
