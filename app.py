@@ -60,7 +60,12 @@ def load_data_from_gsheet():
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
         
-        df["Epic_Priority"] = df["Player Type"].apply(lambda x: 0 if str(x).strip().upper() == "EPIC" else 1)
+        if "Player Type" in df.columns:
+            df["Player Type"] = df["Player Type"].apply(normalize_player_type)
+        else:
+            df["Player Type"] = 'NON-EPIC'
+        
+        df["Epic_Priority"] = df["Player Type"].apply(lambda x: 0 if x == "EPIC" else 1)
 
         # === THÊM DÒNG NÀY ĐỂ TÍNH CỘT ƯU TIÊN MỚI ===
         df = calculate_top23_count(df) # Tính toán số lần thuộc Top 23 Club/League
@@ -204,6 +209,27 @@ def normalize_skill_name(skill: str) -> str:
     """Chuẩn hóa tên skill để so sánh - loại bỏ mọi whitespace thừa"""
     normalized = re.sub(r'\s+', ' ', str(skill).strip())
     return normalized.lower()
+
+def normalize_player_type(value: str) -> str:
+    """Chuẩn hóa Player Type về POTW / EPIC / NON-EPIC (case-insensitive)."""
+    text = str(value).strip().upper()
+    if not text:
+        return 'NON-EPIC'
+    
+    if 'TRENDING' in text or 'POTW' in text:
+        return 'POTW'
+    
+    if 'LEGENDARY' in text:
+        return 'EPIC'
+    
+    if 'EPIC' in text:
+        return 'EPIC'
+    
+    # Highlight, Standard Featured, Standard, Featured -> NON-EPIC
+    if 'HIGHLIGHT' in text or 'FEATURED' in text or 'STANDARD' in text:
+        return 'NON-EPIC'
+    
+    return 'NON-EPIC'
 
 def get_all_skills(base_skills: str, added_skills: str) -> list:
     """Kết hợp skills gốc và skills đã thêm thành một list"""
@@ -611,15 +637,8 @@ def extract_card_type_from_html(soup) -> str:
         if mode_tabs:
             active_tab = mode_tabs.find('a', class_='active')
             if active_tab:
-                tab_text = active_tab.get_text(strip=True).upper()
-                
-                # Mapping logic
-                if 'TRENDING' in tab_text:
-                    return 'POTW'
-                elif 'EPIC' in tab_text or 'LEGENDARY' in tab_text:
-                    return 'EPIC'
-                else:  # Standard, Highlight, Featured
-                    return 'NON-EPIC'
+                tab_text = active_tab.get_text(strip=True)
+                return normalize_player_type(tab_text)
         
         return 'NON-EPIC'  # Default
     except:
@@ -761,7 +780,7 @@ def extract_full_player_info(player_url: str) -> dict:
         info['Skills'] = extract_player_skills(player_url)
         
         # Lấy Player Type từ loại thẻ
-        info['Player_Type'] = extract_card_type_from_html(soup)
+        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
         
         # Lấy Rating từ Max Level
         info['Rating'] = extract_max_level_rating(player_url)
@@ -2310,7 +2329,7 @@ def main():
                                     'Club': player_info['Club'],
                                     'League': player_info['League'],
                                     'Skills': player_info['Skills'],
-                                        'Player_Type': player_info.get('Player_Type', 'NON-EPIC'),
+                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': upgrade_url,
                                     'Player_ID': extract_ehub_player_id(upgrade_url)
                                 }
@@ -2347,7 +2366,7 @@ def main():
                                         'Club': player_info['Club'],
                                         'League': player_info['League'],
                                         'Skills': player_info['Skills'],
-                                        'Player_Type': player_info.get('Player_Type', 'NON-EPIC'),
+                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                         'Player_URL': pesdb_url,
                                         'Player_ID': extract_ehub_player_id(pesdb_url)
                                     }
@@ -2501,6 +2520,7 @@ def main():
                         elif not position:
                             st.error("❌ Vui lòng chọn vị trí!")
                         else:
+                            player_type_norm = normalize_player_type(player_type)
                             # CHẾ ĐỘ UPGRADE
                             if st.session_state.add_mode == 'upgrade':
                                 matching_cards = df[
@@ -2520,12 +2540,12 @@ def main():
                                     new_df.at[old_idx, 'Rating'] = int(rating)
                                     new_df.at[old_idx, 'Position'] = position
                                     new_df.at[old_idx, 'Position Style'] = position_style
-                                    new_df.at[old_idx, 'Player Type'] = player_type
+                                    new_df.at[old_idx, 'Player Type'] = player_type_norm
                                     new_df.at[old_idx, 'Player URL'] = data.get('Player_URL', '')
                                     new_df.at[old_idx, 'Player ID'] = data.get('Player_ID', '')
                                     new_df.at[old_idx, 'Skills'] = skills
                                     new_df.at[old_idx, 'Added Skills'] = ""
-                                    new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type == "EPIC" else 1
+                                    new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type_norm == "EPIC" else 1
                                     
                                     try:
                                         if save_data_to_gsheet(new_df):
@@ -2554,7 +2574,7 @@ def main():
                                         "Rating": int(rating),
                                         "Position": position,
                                         "Position Style": position_style,
-                                        "Player Type": player_type,
+                                        "Player Type": player_type_norm,
                                         "Nation": nation,
                                         "Club": club,
                                         "League": league,
@@ -2562,7 +2582,7 @@ def main():
                                         "Player ID": data.get('Player_ID', ''),
                                         "Skills": skills,
                                         "Added Skills": "",
-                                        "Epic_Priority": 0 if player_type == "EPIC" else 1,
+                                        "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
                                     }
                                     
                                     new_df = pd.concat([new_df, pd.DataFrame([new_player])], ignore_index=True)
@@ -2591,7 +2611,7 @@ def main():
                                     "Rating": int(rating),
                                     "Position": position,
                                     "Position Style": position_style,
-                                    "Player Type": player_type,
+                                    "Player Type": player_type_norm,
                                     "Nation": nation,
                                     "Club": club,
                                     "League": league,
@@ -2599,7 +2619,7 @@ def main():
                                     "Player ID": data.get('Player_ID', ''),
                                     "Skills": skills,
                                     "Added Skills": "",
-                                    "Epic_Priority": 0 if player_type == "EPIC" else 1,
+                                    "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
                                 }
                                 
                                 new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
