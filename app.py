@@ -15,6 +15,245 @@ import json
 from google.oauth2.service_account import Credentials
 import gspread
 
+st.set_page_config(
+    page_title="Efootball Team Builder",
+    page_icon="⚽",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+APP_THEME = {
+    "primary": "#7C3AED",
+    "secondary": "#F97316",
+    "accent": "#22D3EE",
+    "bg_gradient": "linear-gradient(135deg, #030712 0%, #0F172A 55%, #1E1B4B 100%)",
+    "surface": "rgba(15,23,42,0.85)",
+    "card": "rgba(15,23,42,0.75)",
+    "border": "rgba(255,255,255,0.08)",
+    "text": "#E2E8F0",
+    "muted": "#94A3B8"
+}
+
+
+def inject_modern_ui_theme():
+    """Inject modern UI tokens, typography and component styling."""
+    theme = APP_THEME
+    st.markdown(
+        f"""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+        :root {{
+            --app-primary: {theme["primary"]};
+            --app-secondary: {theme["secondary"]};
+            --app-accent: {theme["accent"]};
+            --app-surface: {theme["surface"]};
+            --app-card: {theme["card"]};
+            --app-border: {theme["border"]};
+            --app-text: {theme["text"]};
+            --app-muted: {theme["muted"]};
+        }}
+        html, body, [data-testid="stAppViewContainer"] {{
+            font-family: 'Inter', sans-serif;
+            color: var(--app-text);
+            background: {theme["bg_gradient"]};
+        }}
+        [data-testid="stAppViewContainer"] > .main {{
+            background: {theme["bg_gradient"]};
+            color: var(--app-text);
+            padding-top: 1rem;
+        }}
+        section[data-testid="stSidebar"] {{
+            background: rgba(3,7,18,0.92);
+            backdrop-filter: blur(18px);
+            border-right: 1px solid var(--app-border);
+        }}
+        section[data-testid="stSidebar"] * {{
+            color: var(--app-text) !important;
+            font-family: 'Inter', sans-serif;
+        }}
+        div.stButton > button, button[kind="primary"] {{
+            border-radius: 999px;
+            border: none;
+            background: linear-gradient(135deg, var(--app-primary), var(--app-secondary));
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 10px 25px rgba(124,58,237,0.35);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }}
+        div.stButton > button:hover, button[kind="primary"]:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 12px 30px rgba(124,58,237,0.45);
+        }}
+        div[data-testid="stMetricValue"] {{
+            font-size: 2rem;
+            color: var(--app-text);
+        }}
+        div[data-testid="stMetricLabel"] {{
+            color: var(--app-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }}
+        .hero-card {{
+            display: flex;
+            gap: 2.5rem;
+            padding: 2.4rem;
+            border-radius: 28px;
+            background: radial-gradient(circle at 0% 0%, rgba(124,58,237,0.2), transparent 60%), var(--app-card);
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 20px 50px rgba(2,6,23,0.55);
+            margin-bottom: 1.5rem;
+        }}
+        .hero-card h1 {{
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(2rem, 4vw, 3rem);
+            margin-bottom: 0.75rem;
+        }}
+        .hero-eyebrow {{
+            font-size: 0.85rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--app-accent);
+            margin-bottom: 0.8rem;
+        }}
+        .hero-desc {{
+            font-size: 1.05rem;
+            color: var(--app-muted);
+            max-width: 720px;
+        }}
+        .hero-tags {{
+            margin-top: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }}
+        .pill {{
+            padding: 0.3rem 0.9rem;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.85rem;
+            color: var(--app-text);
+        }}
+        .hero-stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            flex: 1;
+        }}
+        .stat-card {{
+            padding: 1.2rem;
+            background: rgba(255,255,255,0.02);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.06);
+            backdrop-filter: blur(12px);
+        }}
+        .stat-card span {{
+            font-size: 0.85rem;
+            color: var(--app-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }}
+        .stat-card strong {{
+            display: block;
+            font-size: 1.8rem;
+            margin: 0.4rem 0;
+            font-family: 'Space Grotesk', sans-serif;
+        }}
+        .stat-card small {{
+            color: var(--app-muted);
+        }}
+        [data-testid="stDivider"] {{
+            border-color: rgba(255,255,255,0.08);
+        }}
+        .stTabs [role="tab"] {{
+            padding: 0.6rem 1.4rem;
+            border-radius: 999px;
+            border: 1px solid transparent;
+        }}
+        .stTabs [aria-selected="true"] {{
+            background: rgba(124,58,237,0.15);
+            border-color: rgba(124,58,237,0.4);
+        }}
+        .stExpander {{
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px !important;
+        }}
+        .stDataFrame, .st-emotion-cache-1dp5vir {{
+            border-radius: 18px;
+            overflow: hidden;
+        }}
+        @media (max-width: 980px) {{
+            .hero-card {{
+                flex-direction: column;
+            }}
+            .hero-stats {{
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_app_hero(df: pd.DataFrame):
+    """Render the hero banner with live metrics."""
+    if df is None:
+        df = pd.DataFrame()
+    total_players = int(df['Player'].count()) if 'Player' in df.columns else len(df)
+    avg_rating = float(df['Rating'].mean()) if 'Rating' in df.columns and not df.empty else 0.0
+    avg_rating_display = f"{avg_rating:.1f}" if avg_rating else "0.0"
+    unique_clubs = int(df['Club'].nunique()) if 'Club' in df.columns else 0
+    unique_leagues = int(df['League'].nunique()) if 'League' in df.columns else 0
+    epic_count = int(df['Player Type'].astype(str).str.upper().eq('EPIC').sum()) if 'Player Type' in df.columns else 0
+    potw_count = int(df['Player Type'].astype(str).str.upper().eq('POTW').sum()) if 'Player Type' in df.columns else 0
+    epic_share = f"{(epic_count / total_players * 100):.0f}%" if total_players else "0%"
+    top_positions = []
+    if 'Position' in df.columns and not df.empty:
+        top_positions = df['Position'].dropna().astype(str).value_counts().head(2).index.tolist()
+    top_positions_text = " & ".join(top_positions) if top_positions else "Đa dạng vị trí"
+    last_sync = datetime.now().strftime("%d/%m/%Y • %H:%M")
+    
+    st.markdown(
+        f"""
+        <div class="hero-card">
+            <div class="hero-copy">
+                <div class="hero-eyebrow">UI Refresh • {last_sync}</div>
+                <h1>Control Center cho Efootball Team Builder</h1>
+                <p class="hero-desc">
+                    Thiết kế mới áp dụng nguyên tắc user-centric, visual hierarchy, 
+                    khả năng tiếp cận WCAG và hỗ trợ AI cho quy trình build squad, 
+                    giúp trải nghiệm nhanh hơn, nhất quán trên mọi thiết bị.
+                </p>
+                <div class="hero-tags">
+                    <span class="pill">Responsive Grid</span>
+                    <span class="pill">Design Tokens</span>
+                    <span class="pill">Accessibility 2.2</span>
+                    <span class="pill">AI Assist</span>
+                </div>
+            </div>
+            <div class="hero-stats">
+                <div class="stat-card">
+                    <span>Tổng cầu thủ</span>
+                    <strong>{total_players}</strong>
+                    <small>{unique_clubs} clubs • {unique_leagues} leagues</small>
+                </div>
+                <div class="stat-card">
+                    <span>Rating trung bình</span>
+                    <strong>{avg_rating_display}</strong>
+                    <small>Top vị trí: {top_positions_text}</small>
+                </div>
+                <div class="stat-card">
+                    <span>EPIC share</span>
+                    <strong>{epic_share}</strong>
+                    <small>{epic_count} EPIC • {potw_count} POTW</small>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 # --- GOOGLE SHEETS CONNECTION ---
 @st.cache_resource
 def get_gsheet_connection():
@@ -1000,8 +1239,7 @@ def initialize_session_state():
 # --- MAIN APP ---
 def main():
     initialize_session_state()
-
-    st.title("⚽ Efootball Team Builder – Google Sheets")
+    inject_modern_ui_theme()
 
     with st.sidebar:
         st.header("⚙️ Điều khiển")
@@ -1072,6 +1310,8 @@ def main():
     # Tự động cập nhật target lists dựa trên player count
     if not df.empty:
         auto_update_target_lists(df)
+
+    render_app_hero(df)
 
     def build_top23_map(df, group_by, max_size=23):
         """Tạo mapping {(group_value, player_index) -> 'rank/size group_value'}."""
