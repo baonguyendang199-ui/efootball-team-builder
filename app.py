@@ -381,6 +381,9 @@ def render_app_hero(df: pd.DataFrame):
 def apply_plotly_theme(fig):
     """Apply transparent background + typography to Plotly charts so they match the app theme."""
     theme = APP_THEME
+    x_title = fig.layout.xaxis.title.text if hasattr(fig.layout, "xaxis") and fig.layout.xaxis.title.text else None
+    y_title = fig.layout.yaxis.title.text if hasattr(fig.layout, "yaxis") and fig.layout.yaxis.title.text else None
+    
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -394,14 +397,14 @@ def apply_plotly_theme(fig):
         zerolinecolor='rgba(255,255,255,0.15)',
         linecolor='rgba(255,255,255,0.2)',
         tickfont=dict(color=theme["muted"]),
-        title=dict(font=dict(color=theme["muted"]))
+        title=dict(text=x_title, font=dict(color=theme["muted"])),
     )
     fig.update_yaxes(
         gridcolor='rgba(255,255,255,0.08)',
         zerolinecolor='rgba(255,255,255,0.15)',
         linecolor='rgba(255,255,255,0.2)',
         tickfont=dict(color=theme["muted"]),
-        title=dict(font=dict(color=theme["muted"]))
+        title=dict(text=y_title, font=dict(color=theme["muted"])),
     )
     return fig
 
