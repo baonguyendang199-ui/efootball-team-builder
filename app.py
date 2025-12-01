@@ -43,6 +43,7 @@ def inject_modern_ui_theme():
         f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
         :root {{
             --app-primary: {theme["primary"]};
             --app-secondary: {theme["secondary"]};
@@ -192,6 +193,16 @@ def inject_modern_ui_theme():
         }}
         button[aria-expanded] svg {{
             stroke: var(--app-text) !important;
+        }}
+        .material-symbols-outlined, .material-icons {{
+            font-family: 'Material Symbols Outlined' !important;
+            font-variation-settings:
+                'FILL' 0,
+                'wght' 400,
+                'GRAD' 0,
+                'opsz' 24;
+            letter-spacing: normal !important;
+            text-transform: none !important;
         }}
         @media (max-width: 980px) {{
             .hero-card {{
