@@ -3336,6 +3336,32 @@ def main():
                                     st.error(f"❌ Lỗi khi lưu: {e}")
             
     elif current_tab == 'inventory':
+        # Thêm CSS cho icons trắng
+        st.markdown("""
+            <style>
+            div.stButton > button[key^="dec_"],
+            div.stButton > button[key^="inc_"] {
+                color: white !important;
+                font-size: 1.2rem !important;
+                font-weight: bold !important;
+            }
+            
+            div.stButton > button[key^="dec_"] p,
+            div.stButton > button[key^="inc_"] p {
+                color: white !important;
+            }
+            
+            /* Optional: Add hover effect */
+            div.stButton > button[key^="inc_"]:hover {
+                background: linear-gradient(135deg, #4ade80, #22c55e) !important;
+            }
+            
+            div.stButton > button[key^="dec_"]:hover {
+                background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
         st.header("📦 Kho Skills")
         
         inventory = get_inventory()
