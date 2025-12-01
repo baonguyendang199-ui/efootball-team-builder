@@ -394,14 +394,14 @@ def apply_plotly_theme(fig):
         zerolinecolor='rgba(255,255,255,0.15)',
         linecolor='rgba(255,255,255,0.2)',
         tickfont=dict(color=theme["muted"]),
-        titlefont=dict(color=theme["muted"])
+        title=dict(font=dict(color=theme["muted"]))
     )
     fig.update_yaxes(
         gridcolor='rgba(255,255,255,0.08)',
         zerolinecolor='rgba(255,255,255,0.15)',
         linecolor='rgba(255,255,255,0.2)',
         tickfont=dict(color=theme["muted"]),
-        titlefont=dict(color=theme["muted"])
+        title=dict(font=dict(color=theme["muted"]))
     )
     return fig
 
