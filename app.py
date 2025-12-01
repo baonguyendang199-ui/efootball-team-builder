@@ -2304,12 +2304,13 @@ def main():
                             if player_info and player_info['Player']:
                                 st.session_state.add_preview_data = {
                                     'Player': selected_player,
-                                    'Rating': 90,
+                                        'Rating': player_info.get('Rating', 0),
                                     'Position': player_info['Position'],
                                     'Nation': player_info['Nation'],
                                     'Club': player_info['Club'],
                                     'League': player_info['League'],
                                     'Skills': player_info['Skills'],
+                                        'Player_Type': player_info.get('Player_Type', 'NON-EPIC'),
                                     'Player_URL': upgrade_url,
                                     'Player_ID': extract_ehub_player_id(upgrade_url)
                                 }
@@ -2340,12 +2341,13 @@ def main():
                                 if player_info and player_info['Player']:
                                     st.session_state.add_preview_data = {
                                         'Player': player_info['Player'],
-                                        'Rating': 90,
+                                        'Rating': player_info.get('Rating', 0),
                                         'Position': player_info['Position'],
                                         'Nation': player_info['Nation'],
                                         'Club': player_info['Club'],
                                         'League': player_info['League'],
                                         'Skills': player_info['Skills'],
+                                        'Player_Type': player_info.get('Player_Type', 'NON-EPIC'),
                                         'Player_URL': pesdb_url,
                                         'Player_ID': extract_ehub_player_id(pesdb_url)
                                     }
@@ -2365,6 +2367,7 @@ def main():
                                 'Club': '',
                                 'League': '',
                                 'Skills': '',
+                                'Player_Type': 'NON-EPIC',
                                 'Player_URL': '',
                                 'Player_ID': ''
                             }
@@ -2404,7 +2407,10 @@ def main():
                     with col2:
                         rating = st.number_input("⭐ Rating *", min_value=1, max_value=150, value=data.get('Rating', 90))
                     with col3:
-                        player_type = st.selectbox("🏷️ Loại thẻ *", ["NON-EPIC", "POTW", "EPIC"], index=0)
+                        type_options = ["NON-EPIC", "POTW", "EPIC"]
+                        current_type = data.get('Player_Type', 'NON-EPIC')
+                        type_idx = type_options.index(current_type) if current_type in type_options else 0
+                        player_type = st.selectbox("🏷️ Loại thẻ *", type_options, index=type_idx)
                     
                     # Row 2: Vị trí + Nhóm vị trí
                     col1, col2 = st.columns(2)
