@@ -33,6 +33,7 @@ APP_THEME = {
     "text": "#E2E8F0",
     "muted": "#94A3B8"
 }
+SHOW_APP_HERO = False
 
 
 def inject_modern_ui_theme():
@@ -181,6 +182,16 @@ def inject_modern_ui_theme():
         .stDataFrame, .st-emotion-cache-1dp5vir {{
             border-radius: 18px;
             overflow: hidden;
+        }}
+        [data-baseweb="select"] svg,
+        [data-baseweb="select"] svg path,
+        [data-testid="stExpander"] svg {{
+            fill: var(--app-text) !important;
+            stroke: var(--app-text) !important;
+            color: var(--app-text) !important;
+        }}
+        button[aria-expanded] svg {{
+            stroke: var(--app-text) !important;
         }}
         @media (max-width: 980px) {{
             .hero-card {{
@@ -1311,8 +1322,6 @@ def main():
     if not df.empty:
         auto_update_target_lists(df)
 
-    render_app_hero(df)
-
     def build_top23_map(df, group_by, max_size=23):
         """Tạo mapping {(group_value, player_index) -> 'rank/size group_value'}."""
         top_map = {}
@@ -1376,6 +1385,9 @@ def main():
         st.session_state['auto_extracting'] = False
 
     current_tab = st.session_state.current_tab
+
+    if SHOW_APP_HERO and current_tab == 'overview':
+        render_app_hero(df)
 
     if current_tab == 'overview':
         st.header("📊 Tổng quan")
