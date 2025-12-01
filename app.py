@@ -228,6 +228,11 @@ def inject_modern_ui_theme():
                 const btn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
                 if (!btn) return;
                 
+                if (btn.hasAttribute('title')) {{
+                    btn.removeAttribute('title');
+                }}
+                btn.setAttribute('aria-label', 'Thu gọn sidebar');
+                
                 Array.from(btn.children).forEach(child => {{
                     if (!child.classList.contains('custom-sidebar-icon-wrapper')) {{
                         child.remove();
