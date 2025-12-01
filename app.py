@@ -1814,12 +1814,12 @@ def main():
                             st.markdown(
                                 '<div style="width:200px;height:325px;background:#f0f0f0;'
                                 'display:flex;align-items:center;justify-content:center;'
-                                'border-radius:16px;font-size:80px;">❓</div>',
+                                'border-radius:16px;font-size:24px;color:#666;">No Image</div>',
                                 unsafe_allow_html=True
                             )
                     
                     with col_info:
-                        st.markdown(f"### {card_color} {player_name}")
+                        st.markdown(f"### {player_name} {type_indicator}")
                         
                         info_col1, info_col2 = st.columns(2)
                         with info_col1:
