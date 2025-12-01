@@ -631,17 +631,31 @@ def extract_card_type_from_html(soup) -> str:
     - Epic, Legendary → EPIC
     - Standard, Highlight, Standard Featured → NON-EPIC
     """
-    def detect_from_text(text: str):
-        if not text:
-            return None
-        upper_text = text.upper()
-        if 'TRENDING' in upper_text or 'POTW' in upper_text:
-            return 'POTW'
-        if 'HIGHLIGHT' in upper_text or 'FEATURED' in upper_text or 'STANDARD' in upper_text:
+    def detect_prioritized(texts):
+        """Trả về loại thẻ theo priority: POTW > NON-EPIC > EPIC."""
+        non_epic_detected = False
+        epic_detected = False
+        
+        for text in texts:
+            if not text:
+                continue
+            upper_text = text.upper()
+            
+            if 'TRENDING' in upper_text or 'POTW' in upper_text:
+                return 'POTW'
+            
+            if ('HIGHLIGHT' in upper_text or 
+                'FEATURED' in upper_text or 
+                'STANDARD' in upper_text):
+                non_epic_detected = True
+                continue
+            
+            if 'LEGENDARY' in upper_text or 'EPIC' in upper_text:
+                epic_detected = True
+        
+        if non_epic_detected:
             return 'NON-EPIC'
-        if 'LEGENDARY' in upper_text:
-            return 'EPIC'
-        if 'EPIC' in upper_text:
+        if epic_detected:
             return 'EPIC'
         return None
     
@@ -671,14 +685,11 @@ def extract_card_type_from_html(soup) -> str:
             if active_tab and active_tab.has_attr('data-mode'):
                 candidate_texts.append(active_tab['data-mode'])
         
-        for text in candidate_texts:
-            detected = detect_from_text(text)
-            if detected:
-                return detected
-        
-        # 4. Fallback: quét toàn bộ text HTML
+        # 4. Tổng hợp và áp dụng priority
         full_text = soup.get_text(separator=' ', strip=True)
-        detected = detect_from_text(full_text)
+        candidate_texts.append(full_text)
+        
+        detected = detect_prioritized(candidate_texts)
         if detected:
             return detected
         
