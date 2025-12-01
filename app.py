@@ -2032,8 +2032,8 @@ def main():
                     ):
                         try:
                             new_df = df.drop(index=to_delete, errors='ignore')
-                    if save_data_to_gsheet(new_df):
-                        st.success(f"Đã xóa {len(to_delete)} cầu thủ thành công!")
+                            if save_data_to_gsheet(new_df):
+                                st.success(f"Đã xóa {len(to_delete)} cầu thủ thành công!")
                                 st.cache_data.clear()
                                 st.rerun()
                         except Exception as e:
