@@ -381,46 +381,45 @@ def render_app_hero(df: pd.DataFrame):
 def apply_plotly_theme(fig):
     """Apply transparent background + typography to Plotly charts so they match the app theme."""
     theme = APP_THEME
-    def extract_axis_title(axis):
-        if not axis:
-            return None
-        title = getattr(axis, "title", None)
-        if title is None:
-            return None
-        if isinstance(title, str):
-            return title
-        return getattr(title, "text", None)
     
-    x_title = extract_axis_title(getattr(fig.layout, "xaxis", None))
-    y_title = extract_axis_title(getattr(fig.layout, "yaxis", None))
+    def extract_title(obj):
+        if not obj:
+            return ""
+        if isinstance(obj, str):
+            return obj
+        text = getattr(obj, "text", None)
+        if text is not None:
+            return text
+        return ""
+    
+    x_title = extract_title(getattr(getattr(fig.layout, "xaxis", None), "title", None))
+    y_title = extract_title(getattr(getattr(fig.layout, "yaxis", None), "title", None))
+    figure_title = extract_title(getattr(fig.layout, "title", None))
     
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family="Inter, sans-serif", color=theme["text"]),
-        title_font=dict(family="Space Grotesk, Inter, sans-serif", color=theme["text"]),
         margin=dict(l=40, r=30, t=60, b=50),
-        legend=dict(font=dict(color=theme["text"]))
+        legend=dict(font=dict(color=theme["text"])),
+        title=dict(
+            text=figure_title,
+            font=dict(family="Space Grotesk, Inter, sans-serif", color=theme["text"])
+        )
     )
     fig.update_xaxes(
         gridcolor='rgba(255,255,255,0.08)',
         zerolinecolor='rgba(255,255,255,0.15)',
         linecolor='rgba(255,255,255,0.2)',
         tickfont=dict(color=theme["muted"]),
-        title=dict(
-            text=x_title if x_title is not None else '',
-            font=dict(color=theme["muted"])
-        ),
+        title=dict(text=x_title, font=dict(color=theme["muted"]))
     )
     fig.update_yaxes(
         gridcolor='rgba(255,255,255,0.08)',
         zerolinecolor='rgba(255,255,255,0.15)',
         linecolor='rgba(255,255,255,0.2)',
         tickfont=dict(color=theme["muted"]),
-        title=dict(
-            text=y_title if y_title is not None else '',
-            font=dict(color=theme["muted"])
-        ),
+        title=dict(text=y_title, font=dict(color=theme["muted"]))
     )
     return fig
 
