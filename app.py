@@ -724,12 +724,11 @@ def extract_card_type_from_html(soup) -> str:
     except:
         return 'NON-EPIC'
 
-def extract_max_level_rating(player_url: str) -> int:
-    """Lấy Overall Rating với 2-Step Fallback:
+def extract_max_level_rating(player_url: str, card_type: str = None, base_html: str = None) -> int:
+    """Lấy Overall Rating với logic tùy loại thẻ.
     
-    Bước 1: Thử lấy từ Max Level page (Ưu tiên)
-    Bước 2: Fallback về Level 1 page (Dự phòng)
-    Bước 3: Trả về 0 nếu cả 2 đều thất bại
+    POTW/Trending: dùng level gốc + 4 (không cần max level).
+    Loại khác: thử Max Level trước, fallback về level gốc, cuối cùng trả 0.
     """
     def extract_rating_from_html(html: str) -> int:
         """Helper function để trích xuất rating từ HTML"""
@@ -754,41 +753,47 @@ def extract_max_level_rating(player_url: str) -> int:
             pass
         return 0
     
+    def get_level1_rating():
+        level_html = base_html
+        if not level_html:
+            level_html = fetch_ehub_raw_html(base_url)
+        if level_html:
+            rating = extract_rating_from_html(level_html)
+            if rating > 0:
+                return rating
+        return 0
+    
     try:
-        # Lấy base URL (loại bỏ mode=max_level nếu có)
-        if '&mode=max_level' in player_url:
-            base_url = player_url.replace('&mode=max_level', '')
-        elif '?mode=max_level' in player_url:
-            base_url = player_url.replace('?mode=max_level', '')
-        else:
-            base_url = player_url
+        normalized_card_type = normalize_player_type(card_type) if card_type else None
+        
+        # Lấy base URL (loại bỏ các tham số mode nếu có)
+        base_url = player_url
+        if '&mode=max_level' in base_url:
+            base_url = base_url.replace('&mode=max_level', '')
+        if '?mode=max_level' in base_url:
+            base_url = base_url.replace('?mode=max_level', '')
+        
+        # Nếu là POTW → chỉ cần level gốc +4
+        if normalized_card_type == 'POTW':
+            return get_level1_rating()
         
         # === BƯỚC 1: Thử lấy từ Max Level (Ưu tiên) ===
-        if '?' in base_url:
-            max_level_url = f"{base_url}&mode=max_level"
-        else:
-            max_level_url = f"{base_url}?mode=max_level"
-        
+        max_level_url = f"{base_url}&mode=max_level" if '?' in base_url else f"{base_url}?mode=max_level"
         html = fetch_ehub_raw_html(max_level_url)
-        
         if html:
             rating = extract_rating_from_html(html)
             if rating > 0:
                 return rating
         
         # === BƯỚC 2: Fallback về Level 1 (Dự phòng) ===
-        level1_url = base_url
-        html = fetch_ehub_raw_html(level1_url)
-        
-        if html:
-            rating = extract_rating_from_html(html)
-            if rating > 0:
-                return rating
+        level_rating = get_level1_rating()
+        if level_rating > 0:
+            return level_rating
         
         # === BƯỚC 3: Trả về 0 nếu cả 2 đều thất bại ===
         return 0
         
-    except Exception as e:
+    except Exception:
         return 0
 
 def extract_full_player_info(player_url: str) -> dict:
@@ -862,8 +867,12 @@ def extract_full_player_info(player_url: str) -> dict:
         # Lấy Player Type từ loại thẻ
         info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
         
-        # Lấy Rating từ Max Level
-        info['Rating'] = extract_max_level_rating(player_url)
+        # Lấy Rating (POTW dùng level gốc +4, thẻ khác ưu tiên Max Level)
+        info['Rating'] = extract_max_level_rating(
+            player_url,
+            card_type=info.get('Player_Type'),
+            base_html=html
+        )
         
         return info
         
