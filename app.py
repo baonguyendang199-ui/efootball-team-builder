@@ -235,20 +235,52 @@ def inject_modern_ui_theme():
                     iconSpan.setAttribute('aria-hidden', 'true');
                     iconSpan.style.fontSize = '0px';
                 }}
-                if (!btn.querySelector('.custom-sidebar-icon')) {{
-                    const replacement = document.createElement('span');
-                    replacement.className = 'material-symbols-outlined custom-sidebar-icon';
-                    replacement.textContent = btn.ariaExpanded === 'true' ? 'chevron_right' : 'chevron_left';
-                    replacement.style.fontSize = '20px';
-                    replacement.style.color = getComputedStyle(btn).color;
-                    replacement.style.pointerEvents = 'none';
-                    btn.appendChild(replacement);
-                    btn.addEventListener('mouseenter', () => {{
-                        replacement.textContent = btn.ariaExpanded === 'true' ? 'chevron_right' : 'chevron_left';
+                let iconWrapper = btn.querySelector('.custom-sidebar-icon-wrapper');
+                if (!iconWrapper) {{
+                    iconWrapper = document.createElement('span');
+                    iconWrapper.className = 'custom-sidebar-icon-wrapper';
+                    iconWrapper.style.display = 'inline-flex';
+                    iconWrapper.style.alignItems = 'center';
+                    iconWrapper.style.justifyContent = 'center';
+                    iconWrapper.style.gap = '2px';
+                    iconWrapper.style.pointerEvents = 'none';
+                    iconWrapper.style.marginLeft = '4px';
+                    btn.appendChild(iconWrapper);
+                }}
+                iconWrapper.innerHTML = '';
+
+                const createDoubleArrow = (direction) => {{
+                    const icon = document.createElement('span');
+                    icon.className = 'material-symbols-outlined custom-sidebar-icon';
+                    icon.textContent = direction === 'left' ? 'chevron_left' : 'chevron_right';
+                    icon.style.fontSize = '18px';
+                    icon.style.color = getComputedStyle(btn).color;
+                    icon.style.opacity = '0.85';
+                    return icon;
+                }};
+
+                const isExpanded = btn.ariaExpanded === 'true';
+                const arrows = [
+                    createDoubleArrow(isExpanded ? 'right' : 'left'),
+                    createDoubleArrow(isExpanded ? 'right' : 'left')
+                ];
+
+                arrows.forEach((arrow, idx) => {{
+                    arrow.style.transform = `translateX(${{idx * 2}}px)`;
+                    iconWrapper.appendChild(arrow);
+                }});
+
+                iconWrapper.addEventListener('mouseenter', () => {{
+                    iconWrapper.childNodes.forEach((child, idx) => {{
+                        child.textContent = btn.ariaExpanded === 'true' ? 'chevron_right' : 'chevron_left';
                     }});
-                }} else {{
-                    const replacement = btn.querySelector('.custom-sidebar-icon');
-                    replacement.textContent = btn.ariaExpanded === 'true' ? 'chevron_right' : 'chevron_left';
+                }});
+
+                if (!btn.querySelector('.custom-sidebar-icon-injected')) {{
+                    const replacement = document.createElement('span');
+                    replacement.className = 'custom-sidebar-icon-injected';
+                    replacement.style.display = 'none';
+                    btn.appendChild(replacement);
                 }}
             }};
             const observer = new MutationObserver(() => fixSidebarCollapseIcon());
