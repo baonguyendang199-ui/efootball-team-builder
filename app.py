@@ -196,13 +196,22 @@ def inject_modern_ui_theme():
         }}
         .material-symbols-outlined, .material-icons {{
             font-family: 'Material Symbols Outlined' !important;
+            font-style: normal !important;
+            font-weight: 400 !important;
+            font-size: 20px !important;
+            line-height: 1 !important;
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: normal !important;
+            text-transform: none !important;
+            font-variant-ligatures: normal !important;
+            font-feature-settings: 'liga' 1 !important;
             font-variation-settings:
                 'FILL' 0,
                 'wght' 400,
                 'GRAD' 0,
                 'opsz' 24;
-            letter-spacing: normal !important;
-            text-transform: none !important;
         }}
         @media (max-width: 980px) {{
             .hero-card {{
