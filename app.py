@@ -228,17 +228,15 @@ def inject_modern_ui_theme():
                 const btn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
                 if (!btn) return;
                 
-                const textNodes = Array.from(btn.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
-                textNodes.forEach(node => {{
-                    if ((node.textContent || '').includes('keyboard_double_arrow')) {{
-                        node.textContent = '';
+                Array.from(btn.children).forEach(child => {{
+                    if (!child.classList.contains('custom-sidebar-icon-wrapper')) {{
+                        child.remove();
                     }}
                 }});
                 
-                const spans = btn.querySelectorAll('span');
-                spans.forEach(span => {{
-                    if ((span.textContent || '').includes('keyboard_double_arrow')) {{
-                        span.style.display = 'none';
+                Array.from(btn.childNodes).forEach(node => {{
+                    if (node.nodeType === Node.TEXT_NODE) {{
+                        node.remove();
                     }}
                 }});
                 
@@ -246,11 +244,7 @@ def inject_modern_ui_theme():
                 if (!iconWrapper) {{
                     iconWrapper = document.createElement('span');
                     iconWrapper.className = 'custom-sidebar-icon-wrapper';
-                    iconWrapper.style.display = 'inline-flex';
-                    iconWrapper.style.alignItems = 'center';
-                    iconWrapper.style.justifyContent = 'center';
-                    iconWrapper.style.gap = '2px';
-                    iconWrapper.style.pointerEvents = 'none';
+                    iconWrapper.style.cssText = 'display:inline-flex;align-items:center;gap:2px;pointer-events:none;';
                     btn.appendChild(iconWrapper);
                 }}
                 
@@ -258,35 +252,17 @@ def inject_modern_ui_theme():
                 const direction = isExpanded ? 'chevron_right' : 'chevron_left';
                 
                 iconWrapper.innerHTML = `
-                    <span class="material-symbols-outlined" style="font-size:18px;opacity:0.85;transform:translateX(-2px)">${{direction}}</span>
-                    <span class="material-symbols-outlined" style="font-size:18px;opacity:0.85;transform:translateX(2px)">${{direction}}</span>
+                    <span class="material-symbols-outlined custom-sidebar-icon">${{direction}}</span>
+                    <span class="material-symbols-outlined custom-sidebar-icon">${{direction}}</span>
                 `;
             }};
             
-            const observer = new MutationObserver((mutations) => {{
-                mutations.forEach((mutation) => {{
-                    if (mutation.type === 'attributes' && mutation.attributeName === 'aria-expanded') {{
-                        fixSidebarCollapseIcon();
-                    }}
-                }});
+            const runFix = () => {{
                 fixSidebarCollapseIcon();
-            }});
-            
-            const startObserver = () => {{
-                const btn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
-                if (btn) {{
-                    observer.observe(btn, {{ attributes: true, childList: true, subtree: true }});
-                    fixSidebarCollapseIcon();
-                }} else {{
-                    setTimeout(startObserver, 100);
-                }}
+                requestAnimationFrame(runFix);
             }};
             
-            if (document.readyState === 'loading') {{
-                document.addEventListener('DOMContentLoaded', startObserver);
-            }} else {{
-                startObserver();
-            }}
+            setTimeout(runFix, 100);
         }})();
         </script>
         """,
