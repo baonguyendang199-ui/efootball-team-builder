@@ -1748,6 +1748,8 @@ def main():
 
     elif current_tab == 'skills':
         st.header("🎮 Quản lý Skills")
+        MAX_SKILLS = 15
+        MAX_ADDED_SKILLS = 5
         
         with st.expander("🔍 Tìm kiếm nâng cao", expanded=False):
             search_col1, search_col2, search_col3 = st.columns(3)
@@ -1767,7 +1769,10 @@ def main():
             with rating_col2:
                 rating_max = st.number_input("Rating đến", min_value=1, max_value=150, value=150, key="sm_rating_max")
             with filter_col:
-                sm_filter = st.selectbox("Trạng thái Skills", ["Tất cả", "Có gợi ý", "Không thể thêm skills", "Đã đủ skills"], key="sm_filter")
+                filter_options = ["Tất cả", "Có gợi ý", "Không thể thêm skills", "Đã đủ skills"]
+                if 'sm_filter' not in st.session_state:
+                    st.session_state['sm_filter'] = "Có gợi ý"
+                sm_filter = st.selectbox("Trạng thái Skills", filter_options, key="sm_filter")
         
         quick_col1, quick_col2, quick_col3 = st.columns(3)
         with quick_col1:
@@ -1813,30 +1818,43 @@ def main():
         # Tự động sort theo Rating giảm dần
         sm_df = sm_df.sort_values('Rating', ascending=False)
         
+        def determine_skill_status(row):
+            position = str(row.get('Position', '')).strip()
+            player_type_value = str(row.get('Player Type', '')).upper()
+            base = str(row.get('Skills', '')).strip()
+            added = str(row.get('Added Skills', '')).strip()
+            
+            base_list = [s.strip() for s in base.split(',') if s.strip()] if base else []
+            added_list = [s.strip() for s in added.split(',') if s.strip()] if added else []
+            
+            total_count = len(base_list) + len(added_list)
+            remaining_slots = MAX_ADDED_SKILLS - len(added_list)
+            
+            if player_type_value == 'POTW':
+                return 'locked'
+            if total_count >= MAX_SKILLS or remaining_slots <= 0:
+                return 'full'
+            if position not in POSITION_SKILLS_PRIORITY:
+                return 'no_hint'
+            
+            recommendations = get_recommended_skills(position, base, added, MAX_SKILLS)
+            if remaining_slots > 0:
+                recommendations = recommendations[:remaining_slots]
+            else:
+                recommendations = []
+            
+            if recommendations:
+                return 'has_hint'
+            return 'no_hint'
+        
+        sm_df['Skill_Status'] = sm_df.apply(determine_skill_status, axis=1)
+        
         if sm_filter == "Không thể thêm skills":
-            sm_df = sm_df[sm_df['Player Type'].astype(str).str.upper() == 'POTW']
+            sm_df = sm_df[sm_df['Skill_Status'] == 'locked']
         elif sm_filter == "Có gợi ý":
-            sm_df = sm_df[sm_df['Position'].isin(POSITION_SKILLS_PRIORITY.keys())]
-            sm_df = sm_df[sm_df['Player Type'].astype(str).str.upper() != 'POTW']
-            def has_recommendations(row):
-                base = str(row['Skills']).strip()
-                added = str(row['Added Skills']).strip()
-                position = row['Position']
-                recs = get_recommended_skills(position, base, added, 15)
-                return len(recs) > 0
-            sm_df = sm_df[sm_df.apply(has_recommendations, axis=1)]
+            sm_df = sm_df[sm_df['Skill_Status'] == 'has_hint']
         elif sm_filter == "Đã đủ skills":
-            sm_df = sm_df[sm_df['Player Type'].astype(str).str.upper() != 'POTW']
-            def has_no_recommendations(row):
-                base = str(row['Skills']).strip()
-                added = str(row['Added Skills']).strip()
-                position = row['Position']
-                all_skills = get_all_skills(base, added)
-                if not all_skills:
-                    return False
-                recs = get_recommended_skills(position, base, added, 15)
-                return len(recs) == 0
-            sm_df = sm_df[sm_df.apply(has_no_recommendations, axis=1)]
+            sm_df = sm_df[sm_df['Skill_Status'].isin(['full', 'no_hint'])]
         
         summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
         with summary_col1:
@@ -1856,9 +1874,6 @@ def main():
         if sm_df.empty:
             st.info("🔍 Không tìm thấy cầu thủ nào")
         else:
-            MAX_SKILLS = 15
-            MAX_ADDED_SKILLS = 5
-            
             for idx, row in sm_df.iterrows():
                 player_name = row['Player']
                 position = row['Position']
