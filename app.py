@@ -1123,24 +1123,88 @@ def main():
         
         st.divider()
         
-        # 📍 Phân bố theo vị trí (Pie Chart)
+        # 📍 Phân bố theo vị trí (Bar Chart)
         st.subheader("📍 Phân bố theo vị trí")
         pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
         pos_counts.columns = ['Vị trí', 'Số lượng']
         
-        fig_pos = px.pie(
+        fig_pos = px.bar(
             pos_counts,
-            names="Vị trí",
-            values="Số lượng",
-            hole=0.3
+            x="Vị trí",
+            y="Số lượng",
+            text="Số lượng"
         )
-        fig_pos.update_traces(
-            textinfo="percent+label",
-            hoverinfo="skip",
-            hovertemplate=None
+        fig_pos.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+        fig_pos.update_layout(
+            xaxis=dict(categoryorder="total descending", autorange=True),
+            yaxis=dict(autorange=True),
+            dragmode="pan"
         )
-        fig_pos.update_layout(dragmode="pan")
         st.plotly_chart(fig_pos, use_container_width=True, config=config)
+        
+        st.divider()
+        
+        # 🔥 Top 10 Most Needed Skills
+        st.subheader("🔥 Top 10 Most Needed Skills")
+        MAX_SKILLS_OV = 15
+        MAX_ADDED_SKILLS_OV = 5
+        
+        skill_need_counts = {}
+        
+        for _, row in df.iterrows():
+            position = str(row.get('Position', '')).strip()
+            player_type_val = str(row.get('Player Type', '')).upper()
+            
+            # Bỏ qua POTW (không thể thêm skill) và vị trí không có priority
+            if player_type_val == 'POTW' or position not in POSITION_SKILLS_PRIORITY:
+                continue
+            
+            base = str(row.get('Skills', '')).strip()
+            added = str(row.get('Added Skills', '')).strip()
+            
+            base_list = [s.strip() for s in base.split(',') if s.strip()] if base else []
+            added_list = [s.strip() for s in added.split(',') if s.strip()] if added else []
+            
+            total_count = len(base_list) + len(added_list)
+            remaining_slots = MAX_ADDED_SKILLS_OV - len(added_list)
+            
+            # Nếu đã full slot thêm hoặc đủ 15 skill thì không tính là "cần thêm"
+            if total_count >= MAX_SKILLS_OV or remaining_slots <= 0:
+                continue
+            
+            recs = get_recommended_skills(position, base, added, MAX_SKILLS_OV)
+            if remaining_slots > 0:
+                recs = recs[:remaining_slots]
+            
+            for skill in recs:
+                if not skill:
+                    continue
+                skill_need_counts[skill] = skill_need_counts.get(skill, 0) + 1
+        
+        if skill_need_counts:
+            skills_df = (
+                pd.DataFrame(
+                    [{'Skill': k, 'Số cầu thủ': v} for k, v in skill_need_counts.items()]
+                )
+                .sort_values('Số cầu thủ', ascending=False)
+                .head(10)
+            )
+            
+            fig_skill = px.bar(
+                skills_df,
+                x="Skill",
+                y="Số cầu thủ",
+                text="Số cầu thủ"
+            )
+            fig_skill.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+            fig_skill.update_layout(
+                xaxis=dict(categoryorder="total descending", autorange=True),
+                yaxis=dict(autorange=True),
+                dragmode="pan"
+            )
+            st.plotly_chart(fig_skill, use_container_width=True, config=config)
+        else:
+            st.info("🎉 Hiện không có skill nào được gợi ý thêm cho cầu thủ.")
         
         st.divider()
         
