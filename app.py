@@ -77,7 +77,7 @@ def inject_modern_ui_theme():
             border-radius: 999px;
             border: none;
             background: linear-gradient(135deg, var(--app-primary), var(--app-secondary));
-            color: #ffffff !important;
+            color: white;
             font-weight: 600;
             box-shadow: 0 10px 25px rgba(124,58,237,0.35);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
