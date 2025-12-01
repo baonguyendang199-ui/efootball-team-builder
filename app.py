@@ -216,18 +216,34 @@ def normalize_player_type(value: str) -> str:
     if not text:
         return 'NON-EPIC'
     
+    canonical_map = {
+        'POTW': 'POTW',
+        'TRENDING': 'POTW',
+        'EPIC': 'EPIC',
+        'LEGENDARY': 'EPIC',
+        'LEGEND': 'EPIC',
+        'NON-EPIC': 'NON-EPIC',
+        'NON EPIC': 'NON-EPIC',
+        'NON_EPIC': 'NON-EPIC',
+    }
+    if text in canonical_map:
+        return canonical_map[text]
+    
+    # Ưu tiên nhận diện POTW trước
     if 'TRENDING' in text or 'POTW' in text:
         return 'POTW'
     
-    if 'LEGENDARY' in text:
+    # Sau đó ưu tiên nhận diện các biến thể Non-Epic
+    if 'HIGHLIGHT' in text or 'FEATURED' in text or 'STANDARD' in text:
+        return 'NON-EPIC'
+    if 'NON' in text and 'EPIC' in text:
+        return 'NON-EPIC'
+    
+    if 'LEGENDARY' in text or 'LEGEND' in text:
         return 'EPIC'
     
     if 'EPIC' in text:
         return 'EPIC'
-    
-    # Highlight, Standard Featured, Standard, Featured -> NON-EPIC
-    if 'HIGHLIGHT' in text or 'FEATURED' in text or 'STANDARD' in text:
-        return 'NON-EPIC'
     
     return 'NON-EPIC'
 
