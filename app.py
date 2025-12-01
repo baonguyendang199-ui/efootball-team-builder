@@ -1123,27 +1123,6 @@ def main():
         
         st.divider()
         
-        # 📍 Phân bố theo vị trí (Bar Chart)
-        st.subheader("📍 Phân bố theo vị trí")
-        pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
-        pos_counts.columns = ['Vị trí', 'Số lượng']
-        
-        fig_pos = px.bar(
-            pos_counts,
-            x="Vị trí",
-            y="Số lượng",
-            text="Số lượng"
-        )
-        fig_pos.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-        fig_pos.update_layout(
-            xaxis=dict(categoryorder="total descending", autorange=True),
-            yaxis=dict(autorange=True),
-            dragmode="pan"
-        )
-        st.plotly_chart(fig_pos, use_container_width=True, config=config)
-        
-        st.divider()
-        
         # 🔥 Top 10 Most Needed Skills
         st.subheader("🔥 Top 10 Most Needed Skills")
         MAX_SKILLS_OV = 15
@@ -1205,6 +1184,27 @@ def main():
             st.plotly_chart(fig_skill, use_container_width=True, config=config)
         else:
             st.info("🎉 Hiện không có skill nào được gợi ý thêm cho cầu thủ.")
+        
+        st.divider()
+        
+        # 📍 Phân bố theo vị trí (Bar Chart)
+        st.subheader("📍 Phân bố theo vị trí")
+        pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
+        pos_counts.columns = ['Vị trí', 'Số lượng']
+        
+        fig_pos = px.bar(
+            pos_counts,
+            x="Vị trí",
+            y="Số lượng",
+            text="Số lượng"
+        )
+        fig_pos.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+        fig_pos.update_layout(
+            xaxis=dict(categoryorder="total descending", autorange=True),
+            yaxis=dict(autorange=True),
+            dragmode="pan"
+        )
+        st.plotly_chart(fig_pos, use_container_width=True, config=config)
         
         st.divider()
         
@@ -1822,7 +1822,12 @@ def main():
                 sm_position = st.multiselect("Vị trí", sorted(df['Position'].unique().tolist()), key="sm_position")
             with search_col2:
                 sm_player_type = st.multiselect("Loại cầu thủ", ["EPIC", "POTW", "NON-EPIC"], key="sm_player_type")
-                sm_club = st.multiselect("Club", sorted([x for x in df['Club'].unique() if str(x).strip()]), key="sm_club")
+            club_options = sorted([x for x in df['Club'].unique() if str(x).strip()])
+            if 'sm_club' not in st.session_state:
+                default_club = ['FC Barcelona'] if 'FC Barcelona' in club_options else []
+            else:
+                default_club = st.session_state.get('sm_club', [])
+            sm_club = st.multiselect("Club", club_options, default=default_club, key="sm_club")
             with search_col3:
                 sm_nation = st.multiselect("Quốc gia", sorted([x for x in df['Nation'].unique() if str(x).strip()]), key="sm_nation")
                 sm_league = st.multiselect("League", sorted([x for x in df['League'].unique() if str(x).strip()]), key="sm_league")
