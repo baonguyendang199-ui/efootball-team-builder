@@ -637,12 +637,12 @@ def extract_card_type_from_html(soup) -> str:
         upper_text = text.upper()
         if 'TRENDING' in upper_text or 'POTW' in upper_text:
             return 'POTW'
+        if 'HIGHLIGHT' in upper_text or 'FEATURED' in upper_text or 'STANDARD' in upper_text:
+            return 'NON-EPIC'
         if 'LEGENDARY' in upper_text:
             return 'EPIC'
         if 'EPIC' in upper_text:
             return 'EPIC'
-        if 'HIGHLIGHT' in upper_text or 'FEATURED' in upper_text or 'STANDARD' in upper_text:
-            return 'NON-EPIC'
         return None
     
     try:
