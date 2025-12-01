@@ -597,18 +597,111 @@ def extract_player_skills(player_url: str) -> str:
     except Exception as e:
         return ""
 
+def extract_card_type_from_html(soup) -> str:
+    """Trích xuất loại thẻ từ HTML PESDB
+    
+    Mapping:
+    - Trending → POTW
+    - Epic, Legendary → EPIC
+    - Standard, Highlight, Standard Featured → NON-EPIC
+    """
+    try:
+        # Tìm tab đang active để xác định loại thẻ
+        mode_tabs = soup.find('div', class_='mode-tabs')
+        if mode_tabs:
+            active_tab = mode_tabs.find('a', class_='active')
+            if active_tab:
+                tab_text = active_tab.get_text(strip=True).upper()
+                
+                # Mapping logic
+                if 'TRENDING' in tab_text:
+                    return 'POTW'
+                elif 'EPIC' in tab_text or 'LEGENDARY' in tab_text:
+                    return 'EPIC'
+                else:  # Standard, Highlight, Featured
+                    return 'NON-EPIC'
+        
+        return 'NON-EPIC'  # Default
+    except:
+        return 'NON-EPIC'
+
+def extract_max_level_rating(player_url: str) -> int:
+    """Lấy Overall Rating với 2-Step Fallback:
+    
+    Bước 1: Thử lấy từ Max Level page (Ưu tiên)
+    Bước 2: Fallback về Level 1 page (Dự phòng)
+    Bước 3: Trả về 0 nếu cả 2 đều thất bại
+    """
+    def extract_rating_from_html(html: str) -> int:
+        """Helper function để trích xuất rating từ HTML"""
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            rows = soup.find_all('tr')
+            for row in rows:
+                th = row.find('th')
+                if th and 'Overall Rating' in th.get_text():
+                    td = row.find('td')
+                    if td:
+                        rating_text = td.get_text(strip=True)
+                        try:
+                            base_rating = int(rating_text)
+                            return base_rating + 4  # Tự động +4
+                        except:
+                            pass
+        except:
+            pass
+        return 0
+    
+    try:
+        # Lấy base URL (loại bỏ mode=max_level nếu có)
+        if '&mode=max_level' in player_url:
+            base_url = player_url.replace('&mode=max_level', '')
+        elif '?mode=max_level' in player_url:
+            base_url = player_url.replace('?mode=max_level', '')
+        else:
+            base_url = player_url
+        
+        # === BƯỚC 1: Thử lấy từ Max Level (Ưu tiên) ===
+        if '?' in base_url:
+            max_level_url = f"{base_url}&mode=max_level"
+        else:
+            max_level_url = f"{base_url}?mode=max_level"
+        
+        html = fetch_ehub_raw_html(max_level_url)
+        
+        if html:
+            rating = extract_rating_from_html(html)
+            if rating > 0:
+                return rating
+        
+        # === BƯỚC 2: Fallback về Level 1 (Dự phòng) ===
+        level1_url = base_url
+        html = fetch_ehub_raw_html(level1_url)
+        
+        if html:
+            rating = extract_rating_from_html(html)
+            if rating > 0:
+                return rating
+        
+        # === BƯỚC 3: Trả về 0 nếu cả 2 đều thất bại ===
+        return 0
+        
+    except Exception as e:
+        return 0
+
 def extract_full_player_info(player_url: str) -> dict:
     """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB
     
     Returns:
         dict: {
             'Player': str,
-            'Rating': int,
+            'Rating': int,  # Từ Max Level
             'Position': str,
             'Nation': str,
             'Club': str,
             'League': str,
             'Skills': str,
+            'Player_Type': str,  # POTW/EPIC/NON-EPIC
         }
     """
     default_info = {
@@ -619,6 +712,7 @@ def extract_full_player_info(player_url: str) -> dict:
         'Club': '',
         'League': '',
         'Skills': '',
+        'Player_Type': 'NON-EPIC',
     }
     
     try:
@@ -662,6 +756,12 @@ def extract_full_player_info(player_url: str) -> dict:
         
         # Lấy Skills
         info['Skills'] = extract_player_skills(player_url)
+        
+        # Lấy Player Type từ loại thẻ
+        info['Player_Type'] = extract_card_type_from_html(soup)
+        
+        # Lấy Rating từ Max Level
+        info['Rating'] = extract_max_level_rating(player_url)
         
         return info
         
