@@ -194,6 +194,39 @@ def inject_modern_ui_theme():
         button[aria-expanded] svg {{
             stroke: var(--app-text) !important;
         }}
+        [data-testid="stSidebarCollapseButton"] {{
+            position: relative;
+        }}
+        [data-testid="stSidebarCollapseButton"] > button {{
+            opacity: 0;
+            pointer-events: none;
+            width: 0;
+            height: 0;
+            margin: 0;
+            position: absolute;
+        }}
+        .custom-sidebar-toggle {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.14);
+            color: var(--app-text);
+            border-radius: 999px;
+            padding: 0.35rem 0.95rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(8px);
+        }}
+        .custom-sidebar-toggle:hover {{
+            background: rgba(255,255,255,0.16);
+            border-color: rgba(255,255,255,0.25);
+        }}
+        .custom-sidebar-toggle .material-symbols-outlined {{
+            font-size: 18px !important;
+        }}
         .material-symbols-outlined, .material-icons {{
             font-family: 'Material Symbols Outlined' !important;
             font-style: normal !important;
@@ -224,50 +257,61 @@ def inject_modern_ui_theme():
         </style>
         <script>
         (function() {{
-            const fixSidebarCollapseIcon = () => {{
-                const btn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
-                if (!btn) return;
+            const ensureCustomToggle = () => {{
+                const host = document.querySelector('[data-testid="stSidebarCollapseButton"]');
+                if (!host) return;
+                const defaultBtn = host.querySelector('button');
+                if (!defaultBtn) return;
                 
-                if (btn.hasAttribute('title')) {{
-                    btn.removeAttribute('title');
-                }}
-                btn.setAttribute('aria-label', 'Thu gọn sidebar');
-                
-                Array.from(btn.children).forEach(child => {{
-                    if (!child.classList.contains('custom-sidebar-icon-wrapper')) {{
-                        child.remove();
-                    }}
-                }});
-                
-                Array.from(btn.childNodes).forEach(node => {{
-                    if (node.nodeType === Node.TEXT_NODE) {{
-                        node.remove();
-                    }}
-                }});
-                
-                let iconWrapper = btn.querySelector('.custom-sidebar-icon-wrapper');
-                if (!iconWrapper) {{
-                    iconWrapper = document.createElement('span');
-                    iconWrapper.className = 'custom-sidebar-icon-wrapper';
-                    iconWrapper.style.cssText = 'display:inline-flex;align-items:center;gap:2px;pointer-events:none;';
-                    btn.appendChild(iconWrapper);
+                let customBtn = host.querySelector('.custom-sidebar-toggle');
+                if (!customBtn) {{
+                    customBtn = document.createElement('button');
+                    customBtn.type = 'button';
+                    customBtn.className = 'custom-sidebar-toggle';
+                    customBtn.innerHTML = `
+                        <span class="material-symbols-outlined toggle-icon">menu_open</span>
+                        <span class="toggle-label">Thu gọn</span>
+                    `;
+                    host.appendChild(customBtn);
+                    customBtn.addEventListener('click', (event) => {{
+                        event.preventDefault();
+                        event.stopPropagation();
+                        defaultBtn.click();
+                    }});
                 }}
                 
-                const isExpanded = btn.getAttribute('aria-expanded') === 'true';
-                const direction = isExpanded ? 'chevron_right' : 'chevron_left';
+                const updateState = () => {{
+                    const expanded = defaultBtn.getAttribute('aria-expanded') === 'true';
+                    const icon = customBtn.querySelector('.toggle-icon');
+                    const label = customBtn.querySelector('.toggle-label');
+                    icon.textContent = expanded ? 'menu_open' : 'menu';
+                    label.textContent = expanded ? 'Thu gọn' : 'Mở sidebar';
+                    customBtn.setAttribute('data-expanded', expanded ? 'true' : 'false');
+                }};
                 
-                iconWrapper.innerHTML = `
-                    <span class="material-symbols-outlined custom-sidebar-icon">${{direction}}</span>
-                    <span class="material-symbols-outlined custom-sidebar-icon">${{direction}}</span>
-                `;
+                updateState();
+                
+                if (!defaultBtn.__customToggleObserver) {{
+                    const observer = new MutationObserver((mutations) => {{
+                        mutations.forEach((mutation) => {{
+                            if (mutation.type === 'attributes' && mutation.attributeName === 'aria-expanded') {{
+                                updateState();
+                            }}
+                        }});
+                    }});
+                    observer.observe(defaultBtn, {{ attributes: true }});
+                    defaultBtn.__customToggleObserver = observer;
+                }}
             }};
             
-            const runFix = () => {{
-                fixSidebarCollapseIcon();
-                requestAnimationFrame(runFix);
+            const bootstrap = () => {{
+                ensureCustomToggle();
             }};
             
-            setTimeout(runFix, 100);
+            const observer = new MutationObserver(bootstrap);
+            observer.observe(document.body, {{ childList: true, subtree: true }});
+            document.addEventListener('DOMContentLoaded', bootstrap);
+            bootstrap();
         }})();
         </script>
         """,
