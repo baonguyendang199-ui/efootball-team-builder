@@ -1595,14 +1595,14 @@ def main():
 
             # 0. Kiểm tra club được bảo vệ (SỬA DÙNG BIẾN MỚI)
             if club in local_protected_clubs:
-                return ' ✅  GIỮ', f" 🛡 ️ {club} - Không bao giờ bán (Fan club)"
+                return 'GIỮ', f"{club} - Không bao giờ bán (Fan club)"
 
     # ... (các phần dưới giữ nguyên)
             
             # 1. Kiểm tra thẻ trùng (cùng player + club + nation + league)
             is_duplicate = any(dup['index'] == idx for dup in duplicates)
             if is_duplicate:
-                return '❌ BÁN', "⚠️ Thẻ trùng - Có thẻ tốt hơn (cùng player + club + nation + league)"
+                return 'BÁN', "Thẻ trùng - Có thẻ tốt hơn (cùng player + club + nation + league)"
             
             # 2. Kiểm tra thuộc Top 23
             in_top_club = idx in top_club_players
@@ -1618,15 +1618,15 @@ def main():
             
             # 3. Quyết định
             if reasons:
-                return '✅ GIỮ', " | ".join(reasons)
+                return 'GIỮ', " | ".join(reasons)
             else:
-                return '❌ BÁN', "Không thuộc Top 23 của bất kỳ team nào"
+                return 'BÁN', "Không thuộc Top 23 của bất kỳ team nào"
 
         # Apply suggestion
         rec_df = df.copy()
         suggestions = rec_df.apply(suggest_action, axis=1)
         rec_df['Action'], rec_df['Reasons'] = zip(*suggestions)
-        sell_df = rec_df[rec_df['Action'] == '❌ BÁN']
+        sell_df = rec_df[rec_df['Action'] == 'BÁN']
 
         rank_info_list = []
         for idx, row in rec_df.iterrows():
@@ -1687,7 +1687,7 @@ def main():
         with col1:
             search_query = st.text_input("Tìm cầu thủ", placeholder="Nhập tên cầu thủ...")
         with col2:
-            action_filter = st.selectbox("Hành động", ["Tất cả", "✅ GIỮ", "❌ BÁN"])
+            action_filter = st.selectbox("Hành động", ["Tất cả", "GIỮ", "BÁN"])
         
         # Row 2: Position, Type, League, Position Style
         col1, col2, col3, col4 = st.columns(4)
@@ -2004,7 +2004,7 @@ def main():
                     # Thống kê cầu thủ sẽ xóa
                     delete_preview = del_df.loc[to_delete]
                     protected_count = len(delete_preview[delete_preview['Club'].isin(PROTECTED_CLUBS)])
-                    keep_count = len(delete_preview[delete_preview['Action'] == '✅ GIỮ'])
+                    keep_count = len(delete_preview[delete_preview['Action'] == 'GIỮ'])
                     
                     st.warning(f"Sẽ xóa **{len(to_delete)}** cầu thủ:")
                     warn_col1, warn_col2, warn_col3 = st.columns(3)
@@ -2300,7 +2300,7 @@ def main():
                                     st.error(f"Kho không đủ skills: {', '.join(unavailable_skills)}")
                                     st.info("Vui lòng kiểm tra tab 'Kho Skills' để thêm skills cần thiết")
                                 else:
-                                    if st.button(f"Thêm {len(selected_skills)} skill → Tổng: {new_total}/{MAX_SKILLS}", 
+                                    if st.button(f"Thêm {len(selected_skills)} skill - Tổng: {new_total}/{MAX_SKILLS}", 
                                                key=f"add_{idx}_{reset_key}", 
                                                type="primary", 
                                                use_container_width=True):
