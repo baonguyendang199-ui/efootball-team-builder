@@ -643,11 +643,14 @@ def extract_max_level_rating(player_url: str) -> int:
                     td = row.find('td')
                     if td:
                         rating_text = td.get_text(strip=True)
-                        try:
-                            base_rating = int(rating_text)
-                            return base_rating + 4  # Tự động +4
-                        except:
-                            pass
+                        # rating_text có thể chứa (+12) hoặc ký tự khác → lọc số cuối cùng
+                        numbers = re.findall(r'\d+', rating_text)
+                        if numbers:
+                            try:
+                                base_rating = int(numbers[-1])
+                                return base_rating + 4  # Tự động +4
+                            except:
+                                pass
         except:
             pass
         return 0
