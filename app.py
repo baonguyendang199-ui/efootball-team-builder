@@ -109,7 +109,7 @@ def save_data_to_gsheet(df):
 # --- SKILLS PRIORITY SYSTEM ---
 POSITION_SKILLS_PRIORITY = {
     "CF": [
-        "First-time Shot", "Acrobatic Finishing", "Long Range Drive", 
+        "First-time Shot", "Acrobatic Finishing", "Long-Range Curler", 
         "Long Range Shooting", "Outside Curler", "Heading", 
         "Aerial Superiority", "One-touch Pass", "Through Passing",
         "Weighted Pass", "Fighting Spirit", "Cut Behind & Turn",
@@ -119,26 +119,26 @@ POSITION_SKILLS_PRIORITY = {
         "One-touch Pass", "Through Passing", "First-time Shot",
         "Acrobatic Finishing", "Fighting Spirit", "Outside Curler",
         "Long Range Shooting", "Weighted Pass", "Sole Control",
-        "Long Range Drive", "Cut Behind & Turn", "Double Touch",
+        "Long-Range Curler", "Cut Behind & Turn", "Double Touch",
         "Pinpoint Crossing", "Heel Trick", "Super Sub"
     ],
     "LWF": [
         "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Weighted Pass", "Outside Curler", "Fighting Spirit",
-        "Sole Control", "Long Range Drive", "Long Range Shooting",
+        "Sole Control", "Long-Range Curler", "Long Range Shooting",
         "Cut Behind & Turn", "First-time Shot", "Heel Trick",
         "Double Touch", "Acrobatic Finishing", "Super Sub"
     ],
     "RWF": [
         "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Weighted Pass", "Outside Curler", "Fighting Spirit",
-        "Sole Control", "Long Range Drive", "Long Range Shooting",
+        "Sole Control", "Long-Range Curler", "Long Range Shooting",
         "Cut Behind & Turn", "First-time Shot", "Heel Trick",
         "Double Touch", "Acrobatic Finishing", "Super Sub"
     ],
     "AMF": [
         "One-touch Pass", "Through Passing", "Weighted Pass",
-        "Long Range Drive", "Fighting Spirit", "First-time Shot",
+        "Long-Range Curler", "Fighting Spirit", "First-time Shot",
         "Long Range Shooting", "Outside Curler", "Pinpoint Crossing",
         "Cut Behind & Turn", "Sole Control", "Heel Trick",
         "Acrobatic Finishing", "Double Touch", "Low Lofted Pass"
@@ -159,14 +159,14 @@ POSITION_SKILLS_PRIORITY = {
     "LMF": [
         "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Fighting Spirit", "Cut Behind & Turn", "Weighted Pass",
-        "Outside Curler", "Long Range Drive", "Sole Control",
+        "Outside Curler", "Long-Range Curler", "Sole Control",
         "Heel Trick", "Track Back", "Long Range Shooting",
         "First-time Shot", "Acrobatic Finishing", "Double Touch"
     ],
     "RMF": [
         "Pinpoint Crossing", "One-touch Pass", "Through Passing",
         "Fighting Spirit", "Cut Behind & Turn", "Weighted Pass",
-        "Outside Curler", "Long Range Drive", "Sole Control",
+        "Outside Curler", "Long-Range Curler", "Sole Control",
         "Heel Trick", "Track Back", "Long Range Shooting",
         "First-time Shot", "Acrobatic Finishing", "Double Touch"
     ],
