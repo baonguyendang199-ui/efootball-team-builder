@@ -660,6 +660,17 @@ def extract_card_type_from_html(soup) -> str:
         return None
     
     try:
+        # --- Ưu tiên 1: Quét toàn bộ HTML text để bắt keyword đơn giản ---
+        raw_html = str(soup).upper()
+        if 'TRENDING' in raw_html or 'POTW' in raw_html:
+            return 'POTW'
+        if 'HIGHLIGHT' in raw_html or 'FEATURED' in raw_html or 'STANDARD' in raw_html:
+            return 'NON-EPIC'
+        if 'LEGENDARY' in raw_html:
+            return 'EPIC'
+        if 'EPIC' in raw_html:
+            return 'EPIC'
+        
         candidate_texts = []
         
         # 1. Mode tabs (ưu tiên)
