@@ -377,6 +377,34 @@ def render_app_hero(df: pd.DataFrame):
         unsafe_allow_html=True
     )
 
+
+def apply_plotly_theme(fig):
+    """Apply transparent background + typography to Plotly charts so they match the app theme."""
+    theme = APP_THEME
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Inter, sans-serif", color=theme["text"]),
+        title_font=dict(family="Space Grotesk, Inter, sans-serif", color=theme["text"]),
+        margin=dict(l=40, r=30, t=60, b=50),
+        legend=dict(font=dict(color=theme["text"]))
+    )
+    fig.update_xaxes(
+        gridcolor='rgba(255,255,255,0.08)',
+        zerolinecolor='rgba(255,255,255,0.15)',
+        linecolor='rgba(255,255,255,0.2)',
+        tickfont=dict(color=theme["muted"]),
+        titlefont=dict(color=theme["muted"])
+    )
+    fig.update_yaxes(
+        gridcolor='rgba(255,255,255,0.08)',
+        zerolinecolor='rgba(255,255,255,0.15)',
+        linecolor='rgba(255,255,255,0.2)',
+        tickfont=dict(color=theme["muted"]),
+        titlefont=dict(color=theme["muted"])
+    )
+    return fig
+
 # --- GOOGLE SHEETS CONNECTION ---
 @st.cache_resource
 def get_gsheet_connection():
@@ -1535,6 +1563,7 @@ def main():
             yaxis=dict(autorange=True),
             dragmode="pan"
         )
+        fig_club = apply_plotly_theme(fig_club)
         config = {
             "displayModeBar": True,
             "modeBarButtonsToRemove": [
@@ -1566,6 +1595,7 @@ def main():
             yaxis=dict(autorange=True),
             dragmode="pan"
         )
+        fig_nation = apply_plotly_theme(fig_nation)
         st.plotly_chart(fig_nation, use_container_width=True, config=config)
         
         st.divider()
@@ -1588,6 +1618,7 @@ def main():
             yaxis=dict(autorange=True),
             dragmode="pan"
         )
+        fig_league = apply_plotly_theme(fig_league)
         st.plotly_chart(fig_league, use_container_width=True, config=config)
         
         st.divider()
@@ -1650,6 +1681,7 @@ def main():
                 yaxis=dict(autorange=True),
                 dragmode="pan"
             )
+            fig_skill = apply_plotly_theme(fig_skill)
             st.plotly_chart(fig_skill, use_container_width=True, config=config)
         else:
             st.info("🎉 Hiện không có skill nào được gợi ý thêm cho cầu thủ.")
@@ -1673,6 +1705,7 @@ def main():
             yaxis=dict(autorange=True),
             dragmode="pan"
         )
+        fig_pos = apply_plotly_theme(fig_pos)
         st.plotly_chart(fig_pos, use_container_width=True, config=config)
         
         st.divider()
@@ -1694,6 +1727,7 @@ def main():
             hovertemplate=None
         )
         fig_type.update_layout(dragmode="pan")
+        fig_type = apply_plotly_theme(fig_type)
         st.plotly_chart(fig_type, use_container_width=True, config=config)
 
     elif current_tab == 'players':
