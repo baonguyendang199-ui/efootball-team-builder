@@ -532,6 +532,107 @@ target_nations = [
 target_leagues = ["Spanish League", "English League", "Italian League", "Bundesliga", "Ligue 1 McDonald's"]
 
 
+# ===== TỰ ĐỘNG CẬP NHẬT TARGET LISTS DỰA TRÊN PLAYER COUNT =====
+def check_squad_requirement(team_df, remove_duplicates=False):
+    """
+    Kiểm tra đội hình có đủ điều kiện tối thiểu:
+    - Có ít nhất 1 GK
+    - Có ít nhất 2 CB
+    
+    Args:
+        team_df: DataFrame chứa players của team
+        remove_duplicates: Nếu True, loại trùng tên player (dùng cho Nation/League)
+    """
+    if team_df.empty:
+        return False
+    
+    team_df_unique = team_df.copy()
+    
+    # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
+    if remove_duplicates and 'Player' in team_df_unique.columns:
+        team_df_unique = team_df_unique.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+        team_df_unique = team_df_unique.drop_duplicates(subset=['Player'], keep='first')
+    
+    gk_count = len(team_df_unique[team_df_unique['Position'] == 'GK'])
+    cb_count = len(team_df_unique[team_df_unique['Position'] == 'CB'])
+    
+    return gk_count >= 1 and cb_count >= 2
+
+def auto_update_target_lists(df):
+    """
+    Tự động thêm Nation/Club/League vào target lists khi đạt ngưỡng player count:
+    - Nation: >= 11 players (và có ít nhất 1 GK + 2 CB)
+    - Club: >= 11 players (và có ít nhất 1 GK + 2 CB)
+    - League: >= 23 players (và có ít nhất 1 GK + 2 CB)
+    """
+    global target_clubs, target_nations, target_leagues
+    
+    if df.empty:
+        return
+    
+    updated = False
+    
+    # Đếm số lượng players theo Nation
+    for nation in df['Nation'].dropna().astype(str).unique():
+        if str(nation).strip() == '':
+            continue
+        nation_str = str(nation).strip()
+        nation_df = df[df['Nation'].astype(str) == nation_str]
+        
+        # Với Nation: loại trùng tên trước khi đếm
+        nation_df_unique = nation_df.copy()
+        if 'Player' in nation_df_unique.columns:
+            nation_df_unique = nation_df_unique.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+            nation_df_unique = nation_df_unique.drop_duplicates(subset=['Player'], keep='first')
+        
+        # Kiểm tra số lượng và điều kiện đội hình
+        if len(nation_df_unique) >= 11 and nation_str not in target_nations:
+            if check_squad_requirement(nation_df_unique, remove_duplicates=False):
+                target_nations.append(nation_str)
+                updated = True
+    
+    # Đếm số lượng players theo Club
+    for club in df['Club'].dropna().astype(str).unique():
+        if str(club).strip() == '':
+            continue
+        club_str = str(club).strip()
+        club_df = df[df['Club'].astype(str) == club_str]
+        
+        # Với Club: không loại trùng (mỗi player chỉ thuộc 1 Club)
+        # Kiểm tra số lượng và điều kiện đội hình
+        if len(club_df) >= 11 and club_str not in target_clubs:
+            if check_squad_requirement(club_df, remove_duplicates=False):
+                target_clubs.append(club_str)
+                updated = True
+    
+    # Đếm số lượng players theo League
+    for league in df['League'].dropna().astype(str).unique():
+        if str(league).strip() == '':
+            continue
+        league_str = str(league).strip()
+        league_df = df[df['League'].astype(str) == league_str]
+        
+        # Với League: loại trùng tên trước khi đếm
+        league_df_unique = league_df.copy()
+        if 'Player' in league_df_unique.columns:
+            league_df_unique = league_df_unique.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+            league_df_unique = league_df_unique.drop_duplicates(subset=['Player'], keep='first')
+        
+        # Kiểm tra số lượng và điều kiện đội hình
+        if len(league_df_unique) >= 23 and league_str not in target_leagues:
+            if check_squad_requirement(league_df_unique, remove_duplicates=False):
+                target_leagues.append(league_str)
+                updated = True
+    
+    # Sắp xếp lại các list để dễ đọc
+    if updated:
+        target_nations.sort()
+        target_clubs.sort()
+        target_leagues.sort()
+    
+    return updated
+
+
 # ==================== PESDB SCRAPER ====================
 PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/?id="
 PESDB_IMAGE_URL_BASE = "https://pesdb.net/assets/img/card/"
@@ -967,6 +1068,10 @@ def main():
 
     with st.spinner("⏳ Đang tải dữ liệu từ Google Sheets..."):
         df = load_data_from_gsheet()
+    
+    # Tự động cập nhật target lists dựa trên player count
+    if not df.empty:
+        auto_update_target_lists(df)
 
     def build_top23_map(df, group_by, max_size=23):
         """Tạo mapping {(group_value, player_index) -> 'rank/size group_value'}."""
