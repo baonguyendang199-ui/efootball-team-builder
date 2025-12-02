@@ -3018,10 +3018,10 @@ def main():
     elif current_tab == 'squad':
         st.header("⚽ Đội hình")
         
-        # Chọn nhóm theo Club / Nation / League
+        # Chọn nhóm theo Club / Nation / League / Region
         g1, g2 = st.columns(2)
         with g1:
-            group_by = st.selectbox("Theo", ["Club", "Nation", "League"], index=0)
+            group_by = st.selectbox("Theo", ["Club", "Nation", "League", "Region"], index=0)
         with g2:
             # 🔧 FIX: Sort theo số lượng giảm dần (nhiều nhất → ít nhất)
             group_counts = df[group_by].value_counts().to_dict()
@@ -3154,7 +3154,7 @@ def main():
         cb_in_squad = len(squad[squad['Position'] == 'CB'])
     
         # Hiển thị metrics
-        col1, col2, col3, col4, col5 = st.columns(5)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Tổng cầu thủ nguồn", total_available)
         with col2:
@@ -3163,14 +3163,6 @@ def main():
             st.metric("Chọn vào đội hình", squad_size)
         with col4:
             st.metric("Đội hình mục tiêu", f"{MAX_SQUAD} người")
-        with col5:
-            if 'Region' in squad.columns:
-                region_series = squad['Region'].astype(str).str.strip()
-                region_series = region_series[region_series.ne("")]
-                region_count = int(region_series.nunique())
-                st.metric("Region trong đội", region_count)
-            else:
-                st.metric("Region trong đội", 0)
     
         st.divider()
     
