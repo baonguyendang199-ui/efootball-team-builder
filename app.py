@@ -3154,7 +3154,7 @@ def main():
         cb_in_squad = len(squad[squad['Position'] == 'CB'])
     
         # Hiển thị metrics
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             st.metric("Tổng cầu thủ nguồn", total_available)
         with col2:
@@ -3163,6 +3163,14 @@ def main():
             st.metric("Chọn vào đội hình", squad_size)
         with col4:
             st.metric("Đội hình mục tiêu", f"{MAX_SQUAD} người")
+        with col5:
+            if 'Region' in squad.columns:
+                region_series = squad['Region'].astype(str).str.strip()
+                region_series = region_series[region_series.ne("")]
+                region_count = int(region_series.nunique())
+                st.metric("Region trong đội", region_count)
+            else:
+                st.metric("Region trong đội", 0)
     
         st.divider()
     
@@ -3338,7 +3346,7 @@ def main():
                                             st.markdown(added_html, unsafe_allow_html=True)
         else:
             # Hiển thị dạng bảng (CODE CŨ - GIỮ NGUYÊN)
-            show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Skills']
+            show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Region','Skills']
             show_cols = [c for c in show_cols if c in squad.columns]
             squad_display = squad[show_cols].copy()
             squad_display.insert(0, 'STT', range(1, len(squad_display) + 1))
