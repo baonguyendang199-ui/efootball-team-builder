@@ -1443,8 +1443,8 @@ def main():
     with st.sidebar:
         st.header("⚙️ Điều khiển")
     
-        # Nút tải lại dữ liệu
-        if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
+        # Nút tải lại dữ liệu (dùng key để tránh trùng ID)
+        if st.button("🔄 Tải lại dữ liệu", key="sidebar_reload_data", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
