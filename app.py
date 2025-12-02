@@ -1893,6 +1893,260 @@ def main():
         fig_type.update_layout(dragmode="pan")
         fig_type = apply_plotly_theme(fig_type)
         st.plotly_chart(fig_type, use_container_width=True, config=config, key="overview_fig_type")
+        
+        st.divider()
+        
+        # 👣 Tỉ lệ chân thuận
+        if 'Foot' in df.columns:
+            st.subheader("👣 Tỉ lệ chân thuận")
+            foot_counts = df['Foot'].value_counts().reset_index(name='Số lượng')
+            foot_counts.columns = ['Chân thuận', 'Số lượng']
+            
+            # Tính tỉ lệ phần trăm
+            total_foot = foot_counts['Số lượng'].sum()
+            foot_counts['Tỉ lệ'] = (foot_counts['Số lượng'] / total_foot * 100).round(1)
+            foot_counts['Hiển thị'] = foot_counts['Chân thuận'] + ' (' + foot_counts['Tỉ lệ'].astype(str) + '%)'
+            
+            fig_foot = px.pie(
+                foot_counts,
+                names="Chân thuận",
+                values="Số lượng",
+                hole=0.3,
+                labels={'Chân thuận': 'Chân thuận', 'Số lượng': 'Số lượng'}
+            )
+            fig_foot.update_traces(
+                textinfo="percent+label",
+                hoverinfo="label+value+percent",
+                hovertemplate="<b>%{label}</b><br>Số lượng: %{value}<br>Tỉ lệ: %{percent}<extra></extra>"
+            )
+            fig_foot.update_layout(dragmode="pan")
+            fig_foot = apply_plotly_theme(fig_foot)
+            st.plotly_chart(fig_foot, use_container_width=True, config=config, key="overview_fig_foot")
+            
+            # Hiển thị bảng chi tiết
+            foot_display = foot_counts[['Chân thuận', 'Số lượng', 'Tỉ lệ']].copy()
+            foot_display.insert(0, 'STT', range(1, len(foot_display) + 1))
+            st.dataframe(foot_display, use_container_width=True, hide_index=True)
+            
+            st.divider()
+        
+        # 📏 Top 10 cầu thủ cao nhất / nhẹ nhất / trẻ nhất
+        st.subheader("📏 Top 10 cầu thủ")
+        
+        top_col1, top_col2, top_col3 = st.columns(3)
+        
+        with top_col1:
+            st.markdown("**🏔️ Cao nhất**")
+            if 'Height' in df.columns:
+                height_df = df[df['Height'].astype(str).str.strip().ne('')].copy()
+                height_df['Height_num'] = pd.to_numeric(height_df['Height'], errors='coerce')
+                height_df = height_df.dropna(subset=['Height_num'])
+                if not height_df.empty:
+                    top_height = height_df.nlargest(10, 'Height_num')[['Player', 'Height', 'Position', 'Club', 'Rating']].copy()
+                    top_height.columns = ['Cầu thủ', 'Chiều cao (cm)', 'Vị trí', 'Club', 'Rating']
+                    top_height.insert(0, 'STT', range(1, len(top_height) + 1))
+                    st.dataframe(top_height, use_container_width=True, hide_index=True, height=300)
+                else:
+                    st.info("Chưa có dữ liệu chiều cao")
+            else:
+                st.info("Chưa có cột Height")
+        
+        with top_col2:
+            st.markdown("**⚖️ Nhẹ nhất**")
+            if 'Weight' in df.columns:
+                weight_df = df[df['Weight'].astype(str).str.strip().ne('')].copy()
+                weight_df['Weight_num'] = pd.to_numeric(weight_df['Weight'], errors='coerce')
+                weight_df = weight_df.dropna(subset=['Weight_num'])
+                if not weight_df.empty:
+                    top_weight = weight_df.nsmallest(10, 'Weight_num')[['Player', 'Weight', 'Position', 'Club', 'Rating']].copy()
+                    top_weight.columns = ['Cầu thủ', 'Cân nặng (kg)', 'Vị trí', 'Club', 'Rating']
+                    top_weight.insert(0, 'STT', range(1, len(top_weight) + 1))
+                    st.dataframe(top_weight, use_container_width=True, hide_index=True, height=300)
+                else:
+                    st.info("Chưa có dữ liệu cân nặng")
+            else:
+                st.info("Chưa có cột Weight")
+        
+        with top_col3:
+            st.markdown("**🎂 Trẻ nhất**")
+            if 'Age' in df.columns:
+                age_df = df[df['Age'].astype(str).str.strip().ne('')].copy()
+                age_df['Age_num'] = pd.to_numeric(age_df['Age'], errors='coerce')
+                age_df = age_df.dropna(subset=['Age_num'])
+                if not age_df.empty:
+                    top_age = age_df.nsmallest(10, 'Age_num')[['Player', 'Age', 'Position', 'Club', 'Rating']].copy()
+                    top_age.columns = ['Cầu thủ', 'Tuổi', 'Vị trí', 'Club', 'Rating']
+                    top_age.insert(0, 'STT', range(1, len(top_age) + 1))
+                    st.dataframe(top_age, use_container_width=True, hide_index=True, height=300)
+                else:
+                    st.info("Chưa có dữ liệu tuổi")
+            else:
+                st.info("Chưa có cột Age")
+        
+        st.divider()
+        
+        # 📊 Chiều cao trung bình theo vị trí
+        if 'Height' in df.columns and 'Position' in df.columns:
+            st.subheader("📊 Chiều cao trung bình theo vị trí")
+            height_pos_df = df[df['Height'].astype(str).str.strip().ne('')].copy()
+            height_pos_df['Height_num'] = pd.to_numeric(height_pos_df['Height'], errors='coerce')
+            height_pos_df = height_pos_df.dropna(subset=['Height_num', 'Position'])
+            
+            if not height_pos_df.empty:
+                avg_height_by_pos = height_pos_df.groupby('Position')['Height_num'].mean().sort_values(ascending=False).reset_index()
+                avg_height_by_pos.columns = ['Vị trí', 'Chiều cao TB (cm)']
+                avg_height_by_pos['Chiều cao TB (cm)'] = avg_height_by_pos['Chiều cao TB (cm)'].round(1)
+                
+                fig_avg_height = px.bar(
+                    avg_height_by_pos,
+                    x="Vị trí",
+                    y="Chiều cao TB (cm)",
+                    text="Chiều cao TB (cm)"
+                )
+                fig_avg_height.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+                fig_avg_height.update_layout(
+                    xaxis=dict(categoryorder="total descending", autorange=True),
+                    yaxis=dict(autorange=True),
+                    dragmode="pan"
+                )
+                fig_avg_height = apply_plotly_theme(fig_avg_height)
+                st.plotly_chart(fig_avg_height, use_container_width=True, config=config, key="overview_fig_avg_height")
+                
+                avg_height_by_pos.insert(0, 'STT', range(1, len(avg_height_by_pos) + 1))
+                st.dataframe(avg_height_by_pos, use_container_width=True, hide_index=True)
+                
+                st.divider()
+        
+        # ⚖️ Cân nặng trung bình theo CLB
+        if 'Weight' in df.columns and 'Club' in df.columns:
+            st.subheader("⚖️ Cân nặng trung bình theo CLB (Top 15)")
+            weight_club_df = df[df['Weight'].astype(str).str.strip().ne('')].copy()
+            weight_club_df['Weight_num'] = pd.to_numeric(weight_club_df['Weight'], errors='coerce')
+            weight_club_df = weight_club_df.dropna(subset=['Weight_num', 'Club'])
+            
+            if not weight_club_df.empty:
+                avg_weight_by_club = weight_club_df.groupby('Club')['Weight_num'].mean().sort_values(ascending=False).head(15).reset_index()
+                avg_weight_by_club.columns = ['CLB', 'Cân nặng TB (kg)']
+                avg_weight_by_club['Cân nặng TB (kg)'] = avg_weight_by_club['Cân nặng TB (kg)'].round(1)
+                
+                fig_avg_weight = px.bar(
+                    avg_weight_by_club,
+                    x="CLB",
+                    y="Cân nặng TB (kg)",
+                    text="Cân nặng TB (kg)"
+                )
+                fig_avg_weight.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+                fig_avg_weight.update_layout(
+                    xaxis=dict(categoryorder="total descending", autorange=True),
+                    yaxis=dict(autorange=True),
+                    dragmode="pan"
+                )
+                fig_avg_weight = apply_plotly_theme(fig_avg_weight)
+                st.plotly_chart(fig_avg_weight, use_container_width=True, config=config, key="overview_fig_avg_weight")
+                
+                avg_weight_by_club.insert(0, 'STT', range(1, len(avg_weight_by_club) + 1))
+                st.dataframe(avg_weight_by_club, use_container_width=True, hide_index=True)
+                
+                st.divider()
+        
+        # 📈 Scatter plot Height-Weight
+        if 'Height' in df.columns and 'Weight' in df.columns:
+            st.subheader("📈 Phân tích Chiều cao - Cân nặng")
+            hw_df = df[(df['Height'].astype(str).str.strip().ne('')) & (df['Weight'].astype(str).str.strip().ne(''))].copy()
+            hw_df['Height_num'] = pd.to_numeric(hw_df['Height'], errors='coerce')
+            hw_df['Weight_num'] = pd.to_numeric(hw_df['Weight'], errors='coerce')
+            hw_df = hw_df.dropna(subset=['Height_num', 'Weight_num'])
+            
+            if not hw_df.empty:
+                # Tính BMI để màu sắc
+                hw_df['BMI'] = hw_df['Weight_num'] / ((hw_df['Height_num'] / 100) ** 2)
+                
+                fig_scatter = px.scatter(
+                    hw_df,
+                    x="Height_num",
+                    y="Weight_num",
+                    color="BMI",
+                    hover_data=['Player', 'Position', 'Club', 'Rating'],
+                    labels={'Height_num': 'Chiều cao (cm)', 'Weight_num': 'Cân nặng (kg)', 'BMI': 'BMI'},
+                    color_continuous_scale='Viridis'
+                )
+                fig_scatter.update_traces(marker=dict(size=8, opacity=0.6))
+                fig_scatter.update_layout(
+                    dragmode="pan",
+                    xaxis_title="Chiều cao (cm)",
+                    yaxis_title="Cân nặng (kg)"
+                )
+                fig_scatter = apply_plotly_theme(fig_scatter)
+                st.plotly_chart(fig_scatter, use_container_width=True, config=config, key="overview_fig_scatter")
+                
+                st.divider()
+        
+        # 🏆 Phân tích theo CLB
+        if 'Club' in df.columns:
+            st.subheader("🏆 Phân tích theo CLB")
+            
+            analysis_col1, analysis_col2, analysis_col3, analysis_col4 = st.columns(4)
+            
+            with analysis_col1:
+                st.markdown("**📏 CLB cao nhất**")
+                if 'Height' in df.columns:
+                    height_club_df = df[df['Height'].astype(str).str.strip().ne('')].copy()
+                    height_club_df['Height_num'] = pd.to_numeric(height_club_df['Height'], errors='coerce')
+                    height_club_df = height_club_df.dropna(subset=['Height_num', 'Club'])
+                    if not height_club_df.empty:
+                        avg_height_club = height_club_df.groupby('Club')['Height_num'].mean().sort_values(ascending=False).head(5)
+                        for idx, (club, avg_h) in enumerate(avg_height_club.items(), 1):
+                            st.caption(f"{idx}. {club}: {avg_h:.1f} cm")
+                    else:
+                        st.info("Chưa có dữ liệu")
+                else:
+                    st.info("Chưa có Height")
+            
+            with analysis_col2:
+                st.markdown("**⚖️ CLB nặng nhất**")
+                if 'Weight' in df.columns:
+                    weight_club_df = df[df['Weight'].astype(str).str.strip().ne('')].copy()
+                    weight_club_df['Weight_num'] = pd.to_numeric(weight_club_df['Weight'], errors='coerce')
+                    weight_club_df = weight_club_df.dropna(subset=['Weight_num', 'Club'])
+                    if not weight_club_df.empty:
+                        avg_weight_club = weight_club_df.groupby('Club')['Weight_num'].mean().sort_values(ascending=False).head(5)
+                        for idx, (club, avg_w) in enumerate(avg_weight_club.items(), 1):
+                            st.caption(f"{idx}. {club}: {avg_w:.1f} kg")
+                    else:
+                        st.info("Chưa có dữ liệu")
+                else:
+                    st.info("Chưa có Weight")
+            
+            with analysis_col3:
+                st.markdown("**🎂 CLB trẻ nhất**")
+                if 'Age' in df.columns:
+                    age_club_df = df[df['Age'].astype(str).str.strip().ne('')].copy()
+                    age_club_df['Age_num'] = pd.to_numeric(age_club_df['Age'], errors='coerce')
+                    age_club_df = age_club_df.dropna(subset=['Age_num', 'Club'])
+                    if not age_club_df.empty:
+                        avg_age_club = age_club_df.groupby('Club')['Age_num'].mean().sort_values(ascending=True).head(5)
+                        for idx, (club, avg_a) in enumerate(avg_age_club.items(), 1):
+                            st.caption(f"{idx}. {club}: {avg_a:.1f} tuổi")
+                    else:
+                        st.info("Chưa có dữ liệu")
+                else:
+                    st.info("Chưa có Age")
+            
+            with analysis_col4:
+                st.markdown("**👣 CLB nhiều chân trái nhất**")
+                if 'Foot' in df.columns:
+                    foot_club_df = df[df['Foot'].astype(str).str.strip().str.upper().isin(['LEFT', 'L'])].copy()
+                    if not foot_club_df.empty:
+                        left_foot_club = foot_club_df['Club'].value_counts().head(5)
+                        total_by_club = df.groupby('Club').size()
+                        for idx, (club, count) in enumerate(left_foot_club.items(), 1):
+                            total = total_by_club.get(club, 0)
+                            pct = (count / total * 100) if total > 0 else 0
+                            st.caption(f"{idx}. {club}: {count} ({pct:.1f}%)")
+                    else:
+                        st.info("Chưa có dữ liệu")
+                else:
+                    st.info("Chưa có Foot")
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
