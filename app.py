@@ -1518,9 +1518,13 @@ def main():
     with st.spinner("⏳ Đang tải dữ liệu từ Google Sheets..."):
         df = load_data_from_gsheet()
     
+    # Nếu không có dữ liệu thì dừng sớm để tránh KeyError ở các bước sau
+    if df.empty:
+        st.error("⚠️ Không tìm thấy dữ liệu cầu thủ trong Google Sheets. Vui lòng kiểm tra `spreadsheet_id` hoặc sheet.")
+        return
+
     # Tự động cập nhật target lists dựa trên player count
-    if not df.empty:
-        auto_update_target_lists(df)
+    auto_update_target_lists(df)
 
     # --- HÀM ĐỒNG BỘ PESDB CHO CẦU THỦ CŨ (THỦ CÔNG) ---
     def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
