@@ -1601,7 +1601,11 @@ def main():
     def build_top23_map(df, group_by, max_size=23):
         """Tạo mapping {(group_value, player_index) -> 'rank/size group_value'}."""
         top_map = {}
-        values = [v for v in df[group_by].dropna().astype(str).unique() if v.strip()]
+        # Nếu DataFrame rỗng hoặc không có cột tương ứng thì trả về map rỗng để tránh KeyError
+        if df.empty or group_by not in df.columns:
+            return top_map
+
+        values = [v for v in df[group_by].dropna().astype(str).unique() if str(v).strip()]
         for value in values:
             gdf = df[df[group_by].astype(str) == value].copy()
             if gdf.empty:
