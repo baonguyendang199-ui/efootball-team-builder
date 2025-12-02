@@ -2302,6 +2302,7 @@ def main():
                             # Physical / region info
                             if region:
                                 st.markdown(f"**Region:** {region}")
+                            # Physique: Age / Height / Weight / BMI
                             extra_physical = []
                             if age:
                                 extra_physical.append(f"Age {age}")
@@ -2310,8 +2311,29 @@ def main():
                                 size_parts.append(f"{height}cm")
                             if weight:
                                 size_parts.append(f"{weight}kg")
+                            # Tính BMI nếu có đủ chiều cao & cân nặng hợp lệ
+                            bmi_str = None
+                            try:
+                                h_val = float(height)
+                                w_val = float(weight)
+                                if h_val > 0:
+                                    bmi_val = w_val / ((h_val / 100.0) ** 2)
+                                    # Phân loại BMI
+                                    if bmi_val < 18.5:
+                                        bmi_cat = "Skinny"
+                                    elif bmi_val < 25:
+                                        bmi_cat = "Normal"
+                                    elif bmi_val < 30:
+                                        bmi_cat = "Overweight"
+                                    else:
+                                        bmi_cat = "Obese"
+                                    bmi_str = f"BMI {bmi_val:.1f} ({bmi_cat})"
+                            except (TypeError, ValueError):
+                                bmi_str = None
                             if size_parts:
                                 extra_physical.append(" / ".join(size_parts))
+                            if bmi_str:
+                                extra_physical.append(bmi_str)
                             if extra_physical:
                                 st.markdown("**Physique:** " + " | ".join(extra_physical))
                         with info_col2:
