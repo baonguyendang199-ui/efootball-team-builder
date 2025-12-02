@@ -2061,46 +2061,98 @@ def main():
         # Row 1: Tìm kiếm + Action filter
         col1, col2 = st.columns([3, 1])
         with col1:
-            search_query = st.text_input("🔍 Tìm cầu thủ", placeholder="Nhập tên cầu thủ...")
+            search_query = st.text_input(
+                "🔍 Tìm cầu thủ",
+                placeholder="Nhập tên cầu thủ...",
+                key="filter_search_query"
+            )
         with col2:
-            action_filter = st.selectbox("Hành động", ["Tất cả", "✅ GIỮ", "❌ BÁN"])
+            action_filter = st.selectbox(
+                "Hành động",
+                ["Tất cả", "✅ GIỮ", "❌ BÁN"],
+                key="filter_action"
+            )
         
         # Row 2: Position, Type, League, Position Style
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            position_filter = st.selectbox("Vị trí", ["Tất cả"] + get_unique_values(df, 'Position'))
+            position_filter = st.selectbox(
+                "Vị trí",
+                ["Tất cả"] + get_unique_values(df, 'Position'),
+                key="filter_position"
+            )
         with col2:
-            type_filter = st.selectbox("Loại", ["Tất cả"] + get_unique_values(df, 'Player Type'))
+            type_filter = st.selectbox(
+                "Loại",
+                ["Tất cả"] + get_unique_values(df, 'Player Type'),
+                key="filter_type"
+            )
         with col3:
-            league_filter = st.selectbox("League", ["Tất cả"] + get_unique_values(df, 'League'))
+            league_filter = st.selectbox(
+                "League",
+                ["Tất cả"] + get_unique_values(df, 'League'),
+                key="filter_league"
+            )
         with col4:
-            pos_style = st.selectbox("Phong cách", ["Tất cả"] + get_unique_values(df, 'Position Style'))
+            pos_style = st.selectbox(
+                "Phong cách",
+                ["Tất cả"] + get_unique_values(df, 'Position Style'),
+                key="filter_pos_style"
+            )
         
         # Row 3: Club, Nation, Rating, Epic only
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            club_filter = st.selectbox("Club", ["Tất cả"] + get_unique_values(df, 'Club'))
+            club_filter = st.selectbox(
+                "Club",
+                ["Tất cả"] + get_unique_values(df, 'Club'),
+                key="filter_club"
+            )
         with col2:
-            nation_filter = st.selectbox("Nation", ["Tất cả"] + get_unique_values(df, 'Nation'))
+            nation_filter = st.selectbox(
+                "Nation",
+                ["Tất cả"] + get_unique_values(df, 'Nation'),
+                key="filter_nation"
+            )
         with col3:
             rmin, rmax = int(df['Rating'].min()), int(df['Rating'].max())
-            rating_range = st.slider("Rating", rmin, rmax, (rmin, rmax))
+            rating_range = st.slider(
+                "Rating",
+                rmin, rmax, (rmin, rmax),
+                key="filter_rating_range"
+            )
         with col4:
-            epic_only = st.checkbox("Chỉ EPIC", value=False)
+            epic_only = st.checkbox(
+                "Chỉ EPIC",
+                value=False,
+                key="filter_epic_only"
+            )
         
         # Row 4: Region, Foot, Age, Height
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            region_filter = st.selectbox("Region", ["Tất cả"] + get_unique_values(df, 'Region'))
+            region_filter = st.selectbox(
+                "Region",
+                ["Tất cả"] + get_unique_values(df, 'Region'),
+                key="filter_region"
+            )
         with col2:
-            foot_filter = st.selectbox("Chân thuận", ["Tất cả"] + get_unique_values(df, 'Foot'))
+            foot_filter = st.selectbox(
+                "Chân thuận",
+                ["Tất cả"] + get_unique_values(df, 'Foot'),
+                key="filter_foot"
+            )
         with col3:
             # Age có thể trống, xử lý an toàn
             if 'Age' in df.columns and df['Age'].astype(str).str.strip().ne('').any():
                 age_numeric = pd.to_numeric(df['Age'], errors='coerce').dropna()
                 if not age_numeric.empty:
                     amin, amax = int(age_numeric.min()), int(age_numeric.max())
-                    age_range = st.slider("Age", amin, amax, (amin, amax))
+                    age_range = st.slider(
+                        "Age",
+                        amin, amax, (amin, amax),
+                        key="filter_age_range"
+                    )
                 else:
                     age_range = None
             else:
@@ -2112,7 +2164,11 @@ def main():
                 h_numeric = pd.to_numeric(df['Height'], errors='coerce').dropna()
                 if not h_numeric.empty:
                     hmin, hmax = int(h_numeric.min()), int(h_numeric.max())
-                    height_range = st.slider("Height (cm)", hmin, hmax, (hmin, hmax))
+                    height_range = st.slider(
+                        "Height (cm)",
+                        hmin, hmax, (hmin, hmax),
+                        key="filter_height_range"
+                    )
                 else:
                     height_range = None
             else:
@@ -2122,18 +2178,55 @@ def main():
         # Row 5: Skills + WF / Form filters
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
-            skill_query = st.text_input("Tìm trong Skills", placeholder="vd: Long Range Shooting")
+            skill_query = st.text_input(
+                "Tìm trong Skills",
+                placeholder="vd: Long Range Shooting",
+                key="filter_skill_query"
+            )
         with col2:
-            wf_usage_filter = st.selectbox("WF Usage", ["Tất cả"] + get_unique_values(df, 'Weak Foot Usage'))
+            wf_usage_filter = st.selectbox(
+                "WF Usage",
+                ["Tất cả"] + get_unique_values(df, 'Weak Foot Usage'),
+                key="filter_wf_usage"
+            )
         with col3:
-            wf_acc_filter = st.selectbox("WF Accuracy", ["Tất cả"] + get_unique_values(df, 'Weak Foot Accuracy'))
+            wf_acc_filter = st.selectbox(
+                "WF Accuracy",
+                ["Tất cả"] + get_unique_values(df, 'Weak Foot Accuracy'),
+                key="filter_wf_acc"
+            )
         
         # Row 6: Form, Injury Resistance
         col1, col2 = st.columns(2)
         with col1:
-            form_filter = st.selectbox("Form", ["Tất cả"] + get_unique_values(df, 'Form'))
+            form_filter = st.selectbox(
+                "Form",
+                ["Tất cả"] + get_unique_values(df, 'Form'),
+                key="filter_form"
+            )
         with col2:
-            injury_filter = st.selectbox("Chống chấn thương", ["Tất cả"] + get_unique_values(df, 'Injury Resistance'))
+            injury_filter = st.selectbox(
+                "Chống chấn thương",
+                ["Tất cả"] + get_unique_values(df, 'Injury Resistance'),
+                key="filter_injury"
+            )
+        
+        # Row 7: Reset bộ lọc
+        _, reset_col, _ = st.columns([4, 1, 4])
+        with reset_col:
+            if st.button("🔄 Reset bộ lọc", use_container_width=True, key="btn_reset_filters"):
+                for k in [
+                    "filter_search_query", "filter_action",
+                    "filter_position", "filter_type", "filter_league", "filter_pos_style",
+                    "filter_club", "filter_nation", "filter_rating_range", "filter_epic_only",
+                    "filter_region", "filter_foot", "filter_age_range", "filter_height_range",
+                    "filter_skill_query", "filter_wf_usage", "filter_wf_acc",
+                    "filter_form", "filter_injury",
+                    "filter_sort_col", "filter_sort_order", "filter_view_mode"
+                ]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.rerun()
         
         # ===== APPLY FILTERS =====
         filtered_df = rec_df.copy()
@@ -2192,10 +2285,17 @@ def main():
                     'Club', 'Nation', 'League',
                     'Height', 'Weight', 'BMI'
                 ],
-                index=0
+                index=0,
+                key="filter_sort_col"
             )
         with col2:
-            sort_order = st.radio("Thứ tự", ["Giảm dần", "Tăng dần"], horizontal=True, index=0)
+            sort_order = st.radio(
+                "Thứ tự",
+                ["Giảm dần", "Tăng dần"],
+                horizontal=True,
+                index=0,
+                key="filter_sort_order"
+            )
         
         asc = (sort_order == "Tăng dần")
         if sort_col == 'Position':
@@ -2233,7 +2333,13 @@ def main():
         available_columns = [c for c in display_columns if c in filtered_df.columns]
         
         # ===== NÚT CHUYỂN ĐỔI CHỂ ĐỘ HIỂN THỊ =====
-        view_mode = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=1)
+        view_mode = st.radio(
+            "Chế độ hiển thị:",
+            ["📋 Bảng", "🎴 Card"],
+            horizontal=True,
+            index=1,
+            key="filter_view_mode"
+        )
         
         if view_mode == "🎴 Card":
             # ===== CHẾ ĐỘ CARD =====
