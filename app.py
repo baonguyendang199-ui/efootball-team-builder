@@ -1579,9 +1579,17 @@ def main():
         st.session_state['auto_extracting'] = True
         updated = False
         
-        for i, row in needs_extraction.iterrows():
+        total_to_process = len(needs_extraction)
+        progress_bar = st.progress(0, text=f"🔄 Đang đồng bộ dữ liệu PESDB cho {total_to_process} cầu thủ...")
+        status_box = st.empty()
+        
+        for idx, (i, row) in enumerate(needs_extraction.iterrows(), start=1):
+            player_name = str(row.get('Player', '') or '').strip()
+            status_box.info(f"📡 Đang lấy dữ liệu PESDB cho: **{player_name or 'Unknown'}** ({idx}/{total_to_process})")
+            
             info = extract_full_player_info(row['Player URL'])
             if not info or not info.get('Player'):
+                progress_bar.progress(idx / total_to_process)
                 continue
 
             # Ghi đè các field còn trống, không phá dữ liệu đã có
@@ -1595,10 +1603,16 @@ def main():
                     df.at[i, col] = info.get(col.replace('_', ' '), info.get(col, ''))
 
             updated = True
+            progress_bar.progress(idx / total_to_process)
         
         if updated:
+            progress_bar.progress(1.0, text="✅ Đã đồng bộ xong dữ liệu PESDB, đang lưu vào Google Sheets...")
             save_data_to_gsheet(df)
             st.cache_data.clear()
+            status_box.success("✅ Đồng bộ PESDB hoàn tất – dữ liệu mới đã được lưu.")
+        else:
+            progress_bar.empty()
+            status_box.info("ℹ️ Không có cầu thủ nào cần đồng bộ thêm từ PESDB.")
         
         st.session_state['auto_extracting'] = False
 
