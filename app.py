@@ -1624,7 +1624,7 @@ def main():
             ],
             "displaylogo": False
         }
-        st.plotly_chart(fig_club, use_container_width=True, config=config)
+        st.plotly_chart(fig_club, use_container_width=True, config=config, key="overview_club_chart")
         
         st.divider()
         
@@ -1647,7 +1647,7 @@ def main():
             dragmode="pan"
         )
         fig_nation = apply_plotly_theme(fig_nation)
-        st.plotly_chart(fig_nation, use_container_width=True, config=config)
+        st.plotly_chart(fig_nation, use_container_width=True, config=config, key="overview_nation_chart")
         
         st.divider()
         
@@ -1670,7 +1670,7 @@ def main():
             dragmode="pan"
         )
         fig_league = apply_plotly_theme(fig_league)
-        st.plotly_chart(fig_league, use_container_width=True, config=config)
+        st.plotly_chart(fig_league, use_container_width=True, config=config, key="overview_league_chart")
         
         st.divider()
         
@@ -1733,7 +1733,7 @@ def main():
                 dragmode="pan"
             )
             fig_skill = apply_plotly_theme(fig_skill)
-            st.plotly_chart(fig_skill, use_container_width=True, config=config)
+            st.plotly_chart(fig_skill, use_container_width=True, config=config, key="overview_skill_chart")
         else:
             st.info("🎉 Hiện không có skill nào được gợi ý thêm cho cầu thủ.")
         
