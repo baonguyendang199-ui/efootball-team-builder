@@ -1925,11 +1925,6 @@ def main():
             fig_foot = apply_plotly_theme(fig_foot)
             st.plotly_chart(fig_foot, use_container_width=True, config=config, key="overview_fig_foot")
             
-            # Hiển thị bảng chi tiết
-            foot_display = foot_counts[['Chân thuận', 'Số lượng', 'Tỉ lệ']].copy()
-            foot_display.insert(0, 'STT', range(1, len(foot_display) + 1))
-            st.dataframe(foot_display, use_container_width=True, hide_index=True)
-            
             st.divider()
         
         # 📊 Chiều cao trung bình theo vị trí
@@ -1959,9 +1954,6 @@ def main():
                 fig_avg_height = apply_plotly_theme(fig_avg_height)
                 st.plotly_chart(fig_avg_height, use_container_width=True, config=config, key="overview_fig_avg_height")
                 
-                avg_height_by_pos.insert(0, 'STT', range(1, len(avg_height_by_pos) + 1))
-                st.dataframe(avg_height_by_pos, use_container_width=True, hide_index=True)
-                
                 st.divider()
         
         # ⚖️ Cân nặng trung bình theo CLB
@@ -1990,9 +1982,6 @@ def main():
                 )
                 fig_avg_weight = apply_plotly_theme(fig_avg_weight)
                 st.plotly_chart(fig_avg_weight, use_container_width=True, config=config, key="overview_fig_avg_weight")
-                
-                avg_weight_by_club.insert(0, 'STT', range(1, len(avg_weight_by_club) + 1))
-                st.dataframe(avg_weight_by_club, use_container_width=True, hide_index=True)
                 
                 st.divider()
         
