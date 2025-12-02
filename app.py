@@ -1654,7 +1654,7 @@ def main():
 
     if current_tab == 'overview':
         st.header("📊 Tổng quan")
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
             st.metric("Tổng cầu thủ", len(df))
         with c2:
@@ -1663,6 +1663,14 @@ def main():
             st.metric("Epic", int((df['Player Type'].astype(str).str.upper() == 'EPIC').sum()))
         with c4:
             st.metric("POTW", int((df['Player Type'].astype(str).str.upper() == 'POTW').sum()))
+        with c5:
+            if 'Region' in df.columns:
+                region_series = df['Region'].astype(str).str.strip()
+                region_series = region_series[region_series.ne("")]
+                region_count = int(region_series.nunique())
+                st.metric("Region", region_count)
+            else:
+                st.metric("Region", 0)
 
         st.divider()
 
@@ -1745,6 +1753,39 @@ def main():
         st.plotly_chart(fig_league, use_container_width=True, config=config, key="overview_fig_league")
         
         st.divider()
+        
+        # 🌐 Top 10 Regions (nếu có dữ liệu)
+        if 'Region' in df.columns:
+            st.subheader("🌐 Top 10 Regions")
+            region_counts = (
+                df['Region']
+                .astype(str)
+                .str.strip()
+                .replace("", pd.NA)
+                .dropna()
+                .value_counts()
+                .reset_index(name='Số lượng')
+            )
+            if not region_counts.empty:
+                region_counts.columns = ['Region', 'Số lượng']
+                region_counts = region_counts.head(10)
+                
+                fig_region = px.bar(
+                    region_counts,
+                    x="Region",
+                    y="Số lượng",
+                    text="Số lượng"
+                )
+                fig_region.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+                fig_region.update_layout(
+                    xaxis=dict(categoryorder="total descending", autorange=True),
+                    yaxis=dict(autorange=True),
+                    dragmode="pan"
+                )
+                fig_region = apply_plotly_theme(fig_region)
+                st.plotly_chart(fig_region, use_container_width=True, config=config, key="overview_fig_region")
+                
+                st.divider()
         
         # 🔥 Top 10 Most Needed Skills
         st.subheader("🔥 Top 10 Most Needed Skills")
@@ -2611,7 +2652,7 @@ def main():
             
             if not del_df.empty:
                 # Hiển thị bảng
-                del_display = del_df[['Player', 'Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Action', 'Reasons']].copy()
+                del_display = del_df[['Player', 'Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Region', 'Action', 'Reasons']].copy()
                 del_display.insert(0, 'STT', range(1, len(del_display) + 1))
                 st.dataframe(del_display, use_container_width=True, hide_index=True, height=400)
                 
@@ -2688,6 +2729,8 @@ def main():
             show_table("Club", df['Club'].astype(str))
             show_table("Nation", df['Nation'].astype(str))
             show_table("League", df['League'].astype(str))
+            if 'Region' in df.columns:
+                show_table("Region", df['Region'].astype(str))
 
     elif current_tab == 'skills':
         st.header("🎮 Quản lý Skills")
