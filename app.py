@@ -3142,13 +3142,22 @@ def main():
                             if player_info and player_info['Player']:
                                 st.session_state.add_preview_data = {
                                     'Player': selected_player,
-                                        'Rating': player_info.get('Rating', 0),
+                                    'Rating': player_info.get('Rating', 0),
                                     'Position': player_info['Position'],
                                     'Nation': player_info['Nation'],
                                     'Club': player_info['Club'],
                                     'League': player_info['League'],
+                                    'Region': player_info.get('Region', ''),
+                                    'Height': player_info.get('Height', ''),
+                                    'Weight': player_info.get('Weight', ''),
+                                    'Age': player_info.get('Age', ''),
+                                    'Foot': player_info.get('Foot', ''),
+                                    'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
+                                    'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
+                                    'Form': player_info.get('Form', ''),
+                                    'Injury Resistance': player_info.get('Injury Resistance', ''),
                                     'Skills': player_info['Skills'],
-                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
+                                    'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': upgrade_url,
                                     'Player_ID': extract_ehub_player_id(upgrade_url)
                                 }
@@ -3184,6 +3193,15 @@ def main():
                                         'Nation': player_info['Nation'],
                                         'Club': player_info['Club'],
                                         'League': player_info['League'],
+                                        'Region': player_info.get('Region', ''),
+                                        'Height': player_info.get('Height', ''),
+                                        'Weight': player_info.get('Weight', ''),
+                                        'Age': player_info.get('Age', ''),
+                                        'Foot': player_info.get('Foot', ''),
+                                        'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
+                                        'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
+                                        'Form': player_info.get('Form', ''),
+                                        'Injury Resistance': player_info.get('Injury Resistance', ''),
                                         'Skills': player_info['Skills'],
                                         'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                         'Player_URL': pesdb_url,
@@ -3204,6 +3222,15 @@ def main():
                                 'Nation': '',
                                 'Club': '',
                                 'League': '',
+                                'Region': '',
+                                'Height': '',
+                                'Weight': '',
+                                'Age': '',
+                                'Foot': '',
+                                'Weak Foot Usage': '',
+                                'Weak Foot Accuracy': '',
+                                'Form': '',
+                                'Injury Resistance': '',
                                 'Skills': '',
                                 'Player_Type': 'NON-EPIC',
                                 'Player_URL': '',
@@ -3308,6 +3335,33 @@ def main():
                             if league_new:
                                 league = league_new
                     
+                    # Row 4: Thể chất & thuộc tính
+                    st.divider()
+                    st.subheader("📊 Thể chất & Thuộc tính")
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        region_val = st.text_input("Region", value=data.get('Region', ''))
+                    with col2:
+                        height_val = st.text_input("Height (cm)", value=str(data.get('Height', '') or ''))
+                    with col3:
+                        weight_val = st.text_input("Weight (kg)", value=str(data.get('Weight', '') or ''))
+                    with col4:
+                        age_val = st.text_input("Age", value=str(data.get('Age', '') or ''))
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        foot_val = st.text_input("Foot", value=data.get('Foot', ''))
+                    with col2:
+                        wf_usage_val = st.text_input("Weak Foot Usage", value=data.get('Weak Foot Usage', ''))
+                    with col3:
+                        wf_acc_val = st.text_input("Weak Foot Accuracy", value=data.get('Weak Foot Accuracy', ''))
+                    with col4:
+                        form_val = st.text_input("Form", value=data.get('Form', ''))
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        injury_val = st.text_input("Injury Resistance", value=data.get('Injury Resistance', ''))
+                    
                     # Skills
                     st.divider()
                     st.subheader("🎮 Skills")
@@ -3360,6 +3414,15 @@ def main():
                                     new_df.at[old_idx, 'Position'] = position
                                     new_df.at[old_idx, 'Position Style'] = position_style
                                     new_df.at[old_idx, 'Player Type'] = player_type_norm
+                                    new_df.at[old_idx, 'Region'] = region_val
+                                    new_df.at[old_idx, 'Height'] = height_val
+                                    new_df.at[old_idx, 'Weight'] = weight_val
+                                    new_df.at[old_idx, 'Age'] = age_val
+                                    new_df.at[old_idx, 'Foot'] = foot_val
+                                    new_df.at[old_idx, 'Weak Foot Usage'] = wf_usage_val
+                                    new_df.at[old_idx, 'Weak Foot Accuracy'] = wf_acc_val
+                                    new_df.at[old_idx, 'Form'] = form_val
+                                    new_df.at[old_idx, 'Injury Resistance'] = injury_val
                                     new_df.at[old_idx, 'Player URL'] = data.get('Player_URL', '')
                                     new_df.at[old_idx, 'Player ID'] = data.get('Player_ID', '')
                                     new_df.at[old_idx, 'Skills'] = skills
@@ -3397,6 +3460,15 @@ def main():
                                         "Nation": nation,
                                         "Club": club,
                                         "League": league,
+                                        "Region": region_val,
+                                        "Height": height_val,
+                                        "Weight": weight_val,
+                                        "Age": age_val,
+                                        "Foot": foot_val,
+                                        "Weak Foot Usage": wf_usage_val,
+                                        "Weak Foot Accuracy": wf_acc_val,
+                                        "Form": form_val,
+                                        "Injury Resistance": injury_val,
                                         "Player URL": data.get('Player_URL', ''),
                                         "Player ID": data.get('Player_ID', ''),
                                         "Skills": skills,
@@ -3434,6 +3506,15 @@ def main():
                                     "Nation": nation,
                                     "Club": club,
                                     "League": league,
+                                    "Region": region_val,
+                                    "Height": height_val,
+                                    "Weight": weight_val,
+                                    "Age": age_val,
+                                    "Foot": foot_val,
+                                    "Weak Foot Usage": wf_usage_val,
+                                    "Weak Foot Accuracy": wf_acc_val,
+                                    "Form": form_val,
+                                    "Injury Resistance": injury_val,
                                     "Player URL": data.get('Player_URL', ''),
                                     "Player ID": data.get('Player_ID', ''),
                                     "Skills": skills,
