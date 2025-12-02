@@ -1456,7 +1456,8 @@ def main():
         main_menu = st.radio(
             "📑 Điều hướng",
             ["📊 Tổng quan", "👥 Quản lý cầu thủ", "🎮 Quản lý Skills"],
-            index=0
+            index=0,
+            key="main_menu_nav"
         )
     
         # Điều hướng chi tiết
@@ -1467,7 +1468,8 @@ def main():
             sub_menu = st.radio(
                 "⚽ Cầu thủ",
                 ["Danh sách", "Đội hình", "Thêm cầu thủ"],
-                index=0
+                index=0,
+                key="players_sub_menu"
             )
             if sub_menu == "Danh sách":
                 st.session_state.current_tab = "players"
@@ -1480,7 +1482,8 @@ def main():
             sub_menu = st.radio(
                 "🛠️ Skills",
                 ["Quản lý", "Kho Skills"],
-                index=0
+                index=0,
+                key="skills_sub_menu"
             )
             if sub_menu == "Quản lý":
                 st.session_state.current_tab = "skills"
@@ -5052,8 +5055,8 @@ def main():
     with st.sidebar:
         st.header("⚙️ Điều khiển")
     
-        # Nút tải lại dữ liệu
-        if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
+        # Nút tải lại dữ liệu (dùng key để tránh trùng ID)
+        if st.button("🔄 Tải lại dữ liệu", key="sidebar_reload_data_v2", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
@@ -5065,7 +5068,8 @@ def main():
         main_menu = st.radio(
             "📑 Điều hướng",
             ["📊 Tổng quan", "👥 Quản lý cầu thủ", "🎮 Quản lý Skills"],
-            index=0
+            index=0,
+            key="main_menu_nav_v2"
         )
     
         # Điều hướng chi tiết
@@ -5076,7 +5080,8 @@ def main():
             sub_menu = st.radio(
                 "⚽ Cầu thủ",
                 ["Danh sách", "Đội hình", "Thêm cầu thủ"],
-                index=0
+                index=0,
+                key="players_sub_menu_v2"
             )
             if sub_menu == "Danh sách":
                 st.session_state.current_tab = "players"
@@ -5089,7 +5094,8 @@ def main():
             sub_menu = st.radio(
                 "🛠️ Skills",
                 ["Quản lý", "Kho Skills"],
-                index=0
+                index=0,
+                key="skills_sub_menu_v2"
             )
             if sub_menu == "Quản lý":
                 st.session_state.current_tab = "skills"
