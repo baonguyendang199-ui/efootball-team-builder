@@ -1436,6 +1436,7 @@ def initialize_session_state():
         'manual_reload_triggered': False,
         'current_tab': 'overview',
         'checkbox_reset_counter': 0,
+        'run_pesdb_sync': False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -1454,6 +1455,11 @@ def main():
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
+            st.rerun()
+
+        # Nút đồng bộ dữ liệu PESDB thủ công
+        if st.button("🔁 Đồng bộ PESDB (bổ sung dữ liệu)", use_container_width=True):
+            st.session_state.run_pesdb_sync = True
             st.rerun()
     
         st.divider()
@@ -1516,6 +1522,82 @@ def main():
     if not df.empty:
         auto_update_target_lists(df)
 
+    # --- HÀM ĐỒNG BỘ PESDB CHO CẦU THỦ CŨ (THỦ CÔNG) ---
+    def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
+        """Đồng bộ lại các field còn thiếu (Region, Height, Age, Foot, WF, Form, Injury, Skills) từ PESDB cho cầu thủ có Player URL."""
+        if df.empty or 'Player URL' not in df.columns:
+            st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL để đồng bộ PESDB.")
+            return df
+
+        needs_extraction = df[
+            df['Player URL'].astype(str).str.startswith('http')
+            & (
+                (df['Skills'].astype(str).str.strip() == '')
+                | df['Skills'].isna()
+                | (df['Region'].astype(str).str.strip() == '')
+                | (df['Height'].astype(str).str.strip() == '')
+                | (df['Weight'].astype(str).str.strip() == '')
+                | (df['Age'].astype(str).str.strip() == '')
+                | (df['Foot'].astype(str).str.strip() == '')
+                | (df['Weak Foot Usage'].astype(str).str.strip() == '')
+                | (df['Weak Foot Accuracy'].astype(str).str.strip() == '')
+                | (df['Form'].astype(str).str.strip() == '')
+                | (df['Injury Resistance'].astype(str).str.strip() == '')
+            )
+        ]
+
+        if needs_extraction.empty:
+            st.info("ℹ️ Tất cả cầu thủ đã có đủ dữ liệu từ PESDB, không cần đồng bộ.")
+            return df
+
+        st.session_state['auto_extracting'] = True
+        updated = False
+
+        total_to_process = len(needs_extraction)
+        progress_bar = st.progress(0, text=f"🔄 Đang đồng bộ dữ liệu PESDB cho {total_to_process} cầu thủ...")
+        status_box = st.empty()
+
+        for idx, (i, row) in enumerate(needs_extraction.iterrows(), start=1):
+            player_name = str(row.get('Player', '') or '').strip()
+            status_box.info(f"📡 Đang lấy dữ liệu PESDB cho: **{player_name or 'Unknown'}** ({idx}/{total_to_process})")
+
+            info = extract_full_player_info(row['Player URL'])
+            if not info or not info.get('Player'):
+                progress_bar.progress(idx / total_to_process)
+                continue
+
+            # Ghi đè các field còn trống, không phá dữ liệu đã có
+            for col in [
+                'Region', 'Height', 'Weight', 'Age', 'Foot',
+                'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance',
+                'Skills'
+            ]:
+                if col not in df.columns:
+                    continue
+                current_val = str(df.at[i, col])
+                if (not current_val) or (str(current_val).strip() == ''):
+                    df.at[i, col] = info.get(col.replace('_', ' '), info.get(col, ''))
+
+            updated = True
+            progress_bar.progress(idx / total_to_process)
+
+        if updated:
+            progress_bar.progress(1.0, text="✅ Đã đồng bộ xong dữ liệu PESDB, đang lưu vào Google Sheets...")
+            save_data_to_gsheet(df)
+            st.cache_data.clear()
+            status_box.success("✅ Đồng bộ PESDB hoàn tất – dữ liệu mới đã được lưu.")
+        else:
+            progress_bar.empty()
+            status_box.info("ℹ️ Không có cầu thủ nào cần đồng bộ thêm từ PESDB.")
+
+        st.session_state['auto_extracting'] = False
+        return df
+
+    # Nếu user ấn nút đồng bộ PESDB ở sidebar thì chạy ở đây
+    if st.session_state.get('run_pesdb_sync', False):
+        df = sync_pesdb_missing_fields(df)
+        st.session_state.run_pesdb_sync = False
+
     def build_top23_map(df, group_by, max_size=23):
         """Tạo mapping {(group_value, player_index) -> 'rank/size group_value'}."""
         top_map = {}
@@ -1556,65 +1638,6 @@ def main():
         if df.empty:
             st.error("Không có dữ liệu cầu thủ!")
             return
-
-    # Tự động backfill data còn thiếu từ PESDB cho các cầu thủ cũ (dựa trên Player URL)
-    needs_extraction = df[
-        df['Player URL'].astype(str).str.startswith('http')
-        & (
-            (df['Skills'].astype(str).str.strip() == '')
-            | df['Skills'].isna()
-            | (df['Region'].astype(str).str.strip() == '')
-            | (df['Height'].astype(str).str.strip() == '')
-            | (df['Weight'].astype(str).str.strip() == '')
-            | (df['Age'].astype(str).str.strip() == '')
-            | (df['Foot'].astype(str).str.strip() == '')
-            | (df['Weak Foot Usage'].astype(str).str.strip() == '')
-            | (df['Weak Foot Accuracy'].astype(str).str.strip() == '')
-            | (df['Form'].astype(str).str.strip() == '')
-            | (df['Injury Resistance'].astype(str).str.strip() == '')
-        )
-    ]
-    
-    if not needs_extraction.empty and not st.session_state.get('auto_extracting', False):
-        st.session_state['auto_extracting'] = True
-        updated = False
-        
-        total_to_process = len(needs_extraction)
-        progress_bar = st.progress(0, text=f"🔄 Đang đồng bộ dữ liệu PESDB cho {total_to_process} cầu thủ...")
-        status_box = st.empty()
-        
-        for idx, (i, row) in enumerate(needs_extraction.iterrows(), start=1):
-            player_name = str(row.get('Player', '') or '').strip()
-            status_box.info(f"📡 Đang lấy dữ liệu PESDB cho: **{player_name or 'Unknown'}** ({idx}/{total_to_process})")
-            
-            info = extract_full_player_info(row['Player URL'])
-            if not info or not info.get('Player'):
-                progress_bar.progress(idx / total_to_process)
-                continue
-
-            # Ghi đè các field còn trống, không phá dữ liệu đã có
-            for col in [
-                'Region', 'Height', 'Weight', 'Age', 'Foot',
-                'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance',
-                'Skills'
-            ]:
-                current_val = str(df.at[i, col]) if col in df.columns else ''
-                if (not current_val) or (str(current_val).strip() == ''):
-                    df.at[i, col] = info.get(col.replace('_', ' '), info.get(col, ''))
-
-            updated = True
-            progress_bar.progress(idx / total_to_process)
-        
-        if updated:
-            progress_bar.progress(1.0, text="✅ Đã đồng bộ xong dữ liệu PESDB, đang lưu vào Google Sheets...")
-            save_data_to_gsheet(df)
-            st.cache_data.clear()
-            status_box.success("✅ Đồng bộ PESDB hoàn tất – dữ liệu mới đã được lưu.")
-        else:
-            progress_bar.empty()
-            status_box.info("ℹ️ Không có cầu thủ nào cần đồng bộ thêm từ PESDB.")
-        
-        st.session_state['auto_extracting'] = False
 
     current_tab = st.session_state.current_tab
 
