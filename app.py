@@ -3643,10 +3643,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()# app.py – Efootball Team Builder (Google Sheets version)
-import os
-import shutil
-import time
+    main()
 from pathlib import Path
 from datetime import datetime
 import re
