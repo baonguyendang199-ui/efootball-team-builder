@@ -1591,7 +1591,7 @@ def main():
             ],
             "displaylogo": False
         }
-        st.plotly_chart(fig_club, use_container_width=True, config=config)
+        st.plotly_chart(fig_club, use_container_width=True, config=config, key="overview_fig_club")
         
         st.divider()
         
@@ -1614,7 +1614,7 @@ def main():
             dragmode="pan"
         )
         fig_nation = apply_plotly_theme(fig_nation)
-        st.plotly_chart(fig_nation, use_container_width=True, config=config)
+        st.plotly_chart(fig_nation, use_container_width=True, config=config, key="overview_fig_nation")
         
         st.divider()
         
@@ -1637,7 +1637,7 @@ def main():
             dragmode="pan"
         )
         fig_league = apply_plotly_theme(fig_league)
-        st.plotly_chart(fig_league, use_container_width=True, config=config)
+        st.plotly_chart(fig_league, use_container_width=True, config=config, key="overview_fig_league")
         
         st.divider()
         
@@ -1695,12 +1695,12 @@ def main():
             )
             fig_skill.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
             fig_skill.update_layout(
-                xaxis=dict(categoryorder="total descending", autorange=True),
-                yaxis=dict(autorange=True),
-                dragmode="pan"
+            xaxis=dict(categoryorder="total descending", autorange=True),
+            yaxis=dict(autorange=True),
+            dragmode="pan"
             )
             fig_skill = apply_plotly_theme(fig_skill)
-            st.plotly_chart(fig_skill, use_container_width=True, config=config)
+            st.plotly_chart(fig_skill, use_container_width=True, config=config, key="overview_fig_skill")
         else:
             st.info("🎉 Hiện không có skill nào được gợi ý thêm cho cầu thủ.")
         
@@ -1719,12 +1719,12 @@ def main():
         )
         fig_pos.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
         fig_pos.update_layout(
-            xaxis=dict(categoryorder="total descending", autorange=True),
-            yaxis=dict(autorange=True),
-            dragmode="pan"
+        xaxis=dict(categoryorder="total descending", autorange=True),
+        yaxis=dict(autorange=True),
+        dragmode="pan"
         )
         fig_pos = apply_plotly_theme(fig_pos)
-        st.plotly_chart(fig_pos, use_container_width=True, config=config)
+        st.plotly_chart(fig_pos, use_container_width=True, config=config, key="overview_fig_pos")
         
         st.divider()
         
@@ -1746,7 +1746,7 @@ def main():
         )
         fig_type.update_layout(dragmode="pan")
         fig_type = apply_plotly_theme(fig_type)
-        st.plotly_chart(fig_type, use_container_width=True, config=config)
+        st.plotly_chart(fig_type, use_container_width=True, config=config, key="overview_fig_type")
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
