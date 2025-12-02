@@ -1557,9 +1557,22 @@ def main():
             st.error("Không có dữ liệu cầu thủ!")
             return
 
+    # Tự động backfill data còn thiếu từ PESDB cho các cầu thủ cũ (dựa trên Player URL)
     needs_extraction = df[
-        (df['Player URL'].astype(str).str.startswith('http')) & 
-        ((df['Skills'].astype(str).str.strip() == '') | (df['Skills'].isna()))
+        df['Player URL'].astype(str).str.startswith('http')
+        & (
+            (df['Skills'].astype(str).str.strip() == '')
+            | df['Skills'].isna()
+            | (df['Region'].astype(str).str.strip() == '')
+            | (df['Height'].astype(str).str.strip() == '')
+            | (df['Weight'].astype(str).str.strip() == '')
+            | (df['Age'].astype(str).str.strip() == '')
+            | (df['Foot'].astype(str).str.strip() == '')
+            | (df['Weak Foot Usage'].astype(str).str.strip() == '')
+            | (df['Weak Foot Accuracy'].astype(str).str.strip() == '')
+            | (df['Form'].astype(str).str.strip() == '')
+            | (df['Injury Resistance'].astype(str).str.strip() == '')
+        )
     ]
     
     if not needs_extraction.empty and not st.session_state.get('auto_extracting', False):
@@ -1567,10 +1580,21 @@ def main():
         updated = False
         
         for i, row in needs_extraction.iterrows():
-            skills = extract_player_skills(row['Player URL'])
-            if skills:
-                df.at[i, 'Skills'] = skills
-                updated = True
+            info = extract_full_player_info(row['Player URL'])
+            if not info or not info.get('Player'):
+                continue
+
+            # Ghi đè các field còn trống, không phá dữ liệu đã có
+            for col in [
+                'Region', 'Height', 'Weight', 'Age', 'Foot',
+                'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance',
+                'Skills'
+            ]:
+                current_val = str(df.at[i, col]) if col in df.columns else ''
+                if (not current_val) or (str(current_val).strip() == ''):
+                    df.at[i, col] = info.get(col.replace('_', ' '), info.get(col, ''))
+
+            updated = True
         
         if updated:
             save_data_to_gsheet(df)
