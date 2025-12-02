@@ -34,6 +34,7 @@ NEW_PLAYER_FIELDS = [
     ("Weak_Foot_Usage", ""),     # str
     ("Weak_Foot_Accuracy", ""),  # str
     ("Injury_Resistance", ""),   # str
+    ("Form", ""),                # str, eFootball form (Unwavering, Consistent, ...)
 ]
 
 NEW_PLAYER_DEFAULTS = {name: default for name, default in NEW_PLAYER_FIELDS}
@@ -50,6 +51,7 @@ COLUMN_ORDER = [
     "Weak_Foot_Usage",
     "Weak_Foot_Accuracy",
     "Injury_Resistance",
+    "Form",
     "Rating",
     "Position",
     "Position Style",
@@ -571,6 +573,7 @@ def load_data_from_gsheet():
             "Weak_Foot_Usage",
             "Weak_Foot_Accuracy",
             "Injury_Resistance",
+            "Form",
         ]:
             if col in df.columns:
                 df[col] = (
@@ -1514,6 +1517,7 @@ def extract_full_player_info(player_url: str) -> dict:
             "Weak Foot Usage": "Weak_Foot_Usage",
             "Weak Foot Accuracy": "Weak_Foot_Accuracy",
             "Injury Resistance": "Injury_Resistance",
+            "Form": "Form",
         }
         
         # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
@@ -1620,6 +1624,7 @@ def extract_full_player_info(player_url: str) -> dict:
             "Weak_Foot_Usage",
             "Weak_Foot_Accuracy",
             "Injury_Resistance",
+            "Form",
         ]:
             val = info.get(key, "")
             if val is None:
@@ -1650,6 +1655,40 @@ def initialize_session_state():
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+
+
+def get_region_icon(region: str) -> str:
+    """Trả về icon cho Region (dùng trong UI, không ảnh hưởng dữ liệu)."""
+    r = (region or "").strip().lower()
+    if not r:
+        return "🌍"
+    if "europe" in r:
+        return "🇪🇺"
+    if "south america" in r:
+        return "🌎"
+    if "north & central america" in r or "north and central america" in r:
+        return "🌎"
+    if "asia" in r:
+        return "🌏"
+    if "africa" in r:
+        return "🌍"
+    if "oceania" in r:
+        return "🌏"
+    return "🌍"
+
+
+def get_weak_foot_color(usage: str) -> str:
+    """Màu nền cho Weak Foot Usage (dùng trong squad card)."""
+    u = (usage or "").strip().lower()
+    if "almost never" in u or "rarely" in u:
+        return "#ef4444"  # đỏ
+    if "occasionally" in u:
+        return "#f97316"  # cam
+    if "often" in u:
+        return "#22c55e"  # xanh
+    if "almost always" in u or "frequently" in u:
+        return "#16a34a"  # xanh đậm
+    return "#6b7280"  # xám mặc định
 
 # --- MAIN APP ---
 def main():
@@ -2080,6 +2119,95 @@ def main():
         fig_type = apply_plotly_theme(fig_type)
         st.plotly_chart(fig_type, use_container_width=True, config=config)
 
+        st.divider()
+
+        # 📊 Phân bố Age (histogram theo band)
+        st.subheader("📊 Phân bố độ tuổi")
+        age_df = df[df['Age'] > 0].copy() if 'Age' in df.columns else pd.DataFrame()
+        if not age_df.empty:
+            def age_band(a):
+                if a < 18:
+                    return "<18"
+                if 18 <= a <= 22:
+                    return "18-22"
+                if 23 <= a <= 27:
+                    return "23-27"
+                if 28 <= a <= 31:
+                    return "28-31"
+                return "32+"
+            age_df['Age_Band'] = age_df['Age'].apply(age_band)
+            band_counts = (
+                age_df['Age_Band']
+                .value_counts()
+                .reindex(["<18", "18-22", "23-27", "28-31", "32+"])
+                .fillna(0)
+                .reset_index()
+            )
+            band_counts.columns = ['Nhóm tuổi', 'Số lượng']
+            fig_age = px.bar(
+                band_counts,
+                x="Nhóm tuổi",
+                y="Số lượng",
+                text="Số lượng"
+            )
+            fig_age.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+            fig_age.update_layout(
+                xaxis=dict(categoryorder="array", categoryarray=["<18", "18-22", "23-27", "28-31", "32+"]),
+                yaxis=dict(autorange=True),
+                dragmode="pan"
+            )
+            fig_age = apply_plotly_theme(fig_age)
+            st.plotly_chart(fig_age, use_container_width=True, config=config)
+        else:
+            st.info("ℹ️ Chưa có dữ liệu Age hợp lệ.")
+
+        st.divider()
+
+        # 📏 Phân bố Height (box plot theo Position)
+        st.subheader("📏 Chiều cao theo vị trí")
+        height_df = df[(df.get('Height', 0) > 0)].copy() if 'Height' in df.columns else pd.DataFrame()
+        if not height_df.empty:
+            fig_h_box = px.box(
+                height_df,
+                x="Position",
+                y="Height",
+                points="outliers",
+                labels={"Position": "Vị trí", "Height": "Chiều cao (cm)"}
+            )
+            fig_h_box.update_layout(dragmode="pan")
+            fig_h_box = apply_plotly_theme(fig_h_box)
+            st.plotly_chart(fig_h_box, use_container_width=True, config=config)
+        else:
+            st.info("ℹ️ Chưa có dữ liệu Height hợp lệ.")
+
+        st.divider()
+
+        # ⚡ Form Distribution (pie chart)
+        st.subheader("⚡ Phân bố Form")
+        if 'Form' in df.columns:
+            form_df = df[df['Form'].astype(str).str.strip() != ""]
+            if not form_df.empty:
+                form_counts = form_df['Form'].value_counts().reset_index(name='Số lượng')
+                form_counts.columns = ['Form', 'Số lượng']
+                fig_form = px.pie(
+                    form_counts,
+                    names="Form",
+                    values="Số lượng",
+                    hole=0.3
+                )
+                fig_form.update_traces(
+                    textinfo="percent+label",
+                    hoverinfo="skip",
+                    hovertemplate=None
+                )
+                fig_form.update_layout(dragmode="pan")
+                fig_form = apply_plotly_theme(fig_form)
+                st.plotly_chart(fig_form, use_container_width=True, config=config)
+            else:
+                st.info("ℹ️ Chưa có dữ liệu Form.")
+        else:
+            st.info("ℹ️ Chưa có cột Form trong dữ liệu.")
+
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
 
@@ -2364,11 +2492,14 @@ def main():
         st.info(f"📊 Hiển thị **{len(filtered_df)}** / {len(rec_df)} cầu thủ")
 
         # ===== ĐỊNH NGHĨA COLUMNS TRƯỚC (ĐỂ DÙNG CHO EXPORT) =====
-        display_columns = [
+        base_display_columns = [
             'Player', 'Rating', 'Position', 'Position Style', 'Player Type',
             'Club', 'Nation', 'League', 'Action', 'Reasons', 'Skills'
         ]
-        available_columns = [c for c in display_columns if c in filtered_df.columns]
+        # Cột mới quan trọng nhất cho bảng chính
+        extra_key_columns = ['Age', 'Height', 'Foot']
+        export_columns = base_display_columns + extra_key_columns
+        available_columns = [c for c in export_columns if c in filtered_df.columns]
         
         # ===== NÚT CHUYỂN ĐỔI CHỂ ĐỘ HIỂN THỊ =====
         view_mode = st.radio("Chế độ hiển thị:", ["📋 Bảng", "🎴 Card"], horizontal=True, index=1)
@@ -2389,6 +2520,16 @@ def main():
                 added_skills = row.get('Added Skills', '')
                 player_id = row.get('Player ID', '')
                 player_url = row.get('Player URL', '')
+                age = int(row.get('Age', 0) or 0)
+                height = int(row.get('Height,', row.get('Height', 0)) or 0) if isinstance(row.get('Height', 0), (int, float, str)) else 0
+                weight = int(row.get('Weight', 0) or 0)
+                foot = str(row.get('Foot', '') or '').strip()
+                squad_number = int(row.get('Squad_Number', 0) or 0)
+                region = str(row.get('Region', '') or '').strip()
+                weak_usage = str(row.get('Weak_Foot_Usage', '') or '').strip()
+                weak_acc = str(row.get('Weak_Foot_Accuracy', '') or '').strip()
+                injury = str(row.get('Injury_Resistance', '') or '').strip()
+                form = str(row.get('Form', '') or '').strip()
                 
                 # Tạo URL hình ảnh
                 image_url = make_ehub_player_image_url(player_id if player_id else player_url)
@@ -2422,15 +2563,42 @@ def main():
                             )
                     
                     with col_info:
-                        st.markdown(f"### {card_color} {player_name}")
+                        # Badge số áo (góc trên phải của header)
+                        header_html = f"<span style='font-size:1.2rem;'>{card_color} {player_name}</span>"
+                        if squad_number > 0:
+                            header_html += (
+                                f"<span style='float:right;background:rgba(15,23,42,0.9);"
+                                f"border-radius:999px;padding:2px 10px;font-size:0.8rem;"
+                                f"border:1px solid rgba(255,255,255,0.18);'>#{squad_number}</span>"
+                            )
+                        st.markdown(header_html, unsafe_allow_html=True)
                         
                         info_col1, info_col2 = st.columns(2)
                         with info_col1:
-                            st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
+                            # Rating + chuỗi Age/Height/Weight/Foot
+                            meta_parts = []
+                            if age > 0:
+                                meta_parts.append(f"{age} tuổi")
+                            if height > 0:
+                                meta_parts.append(f"{height}cm")
+                            if weight > 0:
+                                meta_parts.append(f"{weight}kg")
+                            if foot:
+                                meta_parts.append(foot)
+                            meta_str = " • ".join(meta_parts) if meta_parts else ""
+                            if meta_str:
+                                st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
+                                st.caption(meta_str)
+                            else:
+                                st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
                             st.markdown(f"**Loại:** {player_type}")
                         with info_col2:
+                            region_icon = get_region_icon(region)
+                            nation_display = nation
+                            if nation:
+                                nation_display = f"{region_icon} {nation}"
                             st.markdown(f"**CLB:** {club}")
-                            st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
+                            st.markdown(f"**Quốc gia:** {nation_display} | **League:** {league}")
 
                             rank_info = row.get('Rank_Info', '')
                             if rank_info:
@@ -2469,10 +2637,54 @@ def main():
                             with st.expander("🎯 Action & Lý do", expanded=False):
                                 st.markdown(action_badge, unsafe_allow_html=True)
                                 st.caption(f"**Lý do:** {reasons}")
+
+                        # Weak Foot / Form / Injury icons với tooltip
+                        icons_html_parts = []
+                        if weak_usage:
+                            icons_html_parts.append(
+                                f"<span title='Weak Foot Usage: {weak_usage}' style='margin-right:8px;'>⚽ {weak_usage}</span>"
+                            )
+                        if weak_acc:
+                            icons_html_parts.append(
+                                f"<span title='Weak Foot Accuracy: {weak_acc}' style='margin-right:8px;'>🎯 {weak_acc}</span>"
+                            )
+                        if form:
+                            icons_html_parts.append(
+                                f"<span title='Form: {form}' style='margin-right:8px;'>📈 {form}</span>"
+                            )
+                        if injury:
+                            icons_html_parts.append(
+                                f"<span title='Injury Resistance: {injury}' style='margin-right:8px;'>🩺 {injury}</span>"
+                            )
+                        if icons_html_parts:
+                            st.markdown(
+                                "<div style='margin-top:6px;font-size:0.85rem;color:#e5e7eb;'>"
+                                + " ".join(icons_html_parts)
+                                + "</div>",
+                                unsafe_allow_html=True,
+                            )
         
         else:
             # ===== CHẾ ĐỘ BẢNG =====
-            display_df = filtered_df[available_columns].copy()
+            # Cho phép người dùng tùy chỉnh cột hiển thị
+            col_options = available_columns
+            default_cols = [
+                c for c in [
+                    'Player', 'Rating', 'Position', 'Player Type',
+                    'Club', 'Nation', 'League', 'Age', 'Height', 'Foot', 'Action'
+                ] if c in col_options
+            ]
+            selected_cols = st.multiselect(
+                "Chọn cột hiển thị",
+                options=col_options,
+                default=default_cols,
+                key="players_table_columns"
+            )
+            table_cols = [c for c in selected_cols if c in filtered_df.columns]
+            if not table_cols:
+                table_cols = default_cols
+
+            display_df = filtered_df[table_cols].copy()
             display_df.insert(0, 'STT', range(1, len(display_df) + 1))
             
             st.dataframe(
@@ -2494,7 +2706,25 @@ def main():
                 use_container_width=True,
                 height=600,
                 hide_index=True
-            )        
+            )
+
+            # Chi tiết nâng cao cho 9 trường mới (không dồn hết vào bảng chính để tránh quá rộng)
+            advanced_cols = [
+                'Weight', 'Squad_Number', 'Region',
+                'Weak_Foot_Usage', 'Weak_Foot_Accuracy',
+                'Injury_Resistance', 'Form'
+            ]
+            existing_advanced_cols = [c for c in advanced_cols if c in filtered_df.columns]
+            if existing_advanced_cols:
+                with st.expander("📑 Chi tiết nâng cao (thông tin PESDB)", expanded=False):
+                    adv_df = filtered_df[['Player'] + existing_advanced_cols].copy()
+                    adv_df.insert(0, 'STT', range(1, len(adv_df) + 1))
+                    st.dataframe(
+                        adv_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=400
+                    )
 # ===== EXPORT & ACTIONS =====
         st.divider()
         col1, col2, col3 = st.columns(3)
@@ -3189,13 +3419,27 @@ def main():
                                 
                                 info_col1, info_col2, info_col3 = st.columns(3)
                                 with info_col1:
-                                    st.markdown(f"**Rating:** {rating}")
+                                    age = int(row.get('Age', 0) or 0)
+                                    if age > 0:
+                                        st.markdown(f"**Rating:** {rating} • {age} tuổi")
+                                    else:
+                                        st.markdown(f"**Rating:** {rating}")
                                     st.markdown(f"**Loại:** {player_type}")
                                 with info_col2:
                                     st.markdown(f"**CLB:** {club}")
                                     st.markdown(f"**Quốc gia:** {nation}")
                                 with info_col3:
                                     st.markdown(f"**League:** {league}")
+                                    # Physical stats
+                                    height = int(row.get('Height', 0) or 0)
+                                    weight = int(row.get('Weight', 0) or 0)
+                                    phys_parts = []
+                                    if height > 0:
+                                        phys_parts.append(f"{height}cm")
+                                    if weight > 0:
+                                        phys_parts.append(f"{weight}kg")
+                                    if phys_parts:
+                                        st.markdown(f"**Physical:** {' • '.join(phys_parts)}")
                                     ranks = []
                                     cr = fast_rank(row.get('Club',''), row.name, club_top_map)
                                     if cr: ranks.append(cr)
@@ -3232,6 +3476,38 @@ def main():
                                                 for s in added_skills_list
                                             ])
                                             st.markdown(added_html, unsafe_allow_html=True)
+
+                                # Weak Foot Usage icon màu sắc + Form trend
+                                weak_usage = str(row.get('Weak_Foot_Usage', '') or '').strip()
+                                form = str(row.get('Form', '') or '').strip()
+                                wf_parts = []
+                                if weak_usage:
+                                    color = get_weak_foot_color(weak_usage)
+                                    wf_parts.append(
+                                        f"<span title='Weak Foot Usage: {weak_usage}' "
+                                        f"style='background:{color};color:white;padding:2px 8px;"
+                                        f"border-radius:999px;font-size:0.8rem;margin-right:8px;'>⚽ {weak_usage}</span>"
+                                    )
+                                if form:
+                                    icon = "📈"
+                                    form_lower = form.lower()
+                                    if "unwavering" in form_lower:
+                                        icon = "📈"
+                                    elif "consistent" in form_lower:
+                                        icon = "➖"
+                                    elif "inconsistent" in form_lower:
+                                        icon = "📉"
+                                    wf_parts.append(
+                                        f"<span title='Form: {form}' "
+                                        f"style='background:rgba(15,23,42,0.9);color:white;padding:2px 8px;"
+                                        f"border-radius:999px;font-size:0.8rem;'>"
+                                        f"{icon} {form}</span>"
+                                    )
+                                if wf_parts:
+                                    st.markdown(
+                                        "<div style='margin-top:6px;'>" + " ".join(wf_parts) + "</div>",
+                                        unsafe_allow_html=True
+                                    )
         else:
             # Hiển thị dạng bảng (CODE CŨ - GIỮ NGUYÊN)
             show_cols = ['Player','Rating','Position','Player Type','Club','Nation','League','Skills']
