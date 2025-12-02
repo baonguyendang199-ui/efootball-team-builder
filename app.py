@@ -2185,18 +2185,39 @@ def main():
         # ===== SORTING =====
         col1, col2 = st.columns([3, 1])
         with col1:
-            sort_col = st.selectbox("Sắp xếp theo", options=[
-                'Rating', 'Player', 'Position', 'Player Type', 'Club', 'Nation', 'League'
-            ], index=0)
+            sort_col = st.selectbox(
+                "Sắp xếp theo",
+                options=[
+                    'Rating', 'Player', 'Position', 'Player Type',
+                    'Club', 'Nation', 'League',
+                    'Height', 'Weight', 'BMI'
+                ],
+                index=0
+            )
         with col2:
             sort_order = st.radio("Thứ tự", ["Giảm dần", "Tăng dần"], horizontal=True, index=0)
         
+        asc = (sort_order == "Tăng dần")
         if sort_col == 'Position':
-            filtered_df['_pos_order'] = filtered_df['Position'].map(POSITION_ORDER)
-            filtered_df = filtered_df.sort_values(by='_pos_order', ascending=(sort_order == "Tăng dần"))
-            filtered_df = filtered_df.drop(columns=['_pos_order'])
+            filtered_df['_sort_pos'] = filtered_df['Position'].map(POSITION_ORDER)
+            filtered_df = filtered_df.sort_values(by='_sort_pos', ascending=asc)
+            filtered_df = filtered_df.drop(columns=['_sort_pos'])
+        elif sort_col in ['Height', 'Weight']:
+            col_name = sort_col
+            tmp_col = f"_sort_{col_name.lower()}"
+            filtered_df[tmp_col] = pd.to_numeric(filtered_df[col_name], errors='coerce')
+            filtered_df = filtered_df.sort_values(by=tmp_col, ascending=asc, na_position="last")
+            filtered_df = filtered_df.drop(columns=[tmp_col])
+        elif sort_col == 'BMI':
+            # BMI = weight (kg) / (height(m))^2
+            h = pd.to_numeric(filtered_df['Height'], errors='coerce')
+            w = pd.to_numeric(filtered_df['Weight'], errors='coerce')
+            bmi = w / ((h / 100.0) ** 2)
+            filtered_df['_sort_bmi'] = bmi
+            filtered_df = filtered_df.sort_values(by='_sort_bmi', ascending=asc, na_position="last")
+            filtered_df = filtered_df.drop(columns=['_sort_bmi'])
         else:
-            filtered_df = filtered_df.sort_values(by=sort_col, ascending=(sort_order == "Tăng dần"))
+            filtered_df = filtered_df.sort_values(by=sort_col, ascending=asc)
         
         # ===== DISPLAY TABLE =====
         st.info(f"📊 Hiển thị **{len(filtered_df)}** / {len(rec_df)} cầu thủ")
