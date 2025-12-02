@@ -2278,6 +2278,21 @@ def main():
                         with info_col1:
                             st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
                             st.markdown(f"**Loại:** {player_type}")
+                            # Thông tin thể chất / khu vực
+                            if region:
+                                st.markdown(f"**Region:** {region}")
+                            extra_physical = []
+                            if age:
+                                extra_physical.append(f"Tuổi {age}")
+                            size_parts = []
+                            if height:
+                                size_parts.append(f"{height} cm")
+                            if weight:
+                                size_parts.append(f"{weight} kg")
+                            if size_parts:
+                                extra_physical.append(" / ".join(size_parts))
+                            if extra_physical:
+                                st.markdown("**Thể hình:** " + " | ".join(extra_physical))
                         with info_col2:
                             st.markdown(f"**CLB:** {club}")
                             st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
@@ -3016,6 +3031,15 @@ def main():
                         club = row.get('Club', '')
                         nation = row.get('Nation', '')
                         league = row.get('League', '')
+                        region = row.get('Region', '')
+                        height = row.get('Height', '')
+                        weight = row.get('Weight', '')
+                        age = row.get('Age', '')
+                        foot = row.get('Foot', '')
+                        weak_usage = row.get('Weak Foot Usage', '')
+                        weak_acc = row.get('Weak Foot Accuracy', '')
+                        form = row.get('Form', '')
+                        injury_res = row.get('Injury Resistance', '')
                         skills = row.get('Skills', '')
                         added_skills = row.get('Added Skills', '')
                         player_id = row.get('Player ID', '')
@@ -3053,9 +3077,35 @@ def main():
                                 with info_col1:
                                     st.markdown(f"**Rating:** {rating}")
                                     st.markdown(f"**Loại:** {player_type}")
+                                    # Thông tin thể chất / khu vực
+                                    if region:
+                                        st.markdown(f"**Region:** {region}")
+                                    extra_physical = []
+                                    if age:
+                                        extra_physical.append(f"Tuổi {age}")
+                                    size_parts = []
+                                    if height:
+                                        size_parts.append(f"{height} cm")
+                                    if weight:
+                                        size_parts.append(f"{weight} kg")
+                                    if size_parts:
+                                        extra_physical.append(" / ".join(size_parts))
+                                    if extra_physical:
+                                        st.markdown("**Thể hình:** " + " | ".join(extra_physical))
                                 with info_col2:
                                     st.markdown(f"**CLB:** {club}")
                                     st.markdown(f"**Quốc gia:** {nation}")
+                                    if foot or weak_usage or weak_acc or form or injury_res:
+                                        if foot:
+                                            st.markdown(f"**Chân thuận:** {foot}")
+                                        if weak_usage:
+                                            st.markdown(f"**WF Usage:** {weak_usage}")
+                                        if weak_acc:
+                                            st.markdown(f"**WF Accuracy:** {weak_acc}")
+                                        if form:
+                                            st.markdown(f"**Form:** {form}")
+                                        if injury_res:
+                                            st.markdown(f"**Chống chấn thương:** {injury_res}")
                                 with info_col3:
                                     st.markdown(f"**League:** {league}")
                                     ranks = []
