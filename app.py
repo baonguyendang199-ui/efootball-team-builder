@@ -467,7 +467,13 @@ def load_data_from_gsheet():
         df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0).astype(int)
         df = df[df["Rating"] > 0].copy()
         
-        for col in ["Player", "Position", "Position Style", "Player Type", "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills"]:
+        for col in [
+            "Player", "Position", "Position Style", "Player Type",
+            "Nation", "Club", "League",
+            "Region", "Height", "Weight", "Age", "Foot",
+            "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
+            "Player URL", "Player ID", "Skills", "Added Skills"
+        ]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
         
@@ -1443,8 +1449,8 @@ def main():
     with st.sidebar:
         st.header("⚙️ Điều khiển")
     
-        # Nút tải lại dữ liệu (dùng key để tránh trùng ID)
-        if st.button("🔄 Tải lại dữ liệu", key="sidebar_reload_data", use_container_width=True):
+        # Nút tải lại dữ liệu
+        if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
@@ -1456,8 +1462,7 @@ def main():
         main_menu = st.radio(
             "📑 Điều hướng",
             ["📊 Tổng quan", "👥 Quản lý cầu thủ", "🎮 Quản lý Skills"],
-            index=0,
-            key="main_menu_nav"
+            index=0
         )
     
         # Điều hướng chi tiết
@@ -1468,8 +1473,7 @@ def main():
             sub_menu = st.radio(
                 "⚽ Cầu thủ",
                 ["Danh sách", "Đội hình", "Thêm cầu thủ"],
-                index=0,
-                key="players_sub_menu"
+                index=0
             )
             if sub_menu == "Danh sách":
                 st.session_state.current_tab = "players"
@@ -1482,8 +1486,7 @@ def main():
             sub_menu = st.radio(
                 "🛠️ Skills",
                 ["Quản lý", "Kho Skills"],
-                index=0,
-                key="skills_sub_menu"
+                index=0
             )
             if sub_menu == "Quản lý":
                 st.session_state.current_tab = "skills"
@@ -1624,7 +1627,7 @@ def main():
             ],
             "displaylogo": False
         }
-        st.plotly_chart(fig_club, use_container_width=True, config=config, key="overview_club_chart")
+        st.plotly_chart(fig_club, use_container_width=True, config=config)
         
         st.divider()
         
@@ -1647,7 +1650,7 @@ def main():
             dragmode="pan"
         )
         fig_nation = apply_plotly_theme(fig_nation)
-        st.plotly_chart(fig_nation, use_container_width=True, config=config, key="overview_nation_chart")
+        st.plotly_chart(fig_nation, use_container_width=True, config=config)
         
         st.divider()
         
@@ -1670,7 +1673,7 @@ def main():
             dragmode="pan"
         )
         fig_league = apply_plotly_theme(fig_league)
-        st.plotly_chart(fig_league, use_container_width=True, config=config, key="overview_league_chart")
+        st.plotly_chart(fig_league, use_container_width=True, config=config)
         
         st.divider()
         
@@ -1733,7 +1736,7 @@ def main():
                 dragmode="pan"
             )
             fig_skill = apply_plotly_theme(fig_skill)
-            st.plotly_chart(fig_skill, use_container_width=True, config=config, key="overview_skill_chart")
+            st.plotly_chart(fig_skill, use_container_width=True, config=config)
         else:
             st.info("🎉 Hiện không có skill nào được gợi ý thêm cho cầu thủ.")
         
@@ -2004,23 +2007,25 @@ def main():
         with col4:
             pos_style = st.selectbox("Phong cách", ["Tất cả"] + get_unique_values(df, 'Position Style'))
         
-        # Row 3: Club, Nation, Region, Foot
+        # Row 3: Club, Nation, Rating, Epic only
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             club_filter = st.selectbox("Club", ["Tất cả"] + get_unique_values(df, 'Club'))
         with col2:
             nation_filter = st.selectbox("Nation", ["Tất cả"] + get_unique_values(df, 'Nation'))
         with col3:
-            region_filter = st.selectbox("Region", ["Tất cả"] + get_unique_values(df, 'Region'))
-        with col4:
-            foot_filter = st.selectbox("Chân thuận", ["Tất cả"] + get_unique_values(df, 'Foot'))
-        
-        # Row 4: Rating, Age, Height, Epic only
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
             rmin, rmax = int(df['Rating'].min()), int(df['Rating'].max())
             rating_range = st.slider("Rating", rmin, rmax, (rmin, rmax))
+        with col4:
+            epic_only = st.checkbox("Chỉ EPIC", value=False)
+        
+        # Row 4: Region, Foot, Age, Height
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            region_filter = st.selectbox("Region", ["Tất cả"] + get_unique_values(df, 'Region'))
         with col2:
+            foot_filter = st.selectbox("Chân thuận", ["Tất cả"] + get_unique_values(df, 'Foot'))
+        with col3:
             # Age có thể trống, xử lý an toàn
             if 'Age' in df.columns and df['Age'].astype(str).str.strip().ne('').any():
                 age_numeric = pd.to_numeric(df['Age'], errors='coerce').dropna()
@@ -2032,7 +2037,7 @@ def main():
             else:
                 age_range = None
                 st.caption("Age: chưa có dữ liệu")
-        with col3:
+        with col4:
             # Height (cm)
             if 'Height' in df.columns and df['Height'].astype(str).str.strip().ne('').any():
                 h_numeric = pd.to_numeric(df['Height'], errors='coerce').dropna()
@@ -2044,8 +2049,6 @@ def main():
             else:
                 height_range = None
                 st.caption("Height: chưa có dữ liệu")
-        with col4:
-            epic_only = st.checkbox("Chỉ EPIC", value=False)
         
         # Row 5: Skills + WF / Form filters
         col1, col2, col3 = st.columns([2, 1, 1])
@@ -2206,37 +2209,37 @@ def main():
                         with info_col1:
                             st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
                             st.markdown(f"**Loại:** {player_type}")
-                        
-                        # Thông tin thể chất / khu vực
-                        if region:
-                            st.markdown(f"**Region:** {region}")
-                        extra_physical = []
-                        if age:
-                            extra_physical.append(f"Tuổi {age}")
-                        size_parts = []
-                        if height:
-                            size_parts.append(f"{height} cm")
-                        if weight:
-                            size_parts.append(f"{weight} kg")
-                        if size_parts:
-                            extra_physical.append(" / ".join(size_parts))
-                        if extra_physical:
-                            st.markdown("**Thể hình:** " + " | ".join(extra_physical))
+                            
+                            # Thông tin thể chất / khu vực
+                            if region:
+                                st.markdown(f"**Region:** {region}")
+                            extra_physical = []
+                            if age:
+                                extra_physical.append(f"Tuổi {age}")
+                            size_parts = []
+                            if height:
+                                size_parts.append(f"{height} cm")
+                            if weight:
+                                size_parts.append(f"{weight} kg")
+                            if size_parts:
+                                extra_physical.append(" / ".join(size_parts))
+                            if extra_physical:
+                                st.markdown("**Thể hình:** " + " | ".join(extra_physical))
                         with info_col2:
                             st.markdown(f"**CLB:** {club}")
                             st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
 
-                        if foot or weak_usage or weak_acc or form or injury_res:
-                            if foot:
-                                st.markdown(f"**Chân thuận:** {foot}")
-                            if weak_usage:
-                                st.markdown(f"**WF Usage:** {weak_usage}")
-                            if weak_acc:
-                                st.markdown(f"**WF Accuracy:** {weak_acc}")
-                            if form:
-                                st.markdown(f"**Form:** {form}")
-                            if injury_res:
-                                st.markdown(f"**Chống chấn thương:** {injury_res}")
+                            if foot or weak_usage or weak_acc or form or injury_res:
+                                if foot:
+                                    st.markdown(f"**Chân thuận:** {foot}")
+                                if weak_usage:
+                                    st.markdown(f"**WF Usage:** {weak_usage}")
+                                if weak_acc:
+                                    st.markdown(f"**WF Accuracy:** {weak_acc}")
+                                if form:
+                                    st.markdown(f"**Form:** {form}")
+                                if injury_res:
+                                    st.markdown(f"**Chống chấn thương:** {injury_res}")
 
                             rank_info = row.get('Rank_Info', '')
                             if rank_info:
@@ -5055,8 +5058,8 @@ def main():
     with st.sidebar:
         st.header("⚙️ Điều khiển")
     
-        # Nút tải lại dữ liệu (dùng key để tránh trùng ID)
-        if st.button("🔄 Tải lại dữ liệu", key="sidebar_reload_data_v2", use_container_width=True):
+        # Nút tải lại dữ liệu
+        if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
@@ -5068,8 +5071,7 @@ def main():
         main_menu = st.radio(
             "📑 Điều hướng",
             ["📊 Tổng quan", "👥 Quản lý cầu thủ", "🎮 Quản lý Skills"],
-            index=0,
-            key="main_menu_nav_v2"
+            index=0
         )
     
         # Điều hướng chi tiết
@@ -5080,8 +5082,7 @@ def main():
             sub_menu = st.radio(
                 "⚽ Cầu thủ",
                 ["Danh sách", "Đội hình", "Thêm cầu thủ"],
-                index=0,
-                key="players_sub_menu_v2"
+                index=0
             )
             if sub_menu == "Danh sách":
                 st.session_state.current_tab = "players"
@@ -5094,8 +5095,7 @@ def main():
             sub_menu = st.radio(
                 "🛠️ Skills",
                 ["Quản lý", "Kho Skills"],
-                index=0,
-                key="skills_sub_menu_v2"
+                index=0
             )
             if sub_menu == "Quản lý":
                 st.session_state.current_tab = "skills"
