@@ -22,6 +22,47 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ==== SCHEMA CONFIG (GOOGLE SHEETS) ====
+# New PESDB fields we want to persist
+NEW_PLAYER_FIELDS = [
+    ("Age", 0),                  # int, years
+    ("Height", 0),               # int, cm
+    ("Weight", 0),               # int, kg
+    ("Foot", ""),                # str, normalized text
+    ("Squad_Number", 0),         # int, jersey number
+    ("Region", ""),              # str
+    ("Weak_Foot_Usage", ""),     # str
+    ("Weak_Foot_Accuracy", ""),  # str
+    ("Injury_Resistance", ""),   # str
+]
+
+NEW_PLAYER_DEFAULTS = {name: default for name, default in NEW_PLAYER_FIELDS}
+
+# Desired column order when saving back to Google Sheets
+COLUMN_ORDER = [
+    "Player",
+    "Age",
+    "Height",
+    "Weight",
+    "Foot",
+    "Squad_Number",
+    "Region",
+    "Weak_Foot_Usage",
+    "Weak_Foot_Accuracy",
+    "Injury_Resistance",
+    "Rating",
+    "Position",
+    "Position Style",
+    "Player Type",
+    "Nation",
+    "Club",
+    "League",
+    "Player URL",
+    "Player ID",
+    "Skills",
+    "Added Skills",
+]
+
 APP_THEME = {
     "primary": "#7C3AED",
     "secondary": "#F97316",
@@ -441,43 +482,139 @@ def get_gsheet_connection():
     return client
 
 def load_data_from_gsheet():
-    """Đọc dữ liệu từ Google Sheets"""
+    """Đọc dữ liệu từ Google Sheets + đảm bảo đủ schema (backward compatible)."""
     try:
         client = get_gsheet_connection()
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
+
+        # --- Đảm bảo header trong Google Sheets đã có đủ 9 cột mới ---
+        try:
+            all_values = sheet.get_all_values()
+            if all_values:
+                original_values = [row[:] for row in all_values]  # deep copy for rollback
+                header = all_values[0]
+
+                # Thêm cột mới sau "Player" nếu chưa tồn tại (không mất dữ liệu cũ)
+                if "Player" in header:
+                    insert_pos = header.index("Player") + 1
+                    modified = False
+                    for col_name, default_val in NEW_PLAYER_FIELDS:
+                        if col_name not in header:
+                            header.insert(insert_pos, col_name)
+                            for r in range(1, len(all_values)):
+                                row = all_values[r]
+                                # đảm bảo đủ chiều dài
+                                if len(row) < insert_pos:
+                                    row.extend([""] * (insert_pos - len(row)))
+                                row.insert(insert_pos, str(default_val) if default_val != "" else "")
+                            insert_pos += 1
+                            modified = True
+
+                    if modified:
+                        try:
+                            sheet.clear()
+                            sheet.update(all_values)
+                        except Exception:
+                            # Rollback nếu lỗi khi ghi schema mới
+                            try:
+                                sheet.clear()
+                                sheet.update(original_values)
+                            except Exception:
+                                pass
+        except Exception:
+            # Không crash nếu không đọc/ghi được schema; tiếp tục dùng dữ liệu hiện có
+            pass
+
+        # Sau khi đảm bảo schema, đọc records
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
-        # Ensure required columns
+        # Ensure required columns (cũ + mới)
         required_cols = [
-            "Player", "Rating", "Position", "Position Style", "Player Type",
-            "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills",
-        ]
+            "Player",
+            "Rating",
+            "Position",
+            "Position Style",
+            "Player Type",
+            "Nation",
+            "Club",
+            "League",
+            "Player URL",
+            "Player ID",
+            "Skills",
+            "Added Skills",
+        ] + [name for name, _ in NEW_PLAYER_FIELDS]
+
         for col in required_cols:
             if col not in df.columns:
-                if col == "Rating":
+                # numeric defaults
+                if col in ["Rating", "Age", "Height", "Weight", "Squad_Number"]:
                     df[col] = 0
                 else:
                     df[col] = ""
         
-        # Clean data
-        df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0).astype(int)
-        df = df[df["Rating"] > 0].copy()
-        
-        for col in ["Player", "Position", "Position Style", "Player Type", "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills"]:
+        # Clean basic text fields
+        for col in [
+            "Player",
+            "Position",
+            "Position Style",
+            "Player Type",
+            "Nation",
+            "Club",
+            "League",
+            "Player URL",
+            "Player ID",
+            "Skills",
+            "Added Skills",
+            "Foot",
+            "Region",
+            "Weak_Foot_Usage",
+            "Weak_Foot_Accuracy",
+            "Injury_Resistance",
+        ]:
             if col in df.columns:
-                df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
-        
+                df[col] = (
+                    df[col]
+                    .fillna("")
+                    .astype(str)
+                    .replace(["nan", "None", "NaN", "<NA>"], "")
+                    .str.strip()
+                )
+
+        # Clean numeric fields + basic validation
+        for num_col in ["Rating", "Age", "Height", "Weight", "Squad_Number"]:
+            if num_col in df.columns:
+                df[num_col] = pd.to_numeric(df[num_col], errors="coerce").fillna(0).astype(int)
+
+        # Validation rules
+        if "Age" in df.columns:
+            # Age hợp lệ 15-45, ngoài range coi như 0 (unknown)
+            df.loc[(df["Age"] < 15) | (df["Age"] > 45), "Age"] = 0
+        if "Height" in df.columns:
+            # Height cm, bỏ giá trị <= 0 hoặc quá phi lý (<140 hoặc >220)
+            df.loc[(df["Height"] <= 0) | (df["Height"] < 140) | (df["Height"] > 220), "Height"] = 0
+        if "Weight" in df.columns:
+            # Weight kg, bỏ giá trị <=0 hoặc quá phi lý (<40 hoặc >120)
+            df.loc[(df["Weight"] <= 0) | (df["Weight"] < 40) | (df["Weight"] > 120), "Weight"] = 0
+        if "Squad_Number" in df.columns:
+            # Squad number 1-99, ngoài range => 0
+            df.loc[(df["Squad_Number"] < 1) | (df["Squad_Number"] > 99), "Squad_Number"] = 0
+
+        # Chuẩn hóa Player Type
         if "Player Type" in df.columns:
             df["Player Type"] = df["Player Type"].apply(normalize_player_type)
         else:
-            df["Player Type"] = 'NON-EPIC'
+            df["Player Type"] = "NON-EPIC"
         
         df["Epic_Priority"] = df["Player Type"].apply(lambda x: 0 if x == "EPIC" else 1)
 
-        # === THÊM DÒNG NÀY ĐỂ TÍNH CỘT ƯU TIÊN MỚI ===
-        df = calculate_top23_count(df) # Tính toán số lần thuộc Top 23 Club/League
-        # ============================================
+        # Chỉ giữ lại hàng có Rating > 0 (tránh row rác)
+        df["Rating"] = pd.to_numeric(df["Rating"], errors="coerce").fillna(0).astype(int)
+        df = df[df["Rating"] > 0].copy()
+
+        # === TÍNH CỘT ƯU TIÊN MỚI ===
+        df = calculate_top23_count(df)  # Tính toán số lần thuộc Top 23 Club/League
+        # ============================
         
         return df
     except Exception as e:
@@ -496,14 +633,21 @@ def save_data_to_gsheet(df):
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
         
         # Remove Epic_Priority column before saving
-        df_save = df.drop(columns=['Epic_Priority'], errors='ignore').copy()
+        df_save = df.drop(columns=["Epic_Priority"], errors="ignore").copy()
+
+        # Đảm bảo đủ các cột mới tồn tại trước khi lưu
+        for col_name, default_val in NEW_PLAYER_FIELDS:
+            if col_name not in df_save.columns:
+                df_save[col_name] = default_val
+
+        # Sắp xếp cột theo COLUMN_ORDER, đồng thời giữ lại các cột phát sinh khác (nếu có)
+        ordered_cols = [c for c in COLUMN_ORDER if c in df_save.columns]
+        remaining_cols = [c for c in df_save.columns if c not in ordered_cols]
+        df_save = df_save[ordered_cols + remaining_cols]
         
-        # CRITICAL: Replace NaN/inf values with empty string or 0
-        # This prevents JSON error when saving to Google Sheets
-        df_save = df_save.fillna('')  # Fill NaN with empty string
-        
-        # Replace inf values if any
-        df_save = df_save.replace([float('inf'), float('-inf')], '')
+        # CRITICAL: Replace NaN/inf values với chuỗi rỗng
+        df_save = df_save.replace([float("inf"), float("-inf")], pd.NA)
+        df_save = df_save.fillna("")
         
         # Check again after cleaning
         if df_save.empty:
@@ -1306,83 +1450,185 @@ def extract_max_level_rating(player_url: str, card_type: str = None, base_html: 
         return 0
 
 def extract_full_player_info(player_url: str) -> dict:
-    """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB
+    """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB (bao gồm 9 trường mới).
     
-    Returns:
-        dict: {
-            'Player': str,
-            'Rating': int,  # Từ Max Level
-            'Position': str,
-            'Nation': str,
-            'Club': str,
-            'League': str,
-            'Skills': str,
-            'Player_Type': str,  # POTW/EPIC/NON-EPIC
-        }
+    Returns dict với ĐẦY ĐỦ 16 key:
+        - Player, Rating, Position, Nation, Club, League, Skills, Player_Type
+        - Age, Height, Weight, Foot, Squad_Number, Region,
+          Weak_Foot_Usage, Weak_Foot_Accuracy, Injury_Resistance
     """
+
+    def log_warning(msg: str):
+        try:
+            st.warning(msg)
+        except Exception:
+            # Fallback cho môi trường không có Streamlit context
+            print(msg)
+
     default_info = {
-        'Player': '',
-        'Rating': 0,
-        'Position': '',
-        'Nation': '',
-        'Club': '',
-        'League': '',
-        'Skills': '',
-        'Player_Type': 'NON-EPIC',
+        "Player": "",
+        "Rating": 0,
+        "Position": "",
+        "Nation": "",
+        "Club": "",
+        "League": "",
+        "Skills": "",
+        "Player_Type": "NON-EPIC",
+        # 9 trường mới
+        "Age": NEW_PLAYER_DEFAULTS.get("Age", 0),
+        "Height": NEW_PLAYER_DEFAULTS.get("Height", 0),
+        "Weight": NEW_PLAYER_DEFAULTS.get("Weight", 0),
+        "Foot": NEW_PLAYER_DEFAULTS.get("Foot", ""),
+        "Squad_Number": NEW_PLAYER_DEFAULTS.get("Squad_Number", 0),
+        "Region": NEW_PLAYER_DEFAULTS.get("Region", ""),
+        "Weak_Foot_Usage": NEW_PLAYER_DEFAULTS.get("Weak_Foot_Usage", ""),
+        "Weak_Foot_Accuracy": NEW_PLAYER_DEFAULTS.get("Weak_Foot_Accuracy", ""),
+        "Injury_Resistance": NEW_PLAYER_DEFAULTS.get("Injury_Resistance", ""),
     }
     
     try:
-        if not player_url or not str(player_url).startswith('http'):
+        if not player_url or not str(player_url).startswith("http"):
+            log_warning("⚠️ extract_full_player_info: Player URL không hợp lệ")
             return default_info
         
         html = fetch_ehub_raw_html(player_url)
         if not html:
+            log_warning(f"⚠️ extract_full_player_info: Không lấy được HTML cho URL: {player_url}")
             return default_info
         
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
         info = default_info.copy()
         
         # Mapping từ PESDB labels sang tên fields
         field_mapping = {
-            'Player Name': 'Player',
-            'Team Name': 'Club',
-            'League': 'League',
-            'Nationality': 'Nation',
+            "Player Name": "Player",
+            "Team Name": "Club",
+            "League": "League",
+            "Nationality": "Nation",
+            "Region": "Region",
+            "Height": "Height",
+            "Weight": "Weight",
+            "Age": "Age",
+            "Foot": "Foot",
+            "Squad Number": "Squad_Number",
+            "Weak Foot Usage": "Weak_Foot_Usage",
+            "Weak Foot Accuracy": "Weak_Foot_Accuracy",
+            "Injury Resistance": "Injury_Resistance",
         }
         
         # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
-        rows = soup.find_all('tr')
+        rows = soup.find_all("tr")
         for row in rows:
-            th = row.find('th')
-            td = row.find('td')
+            th = row.find("th")
+            td = row.find("td")
             if th and td:
-                key = th.get_text(strip=True).replace(':', '')
+                key = th.get_text(strip=True).replace(":", "")
                 value = td.get_text(strip=True)
                 
                 # Map sang field name
                 if key in field_mapping:
                     field_name = field_mapping[key]
-                    info[field_name] = value
+                    try:
+                        if field_name in ["Height", "Weight", "Age", "Squad_Number"]:
+                            # Numeric fields
+                            num_val = re.findall(r"\d+", value)
+                            parsed_val = int(num_val[0]) if num_val else 0
+                            info[field_name] = parsed_val
+                        elif field_name == "Foot":
+                            # Chuẩn hóa Foot: Left / Right / Both
+                            v = value.lower()
+                            if "left" in v:
+                                info[field_name] = "Left"
+                            elif "right" in v:
+                                info[field_name] = "Right"
+                            elif "both" in v:
+                                info[field_name] = "Both"
+                            else:
+                                info[field_name] = value
+                        else:
+                            info[field_name] = value
+                    except Exception:
+                        # Nếu parse lỗi, giữ default và log
+                        log_warning(f"⚠️ Không parse được giá trị cho '{field_name}' từ '{value}'")
                 
                 # Xử lý Position đặc biệt
-                if key == 'Position':
-                    pos_div = td.find('div', title=True)
+                if key == "Position":
+                    pos_div = td.find("div", title=True)
                     if pos_div:
-                        info['Position'] = pos_div.get_text(strip=True)
+                        info["Position"] = pos_div.get_text(strip=True)
         
-        # Lấy Skills
-        info['Skills'] = extract_player_skills(player_url)
+        # Lấy Skills (không crash nếu lỗi)
+        try:
+            info["Skills"] = extract_player_skills(player_url)
+        except Exception:
+            log_warning("⚠️ extract_full_player_info: Lỗi khi trích xuất Skills")
         
         # Lấy Player Type từ loại thẻ
-        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
+        try:
+            info["Player_Type"] = normalize_player_type(extract_card_type_from_html(soup))
+        except Exception:
+            log_warning("⚠️ extract_full_player_info: Lỗi khi trích xuất Player_Type")
         
         # Lấy Rating (POTW dùng level gốc +4, thẻ khác ưu tiên Max Level)
-        info['Rating'] = extract_max_level_rating(
-            player_url,
-            card_type=info.get('Player_Type'),
-            base_html=html
-        )
-        
+        try:
+            info["Rating"] = extract_max_level_rating(
+                player_url,
+                card_type=info.get("Player_Type"),
+                base_html=html,
+            )
+        except Exception:
+            log_warning("⚠️ extract_full_player_info: Lỗi khi trích xuất Rating")
+            info["Rating"] = 0
+
+        # === Validation & chuẩn hóa các field mới một lần nữa (giống load_data_from_gsheet) ===
+        # Age
+        age = int(info.get("Age") or 0)
+        if age < 15 or age > 45:
+            if age != 0:
+                log_warning(f"⚠️ Age ngoài range 15-45 ({age}) → set về 0")
+            age = 0
+        info["Age"] = age
+
+        # Height (cm)
+        height = int(info.get("Height") or 0)
+        if height <= 0 or height < 140 or height > 220:
+            if height != 0:
+                log_warning(f"⚠️ Height ngoài range 140-220cm ({height}) → set về 0")
+            height = 0
+        info["Height"] = height
+
+        # Weight (kg)
+        weight = int(info.get("Weight") or 0)
+        if weight <= 0 or weight < 40 or weight > 120:
+            if weight != 0:
+                log_warning(f"⚠️ Weight ngoài range 40-120kg ({weight}) → set về 0")
+            weight = 0
+        info["Weight"] = weight
+
+        # Squad number
+        squad_no = int(info.get("Squad_Number") or 0)
+        if squad_no < 1 or squad_no > 99:
+            if squad_no != 0:
+                log_warning(f"⚠️ Squad_Number ngoài range 1-99 ({squad_no}) → set về 0")
+            squad_no = 0
+        info["Squad_Number"] = squad_no
+
+        # Foot / Region / Weak_Foot_* / Injury_Resistance: đảm bảo là string
+        for key in [
+            "Foot",
+            "Region",
+            "Weak_Foot_Usage",
+            "Weak_Foot_Accuracy",
+            "Injury_Resistance",
+        ]:
+            val = info.get(key, "")
+            if val is None:
+                val = ""
+            info[key] = str(val).strip()
+            if info[key] == NEW_PLAYER_DEFAULTS.get(key, ""):
+                # log warning nếu giữ nguyên default (tức là không parse được)
+                log_warning(f"⚠️ Trường '{key}' dùng giá trị mặc định: '{info[key]}'")
+
         return info
         
     except Exception as e:
@@ -1558,6 +1804,92 @@ def main():
             st.metric("Epic", int((df['Player Type'].astype(str).str.upper() == 'EPIC').sum()))
         with c4:
             st.metric("POTW", int((df['Player Type'].astype(str).str.upper() == 'POTW').sum()))
+
+        # === ENRICH: CẬP NHẬT 9 TRƯỜNG MỚI TỪ PESDB ===
+        with st.expander("🧩 Cập nhật Age/Height/Weight/... từ PESDB", expanded=False):
+            st.caption(
+                "Tự động đọc lại PESDB cho các cầu thủ đã có Player URL "
+                "nhưng thiếu thông tin Age, Height, Weight, Foot, Squad_Number, Region, "
+                "Weak_Foot_Usage, Weak_Foot_Accuracy, Injury_Resistance."
+            )
+
+            # Xác định cầu thủ cần cập nhật (resume-friendly: chỉ chọn những ai đang thiếu / default)
+            def is_missing_extra_fields(row):
+                try:
+                    if not str(row.get("Player URL", "")).startswith("http"):
+                        return False
+                    if int(row.get("Age", 0)) <= 0:
+                        return True
+                    if int(row.get("Height", 0)) <= 0:
+                        return True
+                    if int(row.get("Weight", 0)) <= 0:
+                        return True
+                    if str(row.get("Foot", "")).strip() == "":
+                        return True
+                    if int(row.get("Squad_Number", 0)) <= 0:
+                        return True
+                    if str(row.get("Region", "")).strip() == "":
+                        return True
+                    if str(row.get("Weak_Foot_Usage", "")).strip() == "":
+                        return True
+                    if str(row.get("Weak_Foot_Accuracy", "")).strip() == "":
+                        return True
+                    if str(row.get("Injury_Resistance", "")).strip() == "":
+                        return True
+                    return False
+                except Exception:
+                    return False
+
+            mask_missing = df.apply(is_missing_extra_fields, axis=1)
+            candidates = df[mask_missing].copy()
+            total_candidates = len(candidates)
+
+            st.write(f"🧮 Cần cập nhật: **{total_candidates}** / {len(df)} cầu thủ.")
+
+            if total_candidates == 0:
+                st.info("✅ Tất cả cầu thủ đã có đủ 9 trường mới.")
+            else:
+                if st.button("🚀 Bắt đầu cập nhật từ PESDB", type="primary", use_container_width=True):
+                    progress = st.progress(0)
+                    status_placeholder = st.empty()
+                    failed_players = []
+                    updated_count = 0
+
+                    for idx, (row_idx, row) in enumerate(candidates.iterrows(), start=1):
+                        player_name = str(row.get("Player", ""))
+                        player_url = str(row.get("Player URL", ""))
+                        status_placeholder.write(f"Đang xử lý {idx}/{total_candidates}: {player_name}")
+
+                        try:
+                            info = extract_full_player_info(player_url)
+                            if info:
+                                for field_name, _default in NEW_PLAYER_FIELDS:
+                                    df.at[row_idx, field_name] = info.get(
+                                        field_name, NEW_PLAYER_DEFAULTS.get(field_name)
+                                    )
+                                updated_count += 1
+                            else:
+                                failed_players.append(player_name or f"index {row_idx}")
+                        except Exception:
+                            failed_players.append(player_name or f"index {row_idx}")
+
+                        progress.progress(min(idx / total_candidates, 1.0))
+
+                    # Lưu lại Google Sheets sau khi cập nhật
+                    if updated_count > 0:
+                        if save_data_to_gsheet(df):
+                            st.success(f"✅ Đã cập nhật {updated_count} cầu thủ và lưu lên Google Sheets.")
+                        else:
+                            st.error("❌ Lỗi khi lưu dữ liệu sau khi cập nhật PESDB.")
+                    else:
+                        st.info("ℹ️ Không có cầu thủ nào được cập nhật.")
+
+                    if failed_players:
+                        st.warning(
+                            f"⚠️ Không lấy được dữ liệu cho {len(failed_players)} cầu thủ:\n"
+                            + ", ".join(failed_players[:30])
+                            + (" ..." if len(failed_players) > 30 else "")
+                        )
 
         st.divider()
 
