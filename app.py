@@ -2276,30 +2276,30 @@ def main():
                         
                         info_col1, info_col2 = st.columns(2)
                         with info_col1:
-                            st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
-                            st.markdown(f"**Loại:** {player_type}")
-                            # Thông tin thể chất / khu vực
+                            st.markdown(f"**Rating:** {rating} | **Position:** {position}")
+                            st.markdown(f"**Type:** {player_type}")
+                            # Physical / region info
                             if region:
                                 st.markdown(f"**Region:** {region}")
                             extra_physical = []
                             if age:
-                                extra_physical.append(f"Tuổi {age}")
+                                extra_physical.append(f"Age {age}")
                             size_parts = []
                             if height:
-                                size_parts.append(f"{height} cm")
+                                size_parts.append(f"{height}cm")
                             if weight:
-                                size_parts.append(f"{weight} kg")
+                                size_parts.append(f"{weight}kg")
                             if size_parts:
                                 extra_physical.append(" / ".join(size_parts))
                             if extra_physical:
-                                st.markdown("**Thể hình:** " + " | ".join(extra_physical))
+                                st.markdown("**Physique:** " + " | ".join(extra_physical))
                         with info_col2:
-                            st.markdown(f"**CLB:** {club}")
-                            st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
+                            st.markdown(f"**Club:** {club}")
+                            st.markdown(f"**Nation:** {nation} | **League:** {league}")
 
                             if foot or weak_usage or weak_acc or form or injury_res:
                                 if foot:
-                                    st.markdown(f"**Chân thuận:** {foot}")
+                                    st.markdown(f"**Preferred foot:** {foot}")
                                 if weak_usage:
                                     st.markdown(f"**WF Usage:** {weak_usage}")
                                 if weak_acc:
@@ -2307,7 +2307,7 @@ def main():
                                 if form:
                                     st.markdown(f"**Form:** {form}")
                                 if injury_res:
-                                    st.markdown(f"**Chống chấn thương:** {injury_res}")
+                                    st.markdown(f"**Injury Resistance:** {injury_res}")
 
                             rank_info = row.get('Rank_Info', '')
                             if rank_info:
@@ -3076,28 +3076,28 @@ def main():
                                 info_col1, info_col2, info_col3 = st.columns(3)
                                 with info_col1:
                                     st.markdown(f"**Rating:** {rating}")
-                                    st.markdown(f"**Loại:** {player_type}")
-                                    # Thông tin thể chất / khu vực
+                                    st.markdown(f"**Type:** {player_type}")
+                                    # Physical / region info
                                     if region:
                                         st.markdown(f"**Region:** {region}")
                                     extra_physical = []
                                     if age:
-                                        extra_physical.append(f"Tuổi {age}")
+                                        extra_physical.append(f"Age {age}")
                                     size_parts = []
                                     if height:
-                                        size_parts.append(f"{height} cm")
+                                        size_parts.append(f"{height}cm")
                                     if weight:
-                                        size_parts.append(f"{weight} kg")
+                                        size_parts.append(f"{weight}kg")
                                     if size_parts:
                                         extra_physical.append(" / ".join(size_parts))
                                     if extra_physical:
-                                        st.markdown("**Thể hình:** " + " | ".join(extra_physical))
+                                        st.markdown("**Physique:** " + " | ".join(extra_physical))
                                 with info_col2:
-                                    st.markdown(f"**CLB:** {club}")
-                                    st.markdown(f"**Quốc gia:** {nation}")
+                                    st.markdown(f"**Club:** {club}")
+                                    st.markdown(f"**Nation:** {nation}")
                                     if foot or weak_usage or weak_acc or form or injury_res:
                                         if foot:
-                                            st.markdown(f"**Chân thuận:** {foot}")
+                                            st.markdown(f"**Preferred foot:** {foot}")
                                         if weak_usage:
                                             st.markdown(f"**WF Usage:** {weak_usage}")
                                         if weak_acc:
@@ -3105,7 +3105,7 @@ def main():
                                         if form:
                                             st.markdown(f"**Form:** {form}")
                                         if injury_res:
-                                            st.markdown(f"**Chống chấn thương:** {injury_res}")
+                                            st.markdown(f"**Injury Resistance:** {injury_res}")
                                 with info_col3:
                                     st.markdown(f"**League:** {league}")
                                     ranks = []
