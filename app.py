@@ -451,7 +451,10 @@ def load_data_from_gsheet():
         # Ensure required columns
         required_cols = [
             "Player", "Rating", "Position", "Position Style", "Player Type",
-            "Nation", "Club", "League", "Player URL", "Player ID", "Skills", "Added Skills",
+            "Nation", "Club", "League",
+            "Region", "Height", "Weight", "Age", "Foot",
+            "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
+            "Player URL", "Player ID", "Skills", "Added Skills",
         ]
         for col in required_cols:
             if col not in df.columns:
@@ -1317,6 +1320,15 @@ def extract_full_player_info(player_url: str) -> dict:
             'Club': str,
             'League': str,
             'Skills': str,
+            'Region': str,
+            'Height': str,
+            'Weight': str,
+            'Age': str,
+            'Foot': str,
+            'Weak Foot Usage': str,
+            'Weak Foot Accuracy': str,
+            'Form': str,
+            'Injury Resistance': str,
             'Player_Type': str,  # POTW/EPIC/NON-EPIC
         }
     """
@@ -1328,6 +1340,15 @@ def extract_full_player_info(player_url: str) -> dict:
         'Club': '',
         'League': '',
         'Skills': '',
+        'Region': '',
+        'Height': '',
+        'Weight': '',
+        'Age': '',
+        'Foot': '',
+        'Weak Foot Usage': '',
+        'Weak Foot Accuracy': '',
+        'Form': '',
+        'Injury Resistance': '',
         'Player_Type': 'NON-EPIC',
     }
     
@@ -1348,6 +1369,15 @@ def extract_full_player_info(player_url: str) -> dict:
             'Team Name': 'Club',
             'League': 'League',
             'Nationality': 'Nation',
+            'Region': 'Region',
+            'Height': 'Height',
+            'Weight': 'Weight',
+            'Age': 'Age',
+            'Foot': 'Foot',
+            'Weak Foot Usage': 'Weak Foot Usage',
+            'Weak Foot Accuracy': 'Weak Foot Accuracy',
+            'Form': 'Form',
+            'Injury Resistance': 'Injury Resistance',
         }
         
         # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
@@ -1971,20 +2001,64 @@ def main():
         with col4:
             pos_style = st.selectbox("Phong cách", ["Tất cả"] + get_unique_values(df, 'Position Style'))
         
-        # Row 3: Club, Nation, Rating, Epic only
+        # Row 3: Club, Nation, Region, Foot
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             club_filter = st.selectbox("Club", ["Tất cả"] + get_unique_values(df, 'Club'))
         with col2:
             nation_filter = st.selectbox("Nation", ["Tất cả"] + get_unique_values(df, 'Nation'))
         with col3:
+            region_filter = st.selectbox("Region", ["Tất cả"] + get_unique_values(df, 'Region'))
+        with col4:
+            foot_filter = st.selectbox("Chân thuận", ["Tất cả"] + get_unique_values(df, 'Foot'))
+        
+        # Row 4: Rating, Age, Height, Epic only
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
             rmin, rmax = int(df['Rating'].min()), int(df['Rating'].max())
             rating_range = st.slider("Rating", rmin, rmax, (rmin, rmax))
+        with col2:
+            # Age có thể trống, xử lý an toàn
+            if 'Age' in df.columns and df['Age'].astype(str).str.strip().ne('').any():
+                age_numeric = pd.to_numeric(df['Age'], errors='coerce').dropna()
+                if not age_numeric.empty:
+                    amin, amax = int(age_numeric.min()), int(age_numeric.max())
+                    age_range = st.slider("Age", amin, amax, (amin, amax))
+                else:
+                    age_range = None
+            else:
+                age_range = None
+                st.caption("Age: chưa có dữ liệu")
+        with col3:
+            # Height (cm)
+            if 'Height' in df.columns and df['Height'].astype(str).str.strip().ne('').any():
+                h_numeric = pd.to_numeric(df['Height'], errors='coerce').dropna()
+                if not h_numeric.empty:
+                    hmin, hmax = int(h_numeric.min()), int(h_numeric.max())
+                    height_range = st.slider("Height (cm)", hmin, hmax, (hmin, hmax))
+                else:
+                    height_range = None
+            else:
+                height_range = None
+                st.caption("Height: chưa có dữ liệu")
         with col4:
             epic_only = st.checkbox("Chỉ EPIC", value=False)
         
-        # Row 4: Skills search
-        skill_query = st.text_input("Tìm trong Skills", placeholder="vd: Long Range Shooting")
+        # Row 5: Skills + WF / Form filters
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            skill_query = st.text_input("Tìm trong Skills", placeholder="vd: Long Range Shooting")
+        with col2:
+            wf_usage_filter = st.selectbox("WF Usage", ["Tất cả"] + get_unique_values(df, 'Weak Foot Usage'))
+        with col3:
+            wf_acc_filter = st.selectbox("WF Accuracy", ["Tất cả"] + get_unique_values(df, 'Weak Foot Accuracy'))
+        
+        # Row 6: Form, Injury Resistance
+        col1, col2 = st.columns(2)
+        with col1:
+            form_filter = st.selectbox("Form", ["Tất cả"] + get_unique_values(df, 'Form'))
+        with col2:
+            injury_filter = st.selectbox("Chống chấn thương", ["Tất cả"] + get_unique_values(df, 'Injury Resistance'))
         
         # ===== APPLY FILTERS =====
         filtered_df = rec_df.copy()
@@ -2003,14 +2077,35 @@ def main():
             filtered_df = filtered_df[filtered_df['Club'] == club_filter]
         if nation_filter != "Tất cả":
             filtered_df = filtered_df[filtered_df['Nation'] == nation_filter]
+        if region_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Region'] == region_filter]
+        if foot_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Foot'] == foot_filter]
         if pos_style != "Tất cả":
             filtered_df = filtered_df[filtered_df['Position Style'] == pos_style]
         if epic_only:
             filtered_df = filtered_df[filtered_df['Player Type'].astype(str).str.upper() == 'EPIC']
         if skill_query:
             filtered_df = filtered_df[filtered_df['Skills'].astype(str).str.contains(re.escape(skill_query), case=False, na=False)]
+        if wf_usage_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Weak Foot Usage'] == wf_usage_filter]
+        if wf_acc_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Weak Foot Accuracy'] == wf_acc_filter]
+        if form_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Form'] == form_filter]
+        if injury_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Injury Resistance'] == injury_filter]
         
+        # Apply numeric ranges
         filtered_df = filtered_df[(filtered_df['Rating'] >= rating_range[0]) & (filtered_df['Rating'] <= rating_range[1])]
+        if age_range is not None and 'Age' in filtered_df.columns:
+            age_series = pd.to_numeric(filtered_df['Age'], errors='coerce')
+            mask = (age_series >= age_range[0]) & (age_series <= age_range[1])
+            filtered_df = filtered_df[mask]
+        if height_range is not None and 'Height' in filtered_df.columns:
+            h_series = pd.to_numeric(filtered_df['Height'], errors='coerce')
+            mask_h = (h_series >= height_range[0]) & (h_series <= height_range[1])
+            filtered_df = filtered_df[mask_h]
         
         # ===== SORTING =====
         col1, col2 = st.columns([3, 1])
@@ -2034,7 +2129,10 @@ def main():
         # ===== ĐỊNH NGHĨA COLUMNS TRƯỚC (ĐỂ DÙNG CHO EXPORT) =====
         display_columns = [
             'Player', 'Rating', 'Position', 'Position Style', 'Player Type',
-            'Club', 'Nation', 'League', 'Action', 'Reasons', 'Skills'
+            'Club', 'Nation', 'League',
+            'Region', 'Height', 'Weight', 'Age', 'Foot',
+            'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance',
+            'Action', 'Reasons', 'Skills'
         ]
         available_columns = [c for c in display_columns if c in filtered_df.columns]
         
@@ -2051,6 +2149,15 @@ def main():
                 club = row.get('Club', '')
                 nation = row.get('Nation', '')
                 league = row.get('League', '')
+                region = row.get('Region', '')
+                height = row.get('Height', '')
+                weight = row.get('Weight', '')
+                age = row.get('Age', '')
+                foot = row.get('Foot', '')
+                weak_usage = row.get('Weak Foot Usage', '')
+                weak_acc = row.get('Weak Foot Accuracy', '')
+                form = row.get('Form', '')
+                injury_res = row.get('Injury Resistance', '')
                 action = row.get('Action', '')
                 reasons = row.get('Reasons', '')
                 skills = row.get('Skills', '')
@@ -2096,9 +2203,37 @@ def main():
                         with info_col1:
                             st.markdown(f"**Rating:** {rating} | **Vị trí:** {position}")
                             st.markdown(f"**Loại:** {player_type}")
+                        
+                        # Thông tin thể chất / khu vực
+                        if region:
+                            st.markdown(f"**Region:** {region}")
+                        extra_physical = []
+                        if age:
+                            extra_physical.append(f"Tuổi {age}")
+                        size_parts = []
+                        if height:
+                            size_parts.append(f"{height} cm")
+                        if weight:
+                            size_parts.append(f"{weight} kg")
+                        if size_parts:
+                            extra_physical.append(" / ".join(size_parts))
+                        if extra_physical:
+                            st.markdown("**Thể hình:** " + " | ".join(extra_physical))
                         with info_col2:
                             st.markdown(f"**CLB:** {club}")
                             st.markdown(f"**Quốc gia:** {nation} | **League:** {league}")
+
+                        if foot or weak_usage or weak_acc or form or injury_res:
+                            if foot:
+                                st.markdown(f"**Chân thuận:** {foot}")
+                            if weak_usage:
+                                st.markdown(f"**WF Usage:** {weak_usage}")
+                            if weak_acc:
+                                st.markdown(f"**WF Accuracy:** {weak_acc}")
+                            if form:
+                                st.markdown(f"**Form:** {form}")
+                            if injury_res:
+                                st.markdown(f"**Chống chấn thương:** {injury_res}")
 
                             rank_info = row.get('Rank_Info', '')
                             if rank_info:
@@ -2155,6 +2290,15 @@ def main():
                     "Club": st.column_config.TextColumn("Club", width="medium"),
                     "Nation": st.column_config.TextColumn("Nation", width="small"),
                     "League": st.column_config.TextColumn("League", width="small"),
+                    "Region": st.column_config.TextColumn("Region", width="small"),
+                    "Height": st.column_config.TextColumn("Height", width="small"),
+                    "Weight": st.column_config.TextColumn("Weight", width="small"),
+                    "Age": st.column_config.TextColumn("Age", width="small"),
+                    "Foot": st.column_config.TextColumn("Foot", width="small"),
+                    "Weak Foot Usage": st.column_config.TextColumn("WF Usage", width="small"),
+                    "Weak Foot Accuracy": st.column_config.TextColumn("WF Accuracy", width="small"),
+                    "Form": st.column_config.TextColumn("Form", width="small"),
+                    "Injury Resistance": st.column_config.TextColumn("Injury Res.", width="small"),
                     "Action": st.column_config.TextColumn("Hành động", width="small"),
                     "Reasons": st.column_config.TextColumn("Lý do", width="large"),
                     "Skills": st.column_config.TextColumn("Skills", width="large"),
