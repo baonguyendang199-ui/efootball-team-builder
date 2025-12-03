@@ -1929,66 +1929,89 @@ def initialize_session_state():
             st.session_state[k] = v
 
 def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
-    """Đồng bộ lại các field còn thiếu từ PESDB."""
+    """
+    Đồng bộ dữ liệu PESDB (Smart Sync).
+    CHỈ QUÉT những cầu thủ còn thiếu thông tin (Vị trí phụ, Skills, Chiều cao...).
+    Bỏ qua những người đã có đủ dữ liệu để tiết kiệm thời gian.
+    """
     if df.empty or 'Player URL' not in df.columns:
-        st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL để đồng bộ PESDB.")
+        st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL.")
         return df
 
     # Đảm bảo cột tồn tại
     if 'Secondary Positions' not in df.columns:
         df['Secondary Positions'] = ""
 
-    needs_extraction = df[
-        df['Player URL'].astype(str).str.startswith('http')
-        # Quét lại tất cả để update vị trí phụ (bỏ điều kiện lọc cũ để force update)
-    ]
+    # --- BỘ LỌC THÔNG MINH ---
+    # 1. Có URL hợp lệ
+    has_url = df['Player URL'].astype(str).str.startswith('http')
+    
+    # 2. Kiểm tra các trường còn thiếu (Trống hoặc NaN)
+    missing_sec_pos = df['Secondary Positions'].astype(str).str.strip() == ''
+    missing_skills = df['Skills'].astype(str).str.strip() == ''
+    missing_height = df['Height'].astype(str).str.strip() == ''
+    
+    # 3. Lọc ra danh sách cần cập nhật: Có URL VÀ (Thiếu Vị trí phụ HOẶC Thiếu Skills HOẶC Thiếu Chiều cao)
+    needs_extraction = df[has_url & (missing_sec_pos | missing_skills | missing_height)]
 
-    if needs_extraction.empty:
-        st.info("ℹ️ Không có cầu thủ nào để quét.")
+    total_to_process = len(needs_extraction)
+    total_players = len(df)
+
+    if total_to_process == 0:
+        st.success(f"✅ Dữ liệu đã đầy đủ! (Đã kiểm tra {total_players} cầu thủ). Không cần quét thêm.")
         return df
 
+    st.info(f"🔍 Phát hiện **{total_to_process}** cầu thủ thiếu dữ liệu (Vị trí phụ/Skills...). Bắt đầu cập nhật...")
+    
     st.session_state['auto_extracting'] = True
     updated = False
 
-    total_to_process = len(needs_extraction)
-    progress_bar = st.progress(0, text=f"🔄 Đang đồng bộ dữ liệu PESDB cho {total_to_process} cầu thủ...")
+    progress_bar = st.progress(0, text=f"🚀 Đang chuẩn bị...")
     status_box = st.empty()
 
     # Biến đếm
     count = 0
 
+    # Chỉ duyệt qua những dòng cần cập nhật
     for i, row in needs_extraction.iterrows():
         count += 1
         player_name = str(row.get('Player', '') or '').strip()
         
         # Cập nhật thanh tiến trình
         percent = int((count / total_to_process) * 100)
-        status_box.info(f"📡 [{count}/{total_to_process}] Đang quét: **{player_name}**")
+        status_box.info(f"📡 [{count}/{total_to_process}] Đang cập nhật: **{player_name}**")
         progress_bar.progress(percent, text=f"Đang xử lý {percent}%")
 
-        info = extract_full_player_info(row['Player URL'])
-        if not info or not info.get('Player'):
+        try:
+            info = extract_full_player_info(row['Player URL'])
+            
+            if info and info.get('Player'):
+                # Ghi đè dữ liệu mới
+                df.at[i, 'Secondary Positions'] = info.get('Secondary Positions', '')
+                
+                # Cập nhật các cột khác nếu đang thiếu
+                for col in [
+                    'Region', 'Height', 'Weight', 'Age', 'Foot',
+                    'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance', 'Skills'
+                ]:
+                    current_val = str(df.at[i, col]).strip()
+                    if not current_val or current_val == 'nan':
+                        df.at[i, col] = info.get(col, '')
+                
+                updated = True
+                
+        except Exception as e:
+            print(f"Lỗi {player_name}: {e}") # Log nhẹ, không làm phiền UI
             continue
-
-        # Ghi đè dữ liệu
-        df.at[i, 'Secondary Positions'] = info.get('Secondary Positions', '')
-        
-        # Cập nhật các cột khác nếu thiếu
-        for col in [
-            'Region', 'Height', 'Weight', 'Age', 'Foot',
-            'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance', 'Skills'
-        ]:
-            current_val = str(df.at[i, col]).strip()
-            if not current_val or current_val == 'nan':
-                df.at[i, col] = info.get(col, '')
-
-        updated = True
 
     if updated:
         progress_bar.progress(1.0, text="✅ Đang lưu vào Google Sheets...")
         save_data_to_gsheet(df)
         st.cache_data.clear()
-        status_box.success("✅ Đồng bộ hoàn tất! Dữ liệu đã được lưu.")
+        status_box.success(f"✅ Đã cập nhật xong {total_to_process} cầu thủ!")
+        time.sleep(2)
+        status_box.empty()
+        progress_bar.empty()
     
     st.session_state['auto_extracting'] = False
     return df
