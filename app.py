@@ -1192,49 +1192,85 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     return squad_list
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
-    best_score = -1
+    """
+    Tìm sơ đồ tối ưu dựa trên tiêu chí (Sort Mode).
+    - Nếu sort theo Rating: Ưu tiên Rating cao + Có DMF.
+    - Nếu sort theo Chiều cao: Ưu tiên Tổng chiều cao lớn nhất (Bất chấp vị trí).
+    - Nếu sort theo Tuổi: Ưu tiên Tổng tuổi lớn nhất/nhỏ nhất.
+    """
+    best_score = -float('inf') # Điểm thấp vô cùng
     best_squad = []
     best_formation_name = ""
 
+    # Helper: Lấy giá trị số từ chuỗi (vd: "194cm" -> 194.0)
+    def get_numeric_value(player_data, key):
+        try:
+            val_str = str(player_data.get(key, 0))
+            return float(re.sub(r'[^\d.]', '', val_str))
+        except:
+            return 0
+
     # Quét qua toàn bộ sơ đồ
     for form_name in FORMATIONS.keys():
+        # Build thử đội hình
         squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
         
-        # Lấy danh sách 11 cầu thủ đá chính
+        # Chỉ lấy 11 người ĐÁ CHÍNH để tính điểm
         starters = [p for p in squad if p.get('Is_Starter', False)]
         
-        # 1. Tính điểm cơ bản (Tổng Rating)
-        # Chỉ tính những vị trí đã điền được người (Rating > 0)
+        # Đếm số người thực (không phải "---")
         valid_starters = [p for p in starters if p['Rating'] > 0]
-        current_rating = sum([p['Rating'] for p in valid_starters])
+        count_valid = len(valid_starters)
         
-        # Nếu không đủ 11 người đá chính, trừ điểm nặng để tránh chọn đội hình thiếu người
-        if len(valid_starters) < 11:
-            current_rating -= 10000 
-
-        # 2. LOGIC ƯU TIÊN DMF (CỐT LÕI)
-        # Kiểm tra xem trong 11 người đá chính có ai là DMF thật sự không
-        has_real_dmf = any(p['Position'] == 'DMF' and p['Rating'] > 0 for p in starters)
-        
-        # Kiểm tra xem sơ đồ này có yêu cầu vị trí DMF không
-        formation_needs_dmf = "DMF" in FORMATIONS[form_name]
-
-        final_score = current_rating
-
-        if has_real_dmf:
-            # Nếu có DMF thật -> Cộng điểm thưởng cực lớn để ưu tiên tuyệt đối
-            final_score += 1000000 
-        elif formation_needs_dmf and not has_real_dmf:
-            # Nếu sơ đồ cần DMF mà không tìm thấy ai -> Trừ điểm nặng (Sơ đồ vỡ)
-            final_score -= 500000
+        # Nếu đội hình thiếu người đá chính -> Phạt nặng để không chọn
+        if count_valid < 11:
+            current_score = -10000000 
         else:
-            # Trường hợp còn lại: Sơ đồ không cần DMF (CMF only) 
-            # Giữ nguyên điểm Rating. Sẽ chỉ được chọn nếu không có case 1.
-            pass
+            current_score = 0
+            
+            # --- LOGIC TÍNH ĐIỂM DỰA TRÊN TIÊU CHÍ ---
+            
+            # 1. CASE: RATING (MẶC ĐỊNH)
+            if sort_mode == 'rating_desc':
+                # Cộng tổng Rating
+                current_score = sum(p['Rating'] for p in valid_starters)
+                
+                # Ưu tiên DMF (Chỉ áp dụng khi build đội hình mạnh nhất)
+                has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
+                needs_dmf = "DMF" in FORMATIONS[form_name]
+                if has_dmf: current_score += 50000 # Bonus cực lớn cho đội có DMF
+                elif needs_dmf: current_score -= 20000 # Phạt nếu cần DMF mà không có
+            
+            # 2. CASE: CHIỀU CAO (TALLEST / SHORTEST)
+            elif 'height' in sort_mode:
+                total_height = sum(get_numeric_value(p, 'Height') for p in valid_starters)
+                
+                if sort_mode == 'height_desc': # Tallest
+                    current_score = total_height 
+                else: # Shortest (Ưu tiên chiều cao thấp -> Điểm càng thấp càng tốt -> Lấy âm)
+                    current_score = -total_height 
 
-        # Cập nhật nếu tìm thấy phương án tốt hơn
-        if final_score > best_score:
-            best_score = final_score
+            # 3. CASE: CÂN NẶNG (HEAVIEST / LIGHTEST)
+            elif 'weight' in sort_mode:
+                total_weight = sum(get_numeric_value(p, 'Weight') for p in valid_starters)
+                
+                if sort_mode == 'weight_desc': 
+                    current_score = total_weight
+                else: 
+                    current_score = -total_weight
+
+            # 4. CASE: TUỔI (OLDEST / YOUNGEST)
+            elif 'age' in sort_mode:
+                total_age = sum(get_numeric_value(p, 'Age') for p in valid_starters)
+                
+                if sort_mode == 'age_desc': # Oldest
+                    current_score = total_age
+                else: # Youngest
+                    current_score = -total_age
+
+        # So sánh và cập nhật Best Team
+        if current_score > best_score:
+            best_score = current_score
             best_squad = squad
             best_formation_name = form_name
             
