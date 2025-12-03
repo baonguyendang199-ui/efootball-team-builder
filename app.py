@@ -3958,7 +3958,100 @@ def main():
                             st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
 
     elif current_tab == 'squad':
-        st.header("⚽ Đội hình")
+        st.header("⚽ Quản lý Đội hình")
+
+        # TẠO 2 TAB CON
+        sq_tab1, sq_tab2 = st.tabs(["🤖 Auto Build Best XI (Mới)", "🛠️ Đội hình 23 (Thủ công)"])
+
+        # =========================================================
+        # TAB 1: AUTO BUILD (TÍNH NĂNG MỚI)
+        # =========================================================
+        with sq_tab1:
+            st.caption("🤖 Tự động lắp ghép đội hình 11 người mạnh nhất theo sơ đồ.")
+            
+            with st.container(border=True):
+                c1, c2, c3 = st.columns(3)
+                
+                with c1:
+                    st.markdown("##### 1. Chọn Sơ đồ")
+                    sel_formation = st.selectbox(
+                        "Chiến thuật", 
+                        options=list(FORMATIONS.keys()),
+                        index=0
+                    )
+                
+                with c2:
+                    st.markdown("##### 2. Tiêu chí")
+                    build_mode = st.radio("Chế độ:", ["Theo Team/Giải", "Theo Chỉ số"], horizontal=True)
+                    
+                    filter_col = None
+                    filter_val = None
+                    sort_mode = 'rating_desc'
+
+                    if build_mode == "Theo Team/Giải":
+                        team_type = st.selectbox("Lọc theo:", ["(Toàn bộ)", "Club", "Nation", "League", "Region"])
+                        if team_type != "(Toàn bộ)":
+                            # Lấy danh sách options tương ứng
+                            opts = sorted([x for x in df[team_type].unique() if str(x).strip()])
+                            filter_val = st.selectbox(f"Chọn {team_type}:", ["(Tất cả)"] + opts)
+                            filter_col = team_type
+                    else:
+                        stat_type = st.selectbox("Loại chỉ số:", [
+                            "⭐ Rating cao nhất", 
+                            "🦒 Chiều cao tốt nhất", 
+                            "🐜 Chiều cao thấp nhất",
+                            "⚖️ Cân nặng lớn nhất",
+                            "👶 Tuổi trẻ nhất"
+                        ])
+                        if "Rating" in stat_type: sort_mode = 'rating_desc'
+                        elif "cao tốt" in stat_type: sort_mode = 'height_desc'
+                        elif "thấp nhất" in stat_type: sort_mode = 'height_asc'
+                        elif "Cân nặng" in stat_type: sort_mode = 'weight_desc'
+                        elif "Tuổi" in stat_type: sort_mode = 'age_asc'
+
+                with c3:
+                    st.markdown("##### 3. Kích hoạt")
+                    st.write("")
+                    if st.button("🚀 Xây đội hình ngay", type="primary", use_container_width=True):
+                        st.session_state['run_auto_build'] = True
+
+            # Hiển thị kết quả
+            if st.session_state.get('run_auto_build'):
+                with st.spinner("🤖 Đang tính toán đội hình tối ưu..."):
+                    best_squad = auto_build_squad(df, sel_formation, sort_mode, filter_col, filter_val)
+                
+                if not best_squad:
+                    st.warning("⚠️ Không tìm thấy cầu thủ phù hợp!")
+                else:
+                    # Metrics
+                    valid_p = [p for p in best_squad if p['Rating'] > 0]
+                    t_rat = sum(p['Rating'] for p in valid_p)
+                    a_rat = t_rat / 11 if valid_p else 0
+                    
+                    m1, m2, m3 = st.columns(3)
+                    with m1: st.metric("Sức mạnh đội bóng", t_rat)
+                    with m2: st.metric("Rating TB", f"{a_rat:.1f}")
+                    with m3: st.metric("Số cầu thủ", f"{len(valid_p)}/11")
+                    
+                    st.divider()
+                    
+                    # Pitch View & Table
+                    col_view1, col_view2 = st.columns([1.2, 1])
+                    with col_view1:
+                        st.subheader("📍 Sơ đồ thi đấu")
+                        render_pitch_view(best_squad)
+                    
+                    with col_view2:
+                        st.subheader("📋 Chi tiết")
+                        s_df = pd.DataFrame(best_squad)
+                        cols_show = [c for c in ['Position', 'Player', 'Rating', 'Club', 'Height', 'Age'] if c in s_df.columns]
+                        st.dataframe(s_df[cols_show], hide_index=True, use_container_width=True, height=750)
+
+        # =========================================================
+        # TAB 2: MANUAL BUILD (CODE CŨ GIỮ NGUYÊN)
+        # =========================================================
+        with sq_tab2:
+            st.caption("🛠️ Chế độ xây dựng đội hình 23 người (Cũ).")        
         
         # Chọn nhóm theo Club / Nation / League / Region
         g1, g2 = st.columns(2)
