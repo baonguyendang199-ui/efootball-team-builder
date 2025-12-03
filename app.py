@@ -1925,13 +1925,6 @@ def initialize_session_state():
         if k not in st.session_state:
             st.session_state[k] = v
 
-    # --- HÀM ĐỒNG BỘ PESDB CHO CẦU THỦ CŨ (THỦ CÔNG) ---
-def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
-    """Đồng bộ lại các field còn thiếu (Region, Height, Age, Foot, WF, Form, Injury, Skills) từ PESDB cho cầu thủ có Player URL."""
-    if df.empty or 'Player URL' not in df.columns:
-        st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL để đồng bộ PESDB.")
-        return df
-
 # --- MAIN APP ---
 def main():
     initialize_session_state()
@@ -2049,6 +2042,13 @@ def main():
 
     # Tự động cập nhật target lists dựa trên player count
     auto_update_target_lists(df)
+
+    # --- HÀM ĐỒNG BỘ PESDB CHO CẦU THỦ CŨ (THỦ CÔNG) ---
+    def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
+        """Đồng bộ lại các field còn thiếu (Region, Height, Age, Foot, WF, Form, Injury, Skills) từ PESDB cho cầu thủ có Player URL."""
+        if df.empty or 'Player URL' not in df.columns:
+            st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL để đồng bộ PESDB.")
+            return df
 
         needs_extraction = df[
             df['Player URL'].astype(str).str.startswith('http')
