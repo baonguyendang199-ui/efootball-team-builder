@@ -1068,69 +1068,107 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 # 3. Hàm vẽ sơ đồ sân bóng
 def render_pitch_view(squad_list):
     """
-    Vẽ sơ đồ sân bóng sử dụng Iframe (Bảo đảm không lỗi hiển thị Text).
-    CẬP NHẬT: CMF và DMF đứng ngang hàng nhau (Flat Midfield).
+    Vẽ sơ đồ sân bóng với tư duy chiến thuật Efootball (Smart Positioning).
+    - Tự động dàn quân theo số lượng (1 người -> giữa, 2 người -> dãn biên).
+    - Phân tầng độ cao rõ rệt: DMF thấp nhất, AMF cao nhất.
     """
     import streamlit.components.v1 as components
     
-    # 1. Định nghĩa độ sâu (Trục Y - Từ trên xuống dưới 0-100%)
-    DEPTH_MAP = {
-        'CF': 12, 
-        'SS': 20,
+    # --- 1. ĐỊNH NGHĨA ĐỘ SÂU CHIẾN THUẬT (TRỤC Y) ---
+    # Càng nhỏ càng gần khung thành đối phương (trên cùng)
+    Y_COORDS = {
+        'CF': 10,  'SS': 18,
         'LWF': 18, 'RWF': 18,
-        'AMF': 32,
+        'AMF': 30,
         'LMF': 40, 'RMF': 40, 
-        
-        # --- CẬP NHẬT: CMF VÀ DMF NGANG NHAU ---
-        'CMF': 55, 
-        'DMF': 55,
-        # ---------------------------------------
-        
-        'LB': 75, 'RB': 75, 'CB': 80,
-        'GK': 92
+        'CMF': 48, # CMF đá cao hơn DMF
+        'DMF': 62, # DMF đá thấp nhất hàng tiền vệ
+        'LB': 75,  'RB': 75, 
+        'CB': 82,
+        'GK': 93
     }
 
-    # 2. Phân loại cầu thủ để tính toán trục X (Ngang)
-    LEFT_SIDE = ['LWF', 'LMF', 'LB']
-    RIGHT_SIDE = ['RWF', 'RMF', 'RB']
-    
-    # Gom nhóm cầu thủ theo Role
-    role_groups = {}
+    # --- 2. PHÂN LOẠI NHÓM ĐỂ TÍNH TRỤC X ---
+    # Các nhóm này sẽ được dàn hàng ngang riêng biệt
+    groups = {
+        'GK': [],
+        'DEF': [], # CB
+        'SIDE_DEF': [], # LB/RB
+        'DM': [],  # DMF
+        'CM': [],  # CMF
+        'SIDE_MID': [], # LMF/RMF
+        'AM': [],  # AMF
+        'SIDE_FWD': [], # LWF/RWF
+        'FWD': []  # CF/SS
+    }
+
+    # Gom cầu thủ vào nhóm
     for p in squad_list:
         pos = p['Position']
-        if pos not in role_groups: role_groups[pos] = []
-        role_groups[pos].append(p)
+        if pos == 'GK': groups['GK'].append(p)
+        elif pos == 'CB': groups['DEF'].append(p)
+        elif pos in ['LB', 'RB']: groups['SIDE_DEF'].append(p)
+        elif pos == 'DMF': groups['DM'].append(p)
+        elif pos == 'CMF': groups['CM'].append(p)
+        elif pos in ['LMF', 'RMF']: groups['SIDE_MID'].append(p)
+        elif pos == 'AMF': groups['AM'].append(p)
+        elif pos in ['LWF', 'RWF']: groups['SIDE_FWD'].append(p)
+        elif pos in ['CF', 'SS']: groups['FWD'].append(p)
 
     final_cards_html = ""
 
-    for pos, players in role_groups.items():
+    # --- 3. THUẬT TOÁN DÀN QUÂN (SMART SPREAD) ---
+    for group_name, players in groups.items():
         count = len(players)
-        top = DEPTH_MAP.get(pos, 50)
-        
+        if count == 0: continue
+
+        # Sắp xếp để đảm bảo: LB luôn bên trái, RB luôn bên phải...
+        # Thứ tự ưu tiên trái sang phải: 
+        # LB < CB < RB
+        # LWF < SS < CF < RWF
+        sort_order = {
+            'LB': 1, 'CB': 2, 'RB': 3,
+            'LMF': 1, 'DMF': 2, 'CMF': 3, 'AMF': 4, 'RMF': 5,
+            'LWF': 1, 'SS': 2, 'CF': 3, 'RWF': 4
+        }
+        # Sort ổn định theo index gốc nếu cùng vị trí (để giữ thứ tự ưu tiên rating)
+        # Tuy nhiên, cần sort theo logic trái phải nếu vị trí khác nhau
+        players.sort(key=lambda x: sort_order.get(x['Position'], 99))
+
         for i, p in enumerate(players):
-            # Tính toán Left (X)
-            left = 50 
-            if pos in LEFT_SIDE: left = 15
-            elif pos in RIGHT_SIDE: left = 85
+            pos = p['Position']
+            top = Y_COORDS.get(pos, 50)
+            
+            # Xử lý tọa độ X (Left)
+            left = 50 # Mặc định giữa
+
+            # === LOGIC CỐ ĐỊNH CÁNH (LUÔN BÁM BIÊN) ===
+            if pos in ['LB', 'LMF', 'LWF']: 
+                left = 15
+            elif pos in ['RB', 'RMF', 'RWF']: 
+                left = 85
+            
+            # === LOGIC DÀN TRUNG TÂM (CB, DMF, CMF, AMF, CF, SS) ===
             else:
-                # Dàn đều các vị trí trung tâm
-                if count == 1: left = 50
-                elif count == 2: left = 35 if i == 0 else 65
-                elif count == 3: 
+                if count == 1:
+                    left = 50 # Đứng giữa (VD: 1 DMF trong 4-3-3)
+                elif count == 2:
+                    left = 35 if i == 0 else 65 # Dàn 2 bên (VD: 2 DMF trong 4-2-1-3)
+                elif count == 3:
                     if i == 0: left = 30
                     elif i == 1: left = 50
-                    else: left = 70
-                elif count == 4: left = 20 + (i * 20)
-            
-            # Nội dung thẻ
+                    else: left = 70 # Dàn 3 người (VD: 3 CMF, 3 CB)
+                elif count == 4:
+                    left = 20 + (i * 20) # Trường hợp hiếm (4 CB)
+
+            # --- RENDER THẺ HTML ---
             player_name = p['Player']
             if player_name == "---":
-                # Thẻ trống
                 card_html = f"""
                 <div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%);
-                    width: 80px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 6px; border: 1px solid #555;
-                    display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 10px; z-index: 5;">
-                    Trống
+                    width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #777;
+                    display: flex; align-items: center; justify-content: center; color: #888; font-size: 10px; z-index: 5;">
+                    <div style="text-align:center;">{pos}<br>Trống</div>
                 </div>
                 """
             else:
@@ -1138,71 +1176,70 @@ def render_pitch_view(squad_list):
                 border_color = "#f59e0b" if "EPIC" in ptype else ("#a855f7" if "POTW" in ptype else "#3b82f6")
                 
                 img_src = p['Image']
-                img_tag = f"<img src='{img_src}' style='width:50px;height:auto;margin-bottom:4px;display:block;'>" if img_src else "<div style='font-size:24px;margin-bottom:4px;'>👤</div>"
+                # Xử lý ảnh: Nếu có ảnh thì hiện, không có thì hiện icon, thêm onerror để fallback
+                img_tag = f"""<img src='{img_src}' style='width:48px;height:auto;margin-bottom:3px;display:block;' 
+                              onerror="this.onerror=null;this.src='https://pesdb.net/assets/img/card/f0.png';this.style.display='none';this.nextElementSibling.style.display='block';">
+                              <div style='font-size:24px;margin-bottom:3px;display:none;'>👤</div>""" if img_src else "<div style='font-size:24px;margin-bottom:3px;'>👤</div>"
                 
-                # Thẻ cầu thủ
                 card_html = f"""
                 <div style="
                     position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%);
-                    width: 85px; padding: 6px 2px;
+                    width: 85px; padding: 4px 2px;
                     display: flex; flex-direction: column; align-items: center;
-                    background: rgba(15, 23, 42, 0.95);
-                    border: 2px solid {border_color}; border-radius: 8px;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.8);
-                    z-index: 10; cursor: pointer; transition: transform 0.2s;
-                " onmouseover="this.style.transform='translate(-50%, -50%) scale(1.1)'" 
-                  onmouseout="this.style.transform='translate(-50%, -50%) scale(1)'">
+                    background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%);
+                    border: 1px solid {border_color}; border-radius: 6px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                    z-index: 10; cursor: pointer; transition: all 0.2s ease;
+                " onmouseover="this.style.transform='translate(-50%, -50%) scale(1.15)'; this.style.zIndex='100';" 
+                  onmouseout="this.style.transform='translate(-50%, -50%) scale(1)'; this.style.zIndex='10';">
                     
                     {img_tag}
                     
-                    <div style="font-family: sans-serif; font-size: 11px; font-weight: bold; color: white; 
-                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center;
+                    <div style="font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; color: white; 
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 95%; text-align: center;
                         text-shadow: 1px 1px 2px black; margin-bottom: 2px;">
                         {player_name}
                     </div>
                     
-                    <div style="font-family: sans-serif; font-size: 10px; color: #e2e8f0; background: rgba(255,255,255,0.15); 
-                        padding: 1px 6px; border-radius: 4px;">
-                        {pos} <span style="color:{border_color}">★</span> {p['Rating']}
+                    <div style="display:flex; gap:3px; align-items:center;">
+                        <div style="font-family: sans-serif; font-size: 9px; font-weight:bold; color: #cbd5e1; background: rgba(255,255,255,0.1); 
+                            padding: 1px 4px; border-radius: 3px;">{pos}</div>
+                        <div style="font-family: sans-serif; font-size: 10px; font-weight:bold; color: {border_color};">
+                            {p['Rating']}
+                        </div>
                     </div>
                 </div>
                 """
             final_cards_html += card_html
 
-    # 3. Tạo HTML hoàn chỉnh
+    # --- 4. RENDER COMPONENT ---
     css = """
     <style>
-        body { margin: 0; padding: 0; background: transparent; }
+        body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
         .pitch-container {
-            position: relative;
-            width: 100%;
-            height: 780px;
-            background: linear-gradient(180deg, #1a4d2e 0%, #14532d 50%, #052e16 100%);
-            border: 3px solid rgba(255,255,255,0.8);
-            border-radius: 16px;
-            box-shadow: inset 0 0 80px rgba(0,0,0,0.6);
-            overflow: hidden;
+            position: relative; width: 100%; height: 750px;
+            background: linear-gradient(180deg, #1e5631 0%, #14532d 40%, #064e3b 100%);
+            border: 2px solid rgba(255,255,255,0.7); border-radius: 12px;
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
         }
-        /* Cỏ sọc */
-        .pitch-overlay {
+        /* Họa tiết cỏ */
+        .grass-pattern {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0,0,0,0.1) 50px, rgba(0,0,0,0.1) 100px);
-            z-index: 1;
+            background-image: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0,0,0,0.08) 50px, rgba(0,0,0,0.08) 100px);
+            z-index: 1; pointer-events: none;
         }
-        .pitch-lines {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
-        }
-        .line-white { position: absolute; background: rgba(255,255,255,0.5); }
-        .border-white { position: absolute; border: 2px solid rgba(255,255,255,0.5); }
+        /* Vạch sơn */
+        .lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        .line { position: absolute; background: rgba(255,255,255,0.4); }
+        .border-line { position: absolute; border: 2px solid rgba(255,255,255,0.4); }
         
-        /* Giữa sân */
         .center-line { top: 50%; left: 0; width: 100%; height: 2px; }
         .center-circle { top: 50%; left: 50%; width: 120px; height: 120px; border-radius: 50%; transform: translate(-50%, -50%); }
-        .center-dot { top: 50%; left: 50%; width: 8px; height: 8px; background: white; border-radius: 50%; transform: translate(-50%, -50%); }
-        
-        /* Vòng cấm */
-        .box-top { top: 0; left: 50%; width: 40%; height: 16%; border-top: none; transform: translateX(-50%); }
-        .box-bottom { bottom: 0; left: 50%; width: 40%; height: 16%; border-bottom: none; transform: translateX(-50%); }
+        .center-dot { top: 50%; left: 50%; width: 6px; height: 6px; background: rgba(255,255,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); }
+        .box-top { top: 0; left: 50%; width: 45%; height: 15%; border-top: none; transform: translateX(-50%); }
+        .box-bottom { bottom: 0; left: 50%; width: 45%; height: 15%; border-bottom: none; transform: translateX(-50%); }
+        .goal-top { top: 0; left: 50%; width: 20%; height: 5%; border-top: none; transform: translateX(-50%); }
+        .goal-bottom { bottom: 0; left: 50%; width: 20%; height: 5%; border-bottom: none; transform: translateX(-50%); }
     </style>
     """
 
@@ -1212,25 +1249,23 @@ def render_pitch_view(squad_list):
     <head>{css}</head>
     <body>
         <div class="pitch-container">
-            <div class="pitch-overlay"></div>
-            
-            <div class="pitch-lines">
-                <div class="line-white center-line"></div>
-                <div class="border-white center-circle"></div>
-                <div class="line-white center-dot"></div>
-                <div class="border-white box-top"></div>
-                <div class="border-white box-bottom"></div>
+            <div class="grass-pattern"></div>
+            <div class="lines">
+                <div class="line center-line"></div>
+                <div class="border-line center-circle"></div>
+                <div class="line center-dot"></div>
+                <div class="border-line box-top"></div>
+                <div class="border-line box-bottom"></div>
+                <div class="border-line goal-top"></div>
+                <div class="border-line goal-bottom"></div>
             </div>
-            
-            <!-- Cards -->
             {final_cards_html}
         </div>
     </body>
     </html>
     """
     
-    # RENDER BẰNG COMPONENTS (IFRAME)
-    components.html(html_content, height=800, scrolling=False)
+    components.html(html_content, height=760, scrolling=False)
 
 # ==========================================
 # KẾT THÚC BƯỚC 1
