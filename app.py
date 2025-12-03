@@ -1082,51 +1082,59 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     pool_df = df.copy()
     
     # 1. Chuyển đổi số liệu thể chất
-    if 'Height' in pool_df.columns:
-        pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
-    if 'Weight' in pool_df.columns:
-        pool_df['Weight_num'] = pd.to_numeric(pool_df['Weight'], errors='coerce').fillna(0)
-    if 'Age' in pool_df.columns:
-        pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
+    if 'Height' in pool_df.columns: pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
+    if 'Weight' in pool_df.columns: pool_df['Weight_num'] = pd.to_numeric(pool_df['Weight'], errors='coerce').fillna(0)
+    if 'Age' in pool_df.columns: pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
+    
+    # Đảm bảo cột Secondary Positions tồn tại (để tránh lỗi nếu chưa sync dữ liệu)
+    if 'Secondary Positions' not in pool_df.columns:
+        pool_df['Secondary Positions'] = ""
+    else:
+        pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str)
 
-    # 2. Lọc theo bộ lọc (Team/Nation/...)
+    # 2. Lọc dữ liệu
     if filter_col and filter_val and filter_val != "(Tất cả)":
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
         
-    if pool_df.empty:
-        return []
+    if pool_df.empty: return []
 
-    # 3. Sắp xếp theo tiêu chí (Strategy)
-    if sort_mode == 'rating_desc':
-        pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
-    elif sort_mode == 'height_desc': 
-        pool_df = pool_df.sort_values(['Height_num', 'Rating'], ascending=[False, False])
-    elif sort_mode == 'height_asc': 
-        pool_df = pool_df.sort_values(['Height_num', 'Rating'], ascending=[True, False])
-    elif sort_mode == 'weight_desc': 
-        pool_df = pool_df.sort_values(['Weight_num', 'Rating'], ascending=[False, False])
-    elif sort_mode == 'weight_asc': 
-        pool_df = pool_df.sort_values(['Weight_num', 'Rating'], ascending=[True, False])
-    elif sort_mode == 'age_asc': 
-        pool_df = pool_df.sort_values(['Age_num', 'Rating'], ascending=[True, False])
-    elif sort_mode == 'age_desc': 
-        pool_df = pool_df.sort_values(['Age_num', 'Rating'], ascending=[False, False])
+    # 3. Sắp xếp
+    if sort_mode == 'rating_desc': pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+    elif sort_mode == 'height_desc': pool_df = pool_df.sort_values(['Height_num', 'Rating'], ascending=[False, False])
+    elif sort_mode == 'height_asc': pool_df = pool_df.sort_values(['Height_num', 'Rating'], ascending=[True, False])
+    elif sort_mode == 'weight_desc': pool_df = pool_df.sort_values(['Weight_num', 'Rating'], ascending=[False, False])
+    elif sort_mode == 'weight_asc': pool_df = pool_df.sort_values(['Weight_num', 'Rating'], ascending=[True, False])
+    elif sort_mode == 'age_asc': pool_df = pool_df.sort_values(['Age_num', 'Rating'], ascending=[True, False])
+    elif sort_mode == 'age_desc': pool_df = pool_df.sort_values(['Age_num', 'Rating'], ascending=[False, False])
     
     squad_list = []
     used_indices = set()
     required_positions = FORMATIONS.get(formation_name, [])
     
-    # --- PHASE 1: CHỌN ĐỘI HÌNH CHÍNH (STARTING XI) ---
+    # --- PHASE 1: CHỌN ĐỘI HÌNH CHÍNH (THÔNG MINH) ---
     for pos_req in required_positions:
-        candidates = pool_df[
+        best_player = None
+        
+        # ƯU TIÊN 1: Tìm người có Vị Trí Chính trùng khớp
+        candidates_main = pool_df[
             (pool_df['Position'] == pos_req) & 
             (~pool_df.index.isin(used_indices))
         ]
         
-        if not candidates.empty:
-            best_player = candidates.iloc[0]
-            
-            # Lấy ảnh
+        if not candidates_main.empty:
+            best_player = candidates_main.iloc[0]
+        else:
+            # ƯU TIÊN 2: Tìm người có Vị Trí Phụ trùng khớp
+            # (Ví dụ: Cần CF, tìm không thấy -> Tìm ông nào có Secondary Positions chứa "CF")
+            candidates_sub = pool_df[
+                (pool_df['Secondary Positions'].str.contains(fr'\b{pos_req}\b', regex=True, na=False)) & 
+                (~pool_df.index.isin(used_indices))
+            ]
+            if not candidates_sub.empty:
+                best_player = candidates_sub.iloc[0]
+
+        # Thêm vào đội hình
+        if best_player is not None:
             pid = str(best_player.get('Player ID', '')).strip()
             purl = str(best_player.get('Player URL', '')).strip()
             if not pid and purl:
@@ -1135,8 +1143,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
             squad_list.append({
-                "Is_Starter": True, # Đánh dấu đá chính
-                "Position": pos_req,
+                "Is_Starter": True,
+                "Position": pos_req, # Vị trí trong sơ đồ
+                "Real_Position": best_player['Position'], # Vị trí gốc của cầu thủ
                 "Player": best_player['Player'],
                 "Rating": best_player['Rating'],
                 "Type": best_player['Player Type'],
@@ -1150,24 +1159,17 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             })
             used_indices.add(best_player.name)
         else:
-            # Thiếu người đá chính
             squad_list.append({
                 "Is_Starter": True, "Position": pos_req, "Player": "---", "Rating": 0, "Type": "N/A", "Image": None
             })
 
-    # --- PHASE 2: CHỌN DỰ BỊ (SUBS) - LẤY 12 NGƯỜI TỐT NHẤT CÒN LẠI ---
+    # --- PHASE 2: CHỌN DỰ BỊ (12 NGƯỜI CÒN LẠI) ---
     TARGET_SQUAD_SIZE = 23
     remaining_slots = TARGET_SQUAD_SIZE - len(squad_list)
     
     if remaining_slots > 0:
-        # Lấy danh sách cầu thủ chưa được chọn (vẫn giữ thứ tự sort theo tiêu chí)
-        bench_candidates = pool_df[~pool_df.index.isin(used_indices)]
-        
-        # Lấy top N người
-        bench_picks = bench_candidates.head(remaining_slots)
-        
+        bench_picks = pool_df[~pool_df.index.isin(used_indices)].head(remaining_slots)
         for _, row in bench_picks.iterrows():
-            # Lấy ảnh
             pid = str(row.get('Player ID', '')).strip()
             purl = str(row.get('Player URL', '')).strip()
             if not pid and purl:
@@ -1176,8 +1178,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
             squad_list.append({
-                "Is_Starter": False, # Đánh dấu dự bị
-                "Position": row['Position'], # Giữ nguyên vị trí gốc
+                "Is_Starter": False,
+                "Position": row['Position'],
+                "Real_Position": row['Position'],
                 "Player": row['Player'],
                 "Rating": row['Rating'],
                 "Type": row['Player Type'],
@@ -1749,6 +1752,36 @@ def extract_max_level_rating(player_url: str, card_type: str = None, base_html: 
     except Exception:
         return 0
 
+def extract_secondary_positions(soup, main_position):
+    """
+    Trích xuất vị trí phụ từ sơ đồ sân bóng (div class='pitch').
+    Loại bỏ vị trí chính khỏi danh sách.
+    """
+    try:
+        pitch_div = soup.find('div', class_='pitch')
+        if not pitch_div: return ""
+        
+        # Danh sách mã vị trí hợp lệ trong game
+        VALID_POS = ['GK','CB','LB','RB','DMF','CMF','LMF','RMF','AMF','LWF','RWF','SS','CF']
+        found_pos = set()
+        
+        # Chuẩn hóa vị trí chính (ví dụ: " AMF " -> "AMF")
+        main_pos_norm = str(main_position).strip().upper()
+        
+        # Quét tất cả các div con (đại diện cho các chấm trên sân)
+        for div in pitch_div.find_all('div'):
+            classes = div.get('class', [])
+            for c in classes:
+                c_upper = c.upper()
+                # Nếu là mã vị trí VÀ không trùng với vị trí chính
+                if c_upper in VALID_POS and c_upper != main_pos_norm:
+                    found_pos.add(c_upper)
+                    
+        # Trả về chuỗi sắp xếp, ví dụ: "CF, CMF, LWF, RWF, SS"
+        return ", ".join(sorted(list(found_pos)))
+    except Exception as e:
+        return ""
+
 def extract_full_player_info(player_url: str) -> dict:
     """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB
     
@@ -1835,11 +1868,26 @@ def extract_full_player_info(player_url: str) -> dict:
                     field_name = field_mapping[key]
                     info[field_name] = value
                 
+                # ... (Phần trên giữ nguyên) ...
+
                 # Xử lý Position đặc biệt
                 if key == 'Position':
                     pos_div = td.find('div', title=True)
                     if pos_div:
                         info['Position'] = pos_div.get_text(strip=True)
+        
+        # === THÊM ĐOẠN NÀY VÀO ===
+        # Lấy vị trí phụ từ sơ đồ sân bóng
+        info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
+        # =========================
+
+        # Lấy Skills
+        info['Skills'] = extract_player_skills(player_url)
+        
+        # Lấy Player Type
+        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
+        
+        # ... (Phần dưới giữ nguyên) ...
         
         # Lấy Skills
         info['Skills'] = extract_player_skills(player_url)
