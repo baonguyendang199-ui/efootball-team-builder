@@ -1069,9 +1069,11 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list):
     """
     Vẽ sơ đồ sân bóng.
-    FIX LỖI: Đã nhân đôi dấu ngoặc nhọn {{ }} trong CSS để tương thích với f-string Python.
+    FIX LỖI: Sử dụng st.markdown(..., unsafe_allow_html=True) để hiển thị hình ảnh thay vì text.
+    Đã xử lý xung đột ngoặc nhọn {{ }} trong CSS.
     """
     
+    # 1. Định nghĩa độ sâu (Trục Y - Từ trên xuống dưới 0-100%)
     DEPTH_MAP = {
         'CF': 12, 'SS': 20,
         'LWF': 18, 'RWF': 18,
@@ -1082,9 +1084,11 @@ def render_pitch_view(squad_list):
         'GK': 93
     }
 
+    # 2. Phân loại cầu thủ để tính toán trục X (Ngang)
     LEFT_SIDE = ['LWF', 'LMF', 'LB']
     RIGHT_SIDE = ['RWF', 'RMF', 'RB']
     
+    # Gom nhóm cầu thủ theo Role
     role_groups = {}
     for p in squad_list:
         pos = p['Position']
@@ -1098,15 +1102,23 @@ def render_pitch_view(squad_list):
         top = DEPTH_MAP.get(pos, 50)
         
         for i, p in enumerate(players):
+            # Tính toán Left (X)
             left = 50 
-            if pos in LEFT_SIDE: left = 15
-            elif pos in RIGHT_SIDE: left = 85
+            if pos in LEFT_SIDE:
+                left = 15
+            elif pos in RIGHT_SIDE:
+                left = 85
             else:
+                # Dàn đều các vị trí trung tâm
                 if count == 1: left = 50
                 elif count == 2: left = 35 if i == 0 else 65
-                elif count == 3: left = 30 if i == 0 else (50 if i == 1 else 70)
+                elif count == 3: 
+                    if i == 0: left = 30
+                    elif i == 1: left = 50
+                    else: left = 70
                 elif count == 4: left = 20 + (i * 20)
             
+            # Nội dung thẻ
             player_name = p['Player']
             if player_name == "---":
                 card_inner = """
@@ -1117,8 +1129,13 @@ def render_pitch_view(squad_list):
             else:
                 ptype = str(p['Type']).upper()
                 border_color = "#f59e0b" if "EPIC" in ptype else ("#a855f7" if "POTW" in ptype else "#3b82f6")
+                
                 img_src = p['Image']
-                img_html = f"<img src='{img_src}' style='width:45px;height:auto;margin-bottom:2px;display:block;'>" if img_src else "<div style='font-size:20px;margin-bottom:2px;'>👤</div>"
+                if img_src:
+                    # Thêm display:block để tránh lỗi layout ảnh
+                    img_html = f"<img src='{img_src}' style='width:45px;height:auto;margin-bottom:2px;display:block;'>"
+                else:
+                    img_html = "<div style='font-size:20px;margin-bottom:2px;'>👤</div>"
                 
                 card_inner = f"""
                 {img_html}
@@ -1130,6 +1147,7 @@ def render_pitch_view(squad_list):
                 </div>
                 """
 
+            # HTML tuyệt đối cho từng thẻ
             final_cards_html += f"""
             <div style="
                 position: absolute;
@@ -1146,7 +1164,8 @@ def render_pitch_view(squad_list):
             </div>
             """
 
-    # --- LƯU Ý: ĐÃ SỬA CÁC DẤU {{ VÀ }} TRONG STYLE ---
+    # 3. Gói tất cả vào Container Sân Bóng và render bằng st.markdown
+    # LƯU Ý: Dấu ngoặc nhọn trong style CSS phải nhân đôi {{ }} để không bị lỗi f-string
     full_html = f"""
     <style>
     .pitch-wrapper {{
@@ -1166,14 +1185,21 @@ def render_pitch_view(squad_list):
     </style>
 
     <div class="pitch-wrapper">
+        <!-- Vạch giữa sân -->
         <div class="pitch-line" style="top:50%;left:0;width:100%;height:2px;"></div>
+        <!-- Vòng tròn giữa sân -->
         <div class="pitch-circle" style="top:50%;left:50%;transform:translate(-50%,-50%);width:100px;height:100px;"></div>
+        <!-- Vòng 16m50 trên -->
         <div class="pitch-box" style="top:0;left:50%;transform:translateX(-50%);width:50%;height:16%;border-top:none;"></div>
+        <!-- Vòng 16m50 dưới -->
         <div class="pitch-box" style="bottom:0;left:50%;transform:translateX(-50%);width:50%;height:16%;border-bottom:none;"></div>
+        
+        <!-- CÁC THẺ CẦU THỦ -->
         {final_cards_html}
     </div>
     """
     
+    # --- QUAN TRỌNG: DÒNG NÀY GIÚP HIỂN THỊ HTML THÀNH HÌNH ẢNH ---
     st.markdown(full_html, unsafe_allow_html=True)
 
 # ==========================================
