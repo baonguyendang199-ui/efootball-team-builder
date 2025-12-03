@@ -4387,15 +4387,6 @@ def main():
                 
                 # --- HIỂN THỊ ---
                 col_view1, col_view2 = st.columns([1.3, 1]) 
-                
-                with col_view1:
-                    st.caption("📍 Sơ đồ Đá chính (11)")
-                    # Xác định loại chỉ số để truyền vào hàm vẽ
-                metric_to_show = None
-                if build_mode == "Theo Chỉ số":
-                    if "Cao" in stat_type or "Thấp" in stat_type: metric_to_show = 'Height'
-                    elif "Nặng" in stat_type or "Nhẹ" in stat_type: metric_to_show = 'Weight'
-                    elif "Trẻ" in stat_type or "Già" in stat_type: metric_to_show = 'Age'
 
                 with col_view1:
                     st.caption("📍 Sơ đồ Đá chính (11)")
