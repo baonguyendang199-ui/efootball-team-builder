@@ -1068,105 +1068,81 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 # 3. Hàm vẽ sơ đồ sân bóng
 def render_pitch_view(squad_list):
     """
-    Vẽ sơ đồ sân bóng với tư duy chiến thuật Efootball (Smart Positioning).
-    - Tự động dàn quân theo số lượng (1 người -> giữa, 2 người -> dãn biên).
-    - Phân tầng độ cao rõ rệt: DMF thấp nhất, AMF cao nhất.
+    Vẽ sơ đồ sân bóng (Phiên bản Tactical Smart v2).
+    - Tự động tách DMF và CMF sang 2 bên nếu mỗi vị trí chỉ có 1 người.
+    - Căn chỉnh hàng thủ và hàng công chuẩn Efootball.
     """
     import streamlit.components.v1 as components
     
-    # --- 1. ĐỊNH NGHĨA ĐỘ SÂU CHIẾN THUẬT (TRỤC Y) ---
-    # Càng nhỏ càng gần khung thành đối phương (trên cùng)
-    Y_COORDS = {
-        'CF': 10,  'SS': 18,
-        'LWF': 18, 'RWF': 18,
-        'AMF': 30,
-        'LMF': 40, 'RMF': 40, 
-        'CMF': 48, # CMF đá cao hơn DMF
-        'DMF': 62, # DMF đá thấp nhất hàng tiền vệ
-        'LB': 75,  'RB': 75, 
-        'CB': 82,
+    # 1. Định nghĩa độ sâu (Trục Y) - Càng nhỏ càng gần gôn đối phương
+    DEPTH_MAP = {
+        'CF': 12, 'SS': 20,
+        'LWF': 20, 'RWF': 20,
+        'AMF': 32,
+        'LMF': 45, 'RMF': 45, 
+        'CMF': 50, # CMF cao hơn DMF một chút
+        'DMF': 60, # DMF thấp nhất hàng tiền vệ
+        'LB': 75, 'RB': 75, 'CB': 82,
         'GK': 93
     }
 
-    # --- 2. PHÂN LOẠI NHÓM ĐỂ TÍNH TRỤC X ---
-    # Các nhóm này sẽ được dàn hàng ngang riêng biệt
-    groups = {
-        'GK': [],
-        'DEF': [], # CB
-        'SIDE_DEF': [], # LB/RB
-        'DM': [],  # DMF
-        'CM': [],  # CMF
-        'SIDE_MID': [], # LMF/RMF
-        'AM': [],  # AMF
-        'SIDE_FWD': [], # LWF/RWF
-        'FWD': []  # CF/SS
-    }
-
-    # Gom cầu thủ vào nhóm
+    # 2. Phân nhóm cầu thủ
+    groups = {p['Position']: [] for p in squad_list}
     for p in squad_list:
-        pos = p['Position']
-        if pos == 'GK': groups['GK'].append(p)
-        elif pos == 'CB': groups['DEF'].append(p)
-        elif pos in ['LB', 'RB']: groups['SIDE_DEF'].append(p)
-        elif pos == 'DMF': groups['DM'].append(p)
-        elif pos == 'CMF': groups['CM'].append(p)
-        elif pos in ['LMF', 'RMF']: groups['SIDE_MID'].append(p)
-        elif pos == 'AMF': groups['AM'].append(p)
-        elif pos in ['LWF', 'RWF']: groups['SIDE_FWD'].append(p)
-        elif pos in ['CF', 'SS']: groups['FWD'].append(p)
+        groups[p['Position']].append(p)
 
     final_cards_html = ""
 
-    # --- 3. THUẬT TOÁN DÀN QUÂN (SMART SPREAD) ---
-    for group_name, players in groups.items():
+    # Các vị trí bám biên cố định
+    LEFT_SIDE = ['LWF', 'LMF', 'LB']
+    RIGHT_SIDE = ['RWF', 'RMF', 'RB']
+
+    # Duyệt qua từng vị trí để tính tọa độ
+    for pos, players in groups.items():
         count = len(players)
         if count == 0: continue
-
-        # Sắp xếp để đảm bảo: LB luôn bên trái, RB luôn bên phải...
-        # Thứ tự ưu tiên trái sang phải: 
-        # LB < CB < RB
-        # LWF < SS < CF < RWF
-        sort_order = {
-            'LB': 1, 'CB': 2, 'RB': 3,
-            'LMF': 1, 'DMF': 2, 'CMF': 3, 'AMF': 4, 'RMF': 5,
-            'LWF': 1, 'SS': 2, 'CF': 3, 'RWF': 4
-        }
-        # Sort ổn định theo index gốc nếu cùng vị trí (để giữ thứ tự ưu tiên rating)
-        # Tuy nhiên, cần sort theo logic trái phải nếu vị trí khác nhau
-        players.sort(key=lambda x: sort_order.get(x['Position'], 99))
-
+        
+        top = DEPTH_MAP.get(pos, 50)
+        
         for i, p in enumerate(players):
-            pos = p['Position']
-            top = Y_COORDS.get(pos, 50)
-            
-            # Xử lý tọa độ X (Left)
-            left = 50 # Mặc định giữa
+            left = 50 # Mặc định giữa sân
 
-            # === LOGIC CỐ ĐỊNH CÁNH (LUÔN BÁM BIÊN) ===
-            if pos in ['LB', 'LMF', 'LWF']: 
-                left = 15
-            elif pos in ['RB', 'RMF', 'RWF']: 
-                left = 85
+            # --- LOGIC TÍNH TỌA ĐỘ NGANG (X) ---
             
-            # === LOGIC DÀN TRUNG TÂM (CB, DMF, CMF, AMF, CF, SS) ===
+            # 1. Nếu là Cánh (Luôn cố định)
+            if pos in LEFT_SIDE: left = 15
+            elif pos in RIGHT_SIDE: left = 85
+            
+            # 2. Nếu là Trung tâm (GK, CB, DMF, CMF, AMF, CF, SS)
             else:
-                if count == 1:
-                    left = 50 # Đứng giữa (VD: 1 DMF trong 4-3-3)
+                # === XỬ LÝ THÔNG MINH CHO TIỀN VỆ TRUNG TÂM ===
+                # Nếu đội hình có 1 DMF và 1 CMF (Sơ đồ 4-3-3 lệch hoặc 4-2-1-3 lệch)
+                # Thì DMF dạt trái, CMF dạt phải (hoặc ngược lại) để không bị chồng chéo
+                is_midfield_duo = (pos == 'DMF' and len(groups.get('CMF', [])) == 1) or \
+                                  (pos == 'CMF' and len(groups.get('DMF', [])) == 1)
+                
+                if is_midfield_duo and count == 1:
+                    if pos == 'DMF': left = 40  # DMF lệch trái một chút
+                    if pos == 'CMF': left = 60  # CMF lệch phải một chút
+                
+                # === XỬ LÝ CÁC TRƯỜNG HỢP CÒN LẠI ===
+                elif count == 1:
+                    left = 50 # Đứng giữa (Ví dụ: 1 CF, 1 AMF, hoặc 1 DMF trong sơ đồ 4-3-3 chuẩn)
                 elif count == 2:
-                    left = 35 if i == 0 else 65 # Dàn 2 bên (VD: 2 DMF trong 4-2-1-3)
+                    left = 35 if i == 0 else 65 # Dàn ra 2 bên (Ví dụ: 2 CB, 2 DMF, 2 CF)
                 elif count == 3:
                     if i == 0: left = 30
                     elif i == 1: left = 50
-                    else: left = 70 # Dàn 3 người (VD: 3 CMF, 3 CB)
+                    else: left = 70
                 elif count == 4:
-                    left = 20 + (i * 20) # Trường hợp hiếm (4 CB)
+                    left = 20 + (i * 20)
 
             # --- RENDER THẺ HTML ---
             player_name = p['Player']
             if player_name == "---":
                 card_html = f"""
                 <div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%);
-                    width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #777;
+                    width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #666;
                     display: flex; align-items: center; justify-content: center; color: #888; font-size: 10px; z-index: 5;">
                     <div style="text-align:center;">{pos}<br>Trống</div>
                 </div>
@@ -1176,11 +1152,12 @@ def render_pitch_view(squad_list):
                 border_color = "#f59e0b" if "EPIC" in ptype else ("#a855f7" if "POTW" in ptype else "#3b82f6")
                 
                 img_src = p['Image']
-                # Xử lý ảnh: Nếu có ảnh thì hiện, không có thì hiện icon, thêm onerror để fallback
+                # Xử lý ảnh: fallback sang icon nếu lỗi
                 img_tag = f"""<img src='{img_src}' style='width:48px;height:auto;margin-bottom:3px;display:block;' 
                               onerror="this.onerror=null;this.src='https://pesdb.net/assets/img/card/f0.png';this.style.display='none';this.nextElementSibling.style.display='block';">
                               <div style='font-size:24px;margin-bottom:3px;display:none;'>👤</div>""" if img_src else "<div style='font-size:24px;margin-bottom:3px;'>👤</div>"
                 
+                # Card Cầu thủ
                 card_html = f"""
                 <div style="
                     position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%);
@@ -1195,7 +1172,7 @@ def render_pitch_view(squad_list):
                     
                     {img_tag}
                     
-                    <div style="font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; color: white; 
+                    <div style="font-family: sans-serif; font-size: 10px; font-weight: 700; color: white; 
                         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 95%; text-align: center;
                         text-shadow: 1px 1px 2px black; margin-bottom: 2px;">
                         {player_name}
@@ -1212,7 +1189,7 @@ def render_pitch_view(squad_list):
                 """
             final_cards_html += card_html
 
-    # --- 4. RENDER COMPONENT ---
+    # --- 3. RENDER COMPONENT (IFRAME) ---
     css = """
     <style>
         body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
