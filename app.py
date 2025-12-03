@@ -4219,20 +4219,58 @@ def main():
                 st.warning("⚠️ Không tìm thấy cầu thủ phù hợp để xếp đội hình!")
             else:
                 # Hiển thị tên sơ đồ tìm được
-                st.success(f"✅ Đội hình tối ưu nhất: **{found_name}**")
+                if found_name:
+                    st.success(f"✅ Đội hình tối ưu nhất: **{found_name}**")
 
-                # Tính chỉ số
+                # --- TÍNH TOÁN CHỈ SỐ CƠ BẢN ---
                 valid_p = [p for p in best_squad if p['Rating'] > 0]
                 t_rat = sum(p['Rating'] for p in valid_p)
                 a_rat = t_rat / 11 if valid_p else 0
                 
-                m1, m2, m3 = st.columns(3)
-                with m1: st.metric("Tổng Sức mạnh", t_rat)
-                with m2: st.metric("Rating TB", f"{a_rat:.1f}")
-                with m3: st.metric("Quân số", f"{len(valid_p)}/11")
+                # --- LOGIC TÍNH CHỈ SỐ PHỤ (CỘT 3) ---
+                custom_label = None
+                custom_value = None
+
+                if build_mode == "Theo Chỉ số":
+                    # Helper để lấy số từ chuỗi (vd: "185cm" -> 185.0)
+                    def get_val(p, key):
+                        try:
+                            return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
+                        except: return 0
+
+                    if "Cao" in stat_type or "Thấp" in stat_type:
+                        vals = [get_val(p, 'Height') for p in valid_p]
+                        avg = sum(vals) / len(vals) if vals else 0
+                        custom_label = "Chiều cao TB"
+                        custom_value = f"{avg:.1f} cm"
+                    
+                    elif "Nặng" in stat_type or "Nhẹ" in stat_type:
+                        vals = [get_val(p, 'Weight') for p in valid_p]
+                        avg = sum(vals) / len(vals) if vals else 0
+                        custom_label = "Cân nặng TB"
+                        custom_value = f"{avg:.1f} kg"
+                        
+                    elif "Trẻ" in stat_type or "Già" in stat_type:
+                        vals = [get_val(p, 'Age') for p in valid_p]
+                        avg = sum(vals) / len(vals) if vals else 0
+                        custom_label = "Tuổi TB"
+                        custom_value = f"{avg:.1f}"
+
+                # --- HIỂN THỊ METRICS (LINH HOẠT 2 HOẶC 3 CỘT) ---
+                if custom_label:
+                    m1, m2, m3 = st.columns(3)
+                    with m1: st.metric("Tổng Sức mạnh", t_rat)
+                    with m2: st.metric("Rating TB", f"{a_rat:.1f}")
+                    with m3: st.metric(custom_label, custom_value)
+                else:
+                    # Mặc định (Theo Team hoặc Rating cao nhất) chỉ hiện 2 cột
+                    m1, m2 = st.columns(2)
+                    with m1: st.metric("Tổng Sức mạnh", t_rat)
+                    with m2: st.metric("Rating TB", f"{a_rat:.1f}")
                 
                 st.divider()
                 
+                # --- PHẦN HIỂN THỊ SÂN VÀ BẢNG (GIỮ NGUYÊN) ---
                 col_view1, col_view2 = st.columns([1.3, 1]) 
                 with col_view1:
                     render_pitch_view(best_squad)
@@ -4240,11 +4278,12 @@ def main():
                 with col_view2:
                     st.subheader("📋 Chi tiết")
                     s_df = pd.DataFrame(best_squad)
-                    # Chọn cột hiển thị tùy theo chế độ sort
+                    
+                    # Tự động chọn cột hiển thị trong bảng
                     cols_show = ['Position', 'Player', 'Rating', 'Club']
-                    if 'Height' in s_df.columns: cols_show.append('Height')
-                    if 'Weight' in s_df.columns: cols_show.append('Weight')
-                    if 'Age' in s_df.columns: cols_show.append('Age')
+                    if custom_label == "Chiều cao TB": cols_show.append('Height')
+                    elif custom_label == "Cân nặng TB": cols_show.append('Weight')
+                    elif custom_label == "Tuổi TB": cols_show.append('Age')
                     
                     final_cols = [c for c in cols_show if c in s_df.columns]
                     
