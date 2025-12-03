@@ -1276,15 +1276,14 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
             
     return best_formation_name, best_squad
 
-def render_pitch_view(squad_list):
+def render_pitch_view(squad_list, highlight_type=None):
     """
-    Vẽ sơ đồ sân bóng (Chỉ vẽ 11 người đá chính).
+    Vẽ sơ đồ sân bóng với Tooltip thông minh.
+    - highlight_type: 'Age', 'Height', 'Weight' hoặc None.
+    - Khi hover vào thẻ, sẽ hiện thông số tương ứng.
     """
     import streamlit.components.v1 as components
     
-    # LỌC: CHỈ LẤY CẦU THỦ ĐÁ CHÍNH ĐỂ VẼ LÊN SÂN
-    starters_list = [p for p in squad_list if p.get('Is_Starter', False)]
-
     # 1. Định nghĩa độ sâu
     DEPTH_MAP = {
         'CF': 12, 'SS': 20, 'LWF': 20, 'RWF': 20,
@@ -1294,6 +1293,7 @@ def render_pitch_view(squad_list):
     }
 
     # 2. Phân nhóm
+    starters_list = [p for p in squad_list if p.get('Is_Starter', False)]
     groups = {p['Position']: [] for p in starters_list}
     for p in starters_list:
         groups[p['Position']].append(p)
@@ -1323,6 +1323,17 @@ def render_pitch_view(squad_list):
                 elif count == 3: left = 30 if i == 0 else (50 if i == 1 else 70)
                 elif count == 4: left = 20 + (i * 20)
 
+            # --- XỬ LÝ TOOLTIP (HOVER INFO) ---
+            tooltip_text = f"{p['Player']} | Rating: {p['Rating']}" # Mặc định
+            
+            if highlight_type == 'Height':
+                tooltip_text = f"Chiều cao: {p.get('Height', '?')} cm"
+            elif highlight_type == 'Weight':
+                tooltip_text = f"Cân nặng: {p.get('Weight', '?')} kg"
+            elif highlight_type == 'Age':
+                tooltip_text = f"Tuổi: {p.get('Age', '?')}"
+            
+            # --- RENDER HTML ---
             player_name = p['Player']
             if player_name == "---":
                 card_html = f"""<div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%); width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #666; display: flex; align-items: center; justify-content: center; color: #888; font-size: 10px; z-index: 5;"><div style="text-align:center;">{pos}<br>Trống</div></div>"""
@@ -1332,8 +1343,9 @@ def render_pitch_view(squad_list):
                 img_src = p['Image']
                 img_tag = f"""<img src='{img_src}' style='width:48px;height:auto;margin-bottom:3px;display:block;' onerror="this.onerror=null;this.src='https://pesdb.net/assets/img/card/f0.png';this.style.display='none';this.nextElementSibling.style.display='block';"><div style='font-size:24px;margin-bottom:3px;display:none;'>👤</div>""" if img_src else "<div style='font-size:24px;margin-bottom:3px;'>👤</div>"
                 
+                # Thêm thuộc tính title="{tooltip_text}" vào thẻ div bao ngoài
                 card_html = f"""
-                <div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%); width: 85px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%); border: 1px solid {border_color}; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.transform='translate(-50%, -50%) scale(1.15)'; this.style.zIndex='100';" onmouseout="this.style.transform='translate(-50%, -50%) scale(1)'; this.style.zIndex='10';">
+                <div title="{tooltip_text}" style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%); width: 85px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%); border: 1px solid {border_color}; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.transform='translate(-50%, -50%) scale(1.15)'; this.style.zIndex='100';" onmouseout="this.style.transform='translate(-50%, -50%) scale(1)'; this.style.zIndex='10';">
                     {img_tag}
                     <div style="font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 95%; text-align: center; text-shadow: 1px 1px 2px black; margin-bottom: 2px;">{player_name}</div>
                     <div style="display:flex; gap:3px; align-items:center;">
@@ -4377,7 +4389,17 @@ def main():
                 
                 with col_view1:
                     st.caption("📍 Sơ đồ Đá chính (11)")
-                    render_pitch_view(best_squad)
+                    # Xác định loại chỉ số để truyền vào hàm vẽ
+                metric_to_show = None
+                if build_mode == "Theo Chỉ số":
+                    if "Cao" in stat_type or "Thấp" in stat_type: metric_to_show = 'Height'
+                    elif "Nặng" in stat_type or "Nhẹ" in stat_type: metric_to_show = 'Weight'
+                    elif "Trẻ" in stat_type or "Già" in stat_type: metric_to_show = 'Age'
+
+                with col_view1:
+                    st.caption("📍 Sơ đồ Đá chính (11)")
+                    # Gọi hàm với tham số mới
+                    render_pitch_view(best_squad, highlight_type=metric_to_show)
                 
                 with col_view2:
                     st.caption("📋 Danh sách Đầy đủ (23)")
