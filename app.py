@@ -448,13 +448,13 @@ def load_data_from_gsheet():
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
-        # Ensure required columns
+        # Ensure required columns (THÊM Secondary Positions VÀO ĐÂY)
         required_cols = [
             "Player", "Rating", "Position", "Position Style", "Player Type",
             "Nation", "Club", "League",
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
-            "Player URL", "Player ID", "Skills", "Added Skills",
+            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions"
         ]
         for col in required_cols:
             if col not in df.columns:
@@ -467,12 +467,13 @@ def load_data_from_gsheet():
         df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0).astype(int)
         df = df[df["Rating"] > 0].copy()
         
+        # Làm sạch dữ liệu (THÊM Secondary Positions VÀO ĐÂY)
         for col in [
             "Player", "Position", "Position Style", "Player Type",
             "Nation", "Club", "League",
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
-            "Player URL", "Player ID", "Skills", "Added Skills"
+            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions"
         ]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
@@ -484,9 +485,11 @@ def load_data_from_gsheet():
         
         df["Epic_Priority"] = df["Player Type"].apply(lambda x: 0 if x == "EPIC" else 1)
 
-        # === THÊM DÒNG NÀY ĐỂ TÍNH CỘT ƯU TIÊN MỚI ===
-        df = calculate_top23_count(df) # Tính toán số lần thuộc Top 23 Club/League
-        # ============================================
+        # Fix lỗi vị trí
+        if 'Position' in df.columns:
+            df['Position'] = df['Position'].astype(str).str.upper().str.strip()
+
+        df = calculate_top23_count(df)
         
         return df
     except Exception as e:
@@ -1926,30 +1929,22 @@ def initialize_session_state():
             st.session_state[k] = v
 
 def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
-    """Đồng bộ lại các field còn thiếu (Region, Height, Age, Foot, WF, Form, Injury, Skills) từ PESDB cho cầu thủ có Player URL."""
+    """Đồng bộ lại các field còn thiếu từ PESDB."""
     if df.empty or 'Player URL' not in df.columns:
         st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL để đồng bộ PESDB.")
         return df
 
+    # Đảm bảo cột tồn tại
+    if 'Secondary Positions' not in df.columns:
+        df['Secondary Positions'] = ""
+
     needs_extraction = df[
         df['Player URL'].astype(str).str.startswith('http')
-        & (
-            (df['Skills'].astype(str).str.strip() == '')
-            | df['Skills'].isna()
-            | (df['Region'].astype(str).str.strip() == '')
-            | (df['Height'].astype(str).str.strip() == '')
-            | (df['Weight'].astype(str).str.strip() == '')
-            | (df['Age'].astype(str).str.strip() == '')
-            | (df['Foot'].astype(str).str.strip() == '')
-            | (df['Weak Foot Usage'].astype(str).str.strip() == '')
-            | (df['Weak Foot Accuracy'].astype(str).str.strip() == '')
-            | (df['Form'].astype(str).str.strip() == '')
-            | (df['Injury Resistance'].astype(str).str.strip() == '')
-        )
+        # Quét lại tất cả để update vị trí phụ (bỏ điều kiện lọc cũ để force update)
     ]
 
     if needs_extraction.empty:
-        st.info("ℹ️ Tất cả cầu thủ đã có đủ dữ liệu từ PESDB, không cần đồng bộ.")
+        st.info("ℹ️ Không có cầu thủ nào để quét.")
         return df
 
     st.session_state['auto_extracting'] = True
@@ -1959,39 +1954,42 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     progress_bar = st.progress(0, text=f"🔄 Đang đồng bộ dữ liệu PESDB cho {total_to_process} cầu thủ...")
     status_box = st.empty()
 
-    for idx, (i, row) in enumerate(needs_extraction.iterrows(), start=1):
+    # Biến đếm
+    count = 0
+
+    for i, row in needs_extraction.iterrows():
+        count += 1
         player_name = str(row.get('Player', '') or '').strip()
-        status_box.info(f"📡 Đang lấy dữ liệu PESDB cho: **{player_name or 'Unknown'}** ({idx}/{total_to_process})")
+        
+        # Cập nhật thanh tiến trình
+        percent = int((count / total_to_process) * 100)
+        status_box.info(f"📡 [{count}/{total_to_process}] Đang quét: **{player_name}**")
+        progress_bar.progress(percent, text=f"Đang xử lý {percent}%")
 
         info = extract_full_player_info(row['Player URL'])
         if not info or not info.get('Player'):
-            progress_bar.progress(idx / total_to_process)
             continue
 
-        # Ghi đè các field còn trống, không phá dữ liệu đã có
+        # Ghi đè dữ liệu
+        df.at[i, 'Secondary Positions'] = info.get('Secondary Positions', '')
+        
+        # Cập nhật các cột khác nếu thiếu
         for col in [
             'Region', 'Height', 'Weight', 'Age', 'Foot',
-            'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance',
-            'Skills'
+            'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance', 'Skills'
         ]:
-            if col not in df.columns:
-                continue
-            current_val = str(df.at[i, col])
-            if (not current_val) or (str(current_val).strip() == ''):
-                df.at[i, col] = info.get(col.replace('_', ' '), info.get(col, ''))
+            current_val = str(df.at[i, col]).strip()
+            if not current_val or current_val == 'nan':
+                df.at[i, col] = info.get(col, '')
 
         updated = True
-        progress_bar.progress(idx / total_to_process)
 
     if updated:
-        progress_bar.progress(1.0, text="✅ Đã đồng bộ xong dữ liệu PESDB, đang lưu vào Google Sheets...")
+        progress_bar.progress(1.0, text="✅ Đang lưu vào Google Sheets...")
         save_data_to_gsheet(df)
         st.cache_data.clear()
-        status_box.success("✅ Đồng bộ PESDB hoàn tất – dữ liệu mới đã được lưu.")
-    else:
-        progress_bar.empty()
-        status_box.info("ℹ️ Không có cầu thủ nào cần đồng bộ thêm từ PESDB.")
-
+        status_box.success("✅ Đồng bộ hoàn tất! Dữ liệu đã được lưu.")
+    
     st.session_state['auto_extracting'] = False
     return df
 
