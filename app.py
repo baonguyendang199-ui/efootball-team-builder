@@ -947,6 +947,7 @@ FORMATIONS = {
     "3-5-2 (2 CF, 1 SS)":    ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "AMF", "SS", "CF", "CF"],
     "5-2-3 (2 CF, 1 SS)":    ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "SS", "CF", "CF"],
     "4-2-4 (2 CF, 1 SS)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "SS", "CF", "CF"], # LWF + SS + 2 CF
+    "4-2-4 (1 CF, 1 SS, 2 LWF,RWF)":    ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "SS", "CF"], # LWF + SS + 2 CF
 
     # =================================================================
     # 🛡️ 4 HẬU VỆ (PHỔ BIẾN NHẤT)
