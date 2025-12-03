@@ -1956,40 +1956,33 @@ def main():
                 
                 st.divider()
         
-        # ⚖️ Cân nặng trung bình theo CLB
-        if 'Weight' in df.columns and 'Club' in df.columns:
-            st.subheader("⚖️ Cân nặng trung bình theo CLB (Top 15, tối thiểu 10 cầu thủ)")
-            weight_club_df = df[df['Weight'].astype(str).str.strip().ne('')].copy()
-            weight_club_df['Weight_num'] = pd.to_numeric(weight_club_df['Weight'], errors='coerce')
-            weight_club_df = weight_club_df.dropna(subset=['Weight_num', 'Club'])
+        # ⚖️ Cân nặng trung bình theo vị trí
+        if 'Weight' in df.columns and 'Position' in df.columns:
+            st.subheader("⚖️ Cân nặng trung bình theo Vị trí")
+            weight_pos_df = df[df['Weight'].astype(str).str.strip().ne('')].copy()
+            weight_pos_df['Weight_num'] = pd.to_numeric(weight_pos_df['Weight'], errors='coerce')
+            weight_pos_df = weight_pos_df.dropna(subset=['Weight_num', 'Position'])
             
-            if not weight_club_df.empty:
-                # Chỉ tính các CLB có >= 10 cầu thủ
-                club_counts = weight_club_df['Club'].value_counts()
-                valid_clubs = club_counts[club_counts >= 10].index
-                weight_club_df_filtered = weight_club_df[weight_club_df['Club'].isin(valid_clubs)]
+            if not weight_pos_df.empty:
+                # Group theo Position và tính trung bình
+                avg_weight_by_pos = weight_pos_df.groupby('Position')['Weight_num'].mean().sort_values(ascending=False).reset_index()
+                avg_weight_by_pos.columns = ['Vị trí', 'Cân nặng TB (kg)']
+                avg_weight_by_pos['Cân nặng TB (kg)'] = avg_weight_by_pos['Cân nặng TB (kg)'].round(1)
                 
-                if not weight_club_df_filtered.empty:
-                    avg_weight_by_club = weight_club_df_filtered.groupby('Club')['Weight_num'].mean().sort_values(ascending=False).head(15).reset_index()
-                    avg_weight_by_club.columns = ['CLB', 'Cân nặng TB (kg)']
-                    avg_weight_by_club['Cân nặng TB (kg)'] = avg_weight_by_club['Cân nặng TB (kg)'].round(1)
-                    
-                    fig_avg_weight = px.bar(
-                        avg_weight_by_club,
-                        x="CLB",
-                        y="Cân nặng TB (kg)",
-                        text="Cân nặng TB (kg)"
-                    )
-                    fig_avg_weight.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                    fig_avg_weight.update_layout(
-                        xaxis=dict(categoryorder="total descending", autorange=True),
-                        yaxis=dict(autorange=True),
-                        dragmode="pan"
-                    )
-                    fig_avg_weight = apply_plotly_theme(fig_avg_weight)
-                    st.plotly_chart(fig_avg_weight, use_container_width=True, config=config, key="overview_fig_avg_weight")
-                else:
-                    st.info("Không có CLB nào có đủ 10 cầu thủ với dữ liệu cân nặng")
+                fig_avg_weight = px.bar(
+                    avg_weight_by_pos,
+                    x="Vị trí",
+                    y="Cân nặng TB (kg)",
+                    text="Cân nặng TB (kg)"
+                )
+                fig_avg_weight.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+                fig_avg_weight.update_layout(
+                    xaxis=dict(categoryorder="total descending", autorange=True),
+                    yaxis=dict(autorange=True),
+                    dragmode="pan"
+                )
+                fig_avg_weight = apply_plotly_theme(fig_avg_weight)
+                st.plotly_chart(fig_avg_weight, use_container_width=True, config=config, key="overview_fig_avg_weight")
                 
                 st.divider()
         
