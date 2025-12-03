@@ -929,6 +929,157 @@ POSITION_STYLE_ORDER = {
     "Goalkeeper": 4,
 }
 
+# ==========================================
+# BẮT ĐẦU CODE MỚI - AUTO BUILD (BƯỚC 1)
+# ==========================================
+
+# 1. Database 27 Sơ đồ chiến thuật
+FORMATIONS = {
+    "4-3-3 (3 CMF)":         ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "4-3-3 (1 DMF, 2 CMF)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "4-3-3 (DMF-CMF-AMF)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+    "4-2-3-1 (2 DMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LWF", "RWF", "CF"],
+    "4-2-3-1 (2 CMF)":       ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+    "4-4-2 (Flat - CMF)":    ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF", "CF"],
+    "4-4-2 (2 DMF)":         ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CF", "CF"],
+    "4-4-2 (Diamond/SS)":    ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "SS", "CF"],
+    "4-3-1-2 (2 CF)":        ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
+    "4-3-1-2 (CF + SS)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "CF"],
+    "4-1-4-1":               ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
+    "3-4-3 (2 CMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "3-4-3 (2 DMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "LWF", "RWF", "CF"],
+    "3-5-2 (3 CMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "CMF", "CF", "CF"],
+    "3-5-2 (2 DMF, 1 CMF)":  ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "CMF", "CF", "CF"],
+    "3-5-2 (1 AMF, SS)":     ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "AMF", "SS", "CF"],
+    "3-4-2-1 (2 AMF)":       ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"],
+    "3-4-2-1 (2 SS)":        ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "SS", "SS", "CF"],
+    "5-3-2 (Standard)":      ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "CF", "CF"],
+    "5-3-2 (SS Var)":        ["GK", "LB", "CB", "CB", "CB", "RB", "CMF", "CMF", "CMF", "SS", "CF"],
+    "5-4-1 (Flat)":          ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF"],
+    "5-4-1 (2 DMF)":         ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CF"],
+    "4-2-2-2 (2 AMF/DMF)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
+    "4-2-2-2 (2 AMF/CMF)":   ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "AMF", "CF", "CF"],
+    "4-2-2-2 (LWF/RWF)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF", "CF"],
+    "4-5-1 (Flat)":          ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CMF", "CF"],
+    "4-5-1 (Holding)":       ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CMF", "CF"],
+}
+
+# 2. Hàm xử lý logic chọn cầu thủ
+def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
+    pool_df = df.copy()
+    
+    # Chuyển đổi số liệu thể chất
+    if 'Height' in pool_df.columns:
+        pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
+    if 'Weight' in pool_df.columns:
+        pool_df['Weight_num'] = pd.to_numeric(pool_df['Weight'], errors='coerce').fillna(0)
+    if 'Age' in pool_df.columns:
+        pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
+
+    # Lọc theo bộ lọc
+    if filter_col and filter_val and filter_val != "(Tất cả)":
+        pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
+        
+    if pool_df.empty:
+        return []
+
+    # Sắp xếp theo tiêu chí
+    if sort_mode == 'rating_desc':
+        pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+    elif sort_mode == 'height_desc': 
+        pool_df = pool_df.sort_values(['Height_num', 'Rating'], ascending=[False, False])
+    elif sort_mode == 'height_asc': 
+        pool_df = pool_df.sort_values(['Height_num', 'Rating'], ascending=[True, False])
+    elif sort_mode == 'weight_desc': 
+        pool_df = pool_df.sort_values(['Weight_num', 'Rating'], ascending=[False, False])
+    elif sort_mode == 'age_asc': 
+        pool_df = pool_df.sort_values(['Age_num', 'Rating'], ascending=[True, False])
+    
+    required_positions = FORMATIONS.get(formation_name, [])
+    squad_list = []
+    used_indices = set()
+    
+    for pos_req in required_positions:
+        candidates = pool_df[
+            (pool_df['Position'] == pos_req) & 
+            (~pool_df.index.isin(used_indices))
+        ]
+        
+        if not candidates.empty:
+            best_player = candidates.iloc[0]
+            pid = str(best_player.get('Player ID', '')).strip()
+            purl = str(best_player.get('Player URL', '')).strip()
+            if not pid and purl:
+                m = re.search(r"(\d{14,})", purl)
+                pid = m.group(1) if m else ""
+            img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+
+            squad_list.append({
+                "Position": pos_req,
+                "Player": best_player['Player'],
+                "Rating": best_player['Rating'],
+                "Type": best_player['Player Type'],
+                "Club": best_player['Club'],
+                "Nation": best_player['Nation'],
+                "Image": img_url,
+                "Data": best_player
+            })
+            used_indices.add(best_player.name)
+        else:
+            squad_list.append({
+                "Position": pos_req, "Player": "---", "Rating": 0, "Type": "N/A", "Image": None
+            })
+            
+    return squad_list
+
+# 3. Hàm vẽ sơ đồ sân bóng
+def render_pitch_view(squad_list):
+    gk = [p for p in squad_list if p['Position'] == 'GK']
+    defs = [p for p in squad_list if p['Position'] in ['CB', 'LB', 'RB']]
+    mids = [p for p in squad_list if p['Position'] in ['DMF', 'CMF', 'AMF', 'LMF', 'RMF']]
+    fwds = [p for p in squad_list if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']]
+
+    def card_html(p):
+        if p['Player'] == "---":
+            return "<div style='width:90px;height:120px;background:rgba(0,0,0,0.5);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:10px;margin:0 auto;'>Thiếu</div>"
+        
+        ptype = str(p['Type']).upper()
+        border_color = "#f59e0b" if "EPIC" in ptype else ("#a855f7" if "POTW" in ptype else "#3b82f6")
+        img_tag = f"<img src='{p['Image']}' style='width:60px;height:auto;margin-bottom:2px;'>" if p['Image'] else "<div style='font-size:24px;'>👤</div>"
+        
+        return f"""
+        <div style="display:flex;flex-direction:column;align-items:center;width:100px;padding:4px;margin:2px;background:rgba(15,23,42,0.9);border:2px solid {border_color};border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);">
+            {img_tag}
+            <div style="font-size:11px;font-weight:bold;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;">{p['Player']}</div>
+            <div style="font-size:10px;color:#cbd5e1;">{p['Position']} • <b>{p['Rating']}</b></div>
+        </div>"""
+
+    st.markdown("""
+    <style>
+    .pitch {
+        background: linear-gradient(0deg, #14532d 0%, #166534 50%, #15803d 100%);
+        border: 2px solid #fff; border-radius: 12px; padding: 20px 10px;
+        display: flex; flex-direction: column; justify-content: space-around;
+        height: 750px; position: relative;
+    }
+    .pitch-row { display: flex; justify-content: center; gap: 10px; z-index: 2; }
+    .pitch::before { content:''; position:absolute; top:50%; left:0; width:100%; height:2px; background:rgba(255,255,255,0.4); }
+    .pitch::after { content:''; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:80px; height:80px; border:2px solid rgba(255,255,255,0.4); border-radius:50%; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    html = '<div class="pitch">'
+    for line in [fwds, mids, defs, gk]:
+        html += '<div class="pitch-row">'
+        for p in line: html += card_html(p)
+        html += '</div>'
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+# ==========================================
+# KẾT THÚC BƯỚC 1
+# ==========================================
+
 # ===== CẤU HÌNH TEAMS CẦN BUILD =====
 target_clubs = [
     "FC Barcelona", "Madrid Chamartin B", "Munich", "Internazionale Milano", "Manchester B", "Liverpool R", 
