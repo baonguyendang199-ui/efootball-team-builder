@@ -1986,35 +1986,44 @@ def main():
                 
                 st.divider()
         
-        # 📈 Scatter plot Height-Weight
-        if 'Height' in df.columns and 'Weight' in df.columns:
-            st.subheader("📈 Phân tích Chiều cao - Cân nặng")
-            hw_df = df[(df['Height'].astype(str).str.strip().ne('')) & (df['Weight'].astype(str).str.strip().ne(''))].copy()
-            hw_df['Height_num'] = pd.to_numeric(hw_df['Height'], errors='coerce')
-            hw_df['Weight_num'] = pd.to_numeric(hw_df['Weight'], errors='coerce')
-            hw_df = hw_df.dropna(subset=['Height_num', 'Weight_num'])
+        # 📊 Trung bình BMI theo vị trí
+        if 'Height' in df.columns and 'Weight' in df.columns and 'Position' in df.columns:
+            st.subheader("📊 Trung bình BMI theo Vị trí")
             
-            if not hw_df.empty:
-                # Tính BMI để màu sắc
-                hw_df['BMI'] = hw_df['Weight_num'] / ((hw_df['Height_num'] / 100) ** 2)
+            # Lọc dữ liệu có height và weight
+            bmi_df = df[df['Height'].astype(str).str.strip().ne('') & df['Weight'].astype(str).str.strip().ne('')].copy()
+            bmi_df['Height_num'] = pd.to_numeric(bmi_df['Height'], errors='coerce')
+            bmi_df['Weight_num'] = pd.to_numeric(bmi_df['Weight'], errors='coerce')
+            
+            # Loại bỏ dòng thiếu dữ liệu
+            bmi_df = bmi_df.dropna(subset=['Height_num', 'Weight_num', 'Position'])
+            
+            if not bmi_df.empty:
+                # Tính BMI: Cân nặng (kg) / (Chiều cao (m))^2
+                bmi_df['BMI'] = bmi_df['Weight_num'] / ((bmi_df['Height_num'] / 100) ** 2)
                 
-                fig_scatter = px.scatter(
-                    hw_df,
-                    x="Height_num",
-                    y="Weight_num",
-                    color="BMI",
-                    hover_data=['Player', 'Position', 'Club', 'Rating'],
-                    labels={'Height_num': 'Chiều cao (cm)', 'Weight_num': 'Cân nặng (kg)', 'BMI': 'BMI'},
+                # Tính trung bình theo vị trí
+                avg_bmi_pos = bmi_df.groupby('Position')['BMI'].mean().sort_values(ascending=False).reset_index()
+                avg_bmi_pos.columns = ['Vị trí', 'BMI TB']
+                avg_bmi_pos['BMI TB'] = avg_bmi_pos['BMI TB'].round(2)
+                
+                fig_bmi = px.bar(
+                    avg_bmi_pos,
+                    x="Vị trí",
+                    y="BMI TB",
+                    text="BMI TB",
+                    color="BMI TB",  # Tô màu theo độ lớn BMI
                     color_continuous_scale='Viridis'
                 )
-                fig_scatter.update_traces(marker=dict(size=8, opacity=0.6))
-                fig_scatter.update_layout(
+                fig_bmi.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
+                fig_bmi.update_layout(
+                    xaxis=dict(categoryorder="total descending", autorange=True),
+                    yaxis=dict(autorange=True, title="BMI Trung bình"),
                     dragmode="pan",
-                    xaxis_title="Chiều cao (cm)",
-                    yaxis_title="Cân nặng (kg)"
+                    coloraxis_showscale=False  # Ẩn thanh scale màu cho gọn
                 )
-                fig_scatter = apply_plotly_theme(fig_scatter)
-                st.plotly_chart(fig_scatter, use_container_width=True, config=config, key="overview_fig_scatter")
+                fig_bmi = apply_plotly_theme(fig_bmi)
+                st.plotly_chart(fig_bmi, use_container_width=True, config=config, key="overview_fig_avg_bmi")
                 
                 st.divider()
 
