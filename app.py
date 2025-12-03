@@ -1068,18 +1068,24 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 # 3. Hàm vẽ sơ đồ sân bóng
 def render_pitch_view(squad_list):
     """
-    Vẽ sơ đồ sân bóng sử dụng Streamlit Components (Iframe).
-    Phương pháp này đảm bảo 100% hiển thị hình ảnh, không bao giờ bị lỗi hiện text.
+    Vẽ sơ đồ sân bóng sử dụng Iframe (Bảo đảm không lỗi hiển thị Text).
+    CẬP NHẬT: CMF và DMF đứng ngang hàng nhau (Flat Midfield).
     """
     import streamlit.components.v1 as components
     
     # 1. Định nghĩa độ sâu (Trục Y - Từ trên xuống dưới 0-100%)
     DEPTH_MAP = {
-        'CF': 12, 'SS': 20,
+        'CF': 12, 
+        'SS': 20,
         'LWF': 18, 'RWF': 18,
         'AMF': 32,
-        'LMF': 45, 'RMF': 45, 'CMF': 48,
-        'DMF': 62,
+        'LMF': 40, 'RMF': 40, 
+        
+        # --- CẬP NHẬT: CMF VÀ DMF NGANG NHAU ---
+        'CMF': 55, 
+        'DMF': 55,
+        # ---------------------------------------
+        
         'LB': 75, 'RB': 75, 'CB': 80,
         'GK': 92
     }
@@ -1107,9 +1113,13 @@ def render_pitch_view(squad_list):
             if pos in LEFT_SIDE: left = 15
             elif pos in RIGHT_SIDE: left = 85
             else:
+                # Dàn đều các vị trí trung tâm
                 if count == 1: left = 50
                 elif count == 2: left = 35 if i == 0 else 65
-                elif count == 3: left = 30 if i == 0 else (50 if i == 1 else 70)
+                elif count == 3: 
+                    if i == 0: left = 30
+                    elif i == 1: left = 50
+                    else: left = 70
                 elif count == 4: left = 20 + (i * 20)
             
             # Nội dung thẻ
@@ -1159,7 +1169,7 @@ def render_pitch_view(squad_list):
                 """
             final_cards_html += card_html
 
-    # 3. Tạo HTML hoàn chỉnh (Tách CSS ra khỏi f-string để tránh lỗi)
+    # 3. Tạo HTML hoàn chỉnh
     css = """
     <style>
         body { margin: 0; padding: 0; background: transparent; }
@@ -1220,7 +1230,6 @@ def render_pitch_view(squad_list):
     """
     
     # RENDER BẰNG COMPONENTS (IFRAME)
-    # Height phải khớp với height trong CSS (.pitch-container)
     components.html(html_content, height=800, scrolling=False)
 
 # ==========================================
