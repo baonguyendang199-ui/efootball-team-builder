@@ -4720,7 +4720,11 @@ def main():
                     player_versions = player_versions.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                     
                     st.subheader(f"📋 Phiên bản hiện có của {selected_player}")
-                    version_display = player_versions[['Rating', 'Position', 'Player Type', 'Club', 'Nation', 'League', 'Skills']].copy()
+                    # Hiển thị thêm cột Secondary Positions để đối chiếu
+                    cols_ver = ['Rating', 'Position', 'Secondary Positions', 'Player Type', 'Club', 'Nation', 'League']
+                    cols_ver = [c for c in cols_ver if c in player_versions.columns]
+                    
+                    version_display = player_versions[cols_ver].copy()
                     version_display.insert(0, 'STT', range(1, len(version_display) + 1))
                     st.dataframe(version_display, use_container_width=True, hide_index=True)
                     
@@ -4742,6 +4746,7 @@ def main():
                                     'Player': selected_player,
                                     'Rating': player_info.get('Rating', 0),
                                     'Position': player_info['Position'],
+                                    'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
                                     'Nation': player_info['Nation'],
                                     'Club': player_info['Club'],
                                     'League': player_info['League'],
@@ -4788,6 +4793,7 @@ def main():
                                         'Player': player_info['Player'],
                                         'Rating': player_info.get('Rating', 0),
                                         'Position': player_info['Position'],
+                                        'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
                                         'Nation': player_info['Nation'],
                                         'Club': player_info['Club'],
                                         'League': player_info['League'],
@@ -4817,6 +4823,7 @@ def main():
                                 'Player': '',
                                 'Rating': 90,
                                 'Position': 'CF',
+                                'Secondary Positions': '',
                                 'Nation': '',
                                 'Club': '',
                                 'League': '',
@@ -4854,6 +4861,8 @@ def main():
                         st.image(image_url, width=200)
                     with col_info:
                         st.markdown(f"## {data.get('Player', 'Unknown Player')}")
+                        # Hiển thị nhanh các vị trí
+                        st.caption(f"**Vị trí chính:** {data.get('Position')} | **Phụ:** {data.get('Secondary Positions')}")
                 else:
                     st.markdown(f"## ✍️ Nhập thông tin cầu thủ mới")
                 
@@ -4883,13 +4892,22 @@ def main():
                         if current_pos and current_pos not in existing_positions:
                             existing_positions.insert(0, current_pos)
                         position_idx = existing_positions.index(current_pos) if current_pos in existing_positions else 0
-                        position = st.selectbox("📍 Vị trí *", existing_positions, index=position_idx)
+                        position = st.selectbox("📍 Vị trí Chính *", existing_positions, index=position_idx)
                     with col2:
                         position_style = st.selectbox(
                             "🎮 Nhóm vị trí *",
                             POSITION_STYLES,
                             index=POSITION_STYLES.index(POSITIONS.get(position, "Forward"))
                         )
+
+                    # --- MỚI: VỊ TRÍ PHỤ ---
+                    st.markdown("#### 🔁 Vị trí phụ (Secondary Positions)")
+                    secondary_pos = st.text_input(
+                        "Nhập các vị trí phụ (cách nhau bởi dấu phẩy)", 
+                        value=data.get('Secondary Positions', ''),
+                        help="Ví dụ: LWF, SS, AMF. Để trống nếu không có."
+                    )
+                    # -----------------------
                     
                     st.divider()
                     st.subheader("🌍 Thông tin đội bóng")
@@ -5011,6 +5029,7 @@ def main():
                                     new_df.at[old_idx, 'Rating'] = int(rating)
                                     new_df.at[old_idx, 'Position'] = position
                                     new_df.at[old_idx, 'Position Style'] = position_style
+                                    new_df.at[old_idx, 'Secondary Positions'] = secondary_pos # LƯU VỊ TRÍ PHỤ
                                     new_df.at[old_idx, 'Player Type'] = player_type_norm
                                     new_df.at[old_idx, 'Region'] = region_val
                                     new_df.at[old_idx, 'Height'] = height_val
@@ -5054,6 +5073,7 @@ def main():
                                         "Rating": int(rating),
                                         "Position": position,
                                         "Position Style": position_style,
+                                        "Secondary Positions": secondary_pos, # LƯU VỊ TRÍ PHỤ
                                         "Player Type": player_type_norm,
                                         "Nation": nation,
                                         "Club": club,
@@ -5100,6 +5120,7 @@ def main():
                                     "Rating": int(rating),
                                     "Position": position,
                                     "Position Style": position_style,
+                                    "Secondary Positions": secondary_pos, # LƯU VỊ TRÍ PHỤ
                                     "Player Type": player_type_norm,
                                     "Nation": nation,
                                     "Club": club,
