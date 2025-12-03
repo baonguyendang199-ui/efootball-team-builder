@@ -1069,12 +1069,12 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list):
     """
     Vẽ sơ đồ sân bóng với tọa độ tuyệt đối (Absolute Positioning).
-    Sửa lỗi vị trí: Cánh ra cánh, giữa ra giữa, DMF thấp hơn AMF.
+    Sửa lỗi hiển thị text raw HTML bằng cách ép kiểu unsafe_allow_html.
     """
     
     # 1. Định nghĩa độ sâu (Trục Y - Từ trên xuống dưới 0-100%)
     DEPTH_MAP = {
-        'CF': 12, 'SS': 22,
+        'CF': 12, 'SS': 20,
         'LWF': 18, 'RWF': 18,
         'AMF': 32,
         'LMF': 45, 'RMF': 45, 'CMF': 48,
@@ -1084,68 +1084,60 @@ def render_pitch_view(squad_list):
     }
 
     # 2. Phân loại cầu thủ để tính toán trục X (Ngang)
-    # Các vị trí cố định cánh
     LEFT_SIDE = ['LWF', 'LMF', 'LB']
     RIGHT_SIDE = ['RWF', 'RMF', 'RB']
     
-    # Các vị trí trung tâm cần dàn trải (nếu có nhiều người cùng vị trí)
-    CENTRAL_ROLES = ['CF', 'SS', 'AMF', 'CMF', 'DMF', 'CB', 'GK']
-
-    # Gom nhóm cầu thủ theo Role để chia tọa độ
+    # Gom nhóm cầu thủ theo Role
     role_groups = {}
     for p in squad_list:
         pos = p['Position']
         if pos not in role_groups: role_groups[pos] = []
         role_groups[pos].append(p)
 
-    final_html = ""
+    final_cards_html = ""
 
     for pos, players in role_groups.items():
         count = len(players)
-        
-        # Tính toán tọa độ Y (Top)
         top = DEPTH_MAP.get(pos, 50)
         
-        # Tính toán tọa độ X (Left)
         for i, p in enumerate(players):
-            left = 50 # Mặc định giữa sân
-
-            # Xử lý Cánh Trái (Cố định khoảng 15%)
+            # Tính toán Left (X)
+            left = 50 
             if pos in LEFT_SIDE:
                 left = 15
-            # Xử lý Cánh Phải (Cố định khoảng 85%)
             elif pos in RIGHT_SIDE:
                 left = 85
-            # Xử lý Trung tâm (Dàn đều)
             else:
-                if count == 1:
-                    left = 50
-                elif count == 2:
-                    left = 35 if i == 0 else 65 # Dàn ra 2 bên
-                elif count == 3:
+                # Dàn đều các vị trí trung tâm
+                if count == 1: left = 50
+                elif count == 2: left = 35 if i == 0 else 65
+                elif count == 3: 
                     if i == 0: left = 30
                     elif i == 1: left = 50
                     else: left = 70
-                elif count == 4: # Trường hợp hiếm (ví dụ 4 CB)
-                    left = 20 + (i * 20)
+                elif count == 4: left = 20 + (i * 20)
             
-            # --- Render Thẻ Cầu Thủ ---
+            # Nội dung thẻ
             player_name = p['Player']
             if player_name == "---":
-                card_content = """
-                <div style='width:100%;height:100%;background:rgba(0,0,0,0.4);border-radius:6px;
+                card_inner = """
+                <div style='width:100%;height:100%;background:rgba(255,255,255,0.1);border-radius:6px;
                 display:flex;align-items:center;justify-content:center;color:#bbb;font-size:10px;'>
                 Trống</div>"""
                 border_color = "#555"
             else:
                 ptype = str(p['Type']).upper()
                 border_color = "#f59e0b" if "EPIC" in ptype else ("#a855f7" if "POTW" in ptype else "#3b82f6")
-                img_src = p['Image'] if p['Image'] else ""
-                img_html = f"<img src='{img_src}' style='width:45px;height:auto;margin-bottom:2px;'>" if img_src else "<div style='font-size:20px;'>👤</div>"
                 
-                card_content = f"""
+                img_src = p['Image']
+                if img_src:
+                    img_html = f"<img src='{img_src}' style='width:45px;height:auto;margin-bottom:2px;display:block;'>"
+                else:
+                    img_html = "<div style='font-size:20px;margin-bottom:2px;'>👤</div>"
+                
+                card_inner = f"""
                 {img_html}
-                <div style="font-size:10px;font-weight:bold;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;text-shadow: 1px 1px 2px black;">
+                <div style="font-size:10px;font-weight:bold;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;text-shadow:1px 1px 2px black;">
                     {player_name}
                 </div>
                 <div style="font-size:9px;color:#e2e8f0;background:rgba(0,0,0,0.6);padding:0 4px;border-radius:4px;margin-top:1px;">
@@ -1153,78 +1145,59 @@ def render_pitch_view(squad_list):
                 </div>
                 """
 
-            # HTML cho 1 thẻ vị trí tuyệt đối
-            final_html += f"""
+            # HTML tuyệt đối cho từng thẻ
+            final_cards_html += f"""
             <div style="
                 position: absolute;
                 top: {top}%; left: {left}%;
                 transform: translate(-50%, -50%);
                 width: 75px; height: auto; padding: 4px;
                 display: flex; flex-direction: column; align-items: center;
-                background: rgba(15, 23, 42, 0.85);
+                background: rgba(15, 23, 42, 0.9);
                 border: 1px solid {border_color}; border-radius: 8px;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+                box-shadow: 0 4px 10px rgba(0,0,0,0.6);
                 z-index: 10;
-                transition: all 0.2s;
             ">
-                {card_content}
+                {card_inner}
             </div>
             """
 
-    # --- Render Sân bóng ---
-    st.markdown(f"""
+    # 3. Gói tất cả vào Container Sân Bóng và render bằng st.markdown
+    full_html = f"""
     <style>
-    .pitch-container {{
+    .pitch-wrapper {{
         position: relative;
         width: 100%;
-        height: 750px; /* Chiều cao sân */
-        background: 
-            repeating-linear-gradient(
-                0deg,
-                #14532d,
-                #14532d 50px,
-                #166534 50px,
-                #166534 100px
-            );
+        height: 750px;
+        background: repeating-linear-gradient(0deg, #14532d, #14532d 50px, #166534 50px, #166534 100px);
         border: 2px solid rgba(255,255,255,0.8);
         border-radius: 12px;
         box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
         margin-bottom: 20px;
         overflow: hidden;
     }}
-    /* Vạch giữa sân */
-    .pitch-container::before {{
-        content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 2px;
-        background: rgba(255,255,255,0.4);
-    }}
-    /* Vòng tròn giữa sân */
-    .pitch-container::after {{
-        content: ''; position: absolute; top: 50%; left: 50%; 
-        transform: translate(-50%, -50%);
-        width: 100px; height: 100px;
-        border: 2px solid rgba(255,255,255,0.4);
-        border-radius: 50%;
-    }}
-    /* Khu vực 16m50 trên */
-    .box-top {{
-        position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-        width: 50%; height: 16%;
-        border: 2px solid rgba(255,255,255,0.4); border-top: none;
-    }}
-    /* Khu vực 16m50 dưới */
-    .box-bottom {{
-        position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-        width: 50%; height: 16%;
-        border: 2px solid rgba(255,255,255,0.4); border-bottom: none;
-    }}
+    .pitch-line {{ position: absolute; background: rgba(255,255,255,0.4); }}
+    .pitch-circle {{ position: absolute; border: 2px solid rgba(255,255,255,0.4); border-radius: 50%; }}
+    .pitch-box {{ position: absolute; border: 2px solid rgba(255,255,255,0.4); }}
     </style>
 
-    <div class="pitch-container">
-        <div class="box-top"></div>
-        <div class="box-bottom"></div>
-        {final_html}
+    <div class="pitch-wrapper">
+        <!-- Vạch giữa sân -->
+        <div class="pitch-line" style="top:50%;left:0;width:100%;height:2px;"></div>
+        <!-- Vòng tròn giữa sân -->
+        <div class="pitch-circle" style="top:50%;left:50%;transform:translate(-50%,-50%);width:100px;height:100px;"></div>
+        <!-- Vòng 16m50 trên -->
+        <div class="pitch-box" style="top:0;left:50%;transform:translateX(-50%);width:50%;height:16%;border-top:none;"></div>
+        <!-- Vòng 16m50 dưới -->
+        <div class="pitch-box" style="bottom:0;left:50%;transform:translateX(-50%);width:50%;height:16%;border-bottom:none;"></div>
+        
+        <!-- CÁC THẺ CẦU THỦ -->
+        {final_cards_html}
     </div>
-    """, unsafe_allow_html=True)
+    """
+    
+    # QUAN TRỌNG: Render HTML
+    st.markdown(full_html, unsafe_allow_html=True)
 
 # ==========================================
 # KẾT THÚC BƯỚC 1
