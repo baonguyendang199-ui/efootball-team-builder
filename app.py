@@ -1068,8 +1068,8 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 # 3. Hàm vẽ sơ đồ sân bóng
 def render_pitch_view(squad_list):
     """
-    Vẽ sơ đồ sân bóng với tọa độ tuyệt đối (Absolute Positioning).
-    Sửa lỗi hiển thị text raw HTML bằng cách ép kiểu unsafe_allow_html.
+    Vẽ sơ đồ sân bóng.
+    FIX LỖI: Sử dụng st.markdown(..., unsafe_allow_html=True) để hiển thị hình ảnh thay vì text.
     """
     
     # 1. Định nghĩa độ sâu (Trục Y - Từ trên xuống dưới 0-100%)
@@ -1131,6 +1131,7 @@ def render_pitch_view(squad_list):
                 
                 img_src = p['Image']
                 if img_src:
+                    # Thêm display:block để tránh lỗi layout ảnh
                     img_html = f"<img src='{img_src}' style='width:45px;height:auto;margin-bottom:2px;display:block;'>"
                 else:
                     img_html = "<div style='font-size:20px;margin-bottom:2px;'>👤</div>"
@@ -1196,7 +1197,7 @@ def render_pitch_view(squad_list):
     </div>
     """
     
-    # QUAN TRỌNG: Render HTML
+    # --- QUAN TRỌNG: DÒNG NÀY GIÚP HIỂN THỊ HTML THÀNH HÌNH ẢNH ---
     st.markdown(full_html, unsafe_allow_html=True)
 
 # ==========================================
