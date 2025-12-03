@@ -1810,7 +1810,12 @@ def extract_secondary_positions(soup, main_position):
     """
     Trích xuất vị trí phụ từ sơ đồ sân bóng (div class='pitch').
     Loại bỏ vị trí chính khỏi danh sách.
+    FIX: Nếu vị trí chính là GK thì trả về rỗng ngay lập tức.
     """
+    # 1. Nếu là GK -> Không cần lấy vị trí phụ
+    if str(main_position).strip().upper() == 'GK':
+        return ""
+
     try:
         pitch_div = soup.find('div', class_='pitch')
         if not pitch_div: return ""
