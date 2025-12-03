@@ -1066,7 +1066,7 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     return best_formation_name, best_squad
 
 # 3. Hàm vẽ sơ đồ sân bóng
-    def render_pitch_view(squad_list):
+def render_pitch_view(squad_list):
     """
     Vẽ sơ đồ sân bóng với tọa độ tuyệt đối (Absolute Positioning).
     Sửa lỗi vị trí: Cánh ra cánh, giữa ra giữa, DMF thấp hơn AMF.
