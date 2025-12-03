@@ -4338,15 +4338,13 @@ def main():
                     st.success(f"✅ Đội hình tối ưu nhất (Đá chính): **{found_name}**")
 
                 # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
-                # Lọc ra những người có rating > 0
                 all_valid_players = [p for p in best_squad if p['Rating'] > 0]
                 total_players = len(all_valid_players)
                 
-                # Tổng sức mạnh của đội 23 người
                 t_rat = sum(p['Rating'] for p in all_valid_players)
                 a_rat = t_rat / total_players if total_players > 0 else 0
                 
-                # --- LOGIC TÍNH CHỈ SỐ PHỤ (CỘT 3) ---
+                # --- LOGIC TÍNH CHỈ SỐ PHỤ ---
                 custom_label = None
                 custom_value = None
 
@@ -4385,12 +4383,10 @@ def main():
                 
                 st.divider()
                 
-                # --- HIỂN THỊ ---
+                # --- HIỂN THỊ SÂN VÀ BẢNG ---
                 col_view1, col_view2 = st.columns([1.3, 1]) 
                 
-                with col_view1:
-                    st.caption("📍 Sơ đồ Đá chính (11)")
-                    # Xác định loại chỉ số để truyền vào hàm vẽ
+                # Xác định metric để hiển thị tooltip trên sân
                 metric_to_show = None
                 if build_mode == "Theo Chỉ số":
                     if "Cao" in stat_type or "Thấp" in stat_type: metric_to_show = 'Height'
@@ -4399,7 +4395,6 @@ def main():
 
                 with col_view1:
                     st.caption("📍 Sơ đồ Đá chính (11)")
-                    # Gọi hàm với tham số mới
                     render_pitch_view(best_squad, highlight_type=metric_to_show)
                 
                 with col_view2:
@@ -4407,11 +4402,9 @@ def main():
                     
                     s_df = pd.DataFrame(best_squad)
                     
-                    # Tạo cột hiển thị Role (Đá chính / Dự bị)
                     if 'Is_Starter' in s_df.columns:
                         s_df['Role'] = s_df['Is_Starter'].apply(lambda x: "⭐ START" if x else "🔄 SUB")
                     
-                    # Tự động chọn cột hiển thị
                     cols_show = ['Role', 'Position', 'Player', 'Rating', 'Club']
                     if build_mode == "Theo Chỉ số":
                         if "Cao" in stat_type or "Thấp" in stat_type: cols_show.append('Height')
