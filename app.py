@@ -1933,53 +1933,21 @@ def main():
     with st.sidebar:
         st.header("⚙️ Điều khiển")
     
-        # 1. Nút tải lại dữ liệu (Giữ nguyên)
+        # Nút tải lại dữ liệu
         if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
             st.rerun()
 
-        st.divider()
-
-        # 2. NÚT ĐỒNG BỘ MỚI (CÓ THANH TIẾN TRÌNH & TẢI BACKUP)
-        st.markdown("### 📡 Cập nhật dữ liệu")
-        st.caption("Quét PESDB để lấy Vị trí phụ & Skill")
-        
-        # Nút kích hoạt
-        if st.button("🔁 Quét & Cập nhật PESDB", use_container_width=True, type="primary"):
+        # Nút đồng bộ dữ liệu PESDB thủ công
+        if st.button("🔁 Đồng bộ PESDB (bổ sung dữ liệu)", use_container_width=True):
             st.session_state.run_pesdb_sync = True
             st.rerun()
-            
-        # Logic xử lý khi đang chạy đồng bộ
-        if st.session_state.get('run_pesdb_sync', False):
-            # Load dữ liệu tạm để xử lý (tránh lỗi nếu df chưa được load ở main)
-            df_sync = load_data_from_gsheet()
-            
-            with st.spinner("⏳ Đang kết nối máy chủ PESDB... Vui lòng không tắt tab."):
-                # Chạy hàm quét (đã nâng cấp ở Bước 1)
-                updated_df = sync_pesdb_missing_fields(df_sync)
-                
-                # Tạo file CSV backup
-                csv = updated_df.to_csv(index=False).encode('utf-8-sig')
-                
-                st.success("✅ Cập nhật hoàn tất!")
-                
-                # Hiện nút tải về ngay lập tức
-                st.download_button(
-                    label="📥 Tải Backup (Excel/CSV)",
-                    data=csv,
-                    file_name=f"efootball_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    key="download_after_sync"
-                )
-            
-            # Tắt trạng thái chạy để không lặp lại vòng lặp
-            st.session_state.run_pesdb_sync = False
     
         st.divider()
     
-        # 3. Menu điều hướng (Giữ nguyên)
+        # Menu chính
         main_menu = st.radio(
             "📑 Điều hướng",
             ["📊 Tổng quan", "📈 Phân tích", "👥 Quản lý cầu thủ", "🎮 Quản lý Skills"],
