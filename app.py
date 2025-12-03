@@ -969,10 +969,14 @@ FORMATIONS = {
 # ==========================================
 
 # 2. Hàm xử lý logic chọn cầu thủ (Đã nâng cấp)
+# ==========================================
+# CẬP NHẬT LOGIC: BEST XI + 12 SUBS (BƯỚC 1)
+# ==========================================
+
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     pool_df = df.copy()
     
-    # Chuyển đổi số liệu thể chất
+    # 1. Chuyển đổi số liệu thể chất
     if 'Height' in pool_df.columns:
         pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
     if 'Weight' in pool_df.columns:
@@ -980,14 +984,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     if 'Age' in pool_df.columns:
         pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
 
-    # Lọc theo bộ lọc
+    # 2. Lọc theo bộ lọc (Team/Nation/...)
     if filter_col and filter_val and filter_val != "(Tất cả)":
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
         
     if pool_df.empty:
         return []
 
-    # Sắp xếp theo tiêu chí
+    # 3. Sắp xếp theo tiêu chí (Strategy)
     if sort_mode == 'rating_desc':
         pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
     elif sort_mode == 'height_desc': 
@@ -996,17 +1000,18 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df.sort_values(['Height_num', 'Rating'], ascending=[True, False])
     elif sort_mode == 'weight_desc': 
         pool_df = pool_df.sort_values(['Weight_num', 'Rating'], ascending=[False, False])
-    elif sort_mode == 'weight_asc': # Mới: Nhẹ nhất
+    elif sort_mode == 'weight_asc': 
         pool_df = pool_df.sort_values(['Weight_num', 'Rating'], ascending=[True, False])
     elif sort_mode == 'age_asc': 
         pool_df = pool_df.sort_values(['Age_num', 'Rating'], ascending=[True, False])
-    elif sort_mode == 'age_desc': # Mới: Già nhất
+    elif sort_mode == 'age_desc': 
         pool_df = pool_df.sort_values(['Age_num', 'Rating'], ascending=[False, False])
     
-    required_positions = FORMATIONS.get(formation_name, [])
     squad_list = []
     used_indices = set()
+    required_positions = FORMATIONS.get(formation_name, [])
     
+    # --- PHASE 1: CHỌN ĐỘI HÌNH CHÍNH (STARTING XI) ---
     for pos_req in required_positions:
         candidates = pool_df[
             (pool_df['Position'] == pos_req) & 
@@ -1015,6 +1020,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         
         if not candidates.empty:
             best_player = candidates.iloc[0]
+            
+            # Lấy ảnh
             pid = str(best_player.get('Player ID', '')).strip()
             purl = str(best_player.get('Player URL', '')).strip()
             if not pid and purl:
@@ -1023,6 +1030,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
             squad_list.append({
+                "Is_Starter": True, # Đánh dấu đá chính
                 "Position": pos_req,
                 "Player": best_player['Player'],
                 "Rating": best_player['Rating'],
@@ -1037,13 +1045,48 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             })
             used_indices.add(best_player.name)
         else:
+            # Thiếu người đá chính
             squad_list.append({
-                "Position": pos_req, "Player": "---", "Rating": 0, "Type": "N/A", "Image": None
+                "Is_Starter": True, "Position": pos_req, "Player": "---", "Rating": 0, "Type": "N/A", "Image": None
             })
-            
+
+    # --- PHASE 2: CHỌN DỰ BỊ (SUBS) - LẤY 12 NGƯỜI TỐT NHẤT CÒN LẠI ---
+    TARGET_SQUAD_SIZE = 23
+    remaining_slots = TARGET_SQUAD_SIZE - len(squad_list)
+    
+    if remaining_slots > 0:
+        # Lấy danh sách cầu thủ chưa được chọn (vẫn giữ thứ tự sort theo tiêu chí)
+        bench_candidates = pool_df[~pool_df.index.isin(used_indices)]
+        
+        # Lấy top N người
+        bench_picks = bench_candidates.head(remaining_slots)
+        
+        for _, row in bench_picks.iterrows():
+            # Lấy ảnh
+            pid = str(row.get('Player ID', '')).strip()
+            purl = str(row.get('Player URL', '')).strip()
+            if not pid and purl:
+                m = re.search(r"(\d{14,})", purl)
+                pid = m.group(1) if m else ""
+            img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+
+            squad_list.append({
+                "Is_Starter": False, # Đánh dấu dự bị
+                "Position": row['Position'], # Giữ nguyên vị trí gốc
+                "Player": row['Player'],
+                "Rating": row['Rating'],
+                "Type": row['Player Type'],
+                "Club": row['Club'],
+                "Nation": row['Nation'],
+                "Height": row.get('Height', ''),
+                "Weight": row.get('Weight', ''),
+                "Age": row.get('Age', ''),
+                "Image": img_url,
+                "Data": row
+            })
+
     return squad_list
 
-# Hàm mới: Tự động tìm sơ đồ tốt nhất
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     best_total_rating = -1
     best_squad = []
@@ -1053,11 +1096,11 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     for form_name in FORMATIONS.keys():
         squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
         
-        # Tính tổng rating của đội hình này
-        # Chỉ tính cầu thủ có thật (Rating > 0), bỏ qua vị trí "---"
-        current_rating = sum([p['Rating'] for p in squad if p['Rating'] > 0])
+        # CHỈ TÍNH TỔNG RATING CỦA 11 CẦU THỦ ĐÁ CHÍNH
+        # Vì dự bị (12 người) luôn giống nhau (là những người tốt nhất còn lại), nên không ảnh hưởng việc chọn sơ đồ
+        starters = [p for p in squad if p.get('Is_Starter', False) and p['Rating'] > 0]
+        current_rating = sum([p['Rating'] for p in starters])
         
-        # Nếu sơ đồ này điểm cao hơn cái cũ -> Lưu lại
         if current_rating > best_total_rating:
             best_total_rating = current_rating
             best_squad = squad
@@ -1065,183 +1108,75 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
             
     return best_formation_name, best_squad
 
-# 3. Hàm vẽ sơ đồ sân bóng
 def render_pitch_view(squad_list):
     """
-    Vẽ sơ đồ sân bóng (Phiên bản Tactical Smart v2).
-    - Tự động tách DMF và CMF sang 2 bên nếu mỗi vị trí chỉ có 1 người.
-    - Căn chỉnh hàng thủ và hàng công chuẩn Efootball.
+    Vẽ sơ đồ sân bóng (Chỉ vẽ 11 người đá chính).
     """
     import streamlit.components.v1 as components
     
-    # 1. Định nghĩa độ sâu (Trục Y) - Càng nhỏ càng gần gôn đối phương
+    # LỌC: CHỈ LẤY CẦU THỦ ĐÁ CHÍNH ĐỂ VẼ LÊN SÂN
+    starters_list = [p for p in squad_list if p.get('Is_Starter', False)]
+
+    # 1. Định nghĩa độ sâu
     DEPTH_MAP = {
-        'CF': 12, 'SS': 20,
-        'LWF': 20, 'RWF': 20,
-        'AMF': 32,
-        'LMF': 45, 'RMF': 45, 
-        'CMF': 50, # CMF cao hơn DMF một chút
-        'DMF': 60, # DMF thấp nhất hàng tiền vệ
-        'LB': 75, 'RB': 75, 'CB': 82,
-        'GK': 93
+        'CF': 12, 'SS': 20, 'LWF': 20, 'RWF': 20,
+        'AMF': 32, 'LMF': 45, 'RMF': 45, 
+        'CMF': 50, 'DMF': 60,
+        'LB': 75, 'RB': 75, 'CB': 82, 'GK': 93
     }
 
-    # 2. Phân nhóm cầu thủ
-    groups = {p['Position']: [] for p in squad_list}
-    for p in squad_list:
+    # 2. Phân nhóm
+    groups = {p['Position']: [] for p in starters_list}
+    for p in starters_list:
         groups[p['Position']].append(p)
 
     final_cards_html = ""
-
-    # Các vị trí bám biên cố định
     LEFT_SIDE = ['LWF', 'LMF', 'LB']
     RIGHT_SIDE = ['RWF', 'RMF', 'RB']
 
-    # Duyệt qua từng vị trí để tính tọa độ
     for pos, players in groups.items():
         count = len(players)
         if count == 0: continue
-        
         top = DEPTH_MAP.get(pos, 50)
         
         for i, p in enumerate(players):
-            left = 50 # Mặc định giữa sân
-
-            # --- LOGIC TÍNH TỌA ĐỘ NGANG (X) ---
-            
-            # 1. Nếu là Cánh (Luôn cố định)
+            left = 50 
             if pos in LEFT_SIDE: left = 15
             elif pos in RIGHT_SIDE: left = 85
-            
-            # 2. Nếu là Trung tâm (GK, CB, DMF, CMF, AMF, CF, SS)
             else:
-                # === XỬ LÝ THÔNG MINH CHO TIỀN VỆ TRUNG TÂM ===
-                # Nếu đội hình có 1 DMF và 1 CMF (Sơ đồ 4-3-3 lệch hoặc 4-2-1-3 lệch)
-                # Thì DMF dạt trái, CMF dạt phải (hoặc ngược lại) để không bị chồng chéo
                 is_midfield_duo = (pos == 'DMF' and len(groups.get('CMF', [])) == 1) or \
                                   (pos == 'CMF' and len(groups.get('DMF', [])) == 1)
                 
                 if is_midfield_duo and count == 1:
-                    if pos == 'DMF': left = 40  # DMF lệch trái một chút
-                    if pos == 'CMF': left = 60  # CMF lệch phải một chút
-                
-                # === XỬ LÝ CÁC TRƯỜNG HỢP CÒN LẠI ===
-                elif count == 1:
-                    left = 50 # Đứng giữa (Ví dụ: 1 CF, 1 AMF, hoặc 1 DMF trong sơ đồ 4-3-3 chuẩn)
-                elif count == 2:
-                    left = 35 if i == 0 else 65 # Dàn ra 2 bên (Ví dụ: 2 CB, 2 DMF, 2 CF)
-                elif count == 3:
-                    if i == 0: left = 30
-                    elif i == 1: left = 50
-                    else: left = 70
-                elif count == 4:
-                    left = 20 + (i * 20)
+                    if pos == 'DMF': left = 40
+                    if pos == 'CMF': left = 60
+                elif count == 1: left = 50
+                elif count == 2: left = 35 if i == 0 else 65
+                elif count == 3: left = 30 if i == 0 else (50 if i == 1 else 70)
+                elif count == 4: left = 20 + (i * 20)
 
-            # --- RENDER THẺ HTML ---
             player_name = p['Player']
             if player_name == "---":
-                card_html = f"""
-                <div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%);
-                    width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #666;
-                    display: flex; align-items: center; justify-content: center; color: #888; font-size: 10px; z-index: 5;">
-                    <div style="text-align:center;">{pos}<br>Trống</div>
-                </div>
-                """
+                card_html = f"""<div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%); width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #666; display: flex; align-items: center; justify-content: center; color: #888; font-size: 10px; z-index: 5;"><div style="text-align:center;">{pos}<br>Trống</div></div>"""
             else:
                 ptype = str(p['Type']).upper()
                 border_color = "#f59e0b" if "EPIC" in ptype else ("#a855f7" if "POTW" in ptype else "#3b82f6")
-                
                 img_src = p['Image']
-                # Xử lý ảnh: fallback sang icon nếu lỗi
-                img_tag = f"""<img src='{img_src}' style='width:48px;height:auto;margin-bottom:3px;display:block;' 
-                              onerror="this.onerror=null;this.src='https://pesdb.net/assets/img/card/f0.png';this.style.display='none';this.nextElementSibling.style.display='block';">
-                              <div style='font-size:24px;margin-bottom:3px;display:none;'>👤</div>""" if img_src else "<div style='font-size:24px;margin-bottom:3px;'>👤</div>"
+                img_tag = f"""<img src='{img_src}' style='width:48px;height:auto;margin-bottom:3px;display:block;' onerror="this.onerror=null;this.src='https://pesdb.net/assets/img/card/f0.png';this.style.display='none';this.nextElementSibling.style.display='block';"><div style='font-size:24px;margin-bottom:3px;display:none;'>👤</div>""" if img_src else "<div style='font-size:24px;margin-bottom:3px;'>👤</div>"
                 
-                # Card Cầu thủ
                 card_html = f"""
-                <div style="
-                    position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%);
-                    width: 85px; padding: 4px 2px;
-                    display: flex; flex-direction: column; align-items: center;
-                    background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%);
-                    border: 1px solid {border_color}; border-radius: 6px;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-                    z-index: 10; cursor: pointer; transition: all 0.2s ease;
-                " onmouseover="this.style.transform='translate(-50%, -50%) scale(1.15)'; this.style.zIndex='100';" 
-                  onmouseout="this.style.transform='translate(-50%, -50%) scale(1)'; this.style.zIndex='10';">
-                    
+                <div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%); width: 85px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%); border: 1px solid {border_color}; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.transform='translate(-50%, -50%) scale(1.15)'; this.style.zIndex='100';" onmouseout="this.style.transform='translate(-50%, -50%) scale(1)'; this.style.zIndex='10';">
                     {img_tag}
-                    
-                    <div style="font-family: sans-serif; font-size: 10px; font-weight: 700; color: white; 
-                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 95%; text-align: center;
-                        text-shadow: 1px 1px 2px black; margin-bottom: 2px;">
-                        {player_name}
-                    </div>
-                    
+                    <div style="font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 95%; text-align: center; text-shadow: 1px 1px 2px black; margin-bottom: 2px;">{player_name}</div>
                     <div style="display:flex; gap:3px; align-items:center;">
-                        <div style="font-family: sans-serif; font-size: 9px; font-weight:bold; color: #cbd5e1; background: rgba(255,255,255,0.1); 
-                            padding: 1px 4px; border-radius: 3px;">{pos}</div>
-                        <div style="font-family: sans-serif; font-size: 10px; font-weight:bold; color: {border_color};">
-                            {p['Rating']}
-                        </div>
+                        <div style="font-family: sans-serif; font-size: 9px; font-weight:bold; color: #cbd5e1; background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;">{pos}</div>
+                        <div style="font-family: sans-serif; font-size: 10px; font-weight:bold; color: {border_color};">{p['Rating']}</div>
                     </div>
-                </div>
-                """
+                </div>"""
             final_cards_html += card_html
 
-    # --- 3. RENDER COMPONENT (IFRAME) ---
-    css = """
-    <style>
-        body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
-        .pitch-container {
-            position: relative; width: 100%; height: 750px;
-            background: linear-gradient(180deg, #1e5631 0%, #14532d 40%, #064e3b 100%);
-            border: 2px solid rgba(255,255,255,0.7); border-radius: 12px;
-            box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
-        }
-        /* Họa tiết cỏ */
-        .grass-pattern {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0,0,0,0.08) 50px, rgba(0,0,0,0.08) 100px);
-            z-index: 1; pointer-events: none;
-        }
-        /* Vạch sơn */
-        .lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
-        .line { position: absolute; background: rgba(255,255,255,0.4); }
-        .border-line { position: absolute; border: 2px solid rgba(255,255,255,0.4); }
-        
-        .center-line { top: 50%; left: 0; width: 100%; height: 2px; }
-        .center-circle { top: 50%; left: 50%; width: 120px; height: 120px; border-radius: 50%; transform: translate(-50%, -50%); }
-        .center-dot { top: 50%; left: 50%; width: 6px; height: 6px; background: rgba(255,255,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); }
-        .box-top { top: 0; left: 50%; width: 45%; height: 15%; border-top: none; transform: translateX(-50%); }
-        .box-bottom { bottom: 0; left: 50%; width: 45%; height: 15%; border-bottom: none; transform: translateX(-50%); }
-        .goal-top { top: 0; left: 50%; width: 20%; height: 5%; border-top: none; transform: translateX(-50%); }
-        .goal-bottom { bottom: 0; left: 50%; width: 20%; height: 5%; border-bottom: none; transform: translateX(-50%); }
-    </style>
-    """
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>{css}</head>
-    <body>
-        <div class="pitch-container">
-            <div class="grass-pattern"></div>
-            <div class="lines">
-                <div class="line center-line"></div>
-                <div class="border-line center-circle"></div>
-                <div class="line center-dot"></div>
-                <div class="border-line box-top"></div>
-                <div class="border-line box-bottom"></div>
-                <div class="border-line goal-top"></div>
-                <div class="border-line goal-bottom"></div>
-            </div>
-            {final_cards_html}
-        </div>
-    </body>
-    </html>
-    """
-    
+    css = """<style>body { margin: 0; padding: 0; background: transparent; overflow: hidden; } .pitch-container { position: relative; width: 100%; height: 750px; background: linear-gradient(180deg, #1e5631 0%, #14532d 40%, #064e3b 100%); border: 2px solid rgba(255,255,255,0.7); border-radius: 12px; box-shadow: inset 0 0 60px rgba(0,0,0,0.5); } .grass-pattern { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0,0,0,0.08) 50px, rgba(0,0,0,0.08) 100px); z-index: 1; pointer-events: none; } .lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; } .line { position: absolute; background: rgba(255,255,255,0.4); } .border-line { position: absolute; border: 2px solid rgba(255,255,255,0.4); } .center-line { top: 50%; left: 0; width: 100%; height: 2px; } .center-circle { top: 50%; left: 50%; width: 120px; height: 120px; border-radius: 50%; transform: translate(-50%, -50%); } .center-dot { top: 50%; left: 50%; width: 6px; height: 6px; background: rgba(255,255,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); } .box-top { top: 0; left: 50%; width: 45%; height: 15%; border-top: none; transform: translateX(-50%); } .box-bottom { bottom: 0; left: 50%; width: 45%; height: 15%; border-bottom: none; transform: translateX(-50%); } .goal-top { top: 0; left: 50%; width: 20%; height: 5%; border-top: none; transform: translateX(-50%); } .goal-bottom { bottom: 0; left: 50%; width: 20%; height: 5%; border-bottom: none; transform: translateX(-50%); }</style>"""
+    html_content = f"""<!DOCTYPE html><html><head>{css}</head><body><div class="pitch-container"><div class="grass-pattern"></div><div class="lines"><div class="line center-line"></div><div class="border-line center-circle"></div><div class="line center-dot"></div><div class="border-line box-top"></div><div class="border-line box-bottom"></div><div class="border-line goal-top"></div><div class="border-line goal-bottom"></div></div>{final_cards_html}</div></body></html>"""
     components.html(html_content, height=760, scrolling=False)
 
 # ==========================================
@@ -4218,72 +4153,79 @@ def main():
             if not best_squad:
                 st.warning("⚠️ Không tìm thấy cầu thủ phù hợp để xếp đội hình!")
             else:
-                # Hiển thị tên sơ đồ tìm được
                 if found_name:
-                    st.success(f"✅ Đội hình tối ưu nhất: **{found_name}**")
+                    st.success(f"✅ Đội hình tối ưu nhất (Đá chính): **{found_name}**")
 
-                # --- TÍNH TOÁN CHỈ SỐ CƠ BẢN ---
-                valid_p = [p for p in best_squad if p['Rating'] > 0]
-                t_rat = sum(p['Rating'] for p in valid_p)
-                a_rat = t_rat / 11 if valid_p else 0
+                # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
+                # Lọc ra những người có rating > 0
+                all_valid_players = [p for p in best_squad if p['Rating'] > 0]
+                total_players = len(all_valid_players)
+                
+                # Tổng sức mạnh của đội 23 người
+                t_rat = sum(p['Rating'] for p in all_valid_players)
+                a_rat = t_rat / total_players if total_players > 0 else 0
                 
                 # --- LOGIC TÍNH CHỈ SỐ PHỤ (CỘT 3) ---
                 custom_label = None
                 custom_value = None
 
                 if build_mode == "Theo Chỉ số":
-                    # Helper để lấy số từ chuỗi (vd: "185cm" -> 185.0)
                     def get_val(p, key):
-                        try:
-                            return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
+                        try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
                         except: return 0
 
                     if "Cao" in stat_type or "Thấp" in stat_type:
-                        vals = [get_val(p, 'Height') for p in valid_p]
+                        vals = [get_val(p, 'Height') for p in all_valid_players]
                         avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Chiều cao TB"
+                        custom_label = "Chiều cao TB (23)"
                         custom_value = f"{avg:.1f} cm"
-                    
                     elif "Nặng" in stat_type or "Nhẹ" in stat_type:
-                        vals = [get_val(p, 'Weight') for p in valid_p]
+                        vals = [get_val(p, 'Weight') for p in all_valid_players]
                         avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Cân nặng TB"
+                        custom_label = "Cân nặng TB (23)"
                         custom_value = f"{avg:.1f} kg"
-                        
                     elif "Trẻ" in stat_type or "Già" in stat_type:
-                        vals = [get_val(p, 'Age') for p in valid_p]
+                        vals = [get_val(p, 'Age') for p in all_valid_players]
                         avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Tuổi TB"
+                        custom_label = "Tuổi TB (23)"
                         custom_value = f"{avg:.1f}"
 
-                # --- HIỂN THỊ METRICS (LINH HOẠT 2 HOẶC 3 CỘT) ---
+                # --- HIỂN THỊ METRICS ---
                 if custom_label:
                     m1, m2, m3 = st.columns(3)
-                    with m1: st.metric("Tổng Sức mạnh", t_rat)
-                    with m2: st.metric("Rating TB", f"{a_rat:.1f}")
+                    with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
+                    with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
                     with m3: st.metric(custom_label, custom_value)
                 else:
-                    # Mặc định (Theo Team hoặc Rating cao nhất) chỉ hiện 2 cột
-                    m1, m2 = st.columns(2)
-                    with m1: st.metric("Tổng Sức mạnh", t_rat)
-                    with m2: st.metric("Rating TB", f"{a_rat:.1f}")
+                    m1, m2, m3 = st.columns(3)
+                    with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
+                    with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
+                    with m3: st.metric("Quân số", f"{total_players}/23")
                 
                 st.divider()
                 
-                # --- PHẦN HIỂN THỊ SÂN VÀ BẢNG (GIỮ NGUYÊN) ---
+                # --- HIỂN THỊ ---
                 col_view1, col_view2 = st.columns([1.3, 1]) 
+                
                 with col_view1:
+                    st.caption("📍 Sơ đồ Đá chính (11)")
                     render_pitch_view(best_squad)
                 
                 with col_view2:
-                    st.subheader("📋 Chi tiết")
+                    st.caption("📋 Danh sách Đầy đủ (23)")
+                    
                     s_df = pd.DataFrame(best_squad)
                     
-                    # Tự động chọn cột hiển thị trong bảng
-                    cols_show = ['Position', 'Player', 'Rating', 'Club']
-                    if custom_label == "Chiều cao TB": cols_show.append('Height')
-                    elif custom_label == "Cân nặng TB": cols_show.append('Weight')
-                    elif custom_label == "Tuổi TB": cols_show.append('Age')
+                    # Tạo cột hiển thị Role (Đá chính / Dự bị)
+                    if 'Is_Starter' in s_df.columns:
+                        s_df['Role'] = s_df['Is_Starter'].apply(lambda x: "⭐ START" if x else "🔄 SUB")
+                    
+                    # Tự động chọn cột hiển thị
+                    cols_show = ['Role', 'Position', 'Player', 'Rating', 'Club']
+                    if build_mode == "Theo Chỉ số":
+                        if "Cao" in stat_type or "Thấp" in stat_type: cols_show.append('Height')
+                        elif "Nặng" in stat_type or "Nhẹ" in stat_type: cols_show.append('Weight')
+                        elif "Trẻ" in stat_type or "Già" in stat_type: cols_show.append('Age')
                     
                     final_cols = [c for c in cols_show if c in s_df.columns]
                     
@@ -4295,6 +4237,7 @@ def main():
                         column_config={
                             "Rating": st.column_config.NumberColumn("OVR", format="%d"),
                             "Player": st.column_config.TextColumn("Cầu thủ", width="medium"),
+                            "Role": st.column_config.TextColumn("Vai trò", width="small"),
                         }
                     )
 
