@@ -934,19 +934,20 @@ POSITION_STYLE_ORDER = {
 # ==========================================
 
 # 1. Database 27 Sơ đồ chiến thuật
-# --- FORMATION DATABASE (ALL VARIATIONS) ---
-# Thỏa mãn: GK=1, DMF>=1, CB<=3, CF<=2, SS<=5
+# --- FORMATION DATABASE (FULL MEGA LIST) ---
+# Constraints: GK=1, CB<=3, CB>=2, CF<=2, SS<=5
 FORMATIONS = {
     # ====================================================
-    # 🛡️ 4 HẬU VỆ (2 CB, 1 LB, 1 RB) - Cân bằng nhất
+    # 🛡️ 4 HẬU VỆ (TIÊU CHUẨN)
     # ====================================================
     
-    # --- NHÓM 4-3-3 (Biến thể Tiền vệ) ---
-    "4-3-3 (Standard)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    # --- NHÓM 4-3-3 (Classic) ---
+    "4-3-3 (3 CMF)":         ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "4-3-3 (1 DMF, 2 CMF)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "4-3-3 (DMF-CMF-AMF)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
     "4-3-3 (Holding)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "DMF", "LWF", "RWF", "CF"],
-    "4-3-3 (Attack)":        ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"],
     "4-3-3 (False 9)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "SS"],
-    
+
     # --- NHÓM 4-2-1-3 & 4-1-2-3 ---
     "4-2-1-3 (2 DMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LWF", "RWF", "CF"],
     "4-2-1-3 (2 CMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
@@ -955,75 +956,84 @@ FORMATIONS = {
 
     # --- NHÓM 4-2-3-1 ---
     "4-2-3-1 (2 DMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LWF", "RWF", "CF"],
+    "4-2-3-1 (2 CMF)":       ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LWF", "RWF", "CF"],
     "4-2-3-1 (LMF/RMF)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LMF", "RMF", "CF"],
     "4-2-3-1 (3 AMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "AMF", "CF"],
 
     # --- NHÓM 4-4-2 ---
-    "4-4-2 (Standard)":      ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CF", "CF"],
+    "4-4-2 (Flat - CMF)":    ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF", "CF"],
     "4-4-2 (2 DMF)":         ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CF", "CF"],
+    "4-4-2 (Diamond/SS)":    ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "SS", "CF"],
     "4-4-2 (Box Midfield)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
-    "4-4-2 (Diamond)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
-    "4-4-2 (Double SS)":     ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "SS", "SS"],
+    "4-4-2 (Diamond Narrow)":["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
 
     # --- NHÓM 4-3-1-2 & 4-3-2-1 ---
     "4-3-1-2 (2 CF)":        ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
-    "4-3-1-2 (CF+SS)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "CF"],
+    "4-3-1-2 (CF + SS)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "CF"],
     "4-3-2-1 (Xmas Tree)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "AMF", "CF"],
     "4-3-2-1 (3 DMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "DMF", "AMF", "AMF", "CF"],
 
     # --- NHÓM 4-5-1 & 4-1-4-1 ---
-    "4-5-1 (Flat)":          ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CMF", "CF"],
-    "4-5-1 (Parking Bus)":   ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "DMF", "CF"],
+    "4-1-4-1":               ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
     "4-1-4-1 (Attack)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "AMF", "CF"],
-    "4-1-4-1 (Control)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
+    "4-5-1 (Flat)":          ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CMF", "CF"],
+    "4-5-1 (Holding)":       ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CMF", "CF"],
+    "4-5-1 (Parking Bus)":   ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "DMF", "CF"],
 
     # --- NHÓM 4-2-2-2 & 4-2-4 ---
-    "4-2-2-2 (AMF)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
+    "4-2-2-2 (2 AMF/DMF)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
+    "4-2-2-2 (2 AMF/CMF)":   ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "AMF", "CF", "CF"],
     "4-2-2-2 (LWF/RWF)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF", "CF"],
     "4-2-4 (All Out)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "RWF", "CF", "CF"],
     "4-2-4 (4 SS)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "SS", "SS", "SS", "SS"],
 
-    # --- NHÓM ZERO STRIKER (Không CF) ---
+    # --- NHÓM KHÔNG TIỀN ĐẠO (ZERO STRIKER) ---
     "4-6-0 (False 9)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "SS"],
     "4-1-5-0 (Total)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "SS", "SS"],
 
 
     # ====================================================
-    # 🛡️ 3 HẬU VỆ (3 CB) - Tấn công biên & Kiểm soát
+    # 🛡️ 3 HẬU VỆ (TẤN CÔNG & KIỂM SOÁT)
     # ====================================================
 
     # --- NHÓM 3-4-3 ---
-    "3-4-3 (Flat)":          ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "LWF", "RWF", "CF"],
+    "3-4-3 (2 CMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "3-4-3 (2 DMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "LWF", "RWF", "CF"],
     "3-4-3 (Diamond)":       ["GK", "CB", "CB", "CB", "DMF", "CMF", "LMF", "RMF", "SS", "SS", "CF"],
     "3-4-3 (2 AMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "AMF", "AMF", "CF"],
 
     # --- NHÓM 3-5-2 ---
-    "3-5-2 (3 CMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "CMF", "CF", "CF"],
+    "3-5-2 (3 CMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "CMF", "CF", "CF"],
+    "3-5-2 (2 DMF, 1 CMF)":  ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "CMF", "CF", "CF"],
+    "3-5-2 (1 AMF, SS)":     ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "AMF", "SS", "CF"],
     "3-5-2 (2 AMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "AMF", "AMF", "CF", "CF"],
-    "3-5-2 (1 DMF, 2 SS)":   ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "AMF", "AMF", "SS", "SS"],
 
-    # --- NHÓM 3-2-3-2 & 3-2-4-1 (Meta) ---
+    # --- NHÓM 3-4-2-1 & META ---
+    "3-4-2-1 (2 AMF)":       ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"],
+    "3-4-2-1 (2 SS)":        ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "SS", "SS", "CF"],
     "3-2-3-2 (WM)":          ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "CF", "CF"],
     "3-2-4-1 (Man City)":    ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "AMF", "CF"],
-    "3-1-4-2":               ["GK", "CB", "CB", "CB", "DMF", "LMF", "RMF", "AMF", "AMF", "CF", "CF"],
+    "3-1-4-2 (Regista)":     ["GK", "CB", "CB", "CB", "DMF", "LMF", "RMF", "AMF", "AMF", "CF", "CF"],
     
-    # --- NHÓM 3-3-1-3 & 3-3-3-1 ---
+    # --- NHÓM 3-3-1-3 (Dị) ---
     "3-3-1-3 (Bielsa)":      ["GK", "CB", "CB", "CB", "DMF", "CMF", "CMF", "AMF", "LWF", "RWF", "CF"],
     "3-3-3-1 (Pyramid)":     ["GK", "CB", "CB", "CB", "DMF", "DMF", "DMF", "AMF", "AMF", "AMF", "CF"],
-    "3-6-1 (Control)":       ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "AMF", "CF"],
 
 
     # ====================================================
-    # 🛡️ 5 HẬU VỆ (3 CB, 1 LB, 1 RB) - Phòng ngự
+    # 🛡️ 5 HẬU VỆ (PHÒNG NGỰ)
     # ====================================================
 
     # --- NHÓM 5-3-2 ---
+    "5-3-2 (Standard)":      ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "CF", "CF"],
+    "5-3-2 (SS Var)":        ["GK", "LB", "CB", "CB", "CB", "RB", "CMF", "CMF", "CMF", "SS", "CF"],
     "5-3-2 (Block)":         ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "CMF", "CF", "CF"],
     "5-3-2 (Counter)":       ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "CF", "CF"],
     "5-2-1-2":               ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "CF", "CF"],
 
     # --- NHÓM 5-4-1 ---
-    "5-4-1 (Flat)":          ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CF"],
+    "5-4-1 (Flat)":          ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF"],
+    "5-4-1 (2 DMF)":         ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CF"],
     "5-4-1 (Diamond)":       ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "CF"],
     "5-1-3-1":               ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "AMF", "CF"],
 
@@ -1156,21 +1166,49 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     return squad_list
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
-    best_total_rating = -1
+    best_score = -1
     best_squad = []
     best_formation_name = ""
 
-    # Quét qua toàn bộ 27 sơ đồ
+    # Quét qua toàn bộ sơ đồ
     for form_name in FORMATIONS.keys():
         squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
         
-        # CHỈ TÍNH TỔNG RATING CỦA 11 CẦU THỦ ĐÁ CHÍNH
-        # Vì dự bị (12 người) luôn giống nhau (là những người tốt nhất còn lại), nên không ảnh hưởng việc chọn sơ đồ
-        starters = [p for p in squad if p.get('Is_Starter', False) and p['Rating'] > 0]
-        current_rating = sum([p['Rating'] for p in starters])
+        # Lấy danh sách 11 cầu thủ đá chính
+        starters = [p for p in squad if p.get('Is_Starter', False)]
         
-        if current_rating > best_total_rating:
-            best_total_rating = current_rating
+        # 1. Tính điểm cơ bản (Tổng Rating)
+        # Chỉ tính những vị trí đã điền được người (Rating > 0)
+        valid_starters = [p for p in starters if p['Rating'] > 0]
+        current_rating = sum([p['Rating'] for p in valid_starters])
+        
+        # Nếu không đủ 11 người đá chính, trừ điểm nặng để tránh chọn đội hình thiếu người
+        if len(valid_starters) < 11:
+            current_rating -= 10000 
+
+        # 2. LOGIC ƯU TIÊN DMF (CỐT LÕI)
+        # Kiểm tra xem trong 11 người đá chính có ai là DMF thật sự không
+        has_real_dmf = any(p['Position'] == 'DMF' and p['Rating'] > 0 for p in starters)
+        
+        # Kiểm tra xem sơ đồ này có yêu cầu vị trí DMF không
+        formation_needs_dmf = "DMF" in FORMATIONS[form_name]
+
+        final_score = current_rating
+
+        if has_real_dmf:
+            # Nếu có DMF thật -> Cộng điểm thưởng cực lớn để ưu tiên tuyệt đối
+            final_score += 1000000 
+        elif formation_needs_dmf and not has_real_dmf:
+            # Nếu sơ đồ cần DMF mà không tìm thấy ai -> Trừ điểm nặng (Sơ đồ vỡ)
+            final_score -= 500000
+        else:
+            # Trường hợp còn lại: Sơ đồ không cần DMF (CMF only) 
+            # Giữ nguyên điểm Rating. Sẽ chỉ được chọn nếu không có case 1.
+            pass
+
+        # Cập nhật nếu tìm thấy phương án tốt hơn
+        if final_score > best_score:
+            best_score = final_score
             best_squad = squad
             best_formation_name = form_name
             
