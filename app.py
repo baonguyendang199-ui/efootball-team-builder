@@ -4853,6 +4853,9 @@ def main():
                         if "Cao" in stat_type or "Thấp" in stat_type: cols_show.append('Height')
                         elif "Nặng" in stat_type or "Nhẹ" in stat_type: cols_show.append('Weight')
                         elif "Trẻ" in stat_type or "Già" in stat_type: cols_show.append('Age')
+                        elif "United Nations" in stat_type or "Quốc Gia" in stat_type: cols_show.append('Nation')
+                        elif "Ambidextrous" in stat_type or "Chân" in stat_type: cols_show.append('Ambidextrous')
+                        elif "Tanks" in stat_type or "Agiles" in stat_type or "BMI" in stat_type: cols_show.append('BMI')
                     
                     final_cols = [c for c in cols_show if c in s_df.columns]
                     
