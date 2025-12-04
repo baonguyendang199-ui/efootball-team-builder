@@ -1143,17 +1143,28 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
         # 3. THE AMBIDEXTROUS (2 CHÂN NHƯ 1)
         elif sort_mode == 'ambidextrous':
-            # Kiểm tra chân không thuận
-            usage = str(row.get('Weak Foot Usage', '')).lower()
-            acc = str(row.get('Weak Foot Accuracy', '')).lower()
+            # Chuẩn hóa dữ liệu về chữ thường và xóa khoảng trắng thừa
+            usage = str(row.get('Weak Foot Usage', '')).strip().lower()
+            acc = str(row.get('Weak Foot Accuracy', '')).strip().lower()
             
-            # Logic: Phải là Very High hoặc 4
-            is_good_usage = 'very high' in usage or '4' in usage
-            is_good_acc = 'very high' in acc or '4' in acc
+            # Dựa trên dữ liệu thực tế bạn cung cấp:
+            # Usage xịn nhất: 'regularly'
+            # Accuracy xịn nhất: 'very high'
             
-            if is_good_usage and is_good_acc:
-                return 10000 + row['Rating'] # Cộng điểm cực lớn để ưu tiên
-            return row['Rating'] # Nếu không thỏa thì xếp dưới
+            # Kiểm tra Usage (Tần suất): Phải là 'Regularly' (hoặc số 4)
+            is_perfect_usage = 'regularly' in usage or '4' in usage
+            
+            # Kiểm tra Accuracy (Độ chính xác): Phải là 'Very High' (hoặc số 4)
+            is_perfect_acc = 'very high' in acc or '4' in acc
+            
+            # Nếu thỏa mãn cả hai -> Cộng điểm cực lớn để đưa lên đầu
+            if is_perfect_usage and is_perfect_acc:
+                return 10000 + row['Rating'] 
+            
+            # Logic mở rộng (Optional): Nếu muốn lấy cả 'High' Accuracy thì thêm vào đây, 
+            # nhưng chế độ này là "2 chân như 1" nên ta để strict mode là tốt nhất.
+            
+            return row['Rating'] # Nếu không thỏa thì xếp dưới theo Rating
 
         # 4. FORM IS TEMPORARY (FULL POTW)
         elif sort_mode == 'potw_only':
@@ -1367,15 +1378,23 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
             # 2. Ambidextrous (2 chân như 1)
             elif sort_mode == 'ambidextrous':
-                # Đếm số lượng cầu thủ thỏa mãn
                 count_ambi = 0
                 total_rating = 0
+                
                 for p in valid_starters:
+                    # Lấy dữ liệu gốc từ key 'Data'
                     data = p.get('Data', {})
-                    usage = str(data.get('Weak Foot Usage', '')).lower()
-                    acc = str(data.get('Weak Foot Accuracy', '')).lower()
-                    if ('very high' in usage or '4' in usage) and ('very high' in acc or '4' in acc):
+                    
+                    usage = str(data.get('Weak Foot Usage', '')).strip().lower()
+                    acc = str(data.get('Weak Foot Accuracy', '')).strip().lower()
+                    
+                    # Logic khớp với dữ liệu thực tế: Regularly + Very High
+                    is_perfect_usage = 'regularly' in usage or '4' in usage
+                    is_perfect_acc = 'very high' in acc or '4' in acc
+                    
+                    if is_perfect_usage and is_perfect_acc:
                         count_ambi += 1
+                        
                     total_rating += p['Rating']
                 
                 # Ưu tiên số lượng cầu thủ 2 chân, sau đó đến Rating
@@ -4651,13 +4670,15 @@ def main():
                     elif "Ambidextrous" in stat_type:
                         count = 0
                         for p in all_valid_players:
-                            # Logic check lại dữ liệu gốc
                             d = p.get('Data', {})
-                            u = str(d.get('Weak Foot Usage','')).lower()
-                            a = str(d.get('Weak Foot Accuracy','')).lower()
-                            if ('very high' in u or '4' in u) and ('very high' in a or '4' in a):
+                            u = str(d.get('Weak Foot Usage','')).strip().lower()
+                            a = str(d.get('Weak Foot Accuracy','')).strip().lower()
+                            
+                            # Logic Regularly + Very High
+                            if ('regularly' in u or '4' in u) and ('very high' in a or '4' in a):
                                 count += 1
-                        custom_label = "Số cầu thủ 2 chân"
+                                
+                        custom_label = "Số cầu thủ 2 chân (Regularly/Very High)"
                         custom_value = f"{count}/11"
 
                     elif "United Nations" in stat_type:
