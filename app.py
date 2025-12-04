@@ -4646,8 +4646,8 @@ def main():
                         # Giao diện chọn Chỉ số
                         stat_type = st.selectbox("Tiêu chí:", [
                             "⭐ Highest Rating (Mạnh nhất)", 
-                            "💪 The Tanks (Chiến Thần BMI Cao)",     # Mới
-                            "⚡ The Agiles (Sóc Nhỏ BMI Thấp)",     # Mới
+                            "💪 The Tanks (Chiến Thần BMI Lớn)",     # Mới
+                            "⚡ The Agiles (Sóc Nhỏ BMI Nhỏ)",     # Mới
                             "🦶 The Ambidextrous (2 Chân Như 1)",    # Mới
                             "🟣 Form Is Temporary (Full POTW)",     # Mới
                             "🌍 United Nations (Đa Quốc Gia)",      # Mới
