@@ -1251,11 +1251,12 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Tìm sơ đồ tối ưu (Phiên bản trả về Danh sách).
+    Quét sơ đồ và trả về danh sách kết quả.
+    UPDATE: Lưu thêm 'raw_val' (Điểm thực tế của cầu thủ) để so sánh công bằng giữa các sơ đồ.
     """
-    results = [] # Danh sách chứa tất cả kết quả
+    results = [] 
 
-    # Helper: Lấy giá trị số từ chuỗi
+    # Helper: Lấy giá trị số
     def get_numeric_value(player_data, key):
         try:
             val_str = str(player_data.get(key, 0))
@@ -1265,51 +1266,54 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
     # Quét qua toàn bộ sơ đồ
     for form_name in FORMATIONS.keys():
-        # Build thử đội hình
         squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
         
-        # Chỉ lấy 11 người ĐÁ CHÍNH để tính điểm
         starters = [p for p in squad if p.get('Is_Starter', False)]
-        
-        # Đếm số người thực (không phải "---")
         valid_starters = [p for p in starters if p['Rating'] > 0]
         count_valid = len(valid_starters)
         
         current_score = 0
+        raw_val = 0 # Điểm gốc (để so sánh công bằng)
 
-        # Nếu đội hình thiếu người đá chính -> Phạt nặng
         if count_valid < 11:
-            current_score = -10000000 
+            current_score = -10000000
+            raw_val = -10000000
         else:
-            # --- LOGIC TÍNH ĐIỂM ---
+            # --- 1. TÍNH RAW VALUE (GIÁ TRỊ THỰC CỦA ĐỘI HÌNH) ---
             if sort_mode == 'rating_desc':
-                current_score = sum(p['Rating'] for p in valid_starters)
-                # Ưu tiên DMF
+                raw_val = sum(p['Rating'] for p in valid_starters)
+            elif 'height' in sort_mode:
+                raw_val = sum(get_numeric_value(p, 'Height') for p in valid_starters)
+            elif 'weight' in sort_mode:
+                raw_val = sum(get_numeric_value(p, 'Weight') for p in valid_starters)
+            elif 'age' in sort_mode:
+                raw_val = sum(get_numeric_value(p, 'Age') for p in valid_starters)
+            
+            # --- 2. TÍNH SCORE (ĐỂ ƯU TIÊN SẮP XẾP) ---
+            # Score dùng để đưa đội hình có DMF lên đầu list (nếu bằng điểm nhau)
+            current_score = raw_val
+            
+            # Nếu sort giảm dần (Rating, Height Desc...) -> Positive
+            # Nếu sort tăng dần (Shortest, Youngest...) -> Negative để hàm sort chạy đúng
+            if 'asc' in sort_mode:
+                current_score = -raw_val
+            
+            # Bonus DMF chỉ áp dụng cho Rating
+            if sort_mode == 'rating_desc':
                 has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
                 needs_dmf = "DMF" in FORMATIONS[form_name]
-                if has_dmf: current_score += 50000 
-                elif needs_dmf: current_score -= 20000
-            
-            elif 'height' in sort_mode:
-                val = sum(get_numeric_value(p, 'Height') for p in valid_starters)
-                current_score = val if sort_mode == 'height_desc' else -val
+                if has_dmf: current_score += 0.5 # Bonus nhỏ thôi để ưu tiên sort, không cộng 50000 nữa
+                elif needs_dmf: current_score -= 0.1
 
-            elif 'weight' in sort_mode:
-                val = sum(get_numeric_value(p, 'Weight') for p in valid_starters)
-                current_score = val if sort_mode == 'weight_desc' else -val
-
-            elif 'age' in sort_mode:
-                val = sum(get_numeric_value(p, 'Age') for p in valid_starters)
-                current_score = val if sort_mode == 'age_desc' else -val
-
-        # Lưu kết quả vào danh sách
+        # Lưu kết quả
         results.append({
             "name": form_name,
             "squad": squad,
-            "score": current_score
+            "score": current_score, # Dùng để sort thứ tự ưu tiên
+            "raw_val": raw_val      # Dùng để lọc các đội hình ngang nhau
         })
 
-    # Sắp xếp từ cao xuống thấp
+    # Sắp xếp: Cao xuống thấp theo Score (đã bao gồm ưu tiên DMF)
     results.sort(key=lambda x: x['score'], reverse=True)
             
     return results
@@ -4464,32 +4468,39 @@ def main():
                     all_results = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
             
                 if not all_results or all_results[0]['score'] < -9000000:
-                    st.warning("⚠️ Không tìm thấy cầu thủ phù hợp để xếp đội hình!")
+                    st.warning("⚠️ Không tìm thấy đội hình nào đủ 11 người đá chính!")
                 else:
-                    # --- XỬ LÝ KẾT QUẢ ĐA DẠNG ---
-                    max_score = all_results[0]['score']
+                    # --- XỬ LÝ KẾT QUẢ (LỌC THEO RAW VALUE) ---
                     
-                    # Lọc những sơ đồ có điểm BẰNG điểm cao nhất
-                    top_formations = [r for r in all_results if r['score'] == max_score]
+                    # Lấy giá trị thực tốt nhất (từ phần tử đầu tiên vì đã sort)
+                    best_raw_val = all_results[0]['raw_val']
+                    
+                    # Lọc tất cả các sơ đồ có raw_val bằng best_raw_val
+                    # (Nghĩa là tổng rating/chiều cao bằng nhau, bất kể có DMF hay không)
+                    top_formations = []
+                    for r in all_results:
+                        # Dùng sai số nhỏ cho float (chiều cao/cân nặng)
+                        if abs(r['raw_val'] - best_raw_val) < 0.001:
+                            top_formations.append(r)
+                    
                     count_top = len(top_formations)
-                    
                     best_entry = None
 
                     if count_top > 1:
-                        st.success(f"✅ Tìm thấy **{count_top}** sơ đồ tối ưu ngang nhau!")
+                        st.success(f"✅ Tìm thấy **{count_top}** sơ đồ có chỉ số tối ưu như nhau!")
                         
                         # Dropdown chọn sơ đồ
+                        # Thêm thông tin phụ vào tên để dễ phân biệt
                         form_names = [r['name'] for r in top_formations]
                         selected_form_name = st.selectbox("🔻 Chọn sơ đồ:", form_names, index=0)
                         
-                        # Lấy data tương ứng
                         best_entry = next(item for item in top_formations if item["name"] == selected_form_name)
                     else:
                         best_entry = all_results[0]
                         st.success(f"✅ Đội hình tối ưu duy nhất: **{best_entry['name']}**")
 
                     best_squad = best_entry['squad']
-
+                    
                     # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
                     all_valid_players = [p for p in best_squad if p['Rating'] > 0]
                     total_players = len(all_valid_players)
