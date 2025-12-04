@@ -1205,7 +1205,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 'player_idx': idx,
                 'slot_index': slot_index,
                 'pos_req': pos_req,
-                'data': row
+                'data': row,
                 'nation': str(row.get('Nation', '')).strip() # Lấy quốc tịch để dùng cho mode United Nations
             })
 
