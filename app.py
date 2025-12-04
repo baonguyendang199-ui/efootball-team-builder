@@ -4487,7 +4487,7 @@ def main():
 
             if should_run:
                 # Dùng spinner để báo đang xử lý
-                with st.spinner("🤖 Đang quét 27 sơ đồ để tìm đội hình tối ưu..."):
+                with st.spinner("🤖 Đang quét 80+ sơ đồ để tìm đội hình tối ưu..."):
                     found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
             
             if not best_squad:
