@@ -1251,14 +1251,10 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Tìm sơ đồ tối ưu dựa trên tiêu chí (Sort Mode).
-    - Nếu sort theo Rating: Ưu tiên Rating cao + Có DMF.
-    - Nếu sort theo Chiều cao: Ưu tiên Tổng chiều cao lớn nhất (Bất chấp vị trí).
-    - Nếu sort theo Tuổi: Ưu tiên Tổng tuổi lớn nhất/nhỏ nhất.
+    Quét toàn bộ sơ đồ và trả về danh sách kết quả đã sắp xếp từ tốt nhất đến tệ nhất.
+    Trả về: List of dict [{'name': str, 'squad': list, 'score': float}, ...]
     """
-    best_score = -float('inf') # Điểm thấp vô cùng
-    best_squad = []
-    best_formation_name = ""
+    results = []
 
     # Helper: Lấy giá trị số từ chuỗi (vd: "194cm" -> 194.0)
     def get_numeric_value(player_data, key):
@@ -1280,12 +1276,12 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
         valid_starters = [p for p in starters if p['Rating'] > 0]
         count_valid = len(valid_starters)
         
+        current_score = 0
+
         # Nếu đội hình thiếu người đá chính -> Phạt nặng để không chọn
         if count_valid < 11:
             current_score = -10000000 
         else:
-            current_score = 0
-            
             # --- LOGIC TÍNH ĐIỂM DỰA TRÊN TIÊU CHÍ ---
             
             # 1. CASE: RATING (MẶC ĐỊNH)
@@ -1326,13 +1322,17 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
                 else: # Youngest
                     current_score = -total_age
 
-        # So sánh và cập nhật Best Team
-        if current_score > best_score:
-            best_score = current_score
-            best_squad = squad
-            best_formation_name = form_name
+        # --- THAY ĐỔI QUAN TRỌNG: LƯU VÀO LIST THAY VÌ CHỈ LẤY MAX ---
+        results.append({
+            "name": form_name,
+            "squad": squad,
+            "score": current_score
+        })
             
-    return best_formation_name, best_squad
+    # Sắp xếp danh sách kết quả: Điểm cao nhất lên đầu
+    results.sort(key=lambda x: x['score'], reverse=True)
+            
+    return results
 
 def render_pitch_view(squad_list, highlight_type=None):
     """
@@ -4405,18 +4405,16 @@ def main():
         sq_tab1, sq_tab2 = st.tabs(["🤖 Auto Build (Thông minh)", "🛠️ Đội hình 23 (Thủ công)"])
 
         # =========================================================
-        # TAB 1: AUTO BUILD (REAL-TIME & AUTO FORMATION)
+        # TAB 1: AUTO BUILD (REAL-TIME)
         # =========================================================
         with sq_tab1:
-            st.caption("🤖 Hệ thống sẽ tự động quét 27 sơ đồ để tìm đội hình mạnh nhất cho tiêu chí bạn chọn.")
+            st.caption("🤖 Hệ thống sẽ tự động quét và tìm đội hình mạnh nhất ngay khi bạn thay đổi cấu hình.")
             
+            # --- 1. CẤU HÌNH ---
             with st.container(border=True):
-                # Chia làm 2 cột: 1 chọn chế độ, 2 chọn chi tiết
                 c1, c2 = st.columns([1, 2])
                 
                 # Biến lưu cấu hình
-                auto_find_formation = True # LUÔN LUÔN TỰ ĐỘNG TÌM SƠ ĐỒ
-                selected_formation = None
                 filter_col = None
                 filter_val = None
                 sort_mode = 'rating_desc'
@@ -4429,7 +4427,6 @@ def main():
                     st.markdown("##### 2. Cấu hình chi tiết")
                     
                     if build_mode == "Theo Team/Giải":
-                        # Giao diện chọn Team
                         col_a, col_b = st.columns(2)
                         with col_a:
                             team_type = st.selectbox("Lọc theo:", ["(Toàn bộ)", "Club", "Nation", "League", "Region"])
@@ -4441,7 +4438,6 @@ def main():
                             else:
                                 st.selectbox("Giá trị:", ["-"], disabled=True)
                     else:
-                        # Giao diện chọn Chỉ số (ĐÃ XÓA CHỌN SƠ ĐỒ)
                         stat_type = st.selectbox("Tiêu chí:", [
                             "⭐ Highest Rating (Mạnh nhất)", 
                             "🦒 Tallest XI (Cao nhất)", 
@@ -4460,9 +4456,9 @@ def main():
                         elif "Trẻ nhất" in stat_type: sort_mode = 'age_asc'
                         elif "Già nhất" in stat_type: sort_mode = 'age_desc'
 
-            # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
+            # --- 2. XỬ LÝ LOGIC (CHẠY LUÔN KHÔNG CẦN IF) ---
             
-            # 1. Kiểm tra nhanh dữ liệu (nếu chọn Team)
+            # Kiểm tra nhanh dữ liệu
             if build_mode == "Theo Team/Giải" and filter_col and filter_val and filter_val != "(Tất cả)":
                 check_df = df[df[filter_col].astype(str) == filter_val]
                 if check_df.empty:
@@ -4475,114 +4471,113 @@ def main():
                     if missing_msg:
                         st.toast(f"⚠️ Cảnh báo nhân sự: {', '.join(missing_msg)}", icon="⚠️")
 
-            # 2. Chạy Auto Build (Luôn dùng find_best_formation_for_team)
-            best_squad = []
-            found_name = ""
-            
-            # Chỉ chạy khi có dữ liệu hợp lệ
+            # Quyết định có chạy hay không (để tránh load nặng khi mới vào)
             should_run = True
             if build_mode == "Theo Team/Giải" and (not filter_val or filter_val == "(Tất cả)" or filter_val == "-"):
-                # Nếu chọn toàn bộ database thì hơi nặng, nhưng vẫn cho chạy
+                # Nếu chọn toàn bộ database thì có thể hơi nặng, nhưng vẫn cho chạy
                 pass 
 
             if should_run:
+                best_squad = []
+                found_name = ""
+                
                 # Dùng spinner để báo đang xử lý
-                with st.spinner("🤖 Đang quét 27 sơ đồ để tìm đội hình tối ưu..."):
+                with st.spinner("🤖 Đang quét 80+ sơ đồ để tìm đội hình tối ưu..."):
                     found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
             
-            if not best_squad:
-                st.warning("⚠️ Không tìm thấy cầu thủ phù hợp để xếp đội hình!")
-            else:
-                if found_name:
-                    st.success(f"✅ Đội hình tối ưu nhất (Đá chính): **{found_name}**")
-
-                # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
-                all_valid_players = [p for p in best_squad if p['Rating'] > 0]
-                total_players = len(all_valid_players)
-                
-                t_rat = sum(p['Rating'] for p in all_valid_players)
-                a_rat = t_rat / total_players if total_players > 0 else 0
-                
-                # --- LOGIC TÍNH CHỈ SỐ PHỤ ---
-                custom_label = None
-                custom_value = None
-
-                if build_mode == "Theo Chỉ số":
-                    def get_val(p, key):
-                        try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
-                        except: return 0
-
-                    if "Cao" in stat_type or "Thấp" in stat_type:
-                        vals = [get_val(p, 'Height') for p in all_valid_players]
-                        avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Chiều cao TB (23)"
-                        custom_value = f"{avg:.1f} cm"
-                    elif "Nặng" in stat_type or "Nhẹ" in stat_type:
-                        vals = [get_val(p, 'Weight') for p in all_valid_players]
-                        avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Cân nặng TB (23)"
-                        custom_value = f"{avg:.1f} kg"
-                    elif "Trẻ" in stat_type or "Già" in stat_type:
-                        vals = [get_val(p, 'Age') for p in all_valid_players]
-                        avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Tuổi TB (23)"
-                        custom_value = f"{avg:.1f}"
-
-                # --- HIỂN THỊ METRICS ---
-                if custom_label:
-                    m1, m2, m3 = st.columns(3)
-                    with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
-                    with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
-                    with m3: st.metric(custom_label, custom_value)
+                if not best_squad:
+                    st.warning("⚠️ Không tìm thấy cầu thủ phù hợp để xếp đội hình!")
                 else:
-                    m1, m2, m3 = st.columns(3)
-                    with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
-                    with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
-                    with m3: st.metric("Quân số", f"{total_players}/23")
-                
-                st.divider()
-                
-                # --- HIỂN THỊ SÂN VÀ BẢNG ---
-                col_view1, col_view2 = st.columns([1.3, 1]) 
-                
-                # Xác định metric để hiển thị tooltip trên sân
-                metric_to_show = None
-                if build_mode == "Theo Chỉ số":
-                    if "Cao" in stat_type or "Thấp" in stat_type: metric_to_show = 'Height'
-                    elif "Nặng" in stat_type or "Nhẹ" in stat_type: metric_to_show = 'Weight'
-                    elif "Trẻ" in stat_type or "Già" in stat_type: metric_to_show = 'Age'
+                    if found_name:
+                        st.success(f"✅ Đội hình tối ưu (Đá chính): **{found_name}**")
 
-                with col_view1:
-                    st.caption("📍 Sơ đồ Đá chính (11)")
-                    render_pitch_view(best_squad, highlight_type=metric_to_show)
-                
-                with col_view2:
-                    st.caption("📋 Danh sách Đầy đủ (23)")
+                    # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
+                    all_valid_players = [p for p in best_squad if p['Rating'] > 0]
+                    total_players = len(all_valid_players)
                     
-                    s_df = pd.DataFrame(best_squad)
+                    t_rat = sum(p['Rating'] for p in all_valid_players)
+                    a_rat = t_rat / total_players if total_players > 0 else 0
                     
-                    if 'Is_Starter' in s_df.columns:
-                        s_df['Role'] = s_df['Is_Starter'].apply(lambda x: "⭐ START" if x else "🔄 SUB")
-                    
-                    cols_show = ['Role', 'Position', 'Player', 'Rating', 'Club']
+                    # --- LOGIC TÍNH CHỈ SỐ PHỤ ---
+                    custom_label = None
+                    custom_value = None
+
                     if build_mode == "Theo Chỉ số":
-                        if "Cao" in stat_type or "Thấp" in stat_type: cols_show.append('Height')
-                        elif "Nặng" in stat_type or "Nhẹ" in stat_type: cols_show.append('Weight')
-                        elif "Trẻ" in stat_type or "Già" in stat_type: cols_show.append('Age')
+                        def get_val(p, key):
+                            try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
+                            except: return 0
+
+                        if "Cao" in stat_type or "Thấp" in stat_type:
+                            vals = [get_val(p, 'Height') for p in all_valid_players]
+                            avg = sum(vals) / len(vals) if vals else 0
+                            custom_label = "Chiều cao TB (23)"
+                            custom_value = f"{avg:.1f} cm"
+                        elif "Nặng" in stat_type or "Nhẹ" in stat_type:
+                            vals = [get_val(p, 'Weight') for p in all_valid_players]
+                            avg = sum(vals) / len(vals) if vals else 0
+                            custom_label = "Cân nặng TB (23)"
+                            custom_value = f"{avg:.1f} kg"
+                        elif "Trẻ" in stat_type or "Già" in stat_type:
+                            vals = [get_val(p, 'Age') for p in all_valid_players]
+                            avg = sum(vals) / len(vals) if vals else 0
+                            custom_label = "Tuổi TB (23)"
+                            custom_value = f"{avg:.1f}"
+
+                    # --- HIỂN THỊ METRICS ---
+                    if custom_label:
+                        m1, m2, m3 = st.columns(3)
+                        with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
+                        with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
+                        with m3: st.metric(custom_label, custom_value)
+                    else:
+                        m1, m2, m3 = st.columns(3)
+                        with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
+                        with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
+                        with m3: st.metric("Quân số", f"{total_players}/23")
                     
-                    final_cols = [c for c in cols_show if c in s_df.columns]
+                    st.divider()
                     
-                    st.dataframe(
-                        s_df[final_cols], 
-                        hide_index=True, 
-                        use_container_width=True, 
-                        height=750,
-                        column_config={
-                            "Rating": st.column_config.NumberColumn("OVR", format="%d"),
-                            "Player": st.column_config.TextColumn("Cầu thủ", width="medium"),
-                            "Role": st.column_config.TextColumn("Vai trò", width="small"),
-                        }
-                    )
+                    # --- HIỂN THỊ SÂN VÀ BẢNG ---
+                    col_view1, col_view2 = st.columns([1.3, 1]) 
+                    
+                    # Xác định metric để hiển thị tooltip trên sân
+                    metric_to_show = None
+                    if build_mode == "Theo Chỉ số":
+                        if "Cao" in stat_type or "Thấp" in stat_type: metric_to_show = 'Height'
+                        elif "Nặng" in stat_type or "Nhẹ" in stat_type: metric_to_show = 'Weight'
+                        elif "Trẻ" in stat_type or "Già" in stat_type: metric_to_show = 'Age'
+
+                    with col_view1:
+                        st.caption("📍 Sơ đồ Đá chính (11)")
+                        render_pitch_view(best_squad, highlight_type=metric_to_show)
+                    
+                    with col_view2:
+                        st.caption("📋 Danh sách Đầy đủ (23)")
+                        
+                        s_df = pd.DataFrame(best_squad)
+                        
+                        if 'Is_Starter' in s_df.columns:
+                            s_df['Role'] = s_df['Is_Starter'].apply(lambda x: "⭐ START" if x else "🔄 SUB")
+                        
+                        cols_show = ['Role', 'Position', 'Player', 'Rating', 'Club']
+                        if build_mode == "Theo Chỉ số":
+                            if "Cao" in stat_type or "Thấp" in stat_type: cols_show.append('Height')
+                            elif "Nặng" in stat_type or "Nhẹ" in stat_type: cols_show.append('Weight')
+                            elif "Trẻ" in stat_type or "Già" in stat_type: cols_show.append('Age')
+                        
+                        final_cols = [c for c in cols_show if c in s_df.columns]
+                        
+                        st.dataframe(
+                            s_df[final_cols], 
+                            hide_index=True, 
+                            use_container_width=True, 
+                            height=750,
+                            column_config={
+                                "Rating": st.column_config.NumberColumn("OVR", format="%d"),
+                                "Player": st.column_config.TextColumn("Cầu thủ", width="medium"),
+                                "Role": st.column_config.TextColumn("Vai trò", width="small"),
+                            }
+                        )
 
         # =========================================================
         # TAB 2: MANUAL BUILD (GIỮ NGUYÊN)
