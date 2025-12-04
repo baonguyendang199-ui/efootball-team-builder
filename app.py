@@ -1252,7 +1252,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
     Quét sơ đồ và trả về danh sách kết quả.
-    FIX: Tách biệt Score (để lọc) và Priority (để sắp xếp).
     """
     results = [] 
 
@@ -1269,9 +1268,9 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
         valid_starters = [p for p in starters if p['Rating'] > 0]
         
         if len(valid_starters) < 11:
-            continue # Bỏ qua đội hình thiếu người
+            continue 
 
-        # --- 1. TÍNH ĐIỂM HIỂN THỊ (RAW VALUE) ---
+        # --- 1. TÍNH ĐIỂM GỐC (RAW VALUE) - CHỈ SỐ THỰC TẾ ---
         raw_val = 0
         if sort_mode == 'rating_desc':
             raw_val = sum(p['Rating'] for p in valid_starters)
@@ -1282,33 +1281,34 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
         elif 'age' in sort_mode:
             raw_val = sum(get_numeric_value(p, 'Age') for p in valid_starters)
 
-        # --- 2. TÍNH ĐIỂM SẮP XẾP (SORT KEY) ---
-        # Sort key 1: Giá trị chính (Cao xuống thấp hoặc Thấp lên cao)
-        primary_sort = raw_val
-        if 'asc' in sort_mode: # Nếu tìm thấp nhất (Shortest/Youngest)
-            primary_sort = -raw_val
-
-        # Sort key 2: Ưu tiên DMF (Chỉ áp dụng khi build theo Rating)
+        # --- 2. CÁC CHỈ SỐ ƯU TIÊN (ĐỂ SẮP XẾP THỨ TỰ, KHÔNG DÙNG ĐỂ LỌC) ---
+        # Ưu tiên 1: Có DMF (nếu đang đua Rating)
         has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
         priority_dmf = 1 if (sort_mode == 'rating_desc' and has_dmf) else 0
         
-        # Sort key 3: Ưu tiên đúng sở trường (Main Position)
+        # Ưu tiên 2: Số lượng cầu thủ đá đúng sở trường
         on_position_count = sum(1 for p in valid_starters if p['Position'] == p.get('Real_Position', ''))
+
+        # Xác định chiều sort (Lớn nhất hay Nhỏ nhất)
+        # Mặc định là Desc (Càng lớn càng tốt). Nếu mode là 'asc' (Thấp/Trẻ/Nhẹ) thì đảo dấu
+        sort_val = raw_val
+        if 'asc' in sort_mode:
+            sort_val = -raw_val
 
         results.append({
             "name": form_name,
             "squad": squad,
-            "score": primary_sort,   # Dùng để tìm Max/Min
-            "raw_val": raw_val,      # Giá trị hiển thị
-            "priority_dmf": priority_dmf, 
+            "raw_val": raw_val,         # GIÁ TRỊ THỰC (Dùng để lọc Top Tier)
+            "sort_val": sort_val,       # GIÁ TRỊ SORT (Dùng để xếp hạng 1, 2, 3)
+            "priority_dmf": priority_dmf,
             "priority_pos": on_position_count
         })
 
-    # Sắp xếp: 
-    # 1. Điểm số tốt nhất
+    # Sắp xếp danh sách:
+    # 1. Giá trị tốt nhất (sort_val)
     # 2. Có DMF hay không
-    # 3. Số lượng cầu thủ đá đúng sở trường
-    results.sort(key=lambda x: (x['score'], x['priority_dmf'], x['priority_pos']), reverse=True)
+    # 3. Số người đúng sở trường
+    results.sort(key=lambda x: (x['sort_val'], x['priority_dmf'], x['priority_pos']), reverse=True)
             
     return results
 
@@ -4455,16 +4455,16 @@ def main():
                 with st.spinner("🤖 Đang quét 80+ sơ đồ chiến thuật..."):
                     all_results = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
             
+            # --- XỬ LÝ VÀ HIỂN THỊ KẾT QUẢ ---
             if not all_results:
                 st.warning("⚠️ Không tìm thấy đội hình nào đủ 11 người đá chính!")
             else:
-                # --- XỬ LÝ KẾT QUẢ ĐA DẠNG ---
-                # Lấy điểm số tốt nhất (đã sort ở đầu list)
-                best_score = all_results[0]['score']
+                # 1. Lấy giá trị thực TỐT NHẤT (Của thằng đứng đầu danh sách đã sort)
+                best_raw_val = all_results[0]['raw_val']
                 
-                # Lọc tất cả sơ đồ có điểm BẰNG điểm tốt nhất
-                # (Sai số 0.001 để so sánh số thực)
-                top_tier = [r for r in all_results if abs(r['score'] - best_score) < 0.001]
+                # 2. Lọc TẤT CẢ các sơ đồ có raw_val bằng best_raw_val
+                # (Bất kể có DMF hay không, bất kể đúng sở trường hay không -> Miễn Rating tổng bằng nhau là lấy hết)
+                top_tier = [r for r in all_results if abs(r['raw_val'] - best_raw_val) < 0.001]
                 
                 count_top = len(top_tier)
                 best_entry = None
@@ -4472,36 +4472,32 @@ def main():
                 if count_top > 1:
                     st.success(f"✅ Tìm thấy **{count_top}** sơ đồ tối ưu ngang nhau!")
                     
-                    # Tạo danh sách hiển thị cho dropdown
-                    # VD: "4-2-3-1 (3 AMF) - [Có DMF]"
+                    # Tạo danh sách dropdown thông minh
                     options_map = {}
                     for r in top_tier:
-                        squad = r['squad']
-                        starters = [p for p in squad if p.get('Is_Starter', False)]
-                        has_dmf = any(p['Position'] == 'DMF' for p in starters)
+                        # Tạo nhãn phụ để dễ phân biệt
+                        extras = []
+                        if r['priority_dmf']: extras.append("Có DMF")
+                        extras.append(f"{r['priority_pos']} đá chính sở trường")
                         
-                        extra_tag = ""
-                        if sort_mode == 'rating_desc' and has_dmf:
-                            extra_tag = " [Có DMF]"
-                            
-                        key = f"{r['name']}{extra_tag}"
-                        options_map[key] = r
+                        label = f"{r['name']} ({', '.join(extras)})"
+                        options_map[label] = r
                     
                     sel_name = st.selectbox("🔻 Chọn sơ đồ muốn xem:", list(options_map.keys()))
                     best_entry = options_map[sel_name]
                 else:
-                    best_entry = all_results[0]
+                    best_entry = top_tier[0]
                     st.success(f"✅ Đội hình tối ưu duy nhất: **{best_entry['name']}**")
 
                 best_squad = best_entry['squad']
                 
-                # --- TÍNH TOÁN CHỈ SỐ ---
+                # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
                 all_valid_players = [p for p in best_squad if p['Rating'] > 0]
                 total_players = len(all_valid_players)
                 t_rat = sum(p['Rating'] for p in all_valid_players)
                 a_rat = t_rat / total_players if total_players > 0 else 0
                 
-                # --- METRIC TÙY BIẾN ---
+                # --- METRIC PHỤ ---
                 custom_label = None
                 custom_value = None
                 metric_to_show = None 
@@ -4524,16 +4520,18 @@ def main():
                         avg = sum(get_val(p,'Age') for p in all_valid_players)/len(all_valid_players)
                         custom_label, custom_value = "Tuổi TB (23)", f"{avg:.1f}"
 
-                # --- HIỂN THỊ ---
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Tổng Sức mạnh (23)", t_rat)
-                m2.metric("Rating TB (23)", f"{a_rat:.1f}")
-                if custom_label: m3.metric(custom_label, custom_value)
-                else: m3.metric("Quân số", f"{total_players}/23")
+                # --- RENDER METRICS ---
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Tổng Sức mạnh (23)", t_rat)
+                c2.metric("Rating TB (23)", f"{a_rat:.1f}")
+                if custom_label: c3.metric(custom_label, custom_value)
+                else: c3.metric("Quân số", f"{total_players}/23")
                 
                 st.divider()
                 
+                # --- RENDER VIEW ---
                 col_view1, col_view2 = st.columns([1.3, 1])
+                
                 with col_view1:
                     st.caption(f"📍 Sơ đồ: {best_entry['name']}")
                     render_pitch_view(best_squad, highlight_type=metric_to_show)
