@@ -4478,18 +4478,37 @@ def main():
                 pass 
 
             if should_run:
-                best_squad = []
-                found_name = ""
-                
-                # Dùng spinner để báo đang xử lý
+                all_results = []
                 with st.spinner("🤖 Đang quét 80+ sơ đồ để tìm đội hình tối ưu..."):
-                    found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
+                    # Hàm này giờ trả về LIST
+                    all_results = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
             
-                if not best_squad:
+                if not all_results or all_results[0]['score'] < -9000000:
                     st.warning("⚠️ Không tìm thấy cầu thủ phù hợp để xếp đội hình!")
                 else:
-                    if found_name:
-                        st.success(f"✅ Đội hình tối ưu (Đá chính): **{found_name}**")
+                    # --- XỬ LÝ KẾT QUẢ ĐA DẠNG ---
+                    max_score = all_results[0]['score']
+                    
+                    # Lọc những sơ đồ có điểm BẰNG điểm cao nhất
+                    top_formations = [r for r in all_results if r['score'] == max_score]
+                    count_top = len(top_formations)
+                    
+                    best_entry = None
+
+                    if count_top > 1:
+                        st.success(f"✅ Tìm thấy **{count_top}** sơ đồ tối ưu ngang nhau!")
+                        
+                        # Dropdown chọn sơ đồ
+                        form_names = [r['name'] for r in top_formations]
+                        selected_form_name = st.selectbox("🔻 Chọn sơ đồ:", form_names, index=0)
+                        
+                        # Lấy data tương ứng
+                        best_entry = next(item for item in top_formations if item["name"] == selected_form_name)
+                    else:
+                        best_entry = all_results[0]
+                        st.success(f"✅ Đội hình tối ưu duy nhất: **{best_entry['name']}**")
+
+                    best_squad = best_entry['squad']
 
                     # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
                     all_valid_players = [p for p in best_squad if p['Rating'] > 0]
@@ -4540,7 +4559,6 @@ def main():
                     # --- HIỂN THỊ SÂN VÀ BẢNG ---
                     col_view1, col_view2 = st.columns([1.3, 1]) 
                     
-                    # Xác định metric để hiển thị tooltip trên sân
                     metric_to_show = None
                     if build_mode == "Theo Chỉ số":
                         if "Cao" in stat_type or "Thấp" in stat_type: metric_to_show = 'Height'
@@ -4548,12 +4566,11 @@ def main():
                         elif "Trẻ" in stat_type or "Già" in stat_type: metric_to_show = 'Age'
 
                     with col_view1:
-                        st.caption("📍 Sơ đồ Đá chính (11)")
+                        st.caption(f"📍 Sơ đồ: {best_entry['name']}")
                         render_pitch_view(best_squad, highlight_type=metric_to_show)
                     
                     with col_view2:
                         st.caption("📋 Danh sách Đầy đủ (23)")
-                        
                         s_df = pd.DataFrame(best_squad)
                         
                         if 'Is_Starter' in s_df.columns:
