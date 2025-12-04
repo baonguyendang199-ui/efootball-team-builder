@@ -1141,30 +1141,29 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 return -bmi # Âm để sort giảm dần ra số bé nhất
             return -999
 
-        # 3. THE AMBIDEXTROUS (2 CHÂN NHƯ 1)
+        # 3. THE AMBIDEXTROUS (2 CHÂN NHƯ 1) - PHÂN TẦNG
         elif sort_mode == 'ambidextrous':
-            # Chuẩn hóa dữ liệu về chữ thường và xóa khoảng trắng thừa
-            usage = str(row.get('Weak Foot Usage', '')).strip().lower()
-            acc = str(row.get('Weak Foot Accuracy', '')).strip().lower()
+            u_str = str(row.get('Weak Foot Usage', '')).strip().lower()
+            a_str = str(row.get('Weak Foot Accuracy', '')).strip().lower()
             
-            # Dựa trên dữ liệu thực tế bạn cung cấp:
-            # Usage xịn nhất: 'regularly'
-            # Accuracy xịn nhất: 'very high'
+            # --- TIER 1: HOÀN HẢO (Regularly + Very High) ---
+            is_usage_perfect = 'regularly' in u_str or '4' in u_str
+            is_acc_perfect = 'very high' in a_str or '4' in a_str
             
-            # Kiểm tra Usage (Tần suất): Phải là 'Regularly' (hoặc số 4)
-            is_perfect_usage = 'regularly' in usage or '4' in usage
+            if is_usage_perfect and is_acc_perfect:
+                return 20000 + row['Rating'] # Ưu tiên cao nhất
             
-            # Kiểm tra Accuracy (Độ chính xác): Phải là 'Very High' (hoặc số 4)
-            is_perfect_acc = 'very high' in acc or '4' in acc
+            # --- TIER 2: KHÁ TỐT (Tối thiểu Occasionally + High) ---
+            # Chấp nhận: Regularly hoặc Occasionally
+            is_usage_good = is_usage_perfect or 'occasionally' in u_str or '3' in u_str
+            # Chấp nhận: Very High hoặc High
+            is_acc_good = is_acc_perfect or 'high' in a_str or '3' in a_str
             
-            # Nếu thỏa mãn cả hai -> Cộng điểm cực lớn để đưa lên đầu
-            if is_perfect_usage and is_perfect_acc:
-                return 10000 + row['Rating'] 
-            
-            # Logic mở rộng (Optional): Nếu muốn lấy cả 'High' Accuracy thì thêm vào đây, 
-            # nhưng chế độ này là "2 chân như 1" nên ta để strict mode là tốt nhất.
-            
-            return row['Rating'] # Nếu không thỏa thì xếp dưới theo Rating
+            if is_usage_good and is_acc_good:
+                return 10000 + row['Rating'] # Ưu tiên nhì (thay thế cho Rating thuần túy)
+                
+            # --- TIER 3: CÒN LẠI ---
+            return row['Rating']
 
         # 4. FORM IS TEMPORARY (FULL POTW)
         elif sort_mode == 'potw_only':
@@ -1378,27 +1377,30 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
             # 2. Ambidextrous (2 chân như 1)
             elif sort_mode == 'ambidextrous':
-                count_ambi = 0
+                score_bonus = 0
                 total_rating = 0
                 
                 for p in valid_starters:
-                    # Lấy dữ liệu gốc từ key 'Data'
                     data = p.get('Data', {})
+                    u_str = str(data.get('Weak Foot Usage', '')).strip().lower()
+                    a_str = str(data.get('Weak Foot Accuracy', '')).strip().lower()
                     
-                    usage = str(data.get('Weak Foot Usage', '')).strip().lower()
-                    acc = str(data.get('Weak Foot Accuracy', '')).strip().lower()
+                    # Check Tier 1
+                    is_usage_perfect = 'regularly' in u_str or '4' in u_str
+                    is_acc_perfect = 'very high' in a_str or '4' in a_str
                     
-                    # Logic khớp với dữ liệu thực tế: Regularly + Very High
-                    is_perfect_usage = 'regularly' in usage or '4' in usage
-                    is_perfect_acc = 'very high' in acc or '4' in acc
-                    
-                    if is_perfect_usage and is_perfect_acc:
-                        count_ambi += 1
+                    # Check Tier 2
+                    is_usage_good = is_usage_perfect or 'occasionally' in u_str or '3' in u_str
+                    is_acc_good = is_acc_perfect or 'high' in a_str or '3' in a_str
+
+                    if is_usage_perfect and is_acc_perfect:
+                        score_bonus += 20000 # Điểm thưởng lớn
+                    elif is_usage_good and is_acc_good:
+                        score_bonus += 10000 # Điểm thưởng vừa
                         
                     total_rating += p['Rating']
                 
-                # Ưu tiên số lượng cầu thủ 2 chân, sau đó đến Rating
-                current_score = (count_ambi * 10000) + total_rating
+                current_score = score_bonus + total_rating
 
             # 3. POTW Only
             elif sort_mode == 'potw_only':
@@ -4668,18 +4670,28 @@ def main():
                         custom_value = f"{avg:.1f}"
                     
                     elif "Ambidextrous" in stat_type:
-                        count = 0
+                        count_tier1 = 0
+                        count_tier2 = 0
+                        
                         for p in all_valid_players:
                             d = p.get('Data', {})
-                            u = str(d.get('Weak Foot Usage','')).strip().lower()
-                            a = str(d.get('Weak Foot Accuracy','')).strip().lower()
+                            u_str = str(d.get('Weak Foot Usage','')).strip().lower()
+                            a_str = str(d.get('Weak Foot Accuracy','')).strip().lower()
                             
-                            # Logic Regularly + Very High
-                            if ('regularly' in u or '4' in u) and ('very high' in a or '4' in a):
-                                count += 1
+                            is_usage_perfect = 'regularly' in u_str or '4' in u_str
+                            is_acc_perfect = 'very high' in a_str or '4' in a_str
+                            
+                            is_usage_good = is_usage_perfect or 'occasionally' in u_str or '3' in u_str
+                            is_acc_good = is_acc_perfect or 'high' in a_str or '3' in a_str
+                            
+                            if is_usage_perfect and is_acc_perfect:
+                                count_tier1 += 1
+                            elif is_usage_good and is_acc_good:
+                                count_tier2 += 1
                                 
-                        custom_label = "Số cầu thủ 2 chân (Regularly/Very High)"
-                        custom_value = f"{count}/11"
+                        custom_label = "Chân không thuận (Perf/Good)"
+                        # Hiển thị dạng: 5 Perfect / 6 Good
+                        custom_value = f"{count_tier1} Perf / {count_tier2} Good"
 
                     elif "United Nations" in stat_type:
                         nations = set(p['Nation'] for p in all_valid_players if p['Nation'])
