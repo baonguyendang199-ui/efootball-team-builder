@@ -4472,8 +4472,6 @@ def main():
                     options_map = {}
                     for idx, r in enumerate(top_candidates):
                         # Tạo label mô tả
-                        extras = []
-                        extras.append(f"{r['priority_pos']}/11 đúng vị trí")
                         if r['has_dmf']: extras.append("Có DMF")
                         
                         # Thêm số thứ tự để tránh trùng tên key nếu cần
