@@ -1125,18 +1125,60 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # 3. Xác định điểm số (Score) cho từng cầu thủ dựa trên tiêu chí
     # Mục tiêu: Người có Score cao nhất sẽ được ưu tiên xếp vào đội hình
     def calculate_score(row):
-        if sort_mode == 'rating_desc':
-            # Rating cao + Ưu tiên Epic
+        # 1. THE TANKS (BMI CAO)
+        if sort_mode == 'bmi_desc':
+            h_m = row['Height_num'] / 100.0
+            if h_m > 0:
+                bmi = row['Weight_num'] / (h_m ** 2)
+                return bmi
+            return 0
+            
+        # 2. THE AGILES (BMI THẤP)
+        elif sort_mode == 'bmi_asc':
+            h_m = row['Height_num'] / 100.0
+            if h_m > 0:
+                bmi = row['Weight_num'] / (h_m ** 2)
+                return -bmi # Âm để sort giảm dần ra số bé nhất
+            return -999
+
+        # 3. THE AMBIDEXTROUS (2 CHÂN NHƯ 1)
+        elif sort_mode == 'ambidextrous':
+            # Kiểm tra chân không thuận
+            usage = str(row.get('Weak Foot Usage', '')).lower()
+            acc = str(row.get('Weak Foot Accuracy', '')).lower()
+            
+            # Logic: Phải là Very High hoặc 4
+            is_good_usage = 'very high' in usage or '4' in usage
+            is_good_acc = 'very high' in acc or '4' in acc
+            
+            if is_good_usage and is_good_acc:
+                return 10000 + row['Rating'] # Cộng điểm cực lớn để ưu tiên
+            return row['Rating'] # Nếu không thỏa thì xếp dưới
+
+        # 4. FORM IS TEMPORARY (FULL POTW)
+        elif sort_mode == 'potw_only':
+            ptype = str(row.get('Player Type', '')).upper()
+            if 'POTW' in ptype or 'TRENDING' in ptype:
+                return 10000 + row['Rating']
+            return row['Rating'] # POTW lên đầu, còn lại xếp dưới
+
+        # 5. UNITED NATIONS (RATING CAO NHẤT)
+        elif sort_mode == 'united_nations':
+            # Vẫn dùng Rating để chọn người giỏi nhất của quốc gia đó
             return row['Rating'] + (0.1 if row['Epic_Priority'] == 0 else 0)
+
+        # CÁC CHẾ ĐỘ CŨ (GIỮ NGUYÊN)
+        elif sort_mode == 'rating_desc': return row['Rating'] + (0.1 if row['Epic_Priority'] == 0 else 0)
         elif sort_mode == 'height_desc': return row['Height_num']
-        elif sort_mode == 'height_asc': return -row['Height_num'] # Âm để sort giảm dần ra số bé nhất
+        elif sort_mode == 'height_asc': return -row['Height_num']
         elif sort_mode == 'weight_desc': return row['Weight_num']
         elif sort_mode == 'weight_asc': return -row['Weight_num']
         elif sort_mode == 'age_desc': return row['Age_num']
         elif sort_mode == 'age_asc': return -row['Age_num']
+        
         return row['Rating']
 
-    # Tính Score cho toàn bộ pool
+    # Tính Score
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
 
     # -------------------------------------------------------
@@ -1164,6 +1206,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 'slot_index': slot_index,
                 'pos_req': pos_req,
                 'data': row
+                'nation': str(row.get('Nation', '')).strip() # Lấy quốc tịch để dùng cho mode United Nations
             })
 
     # Bước B: Sắp xếp toàn bộ khả năng từ Tốt nhất -> Tệ nhất
@@ -1173,14 +1216,22 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # Bước C: Xếp đội hình (Starting XI)
     final_squad = [None] * 11
     used_indices = set()
+    used_nations = set() # 🆕 Set theo dõi quốc gia đã dùng
     
-    # Duyệt từ trên xuống dưới, ai điểm cao nhất được chọn trước
     for assign in potential_assignments:
         p_idx = assign['player_idx']
         s_idx = assign['slot_index']
+        p_nation = assign['nation']
         
-        # Nếu cầu thủ chưa bị dùng VÀ vị trí này chưa có người
+        # Kiểm tra cơ bản: Cầu thủ chưa dùng & Slot trống
         if p_idx not in used_indices and final_squad[s_idx] is None:
+            
+            # 🆕 LOGIC ĐẶC BIỆT CHO UNITED NATIONS
+            if sort_mode == 'united_nations':
+                if p_nation in used_nations and p_nation != "":
+                    continue # Bỏ qua nếu quốc gia này đã có người trong đội hình
+            
+            # Nếu thỏa mãn thì chọn
             row = assign['data']
             
             # Lấy ảnh
@@ -1210,6 +1261,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             
             final_squad[s_idx] = player_obj
             used_indices.add(p_idx)
+            if p_nation: used_nations.add(p_nation) # Đánh dấu quốc gia đã dùng
 
     # Bước D: Điền nốt những vị trí còn thiếu (nếu không tìm được ai phù hợp)
     for i in range(11):
@@ -1294,13 +1346,59 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
         valid_starters = [p for p in starters if p['Rating'] > 0]
         count_valid = len(valid_starters)
         
-        # Nếu đội hình thiếu người đá chính -> Phạt nặng để không chọn
-        if count_valid < 11:
+        # Phạt nặng nếu thiếu người
+        if len(valid_starters) < 11:
             current_score = -10000000 
         else:
-            current_score = 0
+            # =========================================
+            # 🆕 LOGIC TÍNH ĐIỂM SƠ ĐỒ MỚI
+            # =========================================
             
-            # --- LOGIC TÍNH ĐIỂM DỰA TRÊN TIÊU CHÍ ---
+            # 1. BMI (Tanks / Agiles)
+            if 'bmi' in sort_mode:
+                total_bmi = 0
+                for p in valid_starters:
+                    h = get_numeric_value(p, 'Height') / 100.0
+                    w = get_numeric_value(p, 'Weight')
+                    if h > 0: total_bmi += (w / (h**2))
+                
+                if sort_mode == 'bmi_desc': current_score = total_bmi
+                else: current_score = -total_bmi
+
+            # 2. Ambidextrous (2 chân như 1)
+            elif sort_mode == 'ambidextrous':
+                # Đếm số lượng cầu thủ thỏa mãn
+                count_ambi = 0
+                total_rating = 0
+                for p in valid_starters:
+                    data = p.get('Data', {})
+                    usage = str(data.get('Weak Foot Usage', '')).lower()
+                    acc = str(data.get('Weak Foot Accuracy', '')).lower()
+                    if ('very high' in usage or '4' in usage) and ('very high' in acc or '4' in acc):
+                        count_ambi += 1
+                    total_rating += p['Rating']
+                
+                # Ưu tiên số lượng cầu thủ 2 chân, sau đó đến Rating
+                current_score = (count_ambi * 10000) + total_rating
+
+            # 3. POTW Only
+            elif sort_mode == 'potw_only':
+                count_potw = 0
+                total_rating = 0
+                for p in valid_starters:
+                    if 'POTW' in str(p['Type']).upper() or 'TRENDING' in str(p['Type']).upper():
+                        count_potw += 1
+                    total_rating += p['Rating']
+                current_score = (count_potw * 10000) + total_rating
+
+            # 4. United Nations
+            elif sort_mode == 'united_nations':
+                # Đếm số quốc gia duy nhất
+                unique_nations = set(p['Nation'] for p in valid_starters if p['Nation'])
+                total_rating = sum(p['Rating'] for p in valid_starters)
+                
+                # Ưu tiên sơ đồ nào xếp được nhiều quốc gia nhất
+                current_score = (len(unique_nations) * 100000) + total_rating
             
             # 1. CASE: RATING (MẶC ĐỊNH)
             if sort_mode == 'rating_desc':
@@ -4455,9 +4553,14 @@ def main():
                             else:
                                 st.selectbox("Giá trị:", ["-"], disabled=True)
                     else:
-                        # Giao diện chọn Chỉ số (ĐÃ XÓA CHỌN SƠ ĐỒ)
+                        # Giao diện chọn Chỉ số
                         stat_type = st.selectbox("Tiêu chí:", [
                             "⭐ Highest Rating (Mạnh nhất)", 
+                            "💪 The Tanks (Chiến Thần BMI Cao)",     # Mới
+                            "⚡ The Agiles (Sóc Nhỏ BMI Thấp)",     # Mới
+                            "🦶 The Ambidextrous (2 Chân Như 1)",    # Mới
+                            "🟣 Form Is Temporary (Full POTW)",     # Mới
+                            "🌍 United Nations (Đa Quốc Gia)",      # Mới
                             "🦒 Tallest XI (Cao nhất)", 
                             "🐜 Shortest XI (Thấp nhất)",
                             "⚖️ Heaviest XI (Nặng nhất)",
@@ -4466,7 +4569,13 @@ def main():
                             "👴 Oldest XI (Già nhất)"
                         ])
                         
+                        # Mapping từ Label sang ID
                         if "Rating" in stat_type: sort_mode = 'rating_desc'
+                        elif "Tanks" in stat_type: sort_mode = 'bmi_desc'      # Mới
+                        elif "Agiles" in stat_type: sort_mode = 'bmi_asc'      # Mới
+                        elif "Ambidextrous" in stat_type: sort_mode = 'ambidextrous' # Mới
+                        elif "POTW" in stat_type: sort_mode = 'potw_only'      # Mới
+                        elif "United Nations" in stat_type: sort_mode = 'united_nations' # Mới
                         elif "Cao nhất" in stat_type: sort_mode = 'height_desc'
                         elif "Thấp nhất" in stat_type: sort_mode = 'height_asc'
                         elif "Nặng nhất" in stat_type: sort_mode = 'weight_desc'
@@ -4526,7 +4635,41 @@ def main():
                         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
                         except: return 0
 
-                    if "Cao" in stat_type or "Thấp" in stat_type:
+                    if "Tanks" in stat_type or "Agiles" in stat_type:
+                        # Tính BMI trung bình
+                        bmis = []
+                        for p in all_valid_players:
+                            try:
+                                h = get_val(p, 'Height') / 100.0
+                                w = get_val(p, 'Weight')
+                                if h > 0: bmis.append(w/(h**2))
+                            except: pass
+                        avg = sum(bmis) / len(bmis) if bmis else 0
+                        custom_label = "BMI Trung bình"
+                        custom_value = f"{avg:.1f}"
+                    
+                    elif "Ambidextrous" in stat_type:
+                        count = 0
+                        for p in all_valid_players:
+                            # Logic check lại dữ liệu gốc
+                            d = p.get('Data', {})
+                            u = str(d.get('Weak Foot Usage','')).lower()
+                            a = str(d.get('Weak Foot Accuracy','')).lower()
+                            if ('very high' in u or '4' in u) and ('very high' in a or '4' in a):
+                                count += 1
+                        custom_label = "Số cầu thủ 2 chân"
+                        custom_value = f"{count}/11"
+
+                    elif "United Nations" in stat_type:
+                        nations = set(p['Nation'] for p in all_valid_players if p['Nation'])
+                        custom_label = "Số Quốc gia"
+                        custom_value = f"{len(nations)}"
+                    
+                    elif "POTW" in stat_type:
+                        potw_c = sum(1 for p in all_valid_players if 'POTW' in str(p['Type']).upper() or 'TRENDING' in str(p['Type']).upper())
+                        custom_label = "Số thẻ POTW"
+                        custom_value = f"{potw_c}"
+                    elif "Cao" in stat_type or "Thấp" in stat_type:
                         vals = [get_val(p, 'Height') for p in all_valid_players]
                         avg = sum(vals) / len(vals) if vals else 0
                         custom_label = "Chiều cao TB (23)"
