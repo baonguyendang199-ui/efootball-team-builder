@@ -1290,16 +1290,52 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # Không quan tâm vị trí, chỉ quan tâm chỉ số (Score)
     # -------------------------------------------------------
     
-    # Lấy những người chưa được chọn
+    # Lấy pool còn lại
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)]
-    
-    # Sort theo tiêu chí đã chọn
     remaining_pool = remaining_pool.sort_values('Build_Score', ascending=False)
     
-    # Lấy top 12
-    bench_picks = remaining_pool.head(12)
-    
-    for _, row in bench_picks.iterrows():
+    bench_picks_rows = []
+
+    # =========================================================
+    # 🆕 LOGIC DỰ BỊ CHO UNITED NATIONS (23 QUỐC GIA KHÁC NHAU)
+    # =========================================================
+    if sort_mode == 'united_nations':
+        # Bước 1: Cố gắng tìm 12 cầu thủ có quốc tịch KHÁC với 11 người đá chính (và khác nhau)
+        for idx, row in remaining_pool.iterrows():
+            if len(bench_picks_rows) >= 12:
+                break
+            
+            p_nation = str(row.get('Nation', '')).strip()
+            
+            # Chỉ chọn nếu quốc gia này CHƯA TỪNG xuất hiện trong danh sách đã dùng (used_nations)
+            if p_nation and p_nation not in used_nations:
+                bench_picks_rows.append(row)
+                used_nations.add(p_nation) # Đánh dấu quốc gia này đã bị chiếm
+                used_indices.add(idx)      # Đánh dấu cầu thủ này đã được chọn
+
+        # Bước 2: Nếu database không đủ 23 quốc gia khác nhau, 
+        # lấp đầy các slot còn thiếu bằng những cầu thủ giỏi nhất còn lại (chấp nhận trùng)
+        if len(bench_picks_rows) < 12:
+            needed = 12 - len(bench_picks_rows)
+            # Lấy pool mới đã trừ đi những người vừa chọn ở Bước 1
+            final_fillers = pool_df[~pool_df.index.isin(used_indices)].sort_values('Build_Score', ascending=False)
+            fillers = final_fillers.head(needed)
+            for _, row in fillers.iterrows():
+                bench_picks_rows.append(row)
+                
+    else:
+        # =========================================================
+        # LOGIC CŨ CHO CÁC CHẾ ĐỘ KHÁC (Rating, BMI, v.v.)
+        # =========================================================
+        # Lấy top 12 người điểm cao nhất bất kể quốc tịch
+        temp_picks = remaining_pool.head(12)
+        for _, row in temp_picks.iterrows():
+            bench_picks_rows.append(row)
+
+    # =========================================================
+    # CHUYỂN DỮ LIỆU THÀNH FORMAT SQUAD (Giữ nguyên logic cũ)
+    # =========================================================
+    for row in bench_picks_rows:
         pid = str(row.get('Player ID', '')).strip()
         purl = str(row.get('Player URL', '')).strip()
         if not pid and purl:
