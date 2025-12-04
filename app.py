@@ -1515,14 +1515,47 @@ def render_pitch_view(squad_list, highlight_type=None):
                 elif count == 4: left = 20 + (i * 20)
 
             # --- XỬ LÝ TOOLTIP (HOVER INFO) ---
+            # --- XỬ LÝ TOOLTIP (HOVER INFO) - ĐÃ CẬP NHẬT ---
             tooltip_text = f"{p['Player']} | Rating: {p['Rating']}" # Mặc định
             
+            # Lấy dữ liệu gốc để tra cứu các chỉ số sâu hơn
+            p_data = p.get('Data', {})
+            
             if highlight_type == 'Height':
-                tooltip_text = f"Chiều cao: {p.get('Height', '?')} cm"
+                tooltip_text = f"{p['Player']}\nChiều cao: {p.get('Height', '?')} cm"
+            
             elif highlight_type == 'Weight':
-                tooltip_text = f"Cân nặng: {p.get('Weight', '?')} kg"
+                tooltip_text = f"{p['Player']}\nCân nặng: {p.get('Weight', '?')} kg"
+            
             elif highlight_type == 'Age':
-                tooltip_text = f"Tuổi: {p.get('Age', '?')}"
+                tooltip_text = f"{p['Player']}\nTuổi: {p.get('Age', '?')}"
+            
+            elif highlight_type == 'BMI':
+                try:
+                    # Lấy số từ chuỗi (vd: "185" hoặc "185cm")
+                    h_str = str(p.get('Height', '0'))
+                    w_str = str(p.get('Weight', '0'))
+                    h = float(re.sub(r'[^\d.]', '', h_str)) / 100.0
+                    w = float(re.sub(r'[^\d.]', '', w_str))
+                    
+                    if h > 0:
+                        bmi = w / (h**2)
+                        tooltip_text = f"{p['Player']}\nBMI: {bmi:.1f} ({w}kg / {int(h*100)}cm)"
+                    else:
+                        tooltip_text = f"{p['Player']}\nBMI: ?"
+                except:
+                    tooltip_text = f"{p['Player']}\nBMI: Lỗi dữ liệu"
+            
+            elif highlight_type == 'Ambidextrous':
+                usage = str(p_data.get('Weak Foot Usage', '?'))
+                acc = str(p_data.get('Weak Foot Accuracy', '?'))
+                tooltip_text = f"{p['Player']}\nWF Usage: {usage}\nWF Accuracy: {acc}"
+
+            elif highlight_type == 'Nation':
+                tooltip_text = f"{p['Player']}\nQuốc tịch: {p.get('Nation', '?')}"
+
+            elif highlight_type == 'Type':
+                tooltip_text = f"{p['Player']}\nLoại thẻ: {p.get('Type', '?')}"
             
             # --- RENDER HTML ---
             player_name = p['Player']
@@ -4737,13 +4770,38 @@ def main():
                 
                 # Xác định metric để hiển thị tooltip trên sân
                 metric_to_show = None
+                
                 if build_mode == "Theo Chỉ số":
-                    if "Cao" in stat_type or "Thấp" in stat_type: metric_to_show = 'Height'
-                    elif "Nặng" in stat_type or "Nhẹ" in stat_type: metric_to_show = 'Weight'
-                    elif "Trẻ" in stat_type or "Già" in stat_type: metric_to_show = 'Age'
+                    # Chiều cao
+                    if "Cao" in stat_type or "Thấp" in stat_type or "Tallest" in stat_type or "Shortest" in stat_type: 
+                        metric_to_show = 'Height'
+                    
+                    # Cân nặng
+                    elif "Nặng" in stat_type or "Nhẹ" in stat_type or "Heaviest" in stat_type or "Lightest" in stat_type: 
+                        metric_to_show = 'Weight'
+                    
+                    # Tuổi
+                    elif "Trẻ" in stat_type or "Già" in stat_type or "Youngest" in stat_type or "Oldest" in stat_type: 
+                        metric_to_show = 'Age'
+                    
+                    # BMI (Tanks / Agiles)
+                    elif "Tanks" in stat_type or "Agiles" in stat_type or "BMI" in stat_type:
+                        metric_to_show = 'BMI'
+                    
+                    # Chân thuận (Ambidextrous)
+                    elif "Ambidextrous" in stat_type or "Chân" in stat_type: 
+                        metric_to_show = 'Ambidextrous'
+                    
+                    # Quốc gia (United Nations)
+                    elif "United Nations" in stat_type or "Quốc Gia" in stat_type:
+                        metric_to_show = 'Nation'
+                    
+                    # Loại thẻ (POTW / Epic)
+                    elif "POTW" in stat_type or "Epic" in stat_type:
+                        metric_to_show = 'Type'
 
                 with col_view1:
-                    st.caption("📍 Sơ đồ Đá chính (11)")
+                    st.caption(f"📍 Sơ đồ Đá chính (11) - Chế độ xem: {metric_to_show if metric_to_show else 'Mặc định'}")
                     render_pitch_view(best_squad, highlight_type=metric_to_show)
                 
                 with col_view2:
