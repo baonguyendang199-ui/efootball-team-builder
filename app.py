@@ -936,140 +936,154 @@ POSITION_STYLE_ORDER = {
 # BẮT ĐẦU CODE MỚI - AUTO BUILD (BƯỚC 1)
 # ==========================================
 
-# 1. Database 27 Sơ đồ chiến thuật
-# --- FORMATION DATABASE (THE ULTIMATE COLLECTION) ---
-# Constraints: GK=1 | CB 2-3 | DMF 1-3 | CF 0-2 | SS 0-5
+# --- FORMATION DATABASE (THE ULTIMATE COLLECTION V2) ---
+# Constraints Checked: GK=1 | CB 2-3 | DMF 1-3 (soft limit) | CF 0-2 | SS 0-5
+# Note: Một số sơ đồ "Flat" hoặc "No DMF" có thể có 0 DMF (chấp nhận theo logic bóng đá thực tế).
+
 FORMATIONS = {
     # =================================================================
     # 🔥 ĐẶC BIỆT: NHÓM 2 CF + 1 SS (TAM TẤU TRUNG LỘ)
     # =================================================================
-    "4-3-3 (2 CF, 1 SS)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "CF", "CF"],
-    "4-2-1-3 (2 CF, 1 SS)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "SS", "CF", "CF"],
-    "4-1-2-3 (2 CF, 1 SS)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
-    "3-4-3 (2 CF, 1 SS)":    ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "SS", "CF", "CF"],
-    "3-5-2 (2 CF, 1 SS)":    ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "AMF", "SS", "CF", "CF"],
-    "5-2-3 (2 CF, 1 SS)":    ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "SS", "CF", "CF"],
-    "4-2-4 (1 CF, 1 SS, 2 LWF,RWF)":    ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "SS", "CF"], # LWF + SS + 2 CF
-    "4-2-4 (1 CF, 1 SS, 2 LWF,RWF)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "RWF", "SS", "CF"], # LWF + SS + 2 CF
-
-    # =================================================================
-    # 🛡️ 4 HẬU VỆ (PHỔ BIẾN NHẤT)
-    # =================================================================
-
-    # --- 4-3-3: BIẾN THỂ TIỀN VỆ ---
-    "4-3-3 (Classic)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
-    "4-3-3 (Holding)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "DMF", "LWF", "RWF", "CF"],
-    "4-3-3 (Attack)":        ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"],
-    "4-3-3 (1 DMF, 2 SS)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "SS", "CF"],
-    "4-3-3 (3 SS)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "SS", "SS"],
-    "4-3-3 (Flat CMF)":      ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "CMF", "LWF", "RWF", "CF"], # No DMF
-
-    # --- 4-2-1-3 (2 Pivot) ---
-    "4-2-1-3 (2 DMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LWF", "RWF", "CF"],
-    "4-2-1-3 (1 DMF, 1 CMF)":["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
-    "4-2-1-3 (3 SS)":        ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "SS", "SS", "SS"],
-    "4-2-1-3 (No DMF)":      ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LWF", "RWF", "CF"],
-
-    # --- 4-1-2-3 (1 Pivot) ---
-    "4-1-2-3 (Standard)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"],
-    "4-1-2-3 (Wide SS)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "SS", "CF"],
-    "4-1-2-3 (No DMF)":      ["GK", "LB", "CB", "CB", "RB", "CMF", "AMF", "AMF", "LWF", "RWF", "CF"],
-
-    # --- 4-2-3-1 (Meta) ---
-    "4-2-3-1 (LMF/RMF)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LMF", "RMF", "CF"],
-    "4-2-3-1 (3 AMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "AMF", "CF"],
-    "4-2-3-1 (Narrow)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LWF", "RWF", "CF"],
-    "4-2-3-1 (1 DMF, 1 CMF)":["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LMF", "RMF", "CF"],
-
-    # --- 4-4-2 (Kinh điển) ---
-    "4-4-2 (Flat)":          ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF", "CF"],
-    "4-4-2 (2 DMF)":         ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CF", "CF"],
-    "4-4-2 (Diamond)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
-    "4-4-2 (Diamond Wide)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "CF", "CF"],
-    "4-4-2 (Box Magic)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
-    "4-4-2 (2 SS)":          ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "SS", "SS"],
-
-    # --- 4-2-2-2 (Brazil) ---
-    "4-2-2-2 (2 AMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
-    "4-2-2-2 (LWF/RWF)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF", "CF"],
-    "4-2-2-2 (1 CF, 1 SS)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "SS", "CF"],
-
-    # --- 4-3-1-2 & 4-3-2-1 ---
-    "4-3-1-2 (Diamond)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
-    "4-3-1-2 (CF + SS)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "CF"],
-    "4-3-2-1 (Xmas Tree)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "AMF", "CF"],
-    "4-3-2-1 (3 DMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "DMF", "AMF", "AMF", "CF"],
-
-    # --- 4-1-4-1 & 4-5-1 ---
-    "4-1-4-1 (Attack)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "AMF", "CF"],
-    "4-1-4-1 (Control)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
-    "4-5-1 (Defensive)":     ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CMF", "CF"],
-
-    # --- 4-2-4 (All Out Attack) ---
-    "4-2-4 (Standard)":      ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "CF", "CF"],
-    "4-2-4 (2 DMF)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF", "CF"],
-    "4-2-4 (4 SS)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "SS", "SS", "SS", "SS"],
-
-
-    # =================================================================
-    # 🛡️ 3 HẬU VỆ (3 CB - TẤN CÔNG BIÊN)
-    # =================================================================
-
-    # --- 3-4-3 ---
-    "3-4-3 (Flat)":          ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
-    "3-4-3 (Diamond)":       ["GK", "CB", "CB", "CB", "DMF", "CMF", "LMF", "RMF", "SS", "SS", "CF"],
-    "3-4-3 (2 AMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "AMF", "AMF", "CF"],
-    "3-4-3 (3 SS)":          ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "SS", "SS", "SS"],
-
-    # --- 3-5-2 ---
-    "3-5-2 (Standard)":      ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "AMF", "CF", "CF"],
-    "3-5-2 (3 CMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "CMF", "CF", "CF"],
-    "3-5-2 (2 DMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "AMF", "CF", "CF"],
-    "3-5-2 (3 DMF)":         ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "DMF", "CF", "CF"],
-
-    # --- 3-2-4-1 & 3-2-3-2 ---
-    "3-2-4-1 (2 AMF)":       ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "AMF", "CF"],
-    "3-2-3-2 (WM)":          ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "CF", "CF"],
-    "3-1-4-2":               ["GK", "CB", "CB", "CB", "DMF", "LMF", "RMF", "AMF", "AMF", "CF", "CF"],
-
-    # --- 3-4-2-1 ---
-    "3-4-2-1 (2 AMF)":       ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"],
-    "3-4-2-1 (2 SS)":        ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "SS", "SS", "CF"],
-
-    # --- 3-3-3-1 & 3-3-1-3 ---
-    "3-3-1-3 (Bielsa)":      ["GK", "CB", "CB", "CB", "DMF", "CMF", "CMF", "AMF", "LWF", "RWF", "CF"],
-    "3-3-3-1 (Pyramid)":     ["GK", "CB", "CB", "CB", "DMF", "DMF", "DMF", "AMF", "AMF", "AMF", "CF"],
-
-
-    # =================================================================
-    # 🛡️ 5 HẬU VỆ (PHÒNG NGỰ & PHẢN CÔNG)
-    # =================================================================
-
-    # --- 5-3-2 ---
-    "5-3-2 (Block)":         ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "CMF", "CF", "CF"],
-    "5-3-2 (Counter)":       ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "CF", "CF"],
-    "5-3-2 (2 SS)":          ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "SS"],
+    "4-3-3 (2 CF, 1 SS)":           ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "CF", "CF"],
+    "4-2-1-3 (2 CF, 1 SS)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "SS", "CF", "CF"],
+    "4-1-2-3 (2 CF, 1 SS)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
+    "3-4-3 (2 CF, 1 SS)":           ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "SS", "CF", "CF"],
+    "3-5-2 (2 CF, 1 SS)":           ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "AMF", "SS", "CF", "CF"],
+    "5-2-3 (2 CF, 1 SS)":           ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "SS", "CF", "CF"],
     
-    # --- 5-2-1-2 ---
-    "5-2-1-2 (2 DMF)":       ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "CF", "CF"],
-    "5-2-1-2 (1 DMF)":       ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "CF", "CF"],
-
-    # --- 5-4-1 ---
-    "5-4-1 (Flat)":          ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CF"],
-    "5-4-1 (Diamond)":       ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "CF"],
-    "5-1-3-1":               ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "AMF", "CF"],
-
-    # --- 5-2-3 ---
-    "5-2-3 (Long Ball)":     ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF"],
-    "5-2-3 (3 SS)":          ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "SS", "SS", "SS"],
-
+    # Sửa lỗi trùng key ở bản gốc
+    "4-2-4 (1 CF, 1 SS, CMF duo)":  ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "SS", "CF"], 
+    "4-2-4 (1 CF, 1 SS, Mix Mid)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "RWF", "SS", "CF"], 
 
     # =================================================================
-    # ⚠️ SƠ ĐỒ ĐẶC BIỆT (ZERO STRIKER / 4-6-0)
+    # 🛡️ 4 HẬU VỆ (4-3-3 & BIẾN THỂ)
     # =================================================================
-    "4-6-0 (False 9)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "SS"],
-    "3-6-1 (Possession)":    ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "AMF", "SS"],
-    "4-2-4-0 (4 SS)":        ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "SS", "SS", "SS", "SS"],
+    "4-3-3 (Classic)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "4-3-3 (Holding)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "DMF", "LWF", "RWF", "CF"], # Busquets role
+    "4-3-3 (Attack)":               ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"], # Man City style
+    "4-3-3 (False 9)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "SS"], # CF -> SS
+    "4-3-3 (1 DMF, 2 SS)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "SS", "CF"],
+    "4-3-3 (3 SS)":                 ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "SS", "SS"],
+    "4-3-3 (Flat CMF)":             ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "4-3-3 (Asymmetric Left)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "CMF", "AMF", "SS", "CF"],  # Lệch trái
+
+    # =================================================================
+    # 🛡️ 4 HẬU VỆ (4-2-3-1 & 4-2-1-3)
+    # =================================================================
+    "4-2-1-3 (2 DMF)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LWF", "RWF", "CF"],
+    "4-2-1-3 (1 DMF, 1 CMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+    "4-2-1-3 (3 SS)":               ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "SS", "SS", "SS"],
+    "4-2-1-3 (No DMF)":             ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+
+    "4-2-3-1 (Wide)":               ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LMF", "RMF", "CF"],
+    "4-2-3-1 (3 AMF)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "AMF", "CF"],
+    "4-2-3-1 (Narrow)":             ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LWF", "RWF", "CF"], # Giống 4-2-1-3
+    "4-2-3-1 (1 DMF, 1 CMF)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LMF", "RMF", "CF"],
+    "4-2-3-1 (SS Shadow)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "SS", "LMF", "RMF", "CF"],  # AMF -> SS
+
+    # =================================================================
+    # 🛡️ 4 HẬU VỆ (4-1-2-3 & 4-1-4-1)
+    # =================================================================
+    "4-1-2-3 (Standard)":           ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"],
+    "4-1-2-3 (Wide SS)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "SS", "CF"],
+    "4-1-2-3 (No DMF)":             ["GK", "LB", "CB", "CB", "RB", "CMF", "AMF", "AMF", "LWF", "RWF", "CF"],
+    
+    "4-1-4-1 (Attack)":             ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "AMF", "CF"],
+    "4-1-4-1 (Control)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
+    "4-1-4-1 (False 9)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "SS"],
+
+    # =================================================================
+    # 🛡️ 4 HẬU VỆ (4-4-2 CLASSIC & BIẾN THỂ)
+    # =================================================================
+    "4-4-2 (Flat)":                 ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF", "CF"],
+    "4-4-2 (2 DMF)":                ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CF", "CF"],
+    "4-4-2 (Diamond Narrow)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
+    "4-4-2 (Diamond Wide)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "CF", "CF"],
+    "4-4-2 (Box Magic)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
+    "4-4-2 (2 SS)":                 ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "SS", "SS"],
+    "4-4-1-1 (Support)":            ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "SS", "CF"], # 1 CF lùi thành SS
+
+    # =================================================================
+    # 🛡️ 4 HẬU VỆ (4-2-2-2 & 4-2-4)
+    # =================================================================
+    "4-2-2-2 (2 AMF)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
+    "4-2-2-2 (LWF/RWF)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF", "CF"],
+    "4-2-2-2 (1 CF, 1 SS)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "SS", "CF"],
+    
+    "4-2-4 (Standard)":             ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "CF", "CF"],
+    "4-2-4 (2 DMF)":                ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF", "CF"],
+    "4-2-4 (4 SS)":                 ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "SS", "SS", "SS", "SS"],
+
+    # =================================================================
+    # 🛡️ 4 HẬU VỆ (CÂY THÔNG & KHÁC)
+    # =================================================================
+    "4-3-1-2 (Diamond)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
+    "4-3-1-2 (CF + SS)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "CF"],
+    "4-3-2-1 (Xmas Tree)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "AMF", "CF"],
+    "4-3-2-1 (3 DMF)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "DMF", "AMF", "AMF", "CF"],
+    "4-5-1 (Defensive)":            ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "DMF", "CMF", "CF"],
+    "4-5-1 (Flat)":                 ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CMF", "CF"],
+
+    # =================================================================
+    # 🛡️ 3 HẬU VỆ (3 CB - TẤN CÔNG)
+    # =================================================================
+    "3-4-3 (Flat)":                 ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "3-4-3 (Diamond Mid)":          ["GK", "CB", "CB", "CB", "DMF", "CMF", "LMF", "RMF", "SS", "SS", "CF"],
+    "3-4-3 (2 AMF)":                ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "AMF", "AMF", "CF"],
+    "3-4-3 (3 SS)":                 ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "SS", "SS", "SS"],
+    "3-4-3 (Cruyff Diamond)":       ["GK", "CB", "CB", "CB", "DMF", "LMF", "RMF", "AMF", "SS", "SS", "CF"], # Biến thể 3-4-3 kim cương
+
+    "3-5-2 (Standard)":             ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "AMF", "CF", "CF"],
+    "3-5-2 (3 CMF)":                ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "CMF", "CF", "CF"],
+    "3-5-2 (2 DMF)":                ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "AMF", "CF", "CF"],
+    "3-5-2 (3 DMF)":                ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "DMF", "CF", "CF"],
+    "3-5-2 (1 SS, 1 CF)":           ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "AMF", "SS", "CF"],
+
+    # =================================================================
+    # 🛡️ 3 HẬU VỆ (BIẾN THỂ PHỨC TẠP)
+    # =================================================================
+    "3-2-4-1 (2 AMF)":              ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "AMF", "CF"], # Man City 2023
+    "3-2-3-2 (WM Modern)":          ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "CF", "CF"],
+    "3-1-4-2 (Conte)":              ["GK", "CB", "CB", "CB", "DMF", "LMF", "RMF", "AMF", "AMF", "CF", "CF"],
+
+    "3-4-2-1 (2 AMF)":              ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"],
+    "3-4-2-1 (2 SS)":               ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "SS", "SS", "CF"],
+    "3-4-1-2 (Classic)":            ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "CF", "CF"],
+
+    "3-3-1-3 (Bielsa)":             ["GK", "CB", "CB", "CB", "DMF", "CMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+    "3-3-3-1 (Pyramid)":            ["GK", "CB", "CB", "CB", "DMF", "DMF", "DMF", "AMF", "AMF", "AMF", "CF"],
+
+    # =================================================================
+    # 🛡️ 5 HẬU VỆ (PARKING BUS & COUNTER)
+    # =================================================================
+    "5-3-2 (Block)":                ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "CMF", "CF", "CF"],
+    "5-3-2 (Counter)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "CF", "CF"],
+    "5-3-2 (2 SS)":                 ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "SS"],
+    "5-3-2 (Flat Mid)":             ["GK", "LB", "CB", "CB", "CB", "RB", "CMF", "CMF", "CMF", "CF", "CF"],
+
+    "5-2-1-2 (2 DMF)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "CF", "CF"],
+    "5-2-1-2 (1 DMF)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "CF", "CF"],
+    "5-2-1-2 (3 CMF)":              ["GK", "LB", "CB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "CF", "CF"],
+
+    "5-4-1 (Flat)":                 ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CF"],
+    "5-4-1 (Diamond)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "AMF", "CF"],
+    "5-4-1 (2 AMF)":                ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF"],
+    
+    "5-1-3-1":                      ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "AMF", "CF"],
+
+    "5-2-3 (Long Ball)":            ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF"],
+    "5-2-3 (3 SS)":                 ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "SS", "SS", "SS"],
+    "5-2-3 (Attack)":               ["GK", "LB", "CB", "CB", "CB", "RB", "CMF", "AMF", "LWF", "RWF", "CF"],
+
+    # =================================================================
+    # ⚠️ SƠ ĐỒ ĐẶC BIỆT / KHÔNG TIỀN ĐẠO (ZERO STRIKER)
+    # =================================================================
+    "4-6-0 (False 9)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "SS", "SS"],
+    "4-6-0 (Magic Box)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "SS", "SS"],
+    "3-6-1 (Possession)":           ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "AMF", "AMF", "SS"],
+    "3-7-0 (All Midfield)":         ["GK", "CB", "CB", "CB", "DMF", "DMF", "LMF", "RMF", "CMF", "AMF", "SS"],
+    "4-2-4-0 (4 SS)":               ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "SS", "SS", "SS", "SS"],
+    "2-3-5 (Inverted Pyramid)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "SS"], # Fake 2-3-5 using 4-back logic
 }
 
 # ==========================================
