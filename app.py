@@ -3902,42 +3902,47 @@ def main():
         )
         
         if view_mode == "🎴 Card":
-    st.markdown("### 🎴 Danh sách cầu thủ")
-    
-    # Định nghĩa số cột (4 cột cho màn hình rộng)
-    cols_per_row = 4
-    rows = [filtered_df.iloc[i:i + cols_per_row] for i in range(0, len(filtered_df), cols_per_row)]
+            st.markdown("### 🎴 Danh sách cầu thủ")
+            
+            # Định nghĩa số cột (4 cột cho màn hình rộng)
+            cols_per_row = 4
+            rows = [filtered_df.iloc[i:i + cols_per_row] for i in range(0, len(filtered_df), cols_per_row)]
 
-    for row in rows:
-        cols = st.columns(cols_per_row)
-        for i, (idx, player) in enumerate(row.iterrows()):
-            with cols[i]:
-                # Chuẩn bị dữ liệu cho hàm render
-                p_data = {
-                    'Player': player['Player'],
-                    'Rating': player['Rating'],
-                    'Position': player['Position'],
-                    'Type': player['Player Type'],
-                    'Club': player['Club'],
-                    'Nation': player['Nation'],
-                    'Player ID': player.get('Player ID', ''),
-                    'Player URL': player.get('Player URL', '')
-                }
+            for row in rows:
+                cols = st.columns(cols_per_row)
+                for i, (idx, player) in enumerate(row.iterrows()):
+                    with cols[i]:
+                        # Chuẩn bị dữ liệu cho hàm render
+                        p_data = {
+                            'Player': player['Player'],
+                            'Rating': player['Rating'],
+                            'Position': player['Position'],
+                            'Type': player['Player Type'],
+                            'Club': player.get('Club', ''),
+                            'Nation': player.get('Nation', ''),
+                            'Player ID': player.get('Player ID', ''),
+                            'Player URL': player.get('Player URL', ''),
+                            'Image': None # Hàm render sẽ tự xử lý ảnh từ ID nếu Image là None
+                        }
+                        
+                        # Render HTML card
+                        card_html = render_efootball_card_html(p_data)
+                        st.markdown(card_html, unsafe_allow_html=True)
+                        
+                        # Action Buttons nhỏ bên dưới card
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            act = player.get('Action', '')
+                            if "BÁN" in str(act):
+                                st.caption(f":red[{act}]")
+                            else:
+                                st.caption(f":green[{act}]")
+                        with c2:
+                            # Nút xem chi tiết giả lập
+                            if st.button("Chi tiết", key=f"btn_detail_{idx}"):
+                                st.toast(f"Đang xem {player['Player']}", icon="👀")
                 
-                # Render HTML card
-                card_html = render_efootball_card_html(p_data)
-                st.markdown(card_html, unsafe_allow_html=True)
-                
-                # Action Buttons nhỏ bên dưới card
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.caption(f"Action: **{player.get('Action', '')}**")
-                with c2:
-                    # Nút xem chi tiết giả lập (có thể mở modal sau này)
-                    if st.button("Chi tiết", key=f"btn_detail_{idx}"):
-                        st.toast(f"Đang xem {player['Player']}", icon="👀")
-        
-        st.write("") # Spacer row
+                st.write("") # Spacer row
         
         else:
             # ===== CHẾ ĐỘ BẢNG =====
