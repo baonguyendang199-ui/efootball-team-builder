@@ -37,286 +37,218 @@ SHOW_APP_HERO = False
 
 
 def inject_modern_ui_theme():
-    """Inject modern UI tokens, typography and component styling."""
+    """Inject modern UI tokens, typography and component styling (Ultra Version)."""
     theme = APP_THEME
     st.markdown(
         f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
+        
         :root {{
-            --app-primary: {theme["primary"]};
-            --app-secondary: {theme["secondary"]};
-            --app-accent: {theme["accent"]};
-            --app-surface: {theme["surface"]};
-            --app-card: {theme["card"]};
-            --app-border: {theme["border"]};
-            --app-text: {theme["text"]};
-            --app-muted: {theme["muted"]};
+            --epic-grad: linear-gradient(135deg, #FFD700 0%, #B8860B 100%);
+            --potw-grad: linear-gradient(135deg, #d946ef 0%, #9333ea 100%);
+            --std-grad: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            --card-bg: rgba(15,23,42,0.9);
         }}
+
         html, body, [data-testid="stAppViewContainer"] {{
             font-family: 'Inter', sans-serif;
-            color: var(--app-text);
             background: {theme["bg_gradient"]};
+            color: {theme["text"]};
         }}
-        [data-testid="stAppViewContainer"] > .main {{
-            background: {theme["bg_gradient"]};
-            color: var(--app-text);
-            padding-top: 1rem;
+
+        h1, h2, h3 {{
+            font-family: 'Exo 2', sans-serif !important;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }}
-        section[data-testid="stSidebar"] {{
-            background: rgba(3,7,18,0.92);
-            backdrop-filter: blur(18px);
-            border-right: 1px solid var(--app-border);
+
+        /* --- EFOOTBALL CARD STYLES --- */
+        .e-card {{
+            position: relative;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--card-bg);
+            cursor: pointer;
         }}
-        section[data-testid="stSidebar"] * {{
-            color: var(--app-text) !important;
-            font-family: 'Inter', sans-serif;
+        
+        .e-card:hover {{
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.5);
+            z-index: 10;
         }}
-        div.stButton > button, button[kind="primary"] {{
-            border-radius: 999px;
-            border: none;
-            background: linear-gradient(135deg, var(--app-primary), var(--app-secondary));
-            color: white;
+
+        /* Rarity Borders & Glows */
+        .e-card.epic {{ border-bottom: 4px solid #FFD700; }}
+        .e-card.potw {{ border-bottom: 4px solid #d946ef; }}
+        .e-card.std {{ border-bottom: 4px solid #3b82f6; }}
+
+        .e-card .card-header {{
+            position: relative;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%);
+            z-index: 2;
+        }}
+
+        .e-card .rating-box {{
+            font-family: 'Exo 2', sans-serif;
+            font-weight: 800;
+            font-size: 1.4rem;
+            line-height: 1;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
+        }}
+        
+        .e-card.epic .rating-box {{ color: #FFD700; }}
+        .e-card.potw .rating-box {{ color: #ff8df5; }}
+        .e-card.std .rating-box {{ color: #93c5fd; }}
+
+        .e-card .position-box {{
+            font-size: 0.8rem;
+            font-weight: 700;
+            background: rgba(0,0,0,0.6);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #fff;
+        }}
+
+        .e-card .player-img {{
+            width: 100%;
+            height: 140px;
+            object-fit: contain;
+            margin-top: -30px;
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));
+        }}
+
+        .e-card .card-info {{
+            padding: 10px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }}
+
+        .e-card .player-name {{
+            font-family: 'Exo 2', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+            margin-bottom: 4px;
+        }}
+
+        .e-card .sub-info {{
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: #94a3b8;
+        }}
+
+        /* Shine Effect */
+        .shine {{
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
+            background-size: 200% 100%;
+            animation: shine 4s infinite linear;
+            pointer-events: none;
+            z-index: 5;
+        }}
+        @keyframes shine {{ 0% {{background-position: 100% 0}} 100% {{background-position: -100% 0}} }}
+
+        /* --- STREAMLIT OVERRIDES --- */
+        div.stButton > button {{
+            border-radius: 8px;
             font-weight: 600;
-            box-shadow: 0 10px 25px rgba(124,58,237,0.35);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: none;
+            transition: all 0.2s;
         }}
-        div.stButton > button:hover, button[kind="primary"]:hover {{
-            transform: translateY(-1px);
-            box-shadow: 0 12px 30px rgba(124,58,237,0.45);
+        
+        [data-testid="stSidebar"] {{
+            background-color: #020617;
+            border-right: 1px solid #1e293b;
         }}
-        div[data-testid="stMetricValue"] {{
-            font-size: 2rem;
-            color: var(--app-text);
-        }}
-        div[data-testid="stMetricLabel"] {{
-            color: var(--app-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }}
-        .hero-card {{
-            display: flex;
-            gap: 2.5rem;
-            padding: 2.4rem;
-            border-radius: 28px;
-            background: radial-gradient(circle at 0% 0%, rgba(124,58,237,0.2), transparent 60%), var(--app-card);
-            border: 1px solid rgba(255,255,255,0.05);
-            box-shadow: 0 20px 50px rgba(2,6,23,0.55);
-            margin-bottom: 1.5rem;
-        }}
-        .hero-card h1 {{
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: clamp(2rem, 4vw, 3rem);
-            margin-bottom: 0.75rem;
-        }}
-        .hero-eyebrow {{
-            font-size: 0.85rem;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: var(--app-accent);
-            margin-bottom: 0.8rem;
-        }}
-        .hero-desc {{
-            font-size: 1.05rem;
-            color: var(--app-muted);
-            max-width: 720px;
-        }}
-        .hero-tags {{
-            margin-top: 1rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }}
-        .pill {{
-            padding: 0.3rem 0.9rem;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.08);
-            font-size: 0.85rem;
-            color: var(--app-text);
-        }}
-        .hero-stats {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 1rem;
-            flex: 1;
-        }}
-        .stat-card {{
-            padding: 1.2rem;
-            background: rgba(255,255,255,0.02);
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.06);
-            backdrop-filter: blur(12px);
-        }}
-        .stat-card span {{
-            font-size: 0.85rem;
-            color: var(--app-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }}
-        .stat-card strong {{
-            display: block;
-            font-size: 1.8rem;
-            margin: 0.4rem 0;
-            font-family: 'Space Grotesk', sans-serif;
-        }}
-        .stat-card small {{
-            color: var(--app-muted);
-        }}
-        [data-testid="stDivider"] {{
-            border-color: rgba(255,255,255,0.08);
-        }}
-        .stTabs [role="tab"] {{
-            padding: 0.6rem 1.4rem;
-            border-radius: 999px;
-            border: 1px solid transparent;
-        }}
-        .stTabs [aria-selected="true"] {{
-            background: rgba(124,58,237,0.15);
-            border-color: rgba(124,58,237,0.4);
-        }}
-        .stExpander {{
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px !important;
-        }}
-        .stDataFrame, .st-emotion-cache-1dp5vir {{
-            border-radius: 18px;
+        
+        /* Stats Bar in Cards */
+        .stat-bar {{
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            margin-top: 4px;
             overflow: hidden;
         }}
-        [data-baseweb="select"] svg,
-        [data-baseweb="select"] svg path,
-        [data-testid="stExpander"] svg {{
-            fill: var(--app-text) !important;
-            stroke: var(--app-text) !important;
-            color: var(--app-text) !important;
+        .stat-fill {{
+            height: 100%;
+            border-radius: 2px;
         }}
-        button[aria-expanded] svg {{
-            stroke: var(--app-text) !important;
-        }}
-        [data-testid="stSidebarCollapseButton"] {{
-            position: relative;
-        }}
-        [data-testid="stSidebarCollapseButton"] > button {{
-            opacity: 0;
-            pointer-events: none;
-            width: 0;
-            height: 0;
-            margin: 0;
-            position: absolute;
-        }}
-        .custom-sidebar-toggle {{
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.14);
-            color: var(--app-text);
-            border-radius: 999px;
-            padding: 0.35rem 0.95rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            backdrop-filter: blur(8px);
-        }}
-        .custom-sidebar-toggle:hover {{
-            background: rgba(255,255,255,0.16);
-            border-color: rgba(255,255,255,0.25);
-        }}
-        .custom-sidebar-toggle .material-symbols-outlined {{
-            font-size: 18px !important;
-        }}
-        .material-symbols-outlined, .material-icons {{
-            font-family: 'Material Symbols Outlined' !important;
-            font-style: normal !important;
-            font-weight: 400 !important;
-            font-size: 20px !important;
-            line-height: 1 !important;
-            display: inline-flex !important;
-            align-items: center;
-            justify-content: center;
-            letter-spacing: normal !important;
-            text-transform: none !important;
-            font-variant-ligatures: normal !important;
-            font-feature-settings: 'liga' 1 !important;
-            font-variation-settings:
-                'FILL' 0,
-                'wght' 400,
-                'GRAD' 0,
-                'opsz' 24;
-        }}
-        @media (max-width: 980px) {{
-            .hero-card {{
-                flex-direction: column;
-            }}
-            .hero-stats {{
-                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            }}
-        }}
+
         </style>
-        <script>
-        (function() {{
-            const ensureCustomToggle = () => {{
-                const host = document.querySelector('[data-testid="stSidebarCollapseButton"]');
-                if (!host) return;
-                const defaultBtn = host.querySelector('button');
-                if (!defaultBtn) return;
-                
-                let customBtn = host.querySelector('.custom-sidebar-toggle');
-                if (!customBtn) {{
-                    customBtn = document.createElement('button');
-                    customBtn.type = 'button';
-                    customBtn.className = 'custom-sidebar-toggle';
-                    customBtn.innerHTML = `
-                        <span class="material-symbols-outlined toggle-icon">menu_open</span>
-                        <span class="toggle-label">Thu gọn</span>
-                    `;
-                    host.appendChild(customBtn);
-                    customBtn.addEventListener('click', (event) => {{
-                        event.preventDefault();
-                        event.stopPropagation();
-                        defaultBtn.click();
-                    }});
-                }}
-                
-                const updateState = () => {{
-                    const expanded = defaultBtn.getAttribute('aria-expanded') === 'true';
-                    const icon = customBtn.querySelector('.toggle-icon');
-                    const label = customBtn.querySelector('.toggle-label');
-                    icon.textContent = expanded ? 'menu_open' : 'menu';
-                    label.textContent = expanded ? 'Thu gọn' : 'Mở sidebar';
-                    customBtn.setAttribute('data-expanded', expanded ? 'true' : 'false');
-                }};
-                
-                updateState();
-                
-                if (!defaultBtn.__customToggleObserver) {{
-                    const observer = new MutationObserver((mutations) => {{
-                        mutations.forEach((mutation) => {{
-                            if (mutation.type === 'attributes' && mutation.attributeName === 'aria-expanded') {{
-                                updateState();
-                            }}
-                        }});
-                    }});
-                    observer.observe(defaultBtn, {{ attributes: true }});
-                    defaultBtn.__customToggleObserver = observer;
-                }}
-            }};
-            
-            const bootstrap = () => {{
-                ensureCustomToggle();
-            }};
-            
-            const observer = new MutationObserver(bootstrap);
-            observer.observe(document.body, {{ childList: true, subtree: true }});
-            document.addEventListener('DOMContentLoaded', bootstrap);
-            bootstrap();
-        }})();
-        </script>
         """,
         unsafe_allow_html=True
     )
+
+def render_efootball_card_html(player_data, width="100%"):
+    """
+    Tạo HTML Card cầu thủ xịn xò với style mới.
+    player_data: dict chứa thông tin cầu thủ (Player, Rating, Type, Position, Image...)
+    """
+    p_name = player_data.get('Player', 'Unknown')
+    rating = player_data.get('Rating', 0)
+    pos = player_data.get('Position', '?')
+    p_type = str(player_data.get('Type', 'NON-EPIC')).upper()
+    
+    # Xử lý hình ảnh
+    img_url = player_data.get('Image')
+    if not img_url:
+        pid = str(player_data.get('Player ID', '')).strip()
+        if pid:
+            img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
+        else:
+            img_url = "https://pesdb.net/assets/img/card/f0.png" # Placeholder
+
+    # Xác định class CSS theo loại thẻ
+    card_class = "std"
+    bg_gradient = "linear-gradient(180deg, #1e3a8a 0%, #0f172a 100%)" # Blue default
+    
+    if "EPIC" in p_type:
+        card_class = "epic"
+        bg_gradient = "linear-gradient(180deg, #574608 0%, #281e05 100%)" # Goldish dark
+    elif "POTW" in p_type or "TRENDING" in p_type:
+        card_class = "potw"
+        bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)" # Purple dark
+
+    # Club logo (nếu muốn thêm sau này)
+    club = player_data.get('Club', '')
+    
+    html = f"""
+    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};">
+        <div class="shine"></div>
+        <div class="card-header">
+            <div class="rating-box">{rating}</div>
+            <div class="position-box">{pos}</div>
+        </div>
+        <img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
+        <div class="card-info">
+            <div class="player-name" title="{p_name}">{p_name}</div>
+            <div class="sub-info">
+                <span style="opacity:0.8">{club[:15] + '...' if len(club)>15 else club}</span>
+                <span>{player_data.get('Nation', '')[:3].upper()}</span>
+            </div>
+        </div>
+    </div>
+    """
+    return html
 
 
 def render_app_hero(df: pd.DataFrame):
@@ -3970,159 +3902,42 @@ def main():
         )
         
         if view_mode == "🎴 Card":
-            # ===== CHẾ ĐỘ CARD =====
-            for idx, row in filtered_df.iterrows():
-                player_name = row['Player']
-                rating = row['Rating']
-                position = row['Position']
-                player_type = row['Player Type']
-                club = row.get('Club', '')
-                nation = row.get('Nation', '')
-                league = row.get('League', '')
-                region = row.get('Region', '')
-                height = row.get('Height', '')
-                weight = row.get('Weight', '')
-                age = row.get('Age', '')
-                foot = row.get('Foot', '')
-                weak_usage = row.get('Weak Foot Usage', '')
-                weak_acc = row.get('Weak Foot Accuracy', '')
-                form = row.get('Form', '')
-                injury_res = row.get('Injury Resistance', '')
-                action = row.get('Action', '')
-                reasons = row.get('Reasons', '')
-                skills = row.get('Skills', '')
-                added_skills = row.get('Added Skills', '')
-                player_id = row.get('Player ID', '')
-                player_url = row.get('Player URL', '')
-                
-                # Tạo URL hình ảnh
-                image_url = make_ehub_player_image_url(player_id if player_id else player_url)
-                
-                # Màu sắc theo loại thẻ
-                if str(player_type).upper() == "EPIC":
-                    card_color = "🟡"
-                elif str(player_type).upper() == "POTW":
-                    card_color = "🟣"
-                else:
-                    card_color = "🔵"
-                
-                # Màu action
-                if action == "❌ BÁN":
-                    action_badge = f'<span style="background:#ffebee;color:#c62828;padding:4px 12px;border-radius:12px;font-weight:bold;">{action}</span>'
-                else:
-                    action_badge = f'<span style="background:#e8f5e9;color:#2e7d32;padding:4px 12px;border-radius:12px;font-weight:bold;">{action}</span>'
-                
-                with st.container(border=True):
-                    col_img, col_info = st.columns([1, 5])
-                    
-                    with col_img:
-                        if image_url:
-                            st.image(image_url, width=200)
-                        else:
-                            st.markdown(
-                                '<div style="width:200px;height:325px;background:#f0f0f0;'
-                                'display:flex;align-items:center;justify-content:center;'
-                                'border-radius:16px;font-size:80px;">❓</div>',
-                                unsafe_allow_html=True
-                            )
-                    
-                    with col_info:
-                        st.markdown(f"### {card_color} {player_name}")
-                        
-                        info_col1, info_col2 = st.columns(2)
-                        with info_col1:
-                            st.markdown(f"**Rating:** {rating} | **Position:** {position}")
-                            st.markdown(f"**Type:** {player_type}")
-                            # Physical / region info
-                            if region:
-                                st.markdown(f"**Region:** {region}")
-                            # Physique: Age / Height / Weight / BMI
-                            extra_physical = []
-                            if age:
-                                extra_physical.append(f"Age {age}")
-                            size_parts = []
-                            if height:
-                                size_parts.append(f"{height}cm")
-                            if weight:
-                                size_parts.append(f"{weight}kg")
-                            # Tính BMI nếu có đủ chiều cao & cân nặng hợp lệ
-                            bmi_str = None
-                            try:
-                                h_val = float(height)
-                                w_val = float(weight)
-                                if h_val > 0:
-                                    bmi_val = w_val / ((h_val / 100.0) ** 2)
-                                    # Phân loại BMI
-                                    if bmi_val < 18.5:
-                                        bmi_cat = "Skinny"
-                                    elif bmi_val < 25:
-                                        bmi_cat = "Normal"
-                                    elif bmi_val < 30:
-                                        bmi_cat = "Overweight"
-                                    else:
-                                        bmi_cat = "Obese"
-                                    bmi_str = f"BMI {bmi_val:.1f} ({bmi_cat})"
-                            except (TypeError, ValueError):
-                                bmi_str = None
-                            if size_parts:
-                                extra_physical.append(" / ".join(size_parts))
-                            if bmi_str:
-                                extra_physical.append(bmi_str)
-                            if extra_physical:
-                                st.markdown("**Physique:** " + " | ".join(extra_physical))
-                        with info_col2:
-                            st.markdown(f"**Club:** {club}")
-                            st.markdown(f"**Nation:** {nation} | **League:** {league}")
+    st.markdown("### 🎴 Danh sách cầu thủ")
+    
+    # Định nghĩa số cột (4 cột cho màn hình rộng)
+    cols_per_row = 4
+    rows = [filtered_df.iloc[i:i + cols_per_row] for i in range(0, len(filtered_df), cols_per_row)]
 
-                            if foot or weak_usage or weak_acc or form or injury_res:
-                                if foot:
-                                    st.markdown(f"**Preferred foot:** {foot}")
-                                if weak_usage:
-                                    st.markdown(f"**WF Usage:** {weak_usage}")
-                                if weak_acc:
-                                    st.markdown(f"**WF Accuracy:** {weak_acc}")
-                                if form:
-                                    st.markdown(f"**Form:** {form}")
-                                if injury_res:
-                                    st.markdown(f"**Injury Resistance:** {injury_res}")
-
-                            rank_info = row.get('Rank_Info', '')
-                            if rank_info:
-                                # tách các dòng rồi nối lại bằng dấu phẩy
-                                rank_inline = ", ".join(rank_info.splitlines())
-                                st.markdown(f"**Rank:** {rank_inline}")
-                        
-                        # Hiển thị Skills
-                        added_skills = row.get('Added Skills', '')
-                        base_skills_list = [s.strip() for s in skills.split(',') if s.strip()] if skills else []
-                        added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
-                        total_skills = len(base_skills_list) + len(added_skills_list)
-                        
-                        with st.container():  # bọc chung để 2 expander sát nhau
-                            if base_skills_list or added_skills_list:
-                                with st.expander(f"📋 Skills ({total_skills})", expanded=False):
-                                    if base_skills_list:
-                                        st.caption(f"🎮 Gốc ({len(base_skills_list)}):")
-                                        base_html = " ".join([
-                                            f'<span style="background:#e3f2fd;color:#1565c0;padding:3px 8px;'
-                                            f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">⭐ {s}</span>'
-                                            for s in base_skills_list
-                                        ])
-                                        st.markdown(base_html, unsafe_allow_html=True)
-                        
-                                    if added_skills_list:
-                                        st.caption(f"➕ Đã thêm ({len(added_skills_list)}):")
-                                        added_html = " ".join([
-                                            f'<span style="background:#d4edda;color:#155724;padding:3px 8px;'
-                                            f'border-radius:10px;margin:2px;display:inline-block;font-size:12px;">✅ {s}</span>'
-                                            for s in added_skills_list
-                                        ])
-                                        st.markdown(added_html, unsafe_allow_html=True)
-                        
-                            # Action & Lý do cũng trong expander, ngay sát Skills
-                            with st.expander("🎯 Action & Lý do", expanded=False):
-                                st.markdown(action_badge, unsafe_allow_html=True)
-                                st.caption(f"**Lý do:** {reasons}")
+    for row in rows:
+        cols = st.columns(cols_per_row)
+        for i, (idx, player) in enumerate(row.iterrows()):
+            with cols[i]:
+                # Chuẩn bị dữ liệu cho hàm render
+                p_data = {
+                    'Player': player['Player'],
+                    'Rating': player['Rating'],
+                    'Position': player['Position'],
+                    'Type': player['Player Type'],
+                    'Club': player['Club'],
+                    'Nation': player['Nation'],
+                    'Player ID': player.get('Player ID', ''),
+                    'Player URL': player.get('Player URL', '')
+                }
+                
+                # Render HTML card
+                card_html = render_efootball_card_html(p_data)
+                st.markdown(card_html, unsafe_allow_html=True)
+                
+                # Action Buttons nhỏ bên dưới card
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.caption(f"Action: **{player.get('Action', '')}**")
+                with c2:
+                    # Nút xem chi tiết giả lập (có thể mở modal sau này)
+                    if st.button("Chi tiết", key=f"btn_detail_{idx}"):
+                        st.toast(f"Đang xem {player['Player']}", icon="👀")
+        
+        st.write("") # Spacer row
         
         else:
             # ===== CHẾ ĐỘ BẢNG =====
