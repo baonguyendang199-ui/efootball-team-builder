@@ -252,67 +252,184 @@ def render_efootball_card_html(player_data, width="100%"):
 
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
-    """Hiển thị thông tin chi tiết cầu thủ trong Popup"""
-    # Xử lý dữ liệu
+    """Hiển thị thông tin chi tiết cầu thủ trong Popup với UI cải tiến"""
+    
+    # --- 1. XỬ LÝ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
     rating = row.get('Rating', 0)
-    img_url = row.get('Player URL', '') # Hoặc xử lý từ ID như cũ
-    pid = str(row.get('Player ID', '')).strip()
+    pos = row.get('Position', '?')
+    style = row.get('Position Style', '')
+    p_type = str(row.get('Player Type', 'Standard')).upper()
     
-    # Lấy ảnh
+    # Xử lý ảnh
+    img_url = row.get('Player URL', '') 
+    pid = str(row.get('Player ID', '')).strip()
     if not pid and img_url:
         m = re.search(r"(\d{14,})", str(img_url))
         pid = m.group(1) if m else ""
     real_img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
 
-    # Header
-    c1, c2 = st.columns([1, 3])
-    with c1:
-        st.image(real_img, width=120)
-    with c2:
-        st.subheader(f"{p_name}")
-        st.markdown(f"**Rating:** :blue-background[{rating}] | **Vị trí:** {row.get('Position','')} ({row.get('Position Style','')})")
-        st.caption(f"**CLB:** {row.get('Club','')} | **QG:** {row.get('Nation','')} | **Giải:** {row.get('League','')}")
+    # Màu sắc chủ đạo dựa trên loại thẻ
+    if "EPIC" in p_type:
+        theme_color = "#FFD700" # Vàng
+        bg_gradient = "linear-gradient(135deg, #422006 0%, #a16207 100%)"
+    elif "POTW" in p_type or "TRENDING" in p_type:
+        theme_color = "#d946ef" # Tím hồng
+        bg_gradient = "linear-gradient(135deg, #3b0764 0%, #7e22ce 100%)"
+    else:
+        theme_color = "#3b82f6" # Xanh dương
+        bg_gradient = "linear-gradient(135deg, #0f172a 0%, #1e40af 100%)"
 
-    st.divider()
+    # --- 2. CSS STYLING ---
+    st.markdown(f"""
+        <style>
+        .modal-header {{
+            background: {bg_gradient};
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }}
+        .player-avatar {{
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
+            transition: transform 0.3s;
+        }}
+        .player-avatar:hover {{ transform: scale(1.05); }}
+        .big-rating {{
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1;
+            color: {theme_color};
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+        }}
+        .stat-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }}
+        .stat-box {{
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }}
+        .stat-label {{ font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }}
+        .stat-value {{ font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }}
+        
+        .skill-container {{ display: flex; flex-wrap: wrap; gap: 6px; }}
+        .skill-pill {{
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }}
+        .skill-base {{ background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }}
+        .skill-added {{ background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; }}
+        
+        hr {{ margin: 1.5rem 0; border-color: rgba(255,255,255,0.1); }}
+        </style>
+    """, unsafe_allow_html=True)
 
-    # Thông số chi tiết
-    st.markdown("##### 📊 Thông số thể chất")
-    c3, c4, c5, c6 = st.columns(4)
-    with c3: st.markdown(f"**Chiều cao:**\n{row.get('Height','?')}")
-    with c4: st.markdown(f"**Cân nặng:**\n{row.get('Weight','?')}")
-    with c5: st.markdown(f"**Tuổi:**\n{row.get('Age','?')}")
-    with c6: st.markdown(f"**Chân thuận:**\n{row.get('Foot','?')}")
+    # --- 3. UI HEADER (Custom HTML) ---
+    st.markdown(f"""
+        <div class="modal-header">
+            <img src="{real_img}" class="player-avatar" width="100">
+            <div style="flex-grow: 1;">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: 700; line-height:1.2;">{p_name}</div>
+                        <div style="color: rgba(255,255,255,0.8); font-size: 0.9rem; margin-top:4px;">
+                            {row.get('Club','')} • {row.get('Nation','')}
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <span style="background:rgba(0,0,0,0.3); padding:2px 8px; border-radius:4px; font-size:0.8rem;">{pos}</span>
+                            <span style="background:rgba(0,0,0,0.3); padding:2px 8px; border-radius:4px; font-size:0.8rem;">{style}</span>
+                        </div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div class="big-rating">{rating}</div>
+                        <div style="font-size:0.7rem; opacity:0.7;">RATING</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    c7, c8, c9 = st.columns(3)
-    with c7: st.markdown(f"**Phong độ:** {row.get('Form','?')}")
-    with c8: st.markdown(f"**Chân không thuận:** {row.get('Weak Foot Usage','?')}/{row.get('Weak Foot Accuracy','?')}")
-    with c9: st.markdown(f"**Loại thẻ:** {row.get('Player Type','?')}")
+    # --- 4. THÔNG SỐ (Grid Layout) ---
+    st.markdown("##### 📊 Thông số chi tiết")
+    
+    # Sử dụng HTML grid để căn chỉnh đẹp hơn st.columns
+    st.markdown(f"""
+        <div class="stat-grid">
+            <div class="stat-box">
+                <div class="stat-label">Chiều cao</div>
+                <div class="stat-value">{row.get('Height','--')}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Cân nặng</div>
+                <div class="stat-value">{row.get('Weight','--')}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Tuổi</div>
+                <div class="stat-value">{row.get('Age','--')}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Chân thuận</div>
+                <div class="stat-value">{row.get('Foot','--')}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Phong độ</div>
+                <div class="stat-value">{row.get('Form','--')}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Chân ko thuận</div>
+                <div class="stat-value">{row.get('Weak Foot Usage','?')[0]}/{row.get('Weak Foot Accuracy','?')[0]}</div>
+            </div>
+            <div class="stat-box" style="grid-column: span 2;">
+                <div class="stat-label">Loại thẻ</div>
+                <div class="stat-value" style="color:{theme_color}">{p_type}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    st.divider()
-
-    # Skills
+    # --- 5. SKILLS ---
+    st.write("") # Spacer
     st.markdown("##### 🎮 Skills & Kỹ năng")
-    skills = str(row.get('Skills', '')).split(',')
-    added_skills = str(row.get('Added Skills', '')).split(',')
     
-    # Render Skills đẹp hơn
-    html_skills = ""
+    skills = [s.strip() for s in str(row.get('Skills', '')).split(',') if s.strip()]
+    added_skills = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
+    
+    skill_html = '<div class="skill-container">'
+    
+    if not skills and not added_skills:
+        skill_html += '<span style="opacity:0.5; font-style:italic;">Chưa có dữ liệu skills</span>'
+    
+    # Base skills
     for s in skills:
-        if s.strip():
-            html_skills += f'<span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px; margin:2px; display:inline-block; font-size:0.8rem; border:1px solid rgba(255,255,255,0.2)">{s.strip()}</span>'
+        skill_html += f'<div class="skill-pill skill-base">{s}</div>'
     
-    if added_skills and added_skills != ['']:
-        for s in added_skills:
-             if s.strip():
-                html_skills += f'<span style="background:rgba(34, 197, 94, 0.2); color:#4ade80; padding:4px 8px; border-radius:4px; margin:2px; display:inline-block; font-size:0.8rem; border:1px solid rgba(34, 197, 94, 0.4)">+{s.strip()}</span>'
+    # Added skills (có dấu + và màu khác)
+    for s in added_skills:
+        skill_html += f'<div class="skill-pill skill-added" title="Skill đã thêm">+{s}</div>'
+        
+    skill_html += '</div>'
     
-    st.markdown(html_skills, unsafe_allow_html=True)
-    
-    # Nút dẫn tới PESDB
-    st.write("")
-    if row.get('Player URL'):
-        st.link_button("🌐 Xem trên PESDB", row.get('Player URL'))
+    st.markdown(skill_html, unsafe_allow_html=True)
+
+    # --- 6. FOOTER ACTIONS ---
+    st.divider()
+    c_btn1, c_btn2 = st.columns([1, 4])
+    with c_btn1:
+        if row.get('Player URL'):
+            st.link_button("🌐 PESDB", row.get('Player URL'), use_container_width=True)
+    with c_btn2:
+        st.caption(f"*ID Cầu thủ: {row.get('Player ID', 'N/A')} | League: {row.get('League', 'N/A')}*")
 
 
 def render_app_hero(df: pd.DataFrame):
