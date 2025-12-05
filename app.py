@@ -250,6 +250,70 @@ def render_efootball_card_html(player_data, width="100%"):
     """
     return html
 
+@st.dialog("Hồ sơ cầu thủ", width="large")
+def show_player_modal(row):
+    """Hiển thị thông tin chi tiết cầu thủ trong Popup"""
+    # Xử lý dữ liệu
+    p_name = row.get('Player', 'Unknown')
+    rating = row.get('Rating', 0)
+    img_url = row.get('Player URL', '') # Hoặc xử lý từ ID như cũ
+    pid = str(row.get('Player ID', '')).strip()
+    
+    # Lấy ảnh
+    if not pid and img_url:
+        m = re.search(r"(\d{14,})", str(img_url))
+        pid = m.group(1) if m else ""
+    real_img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
+
+    # Header
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        st.image(real_img, width=120)
+    with c2:
+        st.subheader(f"{p_name}")
+        st.markdown(f"**Rating:** :blue-background[{rating}] | **Vị trí:** {row.get('Position','')} ({row.get('Position Style','')})")
+        st.caption(f"**CLB:** {row.get('Club','')} | **QG:** {row.get('Nation','')} | **Giải:** {row.get('League','')}")
+
+    st.divider()
+
+    # Thông số chi tiết
+    st.markdown("##### 📊 Thông số thể chất")
+    c3, c4, c5, c6 = st.columns(4)
+    with c3: st.markdown(f"**Chiều cao:**\n{row.get('Height','?')}")
+    with c4: st.markdown(f"**Cân nặng:**\n{row.get('Weight','?')}")
+    with c5: st.markdown(f"**Tuổi:**\n{row.get('Age','?')}")
+    with c6: st.markdown(f"**Chân thuận:**\n{row.get('Foot','?')}")
+
+    c7, c8, c9 = st.columns(3)
+    with c7: st.markdown(f"**Phong độ:** {row.get('Form','?')}")
+    with c8: st.markdown(f"**Chân không thuận:** {row.get('Weak Foot Usage','?')}/{row.get('Weak Foot Accuracy','?')}")
+    with c9: st.markdown(f"**Loại thẻ:** {row.get('Player Type','?')}")
+
+    st.divider()
+
+    # Skills
+    st.markdown("##### 🎮 Skills & Kỹ năng")
+    skills = str(row.get('Skills', '')).split(',')
+    added_skills = str(row.get('Added Skills', '')).split(',')
+    
+    # Render Skills đẹp hơn
+    html_skills = ""
+    for s in skills:
+        if s.strip():
+            html_skills += f'<span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px; margin:2px; display:inline-block; font-size:0.8rem; border:1px solid rgba(255,255,255,0.2)">{s.strip()}</span>'
+    
+    if added_skills and added_skills != ['']:
+        for s in added_skills:
+             if s.strip():
+                html_skills += f'<span style="background:rgba(34, 197, 94, 0.2); color:#4ade80; padding:4px 8px; border-radius:4px; margin:2px; display:inline-block; font-size:0.8rem; border:1px solid rgba(34, 197, 94, 0.4)">+{s.strip()}</span>'
+    
+    st.markdown(html_skills, unsafe_allow_html=True)
+    
+    # Nút dẫn tới PESDB
+    st.write("")
+    if row.get('Player URL'):
+        st.link_button("🌐 Xem trên PESDB", row.get('Player URL'))
+
 
 def render_app_hero(df: pd.DataFrame):
     """Render the hero banner with live metrics."""
@@ -3938,9 +4002,9 @@ def main():
                             else:
                                 st.caption(f":green[{act}]")
                         with c2:
-                            # Nút xem chi tiết giả lập
+                            # Nút xem chi tiết THẬT
                             if st.button("Chi tiết", key=f"btn_detail_{idx}"):
-                                st.toast(f"Đang xem {player['Player']}", icon="👀")
+                                show_player_modal(player)
                 
                 st.write("") # Spacer row
         
