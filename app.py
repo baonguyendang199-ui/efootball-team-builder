@@ -252,7 +252,10 @@ def render_efootball_card_html(player_data, width="100%"):
 
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
-    """Giao diện Scouting Profile - Hiện đại, Dạng lưới thông tin"""
+    """
+    Giao diện Scouting Profile - Hiện đại, Dạng lưới thông tin.
+    Fix lỗi: Hiển thị HTML raw text.
+    """
     
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
@@ -263,7 +266,7 @@ def show_player_modal(row):
     club = row.get('Club', 'Unknown Club')
     nation = row.get('Nation', 'Unknown Nation')
     
-    # Ảnh
+    # Xử lý ảnh
     img_url = row.get('Player URL', '') 
     pid = str(row.get('Player ID', '')).strip()
     if not pid and img_url:
@@ -271,7 +274,7 @@ def show_player_modal(row):
         pid = m.group(1) if m else ""
     real_img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
 
-    # Theme Config (Màu sắc chủ đạo)
+    # Theme Config (Màu sắc chủ đạo theo loại thẻ)
     if "EPIC" in p_type:
         accent_color = "#F59E0B" # Amber
         badge_bg = "linear-gradient(135deg, #78350f 0%, #F59E0B 100%)"
@@ -289,6 +292,7 @@ def show_player_modal(row):
     def render_stat_bar(label, value_text, max_score=4):
         val = str(value_text).upper()
         score = 1
+        # Logic map text sang điểm số 1-4
         if any(x in val for x in ['VERY HIGH', 'REGULARLY', 'UNWAVERING']): score = 4
         elif any(x in val for x in ['HIGH', 'OCCASIONALLY', 'STANDARD']): score = 3
         elif any(x in val for x in ['MEDIUM', 'RARELY']): score = 2
@@ -308,7 +312,7 @@ def show_player_modal(row):
         </div>
         """
 
-    # --- 2. XỬ LÝ SKILLS HTML ---
+    # --- 2. XỬ LÝ DANH SÁCH SKILLS ---
     base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
     added_skills = [s.strip() for s in str(row.get('Added Skills','')).split(',') if s.strip()]
     
@@ -320,8 +324,7 @@ def show_player_modal(row):
     if not skills_html:
         skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
-    # --- 3. RENDER TOÀN BỘ GIAO DIỆN ---
-    # Lưu ý quan trọng: unsafe_allow_html=True ở cuối hàm st.markdown
+    # --- 3. RENDER HTML (QUAN TRỌNG: unsafe_allow_html=True) ---
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
