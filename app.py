@@ -252,7 +252,7 @@ def render_efootball_card_html(player_data, width="100%"):
 
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
-    """Hiển thị thông tin chi tiết cầu thủ trong Popup với UI cải tiến"""
+    """Hiển thị thông tin chi tiết cầu thủ trong Popup với UI cải tiến (WF dạng số)"""
     
     # --- 1. XỬ LÝ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
@@ -279,6 +279,18 @@ def show_player_modal(row):
     else:
         theme_color = "#3b82f6" # Xanh dương
         bg_gradient = "linear-gradient(135deg, #0f172a 0%, #1e40af 100%)"
+
+    # --- HÀM CHUYỂN ĐỔI WEAK FOOT SANG SỐ ---
+    def get_wf_score(text):
+        t = str(text).upper().strip()
+        if "VERY HIGH" in t: return "4"
+        if "HIGH" in t or "REGULARLY" in t: return "3"
+        if "MEDIUM" in t or "OCCASIONALLY" in t: return "2"
+        if "LOW" in t or "RARELY" in t or "ALMOST" in t: return "1"
+        return "1" # Mặc định thấp nhất nếu không có dữ liệu
+
+    wf_usage_num = get_wf_score(row.get('Weak Foot Usage', ''))
+    wf_acc_num = get_wf_score(row.get('Weak Foot Accuracy', ''))
 
     # --- 2. CSS STYLING ---
     st.markdown(f"""
@@ -322,6 +334,14 @@ def show_player_modal(row):
         .stat-label {{ font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }}
         .stat-value {{ font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }}
         
+        /* Style riêng cho Weak Foot số to */
+        .wf-display {{
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            color: #fbbf24; /* Màu vàng cam */
+            letter-spacing: 2px;
+        }}
+
         .skill-container {{ display: flex; flex-wrap: wrap; gap: 6px; }}
         .skill-pill {{
             padding: 4px 10px;
@@ -336,7 +356,7 @@ def show_player_modal(row):
         </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. UI HEADER (Custom HTML) ---
+    # --- 3. UI HEADER ---
     st.markdown(f"""
         <div class="modal-header">
             <img src="{real_img}" class="player-avatar" width="100">
@@ -364,7 +384,6 @@ def show_player_modal(row):
     # --- 4. THÔNG SỐ (Grid Layout) ---
     st.markdown("##### 📊 Thông số chi tiết")
     
-    # Sử dụng HTML grid để căn chỉnh đẹp hơn st.columns
     st.markdown(f"""
         <div class="stat-grid">
             <div class="stat-box">
@@ -387,9 +406,10 @@ def show_player_modal(row):
                 <div class="stat-label">Phong độ</div>
                 <div class="stat-value">{row.get('Form','--')}</div>
             </div>
+            <!-- ĐÃ CẬP NHẬT PHẦN NÀY THÀNH SỐ -->
             <div class="stat-box">
-                <div class="stat-label">Chân ko thuận</div>
-                <div class="stat-value">{row.get('Weak Foot Usage','?')[0]}/{row.get('Weak Foot Accuracy','?')[0]}</div>
+                <div class="stat-label" title="Usage / Accuracy">Chân Nghịch</div>
+                <div class="stat-value wf-display">{wf_usage_num} | {wf_acc_num}</div>
             </div>
             <div class="stat-box" style="grid-column: span 2;">
                 <div class="stat-label">Loại thẻ</div>
@@ -399,7 +419,7 @@ def show_player_modal(row):
     """, unsafe_allow_html=True)
 
     # --- 5. SKILLS ---
-    st.write("") # Spacer
+    st.write("") 
     st.markdown("##### 🎮 Skills & Kỹ năng")
     
     skills = [s.strip() for s in str(row.get('Skills', '')).split(',') if s.strip()]
@@ -410,11 +430,9 @@ def show_player_modal(row):
     if not skills and not added_skills:
         skill_html += '<span style="opacity:0.5; font-style:italic;">Chưa có dữ liệu skills</span>'
     
-    # Base skills
     for s in skills:
         skill_html += f'<div class="skill-pill skill-base">{s}</div>'
     
-    # Added skills (có dấu + và màu khác)
     for s in added_skills:
         skill_html += f'<div class="skill-pill skill-added" title="Skill đã thêm">+{s}</div>'
         
@@ -430,7 +448,6 @@ def show_player_modal(row):
             st.link_button("🌐 PESDB", row.get('Player URL'), use_container_width=True)
     with c_btn2:
         st.caption(f"*ID Cầu thủ: {row.get('Player ID', 'N/A')} | League: {row.get('League', 'N/A')}*")
-
 
 def render_app_hero(df: pd.DataFrame):
     """Render the hero banner with live metrics."""
