@@ -200,13 +200,13 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%"):
     """
-    Tạo HTML Card cầu thủ xịn xò (Đã thêm Badge hành động BÁN/GIỮ).
+    Tạo HTML Card (Đã sửa vị trí Badge BÁN/GIỮ).
     """
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
     pos = player_data.get('Position', '?')
     p_type = str(player_data.get('Type', 'NON-EPIC')).upper()
-    action = str(player_data.get('Action', '')).upper() # Lấy hành động
+    action = str(player_data.get('Action', '')).upper()
     
     # Xử lý hình ảnh
     img_url = player_data.get('Image')
@@ -230,12 +230,13 @@ def render_efootball_card_html(player_data, width="100%"):
 
     club = player_data.get('Club', '')
     
-    # Tạo HTML cho Badge hành động (Góc trên phải)
+    # --- SỬA VỊ TRÍ BADGE TẠI ĐÂY ---
+    # Dời xuống top:35px để tránh đè lên Position/Rating
     action_html = ""
     if "BÁN" in action:
-        action_html = f'<div style="position:absolute; top:8px; right:8px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:5; box-shadow:0 2px 4px rgba(0,0,0,0.5);">BÁN</div>'
+        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
     elif "GIỮ" in action:
-        action_html = f'<div style="position:absolute; top:8px; right:8px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:5; box-shadow:0 2px 4px rgba(0,0,0,0.5);">GIỮ</div>'
+        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
 
     html = f"""
     <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width}; height: 280px;">
@@ -4057,32 +4058,46 @@ def main():
         if view_mode == "🎴 Card":
             st.markdown("### 🎴 Danh sách cầu thủ")
             
-            # --- CSS MAGIC: Biến nút bấm thành lớp phủ trong suốt ---
+            # --- CSS MAGIC V2: Kỹ thuật phủ nút bấm tuyệt đối ---
+            # 1. Đặt cha (column) là relative để con (button) có thể absolute theo nó.
+            # 2. Button tàng hình (opacity 0, transparent) và full size.
             st.markdown("""
             <style>
-            /* Class giả để đánh dấu vị trí */
-            .card-overlay-trigger { display: none; }
+            /* Định vị lại container của cột để làm mốc tọa độ */
+            [data-testid="stColumn"] > div > div[data-testid="stVerticalBlock"] {
+                position: relative !important;
+                height: 100% !important;
+            }
             
-            /* Chọn nút bấm nằm ngay sau thẻ div đánh dấu */
-            .card-overlay-trigger + div.stButton button {
+            /* Tìm nút bấm nằm sau div đánh dấu và kéo nó phủ kín */
+            .card-overlay-trigger ~ .stButton button {
                 position: absolute !important;
-                top: -280px !important; /* Kéo nút lên phủ lấy thẻ (bằng chiều cao thẻ) */
+                top: 0 !important;
                 left: 0 !important;
                 width: 100% !important;
-                height: 280px !important;
-                opacity: 0 !important; /* Làm nút trong suốt */
-                z-index: 10 !important;
+                height: 280px !important; /* Bằng chiều cao thẻ */
+                background-color: transparent !important; /* Nền trong suốt */
+                border: none !important;
+                color: transparent !important; /* Chữ trong suốt */
+                z-index: 10 !important; /* Nằm trên cùng */
                 cursor: pointer !important;
-                border: none !important;
             }
-            /* Hiệu ứng khi hover để người dùng biết có thể bấm */
-            .card-overlay-trigger + div.stButton button:hover {
+            
+            /* Ẩn hiệu ứng hover mặc định của button */
+            .card-overlay-trigger ~ .stButton button:hover {
                 border: none !important;
+                background-color: rgba(255,255,255,0.05) !important; /* Hơi sáng lên khi hover */
+            }
+            
+            /* Kéo container của button lên vị trí 0 */
+            .card-overlay-trigger ~ .stButton {
+                position: absolute !important;
+                top: 0 !important;
+                width: 100% !important;
             }
             </style>
             """, unsafe_allow_html=True)
             
-            # Định nghĩa số cột
             cols_per_row = 4
             rows = [filtered_df.iloc[i:i + cols_per_row] for i in range(0, len(filtered_df), cols_per_row)]
 
@@ -4090,7 +4105,7 @@ def main():
                 cols = st.columns(cols_per_row)
                 for i, (idx, player) in enumerate(row.iterrows()):
                     with cols[i]:
-                        # Chuẩn bị dữ liệu
+                        # Render Card HTML
                         p_data = {
                             'Player': player['Player'],
                             'Rating': player['Rating'],
@@ -4100,23 +4115,23 @@ def main():
                             'Nation': player.get('Nation', ''),
                             'Player ID': player.get('Player ID', ''),
                             'Player URL': player.get('Player URL', ''),
-                            'Action': player.get('Action', ''), # Truyền hành động vào để render badge
+                            'Action': player.get('Action', ''),
                             'Image': None
                         }
-                        
-                        # 1. Render Card HTML
                         card_html = render_efootball_card_html(p_data)
                         st.markdown(card_html, unsafe_allow_html=True)
                         
-                        # 2. Render một thẻ div ẩn để làm mốc cho CSS
+                        # Div đánh dấu để CSS tìm thấy
                         st.markdown('<div class="card-overlay-trigger"></div>', unsafe_allow_html=True)
                         
-                        # 3. Render Button (Nội dung nút không quan trọng vì nó sẽ tàng hình)
-                        # Key phải là duy nhất
-                        if st.button("Xem chi tiết", key=f"btn_card_{idx}", use_container_width=True):
+                        # BUTTON TÀNG HÌNH
+                        # Label là "⠀" (ký tự braille rỗng) để chắc chắn không hiện text
+                        if st.button("⠀", key=f"btn_card_{idx}"):
                             show_player_modal(player)
                 
-                st.write("") # Spacer row
+                # Khoảng cách giữa các hàng để tránh nút bị chồng lấn xuống dưới
+                st.write("") 
+                st.markdown('<div style="height: 10px;"></div>', unsafe_allow_html=True)
         
         else:
             # ===== CHẾ ĐỘ BẢNG =====
