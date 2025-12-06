@@ -448,8 +448,11 @@ def show_player_modal(row):
         </div>
     """, unsafe_allow_html=True)
 
-    # STATS GRID
+    # ... (Các phần code phía trên giữ nguyên) ...
+
+    # STATS GRID - Đảm bảo unsafe_allow_html=True
     st.markdown("##### 📊 Chỉ số chi tiết")
+    
     st.markdown(f"""
         <div class="stat-grid">
             <div class="stat-card">
@@ -469,7 +472,7 @@ def show_player_modal(row):
                 <div class="stat-val" style="font-size:0.9em">{row.get('Injury Resistance','-')}</div>
             </div>
             
-            <!-- WEAK FOOT ĐƯỢC LÀM ĐẸP Ở ĐÂY -->
+            <!-- WEAK FOOT -->
             <div class="stat-card" style="justify-content:space-between; padding:8px;">
                 <div class="stat-lbl" style="width:100%; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px; margin-bottom:4px;">Chân Nghịch (0-3)</div>
                 <div class="wf-container">
@@ -484,7 +487,9 @@ def show_player_modal(row):
                 </div>
             </div>
         </div>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) # <--- QUAN TRỌNG: Phải có dòng này thì HTML mới hiện đẹp
+
+    # ... (Các phần code Skills và Footer phía dưới giữ nguyên) ...
 
     # SKILLS
     st.write("")
