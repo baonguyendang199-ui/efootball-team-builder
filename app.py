@@ -4513,8 +4513,30 @@ def main():
                             team_type = st.selectbox("Lọc theo:", ["(Toàn bộ)", "Club", "Nation", "League", "Region"])
                         with col_b:
                             if team_type != "(Toàn bộ)":
-                                opts = sorted([x for x in df[team_type].unique() if str(x).strip()])
-                                filter_val = st.selectbox(f"Chọn {team_type}:", ["(Tất cả)"] + opts)
+                                # --- CẬP NHẬT: SẮP XẾP THEO SỐ LƯỢNG GIẢM DẦN (GIỐNG TAB THỦ CÔNG) ---
+                                # 1. Đếm số lượng
+                                group_counts = df[team_type].value_counts().to_dict()
+                                
+                                # 2. Lấy danh sách duy nhất và loại bỏ giá trị rỗng
+                                unique_vals = [x for x in df[team_type].astype(str).unique() if str(x).strip()]
+                                
+                                # 3. Sắp xếp: Ưu tiên số lượng giảm dần -> Sau đó đến tên A-Z (để đẹp hơn nếu bằng số lượng)
+                                # key=lambda x: (group_counts.get(x, 0), x) -> reverse=True sẽ sort count to nhất lên đầu
+                                sorted_opts = sorted(unique_vals, key=lambda x: group_counts.get(x, 0), reverse=True)
+                                
+                                # 4. Format hiển thị: "Tên (Số lượng)"
+                                formatted_opts = [f"{opt} ({group_counts.get(opt, 0)})" for opt in sorted_opts]
+                                
+                                # 5. Tạo Selectbox
+                                selected_display = st.selectbox(f"Chọn {team_type}:", ["(Tất cả)"] + formatted_opts)
+                                
+                                # 6. Trích xuất giá trị thực để lọc (Bỏ phần số lượng đi)
+                                if selected_display == "(Tất cả)":
+                                    filter_val = "(Tất cả)"
+                                else:
+                                    # Cắt chuỗi từ bên phải tại dấu mở ngoặc cuối cùng
+                                    filter_val = selected_display.rsplit(" (", 1)[0]
+                                
                                 filter_col = team_type
                             else:
                                 st.selectbox("Giá trị:", ["-"], disabled=True)
