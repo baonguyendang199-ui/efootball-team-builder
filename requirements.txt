@@ -10,3 +10,5 @@ plotly
 cloudscraper
 undetected-chromedriver
 selenium
+scipy
+numpy
