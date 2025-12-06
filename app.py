@@ -200,7 +200,7 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%"):
     """
-    Tạo HTML Card có tích hợp Nút bấm Visual ở đáy.
+    Tạo HTML Card (Đã sửa vị trí Badge BÁN/GIỮ).
     """
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
@@ -208,6 +208,7 @@ def render_efootball_card_html(player_data, width="100%"):
     p_type = str(player_data.get('Type', 'NON-EPIC')).upper()
     action = str(player_data.get('Action', '')).upper()
     
+    # Xử lý hình ảnh
     img_url = player_data.get('Image')
     if not img_url:
         pid = str(player_data.get('Player ID', '')).strip()
@@ -216,75 +217,42 @@ def render_efootball_card_html(player_data, width="100%"):
         else:
             img_url = "https://pesdb.net/assets/img/card/f0.png"
 
-    # 1. Cấu hình màu sắc thẻ & Nút bấm
+    # Màu sắc thẻ
     card_class = "std"
-    # Mặc định (Xanh)
-    bg_gradient = "linear-gradient(180deg, #1e3a8a 0%, #0f172a 100%)" 
-    btn_gradient = "linear-gradient(90deg, #1d4ed8, #3b82f6)" 
-    border_color = "#3b82f6"
+    bg_gradient = "linear-gradient(180deg, #1e3a8a 0%, #0f172a 100%)"
     
     if "POTW" in p_type or "TRENDING" in p_type:
         card_class = "potw"
         bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)"
-        # Tím hồng
-        btn_gradient = "linear-gradient(90deg, #7e22ce, #d946ef)" 
-        border_color = "#d946ef"
     elif "EPIC" in p_type and "NON" not in p_type:
         card_class = "epic"
         bg_gradient = "linear-gradient(180deg, #574608 0%, #281e05 100%)"
-        # Hoàng kim (Vàng kim loại)
-        btn_gradient = "linear-gradient(90deg, #B8860B, #FFD700, #Fdb931, #B8860B)" 
-        border_color = "#FFD700"
 
-    # Badge Bán/Giữ
+    club = player_data.get('Club', '')
+    
+    # --- SỬA VỊ TRÍ BADGE TẠI ĐÂY ---
+    # Dời xuống top:35px để tránh đè lên Position/Rating
     action_html = ""
     if "BÁN" in action:
         action_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
     elif "GIỮ" in action:
         action_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
 
-    club = player_data.get('Club', '')
-    
-    # HTML Cấu trúc thẻ
-    # Chú ý phần div class="card-btn-visual" ở dưới cùng
     html = f"""
-    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width}; height: 300px; border: 1px solid {border_color}; box-shadow: 0 0 10px {border_color}40;">
+    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width}; height: 280px;">
         {action_html}
         <div class="shine"></div>
         <div class="card-header">
             <div class="rating-box">{rating}</div>
             <div class="position-box">{pos}</div>
         </div>
-        <img src="{img_url}" class="player-img" style="height:150px; margin-top:-25px;" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
-        <div class="card-info" style="height: 70px;">
+        <img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
+        <div class="card-info">
             <div class="player-name" title="{p_name}">{p_name}</div>
             <div class="sub-info">
                 <span style="opacity:0.8">{club[:15] + '...' if len(club)>15 else club}</span>
                 <span>{player_data.get('Nation', '')[:3].upper()}</span>
             </div>
-        </div>
-        
-        <!-- PHẦN NÚT BẤM VISUAL (GIẢ) -->
-        <div class="card-btn-visual" style="
-            position: absolute; 
-            bottom: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 40px; 
-            background: {btn_gradient}; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-family: 'Exo 2', sans-serif; 
-            font-weight: 700; 
-            color: white; 
-            font-size: 14px; 
-            text-transform: uppercase; 
-            letter-spacing: 1px;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-            border-top: 1px solid rgba(255,255,255,0.3);
-        ">
-            XEM CHI TIẾT
         </div>
     </div>
     """
@@ -4090,35 +4058,16 @@ def main():
         if view_mode == "🎴 Card":
             st.markdown("### 🎴 Danh sách cầu thủ")
             
-            # CSS MAGIC: Kéo nút bấm lên đè vào phần đáy thẻ
+            # CSS nhỏ để nút bấm dính liền với thẻ hơn, nhìn như một khối thống nhất
             st.markdown("""
             <style>
-            /* Giảm khoảng cách các phần tử */
+            /* Thu nhỏ khoảng cách giữa các element trong cột để Card và Button gần nhau */
             [data-testid="stColumn"] > div > div[data-testid="stVerticalBlock"] {
-                gap: 0 !important;
+                gap: 0.5rem; 
             }
-            
-            /* Class nhắm vào nút bấm nằm ngay sau thẻ HTML */
-            .e-card-wrapper + .row-widget.stButton {
-                margin-top: -42px !important; /* Kéo lên đúng chiều cao của nút visual */
-                z-index: 10;
-                position: relative;
-            }
-            
-            /* Làm nút bấm trong suốt hoàn toàn */
-            .e-card-wrapper + .row-widget.stButton > button {
-                background: transparent !important;
-                border: none !important;
-                color: transparent !important;
-                height: 42px !important;
-                width: 100% !important;
-                border-radius: 0 0 12px 12px !important; /* Bo góc dưới cho khớp thẻ */
-            }
-            
-            /* Hiệu ứng khi rê chuột vào nút (làm sáng nút giả bên dưới) */
-            .e-card-wrapper + .row-widget.stButton > button:hover {
-                background: rgba(255,255,255,0.1) !important;
-                border: none !important;
+            div.stButton > button {
+                border-radius: 0 0 8px 8px; /* Bo tròn góc dưới cho khớp với card */
+                margin-top: -5px; /* Kéo nút lên một chút */
             }
             </style>
             """, unsafe_allow_html=True)
@@ -4130,7 +4079,7 @@ def main():
                 cols = st.columns(cols_per_row)
                 for i, (idx, player) in enumerate(row.iterrows()):
                     with cols[i]:
-                        # 1. Render Card (có nút giả bên trong)
+                        # 1. Render Card (Visual)
                         p_data = {
                             'Player': player['Player'],
                             'Rating': player['Rating'],
@@ -4143,17 +4092,16 @@ def main():
                             'Action': player.get('Action', ''),
                             'Image': None
                         }
+                        # Render HTML thẻ
                         card_html = render_efootball_card_html(p_data)
+                        st.markdown(card_html, unsafe_allow_html=True)
                         
-                        # Bọc trong div wrapper để CSS nhận diện vị trí
-                        st.markdown(f'<div class="e-card-wrapper">{card_html}</div>', unsafe_allow_html=True)
-                        
-                        # 2. Button thật (Trong suốt, đè lên nút giả)
-                        # Dùng ký tự rỗng làm nhãn
-                        if st.button("⠀", key=f"btn_card_{idx}", use_container_width=True):
+                        # 2. Render Button (Interaction) - Nằm ngay dưới thẻ
+                        # Dùng icon kính lúp hoặc text ngắn gọn
+                        if st.button("🔍 Xem hồ sơ", key=f"btn_card_{idx}", use_container_width=True):
                             show_player_modal(player)
                 
-                # Khoảng cách giữa các hàng
+                # Tạo khoảng cách giữa các hàng
                 st.write("") 
                 st.markdown('<div style="height: 15px;"></div>', unsafe_allow_html=True)
         
