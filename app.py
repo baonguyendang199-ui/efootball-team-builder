@@ -1033,6 +1033,7 @@ FORMATIONS = {
     # Sơ đồ quốc dân, phòng ngự chắc, công rộng
     "4-2-3-1 (Wide)":               ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LMF", "RMF", "CF"],
     "4-2-3-1 (Control)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+    "4-2-3-1 (Flat)":            ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LMF", "RMF", "CF"],
 
     # =================================================================
     # ⚔️ 4 HẬU VỆ - 2 TIỀN ĐẠO (TWO STRIKERS)
