@@ -4058,42 +4058,16 @@ def main():
         if view_mode == "🎴 Card":
             st.markdown("### 🎴 Danh sách cầu thủ")
             
-            # --- CSS MAGIC V2: Kỹ thuật phủ nút bấm tuyệt đối ---
-            # 1. Đặt cha (column) là relative để con (button) có thể absolute theo nó.
-            # 2. Button tàng hình (opacity 0, transparent) và full size.
+            # CSS nhỏ để nút bấm dính liền với thẻ hơn, nhìn như một khối thống nhất
             st.markdown("""
             <style>
-            /* Định vị lại container của cột để làm mốc tọa độ */
+            /* Thu nhỏ khoảng cách giữa các element trong cột để Card và Button gần nhau */
             [data-testid="stColumn"] > div > div[data-testid="stVerticalBlock"] {
-                position: relative !important;
-                height: 100% !important;
+                gap: 0.5rem; 
             }
-            
-            /* Tìm nút bấm nằm sau div đánh dấu và kéo nó phủ kín */
-            .card-overlay-trigger ~ .stButton button {
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: 100% !important;
-                height: 280px !important; /* Bằng chiều cao thẻ */
-                background-color: transparent !important; /* Nền trong suốt */
-                border: none !important;
-                color: transparent !important; /* Chữ trong suốt */
-                z-index: 10 !important; /* Nằm trên cùng */
-                cursor: pointer !important;
-            }
-            
-            /* Ẩn hiệu ứng hover mặc định của button */
-            .card-overlay-trigger ~ .stButton button:hover {
-                border: none !important;
-                background-color: rgba(255,255,255,0.05) !important; /* Hơi sáng lên khi hover */
-            }
-            
-            /* Kéo container của button lên vị trí 0 */
-            .card-overlay-trigger ~ .stButton {
-                position: absolute !important;
-                top: 0 !important;
-                width: 100% !important;
+            div.stButton > button {
+                border-radius: 0 0 8px 8px; /* Bo tròn góc dưới cho khớp với card */
+                margin-top: -5px; /* Kéo nút lên một chút */
             }
             </style>
             """, unsafe_allow_html=True)
@@ -4105,7 +4079,7 @@ def main():
                 cols = st.columns(cols_per_row)
                 for i, (idx, player) in enumerate(row.iterrows()):
                     with cols[i]:
-                        # Render Card HTML
+                        # 1. Render Card (Visual)
                         p_data = {
                             'Player': player['Player'],
                             'Rating': player['Rating'],
@@ -4118,20 +4092,18 @@ def main():
                             'Action': player.get('Action', ''),
                             'Image': None
                         }
+                        # Render HTML thẻ
                         card_html = render_efootball_card_html(p_data)
                         st.markdown(card_html, unsafe_allow_html=True)
                         
-                        # Div đánh dấu để CSS tìm thấy
-                        st.markdown('<div class="card-overlay-trigger"></div>', unsafe_allow_html=True)
-                        
-                        # BUTTON TÀNG HÌNH
-                        # Label là "Xem chi tiết" (ký tự braille rỗng) để chắc chắn không hiện text
-                        if st.button("Xem chi tiết", key=f"btn_card_{idx}"):
+                        # 2. Render Button (Interaction) - Nằm ngay dưới thẻ
+                        # Dùng icon kính lúp hoặc text ngắn gọn
+                        if st.button("🔍 Xem hồ sơ", key=f"btn_card_{idx}", use_container_width=True):
                             show_player_modal(player)
                 
-                # Khoảng cách giữa các hàng để tránh nút bị chồng lấn xuống dưới
+                # Tạo khoảng cách giữa các hàng
                 st.write("") 
-                st.markdown('<div style="height: 10px;"></div>', unsafe_allow_html=True)
+                st.markdown('<div style="height: 15px;"></div>', unsafe_allow_html=True)
         
         else:
             # ===== CHẾ ĐỘ BẢNG =====
