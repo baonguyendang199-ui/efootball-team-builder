@@ -185,7 +185,7 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%"):
     """
-    Tạo HTML Card (Compact Version).
+    Tạo HTML Card (Compact Version - Đã sửa vị trí Badge).
     """
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
@@ -215,13 +215,14 @@ def render_efootball_card_html(player_data, width="100%"):
 
     club = player_data.get('Club', '')
     
-    # Badge BÁN/GIỮ nhỏ gọn hơn
+    # --- SỬA VỊ TRÍ BADGE TẠI ĐÂY ---
+    # Dời xuống top:35px để tránh đè lên Position/Rating
+    # Thêm chút xoay nhẹ (rotate) để trông giống sticker dán lên
     action_html = ""
     if "BÁN" in action:
-        # Nhỏ hơn, nằm gọn ở góc
-        action_html = f'<div style="position:absolute; top:6px; right:4px; background:#ef4444; color:white; font-size:8px; font-weight:bold; padding:1px 5px; border-radius:3px; z-index:4; box-shadow:0 1px 2px rgba(0,0,0,0.5);">BÁN</div>'
+        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
     elif "GIỮ" in action:
-        action_html = f'<div style="position:absolute; top:6px; right:4px; background:#22c55e; color:white; font-size:8px; font-weight:bold; padding:1px 5px; border-radius:3px; z-index:4; box-shadow:0 1px 2px rgba(0,0,0,0.5);">GIỮ</div>'
+        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
 
     html = f"""
     <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};">
