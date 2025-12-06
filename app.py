@@ -37,19 +37,18 @@ SHOW_APP_HERO = False
 
 
 def inject_modern_ui_theme():
-    """Inject modern UI tokens, typography and component styling (Ultra Version)."""
+    """Inject modern UI tokens, typography and component styling (Compact Version)."""
     theme = APP_THEME
     st.markdown(
         f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
         
         :root {{
             --epic-grad: linear-gradient(135deg, #FFD700 0%, #B8860B 100%);
             --potw-grad: linear-gradient(135deg, #d946ef 0%, #9333ea 100%);
             --std-grad: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-            --card-bg: rgba(15,23,42,0.9);
+            --card-bg: rgba(15,23,42,0.95);
         }}
 
         html, body, [data-testid="stAppViewContainer"] {{
@@ -58,53 +57,50 @@ def inject_modern_ui_theme():
             color: {theme["text"]};
         }}
 
-        h1, h2, h3 {{
-            font-family: 'Exo 2', sans-serif !important;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-
-        /* --- EFOOTBALL CARD STYLES --- */
+        /* --- COMPACT EFOOTBALL CARD STYLES --- */
         .e-card {{
             position: relative;
             width: 100%;
-            border-radius: 12px;
+            /* GIẢM CHIỀU CAO TỪ 280px -> 200px */
+            height: 200px !important; 
+            border-radius: 8px; /* Bo góc nhỏ hơn xíu */
             overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.2s ease-out;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
             border: 1px solid rgba(255,255,255,0.1);
             background: var(--card-bg);
             cursor: pointer;
         }}
         
         .e-card:hover {{
-            transform: translateY(-5px) scale(1.02);
-            box-shadow: 0 12px 25px rgba(0,0,0,0.5);
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6);
+            border-color: rgba(255,255,255,0.3);
             z-index: 10;
         }}
 
-        /* Rarity Borders & Glows */
-        .e-card.epic {{ border-bottom: 4px solid #FFD700; }}
-        .e-card.potw {{ border-bottom: 4px solid #d946ef; }}
-        .e-card.std {{ border-bottom: 4px solid #3b82f6; }}
+        /* Rarity Borders - Mỏng hơn (3px) */
+        .e-card.epic {{ border-bottom: 3px solid #FFD700; }}
+        .e-card.potw {{ border-bottom: 3px solid #d946ef; }}
+        .e-card.std {{ border-bottom: 3px solid #3b82f6; }}
 
         .e-card .card-header {{
             position: relative;
-            height: 60px;
+            height: 35px; /* Giảm từ 60px -> 35px */
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 10px;
-            background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%);
+            padding: 0 8px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%);
             z-index: 2;
         }}
 
         .e-card .rating-box {{
             font-family: 'Exo 2', sans-serif;
             font-weight: 800;
-            font-size: 1.4rem;
+            font-size: 1.1rem; /* Giảm từ 1.4rem */
             line-height: 1;
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
+            text-shadow: 1px 1px 0px rgba(0,0,0,0.8);
         }}
         
         .e-card.epic .rating-box {{ color: #FFD700; }}
@@ -112,56 +108,64 @@ def inject_modern_ui_theme():
         .e-card.std .rating-box {{ color: #93c5fd; }}
 
         .e-card .position-box {{
-            font-size: 0.8rem;
+            font-size: 0.7rem; /* Giảm font */
             font-weight: 700;
             background: rgba(0,0,0,0.6);
-            padding: 2px 6px;
-            border-radius: 4px;
+            padding: 1px 4px;
+            border-radius: 3px;
             color: #fff;
         }}
 
         .e-card .player-img {{
             width: 100%;
-            height: 140px;
+            height: 110px; /* Giảm từ 140px */
             object-fit: contain;
-            margin-top: -30px;
+            margin-top: -15px; /* Đẩy ảnh lên cao hơn */
             position: relative;
             z-index: 1;
-            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));
+            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.5));
         }}
 
         .e-card .card-info {{
-            padding: 10px;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(5px);
+            padding: 6px 8px; /* Padding gọn hơn */
+            background: rgba(10, 15, 30, 0.9); /* Màu nền đậm hơn để dễ đọc */
             border-top: 1px solid rgba(255,255,255,0.05);
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 55px; /* Cố định chiều cao phần info */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }}
 
         .e-card .player-name {{
             font-family: 'Exo 2', sans-serif;
             font-weight: 700;
-            font-size: 0.95rem;
+            font-size: 0.85rem; /* Giảm từ 0.95rem */
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             text-align: center;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            color: white;
         }}
 
         .e-card .sub-info {{
             display: flex;
             justify-content: space-between;
-            font-size: 0.7rem;
+            font-size: 0.65rem; /* Font rất nhỏ cho thông tin phụ */
             color: #94a3b8;
+            align-items: center;
         }}
 
-        /* Shine Effect */
+        /* Shine Effect - Giữ nguyên nhưng chỉnh speed */
         .shine {{
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
+            background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
             background-size: 200% 100%;
-            animation: shine 4s infinite linear;
+            animation: shine 5s infinite linear;
             pointer-events: none;
             z-index: 5;
         }}
@@ -169,30 +173,11 @@ def inject_modern_ui_theme():
 
         /* --- STREAMLIT OVERRIDES --- */
         div.stButton > button {{
-            border-radius: 8px;
-            font-weight: 600;
-            border: none;
-            transition: all 0.2s;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
         }}
         
-        [data-testid="stSidebar"] {{
-            background-color: #020617;
-            border-right: 1px solid #1e293b;
-        }}
-        
-        /* Stats Bar in Cards */
-        .stat-bar {{
-            height: 4px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 2px;
-            margin-top: 4px;
-            overflow: hidden;
-        }}
-        .stat-fill {{
-            height: 100%;
-            border-radius: 2px;
-        }}
-
         </style>
         """,
         unsafe_allow_html=True
@@ -200,7 +185,7 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%"):
     """
-    Tạo HTML Card (Đã sửa vị trí Badge BÁN/GIỮ).
+    Tạo HTML Card (Compact Version).
     """
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
@@ -219,27 +204,27 @@ def render_efootball_card_html(player_data, width="100%"):
 
     # Màu sắc thẻ
     card_class = "std"
-    bg_gradient = "linear-gradient(180deg, #1e3a8a 0%, #0f172a 100%)"
+    bg_gradient = "linear-gradient(180deg, #172554 0%, #020617 100%)" # Blue-950 to Slate-950
     
     if "POTW" in p_type or "TRENDING" in p_type:
         card_class = "potw"
-        bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)"
+        bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)" # Purple
     elif "EPIC" in p_type and "NON" not in p_type:
         card_class = "epic"
-        bg_gradient = "linear-gradient(180deg, #574608 0%, #281e05 100%)"
+        bg_gradient = "linear-gradient(180deg, #713f12 0%, #451a03 100%)" # Amber/Bronze
 
     club = player_data.get('Club', '')
     
-    # --- SỬA VỊ TRÍ BADGE TẠI ĐÂY ---
-    # Dời xuống top:35px để tránh đè lên Position/Rating
+    # Badge BÁN/GIỮ nhỏ gọn hơn
     action_html = ""
     if "BÁN" in action:
-        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
+        # Nhỏ hơn, nằm gọn ở góc
+        action_html = f'<div style="position:absolute; top:6px; right:4px; background:#ef4444; color:white; font-size:8px; font-weight:bold; padding:1px 5px; border-radius:3px; z-index:4; box-shadow:0 1px 2px rgba(0,0,0,0.5);">BÁN</div>'
     elif "GIỮ" in action:
-        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
+        action_html = f'<div style="position:absolute; top:6px; right:4px; background:#22c55e; color:white; font-size:8px; font-weight:bold; padding:1px 5px; border-radius:3px; z-index:4; box-shadow:0 1px 2px rgba(0,0,0,0.5);">GIỮ</div>'
 
     html = f"""
-    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width}; height: 280px;">
+    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};">
         {action_html}
         <div class="shine"></div>
         <div class="card-header">
@@ -250,7 +235,7 @@ def render_efootball_card_html(player_data, width="100%"):
         <div class="card-info">
             <div class="player-name" title="{p_name}">{p_name}</div>
             <div class="sub-info">
-                <span style="opacity:0.8">{club[:15] + '...' if len(club)>15 else club}</span>
+                <span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span>
                 <span>{player_data.get('Nation', '')[:3].upper()}</span>
             </div>
         </div>
@@ -4072,7 +4057,7 @@ def main():
             </style>
             """, unsafe_allow_html=True)
             
-            cols_per_row = 4
+            cols_per_row = 6
             rows = [filtered_df.iloc[i:i + cols_per_row] for i in range(0, len(filtered_df), cols_per_row)]
 
             for row in rows:
