@@ -254,7 +254,7 @@ def render_efootball_card_html(player_data, width="100%"):
 def show_player_modal(row):
     """
     Giao diện Scouting Profile - Hiện đại, Dạng lưới thông tin.
-    Fix lỗi: Hiển thị HTML raw text.
+    FIX: Đưa HTML về sát lề trái để tránh bị hiểu nhầm là Code Block.
     """
     
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
@@ -274,7 +274,7 @@ def show_player_modal(row):
         pid = m.group(1) if m else ""
     real_img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
 
-    # Theme Config (Màu sắc chủ đạo theo loại thẻ)
+    # Theme Config
     if "EPIC" in p_type:
         accent_color = "#F59E0B" # Amber
         badge_bg = "linear-gradient(135deg, #78350f 0%, #F59E0B 100%)"
@@ -288,11 +288,10 @@ def show_player_modal(row):
         badge_bg = "linear-gradient(135deg, #1e3a8a 0%, #3B82F6 100%)"
         shadow_color = "rgba(59, 130, 246, 0.4)"
 
-    # Helper render thanh chỉ số (Weak Foot / Form)
+    # Helper render thanh chỉ số
     def render_stat_bar(label, value_text, max_score=4):
         val = str(value_text).upper()
         score = 1
-        # Logic map text sang điểm số 1-4
         if any(x in val for x in ['VERY HIGH', 'REGULARLY', 'UNWAVERING']): score = 4
         elif any(x in val for x in ['HIGH', 'OCCASIONALLY', 'STANDARD']): score = 3
         elif any(x in val for x in ['MEDIUM', 'RARELY']): score = 2
@@ -324,220 +323,221 @@ def show_player_modal(row):
     if not skills_html:
         skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
-    # --- 3. RENDER HTML (QUAN TRỌNG: unsafe_allow_html=True) ---
-    st.markdown(f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
-        
-        .profile-container {{
-            font-family: 'Space Grotesk', sans-serif;
-            background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 1) 100%);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 0 40px rgba(0,0,0,0.5);
-            color: white;
-            margin-bottom: 10px;
-        }}
+    # --- 3. RENDER HTML (QUAN TRỌNG: Viết sát lề trái) ---
+    html_content = f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
 
-        /* HERO SECTION */
-        .pf-hero {{
-            position: relative;
-            height: 140px;
-            background: radial-gradient(circle at top right, {shadow_color}, transparent 60%);
-            display: flex;
-            align-items: flex-end;
-            padding: 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }}
+.profile-container {{
+    font-family: 'Space Grotesk', sans-serif;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 1) 100%);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0,0,0,0.5);
+    color: white;
+    margin-bottom: 10px;
+}}
 
-        .pf-img-wrapper {{
-            width: 110px;
-            height: 110px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            backdrop-filter: blur(4px);
-        }}
-        
-        .pf-img {{
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            transform: scale(1.1);
-        }}
+/* HERO SECTION */
+.pf-hero {{
+    position: relative;
+    height: 140px;
+    background: radial-gradient(circle at top right, {shadow_color}, transparent 60%);
+    display: flex;
+    align-items: flex-end;
+    padding: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}}
 
-        .pf-header-info {{ flex-grow: 1; }}
+.pf-img-wrapper {{
+    width: 110px;
+    height: 110px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    backdrop-filter: blur(4px);
+}}
 
-        .pf-name {{
-            font-size: 2rem;
-            font-weight: 700;
-            line-height: 1.1;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: -0.5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }}
+.pf-img {{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform: scale(1.1);
+}}
 
-        .pf-badges {{ display: flex; gap: 8px; align-items: center; }}
-        
-        .pf-badge {{
-            font-size: 0.75rem;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.1);
-        }}
-        
-        .pf-rating {{
-            background: {badge_bg};
-            color: white;
-            border: none;
-            box-shadow: 0 0 10px {shadow_color};
-        }}
+.pf-header-info {{ flex-grow: 1; }}
 
-        /* GRID LAYOUT */
-        .pf-grid {{
-            display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 20px;
-            padding: 20px;
-        }}
+.pf-name {{
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}}
 
-        .pf-section-title {{
-            font-size: 0.85rem;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 15px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding-bottom: 5px;
-        }}
+.pf-badges {{ display: flex; gap: 8px; align-items: center; }}
 
-        /* STATS BOX */
-        .stat-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }}
+.pf-badge {{
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.1);
+}}
 
-        .stat-item {{
-            background: rgba(255,255,255,0.03);
-            padding: 10px;
-            border-radius: 8px;
-        }}
-        
-        .stat-label {{ font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }}
-        .stat-val {{ font-size: 1.1rem; font-weight: 600; color: white; }}
+.pf-rating {{
+    background: {badge_bg};
+    color: white;
+    border: none;
+    box-shadow: 0 0 10px {shadow_color};
+}}
 
-        /* SKILLS TAGS */
-        .skill-container {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }}
-        
-        .pf-skill {{
-            font-size: 0.8rem;
-            padding: 4px 10px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            color: #e2e8f0;
-            transition: all 0.2s;
-        }}
-        
-        .pf-skill:hover {{
-            background: {accent_color}33;
-            border-color: {accent_color};
-            color: white;
-        }}
-        
-        .pf-skill.added {{
-            border-left: 3px solid #4ade80;
-            background: rgba(74, 222, 128, 0.1);
-        }}
-        </style>
+/* GRID LAYOUT */
+.pf-grid {{
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 20px;
+    padding: 20px;
+}}
 
-        <div class="profile-container">
-            <!-- HERO -->
-            <div class="pf-hero">
-                <div class="pf-img-wrapper">
-                    <img src="{real_img}" class="pf-img">
-                </div>
-                <div class="pf-header-info">
-                    <div class="pf-badges" style="margin-bottom:8px;">
-                        <span class="pf-badge pf-rating">{rating}</span>
-                        <span class="pf-badge">{pos}</span>
-                        <span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
-                    </div>
-                    <div class="pf-name">{p_name}</div>
-                    <div style="font-size: 0.9rem; color: #cbd5e1;">
-                        {club} <span style="margin:0 5px; color:#64748b">•</span> {nation}
-                    </div>
-                </div>
+.pf-section-title {{
+    font-size: 0.85rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 5px;
+}}
+
+/* STATS BOX */
+.stat-grid {{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}}
+
+.stat-item {{
+    background: rgba(255,255,255,0.03);
+    padding: 10px;
+    border-radius: 8px;
+}}
+
+.stat-label {{ font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }}
+.stat-val {{ font-size: 1.1rem; font-weight: 600; color: white; }}
+
+/* SKILLS TAGS */
+.skill-container {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}}
+
+.pf-skill {{
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #e2e8f0;
+    transition: all 0.2s;
+}}
+
+.pf-skill:hover {{
+    background: {accent_color}33;
+    border-color: {accent_color};
+    color: white;
+}}
+
+.pf-skill.added {{
+    border-left: 3px solid #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+}}
+</style>
+
+<div class="profile-container">
+    <!-- HERO -->
+    <div class="pf-hero">
+        <div class="pf-img-wrapper">
+            <img src="{real_img}" class="pf-img">
+        </div>
+        <div class="pf-header-info">
+            <div class="pf-badges" style="margin-bottom:8px;">
+                <span class="pf-badge pf-rating">{rating}</span>
+                <span class="pf-badge">{pos}</span>
+                <span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
             </div>
-
-            <!-- BODY CONTENT -->
-            <div class="pf-grid">
-                <!-- LEFT COL: ATTRIBUTES -->
-                <div>
-                    <div class="pf-section-title">Thông số vật lý</div>
-                    <div class="stat-grid" style="margin-bottom: 20px;">
-                        <div class="stat-item">
-                            <div class="stat-label">Chiều cao</div>
-                            <div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Cân nặng</div>
-                            <div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Tuổi</div>
-                            <div class="stat-val">{row.get('Age','-')}</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Chân thuận</div>
-                            <div class="stat-val">{row.get('Foot','-')}</div>
-                        </div>
-                    </div>
-
-                    <div class="pf-section-title">Kỹ thuật & Phong độ</div>
-                    <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
-                        {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
-                        {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
-                        {render_stat_bar("Form / Condition", row.get('Form', '-'))}
-                        {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
-                    </div>
-                </div>
-
-                <!-- RIGHT COL: SKILLS & EXTRA -->
-                <div>
-                    <div class="pf-section-title">Phong cách thi đấu</div>
-                    <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">
-                        {style}
-                    </div>
-
-                    <div class="pf-section-title">Danh sách kỹ năng</div>
-                    <div class="skill-container">
-                        {skills_html}
-                    </div>
-                    
-                    <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
-                        <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
-                        <div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
-                        <div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
-                    </div>
-                </div>
+            <div class="pf-name">{p_name}</div>
+            <div style="font-size: 0.9rem; color: #cbd5e1;">
+                {club} <span style="margin:0 5px; color:#64748b">•</span> {nation}
             </div>
         </div>
-    """, unsafe_allow_html=True)
+    </div>
+
+    <!-- BODY CONTENT -->
+    <div class="pf-grid">
+        <!-- LEFT COL: ATTRIBUTES -->
+        <div>
+            <div class="pf-section-title">Thông số vật lý</div>
+            <div class="stat-grid" style="margin-bottom: 20px;">
+                <div class="stat-item">
+                    <div class="stat-label">Chiều cao</div>
+                    <div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Cân nặng</div>
+                    <div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Tuổi</div>
+                    <div class="stat-val">{row.get('Age','-')}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Chân thuận</div>
+                    <div class="stat-val">{row.get('Foot','-')}</div>
+                </div>
+            </div>
+
+            <div class="pf-section-title">Kỹ thuật & Phong độ</div>
+            <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
+                {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
+                {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
+                {render_stat_bar("Form / Condition", row.get('Form', '-'))}
+                {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
+            </div>
+        </div>
+
+        <!-- RIGHT COL: SKILLS & EXTRA -->
+        <div>
+            <div class="pf-section-title">Phong cách thi đấu</div>
+            <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">
+                {style}
+            </div>
+
+            <div class="pf-section-title">Danh sách kỹ năng</div>
+            <div class="skill-container">
+                {skills_html}
+            </div>
+            
+            <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
+                <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
+                <div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
+                <div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
+            </div>
+        </div>
+    </div>
+</div>
+"""
+    st.markdown(html_content, unsafe_allow_html=True)
 
     # Footer Actions
     st.write("")
