@@ -217,16 +217,19 @@ def render_efootball_card_html(player_data, width="100%"):
         else:
             img_url = "https://pesdb.net/assets/img/card/f0.png" # Placeholder
 
-    # Xác định class CSS theo loại thẻ
+    # --- SỬA LỖI MÀU THẺ TẠI ĐÂY ---
+    # Mặc định là màu xanh (Standard/Non-Epic)
     card_class = "std"
     bg_gradient = "linear-gradient(180deg, #1e3a8a 0%, #0f172a 100%)" # Blue default
     
-    if "EPIC" in p_type:
-        card_class = "epic"
-        bg_gradient = "linear-gradient(180deg, #574608 0%, #281e05 100%)" # Goldish dark
-    elif "POTW" in p_type or "TRENDING" in p_type:
+    # Logic: Ưu tiên POTW -> Sau đó kiểm tra EPIC (nhưng phải KHÔNG chứa chữ NON)
+    if "POTW" in p_type or "TRENDING" in p_type:
         card_class = "potw"
         bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)" # Purple dark
+    elif "EPIC" in p_type and "NON" not in p_type:
+        # Chỉ vào đây nếu là EPIC xịn (không phải NON-EPIC)
+        card_class = "epic"
+        bg_gradient = "linear-gradient(180deg, #574608 0%, #281e05 100%)" # Goldish dark
 
     # Club logo (nếu muốn thêm sau này)
     club = player_data.get('Club', '')
@@ -274,15 +277,18 @@ def show_player_modal(row):
     real_img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
 
     # Theme Config
-    if "EPIC" in p_type:
-        accent_color = "#F59E0B" # Amber
-        badge_bg = "linear-gradient(135deg, #78350f 0%, #F59E0B 100%)"
-        shadow_color = "rgba(245, 158, 11, 0.4)"
-    elif "POTW" in p_type or "TRENDING" in p_type:
+    if "POTW" in p_type or "TRENDING" in p_type:
+        # Ưu tiên tím trước
         accent_color = "#D946EF" # Fuchsia
         badge_bg = "linear-gradient(135deg, #701a75 0%, #D946EF 100%)"
         shadow_color = "rgba(217, 70, 239, 0.4)"
+    elif "EPIC" in p_type and "NON" not in p_type:
+        # Chỉ vàng nếu là Epic và KHÔNG phải NON-EPIC
+        accent_color = "#F59E0B" # Amber
+        badge_bg = "linear-gradient(135deg, #78350f 0%, #F59E0B 100%)"
+        shadow_color = "rgba(245, 158, 11, 0.4)"
     else:
+        # Mặc định xanh (Non-Epic rơi vào đây)
         accent_color = "#3B82F6" # Blue
         badge_bg = "linear-gradient(135deg, #1e3a8a 0%, #3B82F6 100%)"
         shadow_color = "rgba(59, 130, 246, 0.4)"
@@ -4920,7 +4926,7 @@ def main():
                     
                     img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
                     
-                    card_color = "🟡" if "EPIC" in ptype else ("🟣" if "POTW" in ptype else "🔵")
+                    card_color = "🟣" if "POTW" in ptype else ("🟡" if "EPIC" in ptype and "NON" not in ptype else "🔵")
                     
                     with st.container(border=True):
                         c_img, c_inf = st.columns([1, 5])
