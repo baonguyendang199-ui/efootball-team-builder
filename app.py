@@ -1058,6 +1058,7 @@ FORMATIONS = {
     "5-4-1 (Low Block)":            ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CF"],
     # Phản công nhanh (Meta 3 tiền đạo cắm)
     "5-2-3 (Counter)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF"],
+    "5-2-3 (Counter)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "RWF", "CF"],
     "5-3-2 (Solid)":                ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "CF", "CF"],
 
     # =================================================================
