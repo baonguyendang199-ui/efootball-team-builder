@@ -252,9 +252,9 @@ def render_efootball_card_html(player_data, width="100%"):
 
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
-    """Hiển thị thông tin chi tiết cầu thủ trong Popup với UI cải tiến (WF dạng số)"""
+    """Hiển thị thông tin chi tiết cầu thủ trong Popup (UI Pro Version + WF 0-3)"""
     
-    # --- 1. XỬ LÝ DỮ LIỆU ---
+    # --- 1. XỬ LÝ DỮ LIỆU CƠ BẢN ---
     p_name = row.get('Player', 'Unknown')
     rating = row.get('Rating', 0)
     pos = row.get('Position', '?')
@@ -269,185 +269,259 @@ def show_player_modal(row):
         pid = m.group(1) if m else ""
     real_img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
 
-    # Màu sắc chủ đạo dựa trên loại thẻ
+    # Màu sắc chủ đạo (Theme)
     if "EPIC" in p_type:
-        theme_color = "#FFD700" # Vàng
-        bg_gradient = "linear-gradient(135deg, #422006 0%, #a16207 100%)"
+        theme_color = "#f59e0b" # Gold
+        bg_gradient = "linear-gradient(135deg, #451a03 0%, #b45309 100%)"
+        border_color = "#fbbf24"
     elif "POTW" in p_type or "TRENDING" in p_type:
-        theme_color = "#d946ef" # Tím hồng
-        bg_gradient = "linear-gradient(135deg, #3b0764 0%, #7e22ce 100%)"
+        theme_color = "#d946ef" # Purple
+        bg_gradient = "linear-gradient(135deg, #4c1d95 0%, #7e22ce 100%)"
+        border_color = "#e879f9"
     else:
-        theme_color = "#3b82f6" # Xanh dương
-        bg_gradient = "linear-gradient(135deg, #0f172a 0%, #1e40af 100%)"
+        theme_color = "#3b82f6" # Blue
+        bg_gradient = "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)"
+        border_color = "#60a5fa"
 
-    # --- HÀM CHUYỂN ĐỔI WEAK FOOT SANG SỐ ---
-    def get_wf_score(text):
-        t = str(text).upper().strip()
-        if "VERY HIGH" in t: return "4"
-        if "HIGH" in t or "REGULARLY" in t: return "3"
-        if "MEDIUM" in t or "OCCASIONALLY" in t: return "2"
-        if "LOW" in t or "RARELY" in t or "ALMOST" in t: return "1"
-        return "1" # Mặc định thấp nhất nếu không có dữ liệu
+    # --- 2. HÀM CHUYỂN ĐỔI WEAK FOOT SANG 0-3 ---
+    def get_wf_data(val, mode='usage'):
+        text = str(val).upper().strip()
+        score = 1 # Default
+        
+        if mode == 'usage': # Tần suất
+            if "REGULARLY" in text: score = 3
+            elif "OCCASIONALLY" in text: score = 2
+            elif "RARELY" in text: score = 1
+            elif "ALMOST" in text or "NEVER" in text: score = 0
+        else: # Độ chính xác
+            if "VERY HIGH" in text: score = 3
+            elif "HIGH" in text: score = 2
+            elif "MEDIUM" in text: score = 1
+            elif "LOW" in text: score = 0
+            
+        # Màu sắc dựa trên điểm số
+        colors = {
+            3: "#a855f7", # Tím (Max ping)
+            2: "#3b82f6", # Xanh (Tốt)
+            1: "#f97316", # Cam (TB)
+            0: "#64748b"  # Xám (Kém)
+        }
+        return score, colors.get(score, "#64748b")
 
-    wf_usage_num = get_wf_score(row.get('Weak Foot Usage', ''))
-    wf_acc_num = get_wf_score(row.get('Weak Foot Accuracy', ''))
+    wf_use_score, wf_use_color = get_wf_data(row.get('Weak Foot Usage', ''), 'usage')
+    wf_acc_score, wf_acc_color = get_wf_data(row.get('Weak Foot Accuracy', ''), 'acc')
 
-    # --- 2. CSS STYLING ---
+    # --- 3. CSS CAO CẤP ---
     st.markdown(f"""
         <style>
-        .modal-header {{
+        .modal-container {{ font-family: 'Inter', sans-serif; }}
+        
+        /* Header Card */
+        .e-header {{
             background: {bg_gradient};
+            border: 1px solid {border_color};
+            border-radius: 16px;
             padding: 20px;
-            border-radius: 12px;
-            color: white;
             display: flex;
             align-items: center;
             gap: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
         }}
-        .player-avatar {{
-            filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
-            transition: transform 0.3s;
+        
+        /* Hiệu ứng bóng kính */
+        .e-header::before {{
+            content: '';
+            position: absolute;
+            top: 0; left: -50%; width: 200%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+            transform: skewX(-20deg);
+            pointer-events: none;
         }}
-        .player-avatar:hover {{ transform: scale(1.05); }}
-        .big-rating {{
-            font-size: 2.5rem;
-            font-weight: 800;
-            line-height: 1;
-            color: {theme_color};
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+
+        .e-avatar {{ 
+            width: 110px; 
+            height: 110px; 
+            object-fit: contain; 
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
+            z-index: 2;
         }}
+
+        .e-info {{ flex-grow: 1; z-index: 2; color: white; }}
+        .e-name {{ font-size: 1.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 4px; text-transform: uppercase; letter-spacing: -0.5px; }}
+        .e-meta {{ font-size: 0.9rem; opacity: 0.9; display: flex; gap: 10px; align-items: center; }}
+        
+        .e-rating-box {{
+            text-align: center;
+            background: rgba(0,0,0,0.3);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(4px);
+        }}
+        .e-rating-val {{ font-size: 2.2rem; font-weight: 800; line-height: 1; color: {theme_color}; }}
+        .e-rating-lbl {{ font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; }}
+
+        /* Stats Grid */
         .stat-grid {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 12px;
+            margin-bottom: 24px;
         }}
-        .stat-box {{
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-        }}
-        .stat-label {{ font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }}
-        .stat-value {{ font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }}
         
-        /* Style riêng cho Weak Foot số to */
-        .wf-display {{
-            font-family: 'Inter', sans-serif;
-            font-weight: 800;
-            color: #fbbf24; /* Màu vàng cam */
-            letter-spacing: 2px;
+        .stat-card {{
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
         }}
+        .stat-card:hover {{ background: rgba(30, 41, 59, 0.8); border-color: rgba(255,255,255,0.1); }}
+        
+        .stat-lbl {{ font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 4px; letter-spacing: 0.5px; text-align: center; }}
+        .stat-val {{ font-size: 1.1rem; font-weight: 700; color: #f1f5f9; }}
 
-        .skill-container {{ display: flex; flex-wrap: wrap; gap: 6px; }}
-        .skill-pill {{
-            padding: 4px 10px;
+        /* Weak Foot Badges */
+        .wf-container {{
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            width: 100%;
+        }}
+        .wf-badge {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(0,0,0,0.2);
             border-radius: 6px;
+            padding: 4px 8px;
+            width: 45%;
+        }}
+        .wf-score {{ font-size: 1.2rem; font-weight: 800; }}
+        .wf-sub {{ font-size: 0.6rem; opacity: 0.7; }}
+
+        /* Skills */
+        .skill-tag {{
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 8px;
+            margin: 0 6px 6px 0;
             font-size: 0.85rem;
             font-weight: 500;
+            transition: transform 0.2s;
         }}
-        .skill-base {{ background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }}
-        .skill-added {{ background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; }}
-        
-        hr {{ margin: 1.5rem 0; border-color: rgba(255,255,255,0.1); }}
+        .skill-tag:hover {{ transform: translateY(-2px); }}
+        .skill-base {{ background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }}
+        .skill-add {{ background: rgba(34, 197, 94, 0.1); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); }}
+
         </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. UI HEADER ---
+    # --- 4. RENDER UI ---
+    
+    # HEADER
     st.markdown(f"""
-        <div class="modal-header">
-            <img src="{real_img}" class="player-avatar" width="100">
-            <div style="flex-grow: 1;">
-                <div style="display:flex; justify-content:space-between; align-items:start;">
-                    <div>
-                        <div style="font-size: 1.5rem; font-weight: 700; line-height:1.2;">{p_name}</div>
-                        <div style="color: rgba(255,255,255,0.8); font-size: 0.9rem; margin-top:4px;">
-                            {row.get('Club','')} • {row.get('Nation','')}
-                        </div>
-                        <div style="margin-top: 8px;">
-                            <span style="background:rgba(0,0,0,0.3); padding:2px 8px; border-radius:4px; font-size:0.8rem;">{pos}</span>
-                            <span style="background:rgba(0,0,0,0.3); padding:2px 8px; border-radius:4px; font-size:0.8rem;">{style}</span>
-                        </div>
+        <div class="e-header">
+            <img src="{real_img}" class="e-avatar">
+            <div class="e-info">
+                <div class="e-name">{p_name}</div>
+                <div class="e-meta">
+                    <span style="background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:4px; font-weight:600;">{pos}</span>
+                    <span>{row.get('Club','')}</span>
+                    <span style="opacity:0.5">•</span>
+                    <img src="https://flagcdn.com/24x18/{get_nation_code(row.get('Nation',''))}.png" style="height:14px; opacity:0.8;" onerror="this.style.display='none'"> 
+                    <span>{row.get('Nation','')}</span>
+                </div>
+            </div>
+            <div class="e-rating-box">
+                <div class="e-rating-val">{rating}</div>
+                <div class="e-rating-lbl">OVR</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # STATS GRID
+    st.markdown("##### 📊 Chỉ số chi tiết")
+    st.markdown(f"""
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-lbl">Thể hình</div>
+                <div class="stat-val">{row.get('Height','-')} <span style="font-size:0.8em;opacity:0.7">cm</span></div>
+                <div class="stat-val" style="font-size:0.9em; opacity:0.8">{row.get('Weight','-')} <span style="font-size:0.8em;opacity:0.7">kg</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-lbl">Tuổi / Chân</div>
+                <div class="stat-val">{row.get('Age','-')} <span style="font-size:0.8em;opacity:0.7">tuổi</span></div>
+                <div class="stat-val" style="font-size:0.9em; opacity:0.8">{row.get('Foot','-')}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-lbl">Phong độ</div>
+                <div class="stat-val" style="color: #60a5fa">{row.get('Form','-')}</div>
+                <div class="stat-lbl" style="margin-top:4px">Chấn thương</div>
+                <div class="stat-val" style="font-size:0.9em">{row.get('Injury Resistance','-')}</div>
+            </div>
+            
+            <!-- WEAK FOOT ĐƯỢC LÀM ĐẸP Ở ĐÂY -->
+            <div class="stat-card" style="justify-content:space-between; padding:8px;">
+                <div class="stat-lbl" style="width:100%; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px; margin-bottom:4px;">Chân Nghịch (0-3)</div>
+                <div class="wf-container">
+                    <div class="wf-badge">
+                        <div class="wf-score" style="color:{wf_use_color}">{wf_use_score}</div>
+                        <div class="wf-sub">Usage</div>
                     </div>
-                    <div style="text-align:center;">
-                        <div class="big-rating">{rating}</div>
-                        <div style="font-size:0.7rem; opacity:0.7;">RATING</div>
+                    <div class="wf-badge">
+                        <div class="wf-score" style="color:{wf_acc_color}">{wf_acc_score}</div>
+                        <div class="wf-sub">Acc</div>
                     </div>
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-    # --- 4. THÔNG SỐ (Grid Layout) ---
-    st.markdown("##### 📊 Thông số chi tiết")
-    
-    st.markdown(f"""
-        <div class="stat-grid">
-            <div class="stat-box">
-                <div class="stat-label">Chiều cao</div>
-                <div class="stat-value">{row.get('Height','--')}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Cân nặng</div>
-                <div class="stat-value">{row.get('Weight','--')}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Tuổi</div>
-                <div class="stat-value">{row.get('Age','--')}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Chân thuận</div>
-                <div class="stat-value">{row.get('Foot','--')}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Phong độ</div>
-                <div class="stat-value">{row.get('Form','--')}</div>
-            </div>
-            <!-- ĐÃ CẬP NHẬT PHẦN NÀY THÀNH SỐ -->
-            <div class="stat-box">
-                <div class="stat-label" title="Usage / Accuracy">Chân Nghịch</div>
-                <div class="stat-value wf-display">{wf_usage_num} | {wf_acc_num}</div>
-            </div>
-            <div class="stat-box" style="grid-column: span 2;">
-                <div class="stat-label">Loại thẻ</div>
-                <div class="stat-value" style="color:{theme_color}">{p_type}</div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # --- 5. SKILLS ---
-    st.write("") 
+    # SKILLS
+    st.write("")
     st.markdown("##### 🎮 Skills & Kỹ năng")
     
     skills = [s.strip() for s in str(row.get('Skills', '')).split(',') if s.strip()]
     added_skills = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
     
-    skill_html = '<div class="skill-container">'
-    
     if not skills and not added_skills:
-        skill_html += '<span style="opacity:0.5; font-style:italic;">Chưa có dữ liệu skills</span>'
-    
-    for s in skills:
-        skill_html += f'<div class="skill-pill skill-base">{s}</div>'
-    
-    for s in added_skills:
-        skill_html += f'<div class="skill-pill skill-added" title="Skill đã thêm">+{s}</div>'
-        
-    skill_html += '</div>'
-    
-    st.markdown(skill_html, unsafe_allow_html=True)
+        st.info("Chưa có dữ liệu skills")
+    else:
+        skill_html = '<div>'
+        for s in skills:
+            skill_html += f'<span class="skill-tag skill-base">{s}</span>'
+        for s in added_skills:
+            skill_html += f'<span class="skill-tag skill-add">+{s}</span>'
+        skill_html += '</div>'
+        st.markdown(skill_html, unsafe_allow_html=True)
 
-    # --- 6. FOOTER ACTIONS ---
+    # FOOTER
     st.divider()
-    c_btn1, c_btn2 = st.columns([1, 4])
-    with c_btn1:
+    c1, c2 = st.columns([1, 4])
+    with c1:
         if row.get('Player URL'):
             st.link_button("🌐 PESDB", row.get('Player URL'), use_container_width=True)
-    with c_btn2:
-        st.caption(f"*ID Cầu thủ: {row.get('Player ID', 'N/A')} | League: {row.get('League', 'N/A')}*")
+    with c2:
+        st.caption(f"ID: {row.get('Player ID', 'N/A')} • Type: {p_type} • League: {row.get('League', 'N/A')}")
+
+# Helper function nhỏ để lấy mã cờ (Optional, nếu không cần có thể bỏ qua dòng img flag)
+def get_nation_code(nation):
+    # Mapping đơn giản để demo, thực tế cần list đầy đủ hoặc library pycountry
+    common = {
+        "Argentina": "ar", "Portugal": "pt", "France": "fr", "Brazil": "br", 
+        "England": "gb-eng", "Germany": "de", "Spain": "es", "Italy": "it",
+        "Belgium": "be", "Netherlands": "nl", "Vietnam": "vn", "Japan": "jp"
+    }
+    return common.get(str(nation).strip(), "un")
 
 def render_app_hero(df: pd.DataFrame):
     """Render the hero banner with live metrics."""
