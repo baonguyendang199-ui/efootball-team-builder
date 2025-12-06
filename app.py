@@ -14,6 +14,8 @@ import streamlit as st
 import json
 from google.oauth2.service_account import Credentials
 import gspread
+import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 st.set_page_config(
     page_title="Efootball Team Builder",
@@ -1083,9 +1085,14 @@ FORMATIONS = {
 # ==========================================
 
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
+    """
+    Tự động xây dựng đội hình tối ưu sử dụng thuật toán Linear Sum Assignment (Hungarian Algorithm).
+    Giải quyết bài toán phân công: Cầu thủ -> Vị trí sao cho Tổng điểm là lớn nhất.
+    """
+    # 1. SAO CHÉP VÀ CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
     
-    # 1. Chuẩn hóa dữ liệu số để tính toán
+    # Chuẩn hóa các cột số liệu để tính toán
     if 'Height' in pool_df.columns: 
         pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
     if 'Weight' in pool_df.columns: 
@@ -1093,141 +1100,142 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     if 'Age' in pool_df.columns: 
         pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
     
-    # Chuẩn hóa Vị trí phụ
+    # Chuẩn hóa Secondary Positions (Quan trọng cho thuật toán tìm vị trí)
     if 'Secondary Positions' not in pool_df.columns:
         pool_df['Secondary Positions'] = ""
     else:
-        pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper()
+        pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper().str.strip()
 
-    # 2. Lọc dữ liệu (Team/League...)
+    # 2. LỌC DỮ LIỆU (Theo yêu cầu User: Club, Nation, League...)
     if filter_col and filter_val and filter_val != "(Tất cả)":
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
         
-    if pool_df.empty: return []
+    if pool_df.empty:
+        return []
 
-    # 3. Xác định điểm số (Score) cho từng cầu thủ dựa trên tiêu chí
-    # Mục tiêu: Người có Score cao nhất sẽ được ưu tiên xếp vào đội hình
+    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING SYSTEM)
+    # Mỗi cầu thủ sẽ có 1 điểm số (Build_Score) dựa trên tiêu chí sort_mode
     def calculate_score(row):
-        # 1. THE TANKS (BMI CAO)
-        if sort_mode == 'bmi_desc':
-            h_m = row['Height_num'] / 100.0
-            if h_m > 0:
-                bmi = row['Weight_num'] / (h_m ** 2)
-                return bmi
-            return 0
+        # --- A. RATING (Mặc định) ---
+        if sort_mode == 'rating_desc': 
+            # Ưu tiên nhẹ cho thẻ Non-Epic (Epic_Priority=1) để tránh xếp full Epic nếu chỉ số ngang nhau
+            return row['Rating'] + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
             
-        # 2. THE AGILES (BMI THẤP)
-        elif sort_mode == 'bmi_asc':
-            h_m = row['Height_num'] / 100.0
-            if h_m > 0:
-                bmi = row['Weight_num'] / (h_m ** 2)
-                return -bmi # Âm để sort giảm dần ra số bé nhất
-            return -999
-
-        # 3. THE AMBIDEXTROUS (2 CHÂN NHƯ 1) - PHÂN TẦNG
-        elif sort_mode == 'ambidextrous':
-            u_str = str(row.get('Weak Foot Usage', '')).strip().lower()
-            a_str = str(row.get('Weak Foot Accuracy', '')).strip().lower()
-            
-            # --- TIER 1: HOÀN HẢO (Regularly + Very High) ---
-            is_usage_perfect = 'regularly' in u_str or '4' in u_str
-            is_acc_perfect = 'very high' in a_str or '4' in a_str
-            
-            if is_usage_perfect and is_acc_perfect:
-                return 20000 + row['Rating'] # Ưu tiên cao nhất
-            
-            # --- TIER 2: KHÁ TỐT (Tối thiểu Occasionally + High) ---
-            # Chấp nhận: Regularly hoặc Occasionally
-            is_usage_good = is_usage_perfect or 'occasionally' in u_str or '3' in u_str
-            # Chấp nhận: Very High hoặc High
-            is_acc_good = is_acc_perfect or 'high' in a_str or '3' in a_str
-            
-            if is_usage_good and is_acc_good:
-                return 10000 + row['Rating'] # Ưu tiên nhì (thay thế cho Rating thuần túy)
-                
-            # --- TIER 3: CÒN LẠI ---
-            return row['Rating']
-
-        # 4. FORM IS TEMPORARY (FULL POTW)
-        elif sort_mode == 'potw_only':
-            ptype = str(row.get('Player Type', '')).upper()
-            if 'POTW' in ptype or 'TRENDING' in ptype:
-                return 10000 + row['Rating']
-            return row['Rating'] # POTW lên đầu, còn lại xếp dưới
-
-        # 5. UNITED NATIONS (RATING CAO NHẤT)
-        elif sort_mode == 'united_nations':
-            # Vẫn dùng Rating để chọn người giỏi nhất của quốc gia đó
-            return row['Rating'] + (0.1 if row['Epic_Priority'] == 0 else 0)
-
-        # CÁC CHẾ ĐỘ CŨ (GIỮ NGUYÊN)
-        elif sort_mode == 'rating_desc': return row['Rating'] + (0.1 if row['Epic_Priority'] == 0 else 0)
+        # --- B. THỂ CHẤT (Height, Weight, Age) ---
         elif sort_mode == 'height_desc': return row['Height_num']
-        elif sort_mode == 'height_asc': return -row['Height_num']
+        elif sort_mode == 'height_asc': return -row['Height_num'] # Số âm để khi tìm Max sẽ ra người thấp nhất
         elif sort_mode == 'weight_desc': return row['Weight_num']
         elif sort_mode == 'weight_asc': return -row['Weight_num']
         elif sort_mode == 'age_desc': return row['Age_num']
         elif sort_mode == 'age_asc': return -row['Age_num']
-        
+
+        # --- C. BMI (Tanks & Agiles) ---
+        elif 'bmi' in sort_mode:
+            h_m = row['Height_num'] / 100.0
+            if h_m > 0:
+                bmi = row['Weight_num'] / (h_m ** 2)
+                return bmi if sort_mode == 'bmi_desc' else -bmi
+            return -999
+
+        # --- D. AMBIDEXTROUS (Chân thuận) ---
+        elif sort_mode == 'ambidextrous':
+            u_str = str(row.get('Weak Foot Usage', '')).strip().lower()
+            a_str = str(row.get('Weak Foot Accuracy', '')).strip().lower()
+            
+            # Tier 1: Perfect (Regularly/Very High hoặc số 4)
+            is_usage_p = any(x in u_str for x in ['regularly', '4'])
+            is_acc_p = any(x in a_str for x in ['very high', '4'])
+            
+            # Tier 2: Good (Occasionally/High hoặc số 3)
+            is_usage_g = is_usage_p or any(x in u_str for x in ['occasionally', '3'])
+            is_acc_g = is_acc_p or any(x in a_str for x in ['high', '3'])
+            
+            base_score = row['Rating']
+            if is_usage_p and is_acc_p: return 20000 + base_score
+            if is_usage_g and is_acc_g: return 10000 + base_score
+            return base_score
+
+        # --- E. POTW ONLY ---
+        elif sort_mode == 'potw_only':
+            ptype = str(row.get('Player Type', '')).upper()
+            is_potw = 'POTW' in ptype or 'TRENDING' in ptype
+            return (10000 if is_potw else 0) + row['Rating']
+
+        # --- F. UNITED NATIONS ---
+        elif sort_mode == 'united_nations':
+            # Vẫn dùng Rating làm trọng số chính, logic lọc quốc gia sẽ xử lý ở bước sau
+            return row['Rating']
+
         return row['Rating']
 
-    # Tính Score
+    # Áp dụng tính điểm
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
-
-    # -------------------------------------------------------
-    # THUẬT TOÁN TỐI ƯU HÓA (GREEDY GLOBAL OPTIMIZATION)
-    # Thay vì tìm từng vị trí, ta tạo ra tất cả các cặp (Cầu thủ, Vị trí có thể đá)
-    # Sau đó sort toàn bộ danh sách này để chọn ra phương án tốt nhất.
-    # -------------------------------------------------------
     
+    # Reset index để mapping với ma trận
+    pool_df = pool_df.reset_index(drop=True)
+
+    # 4. THUẬT TOÁN TỐI ƯU HÓA (HUNGARIAN ALGORITHM)
     required_positions = FORMATIONS.get(formation_name, [])
-    potential_assignments = []
+    num_slots = len(required_positions) # 11 vị trí
+    num_players = len(pool_df)
+    
+    # Tạo Ma Trận Chi Phí (Cost Matrix): [Số cầu thủ x Số vị trí]
+    # Cost = Giá trị âm của Score (Vì thuật toán tìm Min Cost => Tương đương tìm Max Score)
+    # Nếu cầu thủ KHÔNG đá được vị trí đó => Cost = Vô cực (Phạt nặng)
+    BIG_PENALTY = 1000000
+    cost_matrix = np.full((num_players, num_slots), BIG_PENALTY)
 
-    # Bước A: Tạo danh sách tất cả các ứng viên cho từng vị trí trong sơ đồ
-    for slot_index, pos_req in enumerate(required_positions):
-        # Tìm cầu thủ đá được vị trí này (Cả Chính và Phụ)
-        # Logic: (Vị trí chính == pos_req) HOẶC (Vị trí phụ chứa pos_req)
-        candidates = pool_df[
-            (pool_df['Position'] == pos_req) | 
-            (pool_df['Secondary Positions'].str.contains(fr'\b{pos_req}\b', regex=True))
-        ]
+    # Duyệt qua từng cầu thủ để điền vào ma trận
+    for p_idx, row in pool_df.iterrows():
+        # Chuẩn hóa vị trí cầu thủ
+        p_main_pos = str(row['Position']).strip().upper()
+        p_sec_pos_str = str(row['Secondary Positions']).strip().upper()
         
-        for idx, row in candidates.iterrows():
-            potential_assignments.append({
-                'score': row['Build_Score'],
-                'player_idx': idx,
-                'slot_index': slot_index,
-                'pos_req': pos_req,
-                'data': row,
-                'nation': str(row.get('Nation', '')).strip() # Lấy quốc tịch để dùng cho mode United Nations
-            })
+        # Tách vị trí phụ thành list để so sánh chính xác (tránh lỗi 'SS' match trong 'PASS')
+        p_sec_pos_list = [s.strip() for s in p_sec_pos_str.split(',') if s.strip()]
+        
+        score = row['Build_Score']
+        
+        for s_idx, req_pos in enumerate(required_positions):
+            # Kiểm tra: Cầu thủ đá được vị trí yêu cầu không?
+            # Điều kiện: (Là vị trí chính) HOẶC (Nằm trong list vị trí phụ)
+            can_play = (p_main_pos == req_pos) or (req_pos in p_sec_pos_list)
+            
+            if can_play:
+                cost_matrix[p_idx, s_idx] = -score  # Dùng số âm
 
-    # Bước B: Sắp xếp toàn bộ khả năng từ Tốt nhất -> Tệ nhất
-    # Ví dụ: Nếu chọn Tallest, cầu thủ 2m02 sẽ đứng đầu danh sách, bất kể đá vị trí nào
-    potential_assignments.sort(key=lambda x: x['score'], reverse=True)
+    # --- GIẢI THUẬT ---
+    # row_ind: danh sách index cầu thủ được chọn
+    # col_ind: danh sách index vị trí (slot) tương ứng
+    try:
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+    except Exception as e:
+        print(f"Error in optimization: {e}")
+        return []
 
-    # Bước C: Xếp đội hình (Starting XI)
+    # 5. XÂY DỰNG ĐỘI HÌNH ĐÁ CHÍNH (STARTING XI)
     final_squad = [None] * 11
     used_indices = set()
-    used_nations = set() # 🆕 Set theo dõi quốc gia đã dùng
-    
-    for assign in potential_assignments:
-        p_idx = assign['player_idx']
-        s_idx = assign['slot_index']
-        p_nation = assign['nation']
+    used_nations = set() # Dùng cho mode United Nations
+
+    for i in range(len(row_ind)):
+        p_idx = row_ind[i]
+        s_idx = col_ind[i]
         
-        # Kiểm tra cơ bản: Cầu thủ chưa dùng & Slot trống
-        if p_idx not in used_indices and final_squad[s_idx] is None:
+        # Kiểm tra cost. Nếu cost vẫn là BIG_PENALTY nghĩa là thuật toán ép gán dù không đá được
+        # Ta chỉ chấp nhận nếu cost nhỏ hơn mức phạt
+        if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
             
-            # 🆕 LOGIC ĐẶC BIỆT CHO UNITED NATIONS
+            # Logic riêng cho United Nations: Kiểm tra trùng quốc tịch ở bước này
             if sort_mode == 'united_nations':
-                if p_nation in used_nations and p_nation != "":
-                    continue # Bỏ qua nếu quốc gia này đã có người trong đội hình
+                nat = str(pool_df.at[p_idx, 'Nation']).strip()
+                if nat in used_nations and nat != "":
+                    continue # Bỏ qua nếu trùng quốc tịch (Slot này sẽ bị trống -> fill placeholder sau)
+                used_nations.add(nat)
+
+            row = pool_df.iloc[p_idx]
             
-            # Nếu thỏa mãn thì chọn
-            row = assign['data']
-            
-            # Lấy ảnh
+            # Xử lý hình ảnh
             pid = str(row.get('Player ID', '')).strip()
             purl = str(row.get('Player URL', '')).strip()
             if not pid and purl:
@@ -1238,8 +1246,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             # Tạo object cầu thủ
             player_obj = {
                 "Is_Starter": True,
-                "Position": assign['pos_req'], # Vị trí trong sơ đồ
-                "Real_Position": row['Position'], # Vị trí gốc
+                "Position": required_positions[s_idx], # Vị trí trong sơ đồ
+                "Real_Position": row['Position'],      # Vị trí gốc
                 "Player": row['Player'],
                 "Rating": row['Rating'],
                 "Type": row['Player Type'],
@@ -1249,14 +1257,13 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 "Weight": row.get('Weight', ''),
                 "Age": row.get('Age', ''),
                 "Image": img_url,
-                "Data": row
+                "Data": row.to_dict()
             }
             
             final_squad[s_idx] = player_obj
             used_indices.add(p_idx)
-            if p_nation: used_nations.add(p_nation) # Đánh dấu quốc gia đã dùng
 
-    # Bước D: Điền nốt những vị trí còn thiếu (nếu không tìm được ai phù hợp)
+    # Điền nốt slot trống (nếu không tìm được người phù hợp hoặc bị lọc bởi United Nations)
     for i in range(11):
         if final_squad[i] is None:
              final_squad[i] = {
@@ -1268,78 +1275,67 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 "Image": None
             }
 
-    # -------------------------------------------------------
-    # PHASE 2: CHỌN DỰ BỊ (12 NGƯỜI TỐT NHẤT CÒN LẠI)
-    # Không quan tâm vị trí, chỉ quan tâm chỉ số (Score)
-    # -------------------------------------------------------
-    
-    # Lấy pool còn lại
+    # 6. XÂY DỰNG DỰ BỊ (SUBSTITUTES)
+    # Lấy 12 cầu thủ tốt nhất còn lại trong pool (không quan tâm vị trí)
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)]
+    
+    # Sort lại pool còn lại theo điểm cao nhất
     remaining_pool = remaining_pool.sort_values('Build_Score', ascending=False)
     
     bench_picks_rows = []
 
-    # =========================================================
-    # 🆕 LOGIC DỰ BỊ CHO UNITED NATIONS (23 QUỐC GIA KHÁC NHAU)
-    # =========================================================
+    # Logic riêng cho United Nations: Ưu tiên quốc tịch mới
     if sort_mode == 'united_nations':
-        # Bước 1: Cố gắng tìm 12 cầu thủ có quốc tịch KHÁC với 11 người đá chính (và khác nhau)
+        # Vòng 1: Tìm quốc tịch mới
         for idx, row in remaining_pool.iterrows():
-            if len(bench_picks_rows) >= 12:
-                break
-            
+            if len(bench_picks_rows) >= 12: break
             p_nation = str(row.get('Nation', '')).strip()
-            
-            # Chỉ chọn nếu quốc gia này CHƯA TỪNG xuất hiện trong danh sách đã dùng (used_nations)
             if p_nation and p_nation not in used_nations:
                 bench_picks_rows.append(row)
-                used_nations.add(p_nation) # Đánh dấu quốc gia này đã bị chiếm
-                used_indices.add(idx)      # Đánh dấu cầu thủ này đã được chọn
-
-        # Bước 2: Nếu database không đủ 23 quốc gia khác nhau, 
-        # lấp đầy các slot còn thiếu bằng những cầu thủ giỏi nhất còn lại (chấp nhận trùng)
+                used_nations.add(p_nation)
+                used_indices.add(idx)
+        
+        # Vòng 2: Nếu chưa đủ 12, fill bằng người giỏi nhất còn lại (chấp nhận trùng)
         if len(bench_picks_rows) < 12:
             needed = 12 - len(bench_picks_rows)
-            # Lấy pool mới đã trừ đi những người vừa chọn ở Bước 1
-            final_fillers = pool_df[~pool_df.index.isin(used_indices)].sort_values('Build_Score', ascending=False)
-            fillers = final_fillers.head(needed)
-            for _, row in fillers.iterrows():
-                bench_picks_rows.append(row)
-                
+            # Lọc lại lần nữa trừ đi những người vừa pick ở Vòng 1
+            final_pool = pool_df[~pool_df.index.isin(used_indices)].sort_values('Build_Score', ascending=False)
+            bench_picks_rows.extend(final_pool.head(needed).to_dict('records'))
+            
     else:
-        # =========================================================
-        # LOGIC CŨ CHO CÁC CHẾ ĐỘ KHÁC (Rating, BMI, v.v.)
-        # =========================================================
-        # Lấy top 12 người điểm cao nhất bất kể quốc tịch
-        temp_picks = remaining_pool.head(12)
-        for _, row in temp_picks.iterrows():
-            bench_picks_rows.append(row)
+        # Logic thường: Lấy top 12
+        bench_picks_rows = remaining_pool.head(12).to_dict('records')
 
-    # =========================================================
-    # CHUYỂN DỮ LIỆU THÀNH FORMAT SQUAD (Giữ nguyên logic cũ)
-    # =========================================================
+    # Format dữ liệu dự bị và thêm vào final_squad
     for row in bench_picks_rows:
-        pid = str(row.get('Player ID', '')).strip()
-        purl = str(row.get('Player URL', '')).strip()
+        # Nếu row là dict (từ to_dict) hoặc Series (từ iterrows), xử lý an toàn
+        # Ở đây ta đã convert sang dict hoặc lấy từ Series, truy cập kiểu dict-like an toàn hơn
+        r_get = row.get if isinstance(row, dict) else row.get
+
+        pid = str(r_get('Player ID', '')).strip()
+        purl = str(r_get('Player URL', '')).strip()
         if not pid and purl:
             m = re.search(r"(\d{14,})", purl)
             pid = m.group(1) if m else ""
         img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+        
+        # Chuyển Series sang dict nếu cần cho field 'Data'
+        row_data = row if isinstance(row, dict) else row.to_dict()
 
         final_squad.append({
             "Is_Starter": False,
-            "Position": row['Position'],
-            "Real_Position": row['Position'],
-            "Player": row['Player'],
-            "Rating": row['Rating'],
-            "Type": row['Player Type'],
-            "Club": row['Club'],
-            "Nation": row['Nation'],
-            "Height": row.get('Height', ''),
-            "Weight": row.get('Weight', ''),
-            "Age": row.get('Age', ''),
+            "Position": r_get('Position'),
+            "Real_Position": r_get('Position'),
+            "Player": r_get('Player'),
+            "Rating": r_get('Rating'),
+            "Type": r_get('Player Type'),
+            "Club": r_get('Club'),
+            "Nation": r_get('Nation'),
+            "Height": r_get('Height', ''),
+            "Weight": r_get('Weight', ''),
+            "Age": r_get('Age', ''),
             "Image": img_url,
-            "Data": row
+            "Data": row_data
         })
 
     return final_squad
