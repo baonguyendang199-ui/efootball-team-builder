@@ -287,7 +287,6 @@ def show_player_modal(row):
 
     # Helper render thanh chỉ số (Weak Foot / Form)
     def render_stat_bar(label, value_text, max_score=4):
-        # Convert text text to score 1-4
         val = str(value_text).upper()
         score = 1
         if any(x in val for x in ['VERY HIGH', 'REGULARLY', 'UNWAVERING']): score = 4
@@ -309,7 +308,20 @@ def show_player_modal(row):
         </div>
         """
 
-    # --- 2. CSS STYLING (GLASSMORPHISM) ---
+    # --- 2. XỬ LÝ SKILLS HTML ---
+    base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
+    added_skills = [s.strip() for s in str(row.get('Added Skills','')).split(',') if s.strip()]
+    
+    skills_html = ""
+    for s in base_skills:
+        skills_html += f'<span class="pf-skill">{s}</span>'
+    for s in added_skills:
+        skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
+    if not skills_html:
+        skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
+
+    # --- 3. RENDER TOÀN BỘ GIAO DIỆN ---
+    # Lưu ý quan trọng: unsafe_allow_html=True ở cuối hàm st.markdown
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
@@ -322,6 +334,7 @@ def show_player_modal(row):
             overflow: hidden;
             box-shadow: 0 0 40px rgba(0,0,0,0.5);
             color: white;
+            margin-bottom: 10px;
         }}
 
         /* HERO SECTION */
@@ -438,7 +451,7 @@ def show_player_modal(row):
         }}
         
         .pf-skill:hover {{
-            background: {accent_color}33; /* 33 = 20% opacity hex */
+            background: {accent_color}33;
             border-color: {accent_color};
             color: white;
         }}
@@ -447,97 +460,80 @@ def show_player_modal(row):
             border-left: 3px solid #4ade80;
             background: rgba(74, 222, 128, 0.1);
         }}
-
         </style>
-    """, unsafe_allow_html=True)
 
-    # --- 3. RENDER HTML CONTENT ---
-    
-    # Skills logic
-    base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
-    added_skills = [s.strip() for s in str(row.get('Added Skills','')).split(',') if s.strip()]
-    
-    skills_html = ""
-    for s in base_skills:
-        skills_html += f'<span class="pf-skill">{s}</span>'
-    for s in added_skills:
-        skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
-    if not skills_html:
-        skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
-
-    st.markdown(f"""
-    <div class="profile-container">
-        <!-- HERO -->
-        <div class="pf-hero">
-            <div class="pf-img-wrapper">
-                <img src="{real_img}" class="pf-img">
-            </div>
-            <div class="pf-header-info">
-                <div class="pf-badges" style="margin-bottom:8px;">
-                    <span class="pf-badge pf-rating">{rating}</span>
-                    <span class="pf-badge">{pos}</span>
-                    <span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
+        <div class="profile-container">
+            <!-- HERO -->
+            <div class="pf-hero">
+                <div class="pf-img-wrapper">
+                    <img src="{real_img}" class="pf-img">
                 </div>
-                <div class="pf-name">{p_name}</div>
-                <div style="font-size: 0.9rem; color: #cbd5e1;">
-                    {club} <span style="margin:0 5px; color:#64748b">•</span> {nation}
-                </div>
-            </div>
-        </div>
-
-        <!-- BODY CONTENT -->
-        <div class="pf-grid">
-            <!-- LEFT COL: ATTRIBUTES -->
-            <div>
-                <div class="pf-section-title">Thông số vật lý</div>
-                <div class="stat-grid" style="margin-bottom: 20px;">
-                    <div class="stat-item">
-                        <div class="stat-label">Chiều cao</div>
-                        <div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div>
+                <div class="pf-header-info">
+                    <div class="pf-badges" style="margin-bottom:8px;">
+                        <span class="pf-badge pf-rating">{rating}</span>
+                        <span class="pf-badge">{pos}</span>
+                        <span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Cân nặng</div>
-                        <div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div>
+                    <div class="pf-name">{p_name}</div>
+                    <div style="font-size: 0.9rem; color: #cbd5e1;">
+                        {club} <span style="margin:0 5px; color:#64748b">•</span> {nation}
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Tuổi</div>
-                        <div class="stat-val">{row.get('Age','-')}</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Chân thuận</div>
-                        <div class="stat-val">{row.get('Foot','-')}</div>
-                    </div>
-                </div>
-
-                <div class="pf-section-title">Kỹ thuật & Phong độ</div>
-                <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
-                    {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
-                    {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
-                    {render_stat_bar("Form / Condition", row.get('Form', '-'))}
-                    {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
                 </div>
             </div>
 
-            <!-- RIGHT COL: SKILLS & EXTRA -->
-            <div>
-                <div class="pf-section-title">Phong cách thi đấu</div>
-                <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">
-                    {style}
+            <!-- BODY CONTENT -->
+            <div class="pf-grid">
+                <!-- LEFT COL: ATTRIBUTES -->
+                <div>
+                    <div class="pf-section-title">Thông số vật lý</div>
+                    <div class="stat-grid" style="margin-bottom: 20px;">
+                        <div class="stat-item">
+                            <div class="stat-label">Chiều cao</div>
+                            <div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Cân nặng</div>
+                            <div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Tuổi</div>
+                            <div class="stat-val">{row.get('Age','-')}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Chân thuận</div>
+                            <div class="stat-val">{row.get('Foot','-')}</div>
+                        </div>
+                    </div>
+
+                    <div class="pf-section-title">Kỹ thuật & Phong độ</div>
+                    <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
+                        {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
+                        {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
+                        {render_stat_bar("Form / Condition", row.get('Form', '-'))}
+                        {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
+                    </div>
                 </div>
 
-                <div class="pf-section-title">Danh sách kỹ năng</div>
-                <div class="skill-container">
-                    {skills_html}
-                </div>
-                
-                <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
-                    <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
-                    <div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
-                    <div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
+                <!-- RIGHT COL: SKILLS & EXTRA -->
+                <div>
+                    <div class="pf-section-title">Phong cách thi đấu</div>
+                    <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">
+                        {style}
+                    </div>
+
+                    <div class="pf-section-title">Danh sách kỹ năng</div>
+                    <div class="skill-container">
+                        {skills_html}
+                    </div>
+                    
+                    <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
+                        <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
+                        <div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
+                        <div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
     """, unsafe_allow_html=True)
 
     # Footer Actions
@@ -547,7 +543,6 @@ def show_player_modal(row):
         if row.get('Player URL'):
             st.link_button("🌐 PESDB Link", row.get('Player URL'), use_container_width=True)
     with c2:
-        # Placeholder cho các hành động khác nếu cần (Ví dụ: Edit)
         pass
 
 def render_app_hero(df: pd.DataFrame):
