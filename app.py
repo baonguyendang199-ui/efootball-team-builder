@@ -4125,8 +4125,8 @@ def main():
                         st.markdown('<div class="card-overlay-trigger"></div>', unsafe_allow_html=True)
                         
                         # BUTTON TÀNG HÌNH
-                        # Label là "⠀" (ký tự braille rỗng) để chắc chắn không hiện text
-                        if st.button("⠀", key=f"btn_card_{idx}"):
+                        # Label là "Xem chi tiết" (ký tự braille rỗng) để chắc chắn không hiện text
+                        if st.button("Xem chi tiết", key=f"btn_card_{idx}"):
                             show_player_modal(player)
                 
                 # Khoảng cách giữa các hàng để tránh nút bị chồng lấn xuống dưới
