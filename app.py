@@ -1086,7 +1086,7 @@ FORMATIONS = {
 
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
-    Tự động xây dựng đội hình tối ưu (Đã FIX lỗi BMI và Height/Weight).
+    Tự động xây dựng đội hình tối ưu (Đã FIX lỗi đội hình trống khi chọn BMI/Chiều cao nhỏ nhất).
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
@@ -1095,14 +1095,12 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     def clean_and_to_num(val):
         if pd.isna(val) or str(val).strip() == "":
             return 0.0
-        # Chỉ giữ lại số và dấu chấm, loại bỏ chữ 'cm', 'kg', ','
         cleaned = re.sub(r'[^\d.]', '', str(val).replace(',', '.'))
         try:
             return float(cleaned)
         except ValueError:
             return 0.0
 
-    # Áp dụng convert cho các cột quan trọng
     if 'Height' in pool_df.columns: 
         pool_df['Height_num'] = pool_df['Height'].apply(clean_and_to_num)
     else:
@@ -1130,37 +1128,46 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     if pool_df.empty:
         return []
 
-    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING) - ĐÃ FIX TRỌNG SỐ BMI
+    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING) - ĐÃ SỬA LẠI LOGIC ASC (TĂNG DẦN)
+    ERROR_SCORE = -999999 # Mã lỗi
+
     def calculate_score(row):
-        # Rating bonus cực nhỏ để tie-break (max 0.00001)
         rating_bonus = row['Rating'] / 100000.0 
         
         if sort_mode == 'rating_desc': 
             return row['Rating'] + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
             
+        # --- FIX LOGIC: Dùng phép trừ để điểm số luôn dương ---
+        # Ví dụ: Muốn tìm người thấp nhất. 
+        # Người 160cm: 250 - 160 = 90 điểm (Cao điểm hơn -> Được chọn)
+        # Người 190cm: 250 - 190 = 60 điểm
+        
         elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
-        elif sort_mode == 'height_asc': return -row['Height_num'] + rating_bonus 
+        elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus 
+        
         elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
-        elif sort_mode == 'weight_asc': return -row['Weight_num'] + rating_bonus
+        elif sort_mode == 'weight_asc': return (150 - row['Weight_num']) + rating_bonus
+        
         elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
-        elif sort_mode == 'age_asc': return -row['Age_num'] + rating_bonus
+        elif sort_mode == 'age_asc': return (100 - row['Age_num']) + rating_bonus
 
         elif 'bmi' in sort_mode:
             h_m = row['Height_num'] / 100.0
             w = row['Weight_num']
             
-            # Logic loại bỏ dữ liệu rác (Cao < 1m hoặc Nặng < 30kg)
+            # Logic loại bỏ dữ liệu rác
             if h_m < 1.0 or w < 30: 
-                return -999999
+                return ERROR_SCORE
                 
             bmi = w / (h_m ** 2)
             
-            # Nhân 1000 để đảm bảo BMI chênh lệch 0.1 cũng lớn hơn Rating
-            # Ví dụ: BMI 25.7 * 1000 = 25700 > BMI 25.1 * 1000 = 25100
-            if sort_mode == 'bmi_desc':
+            if sort_mode == 'bmi_desc': # BMI lớn nhất (The Tanks)
                 return (bmi * 1000) + rating_bonus
-            else: # bmi_asc
-                return -(bmi * 1000) + rating_bonus
+            else: # bmi_asc (BMI nhỏ nhất - The Agiles)
+                # Dùng hằng số 100 trừ đi BMI để đảo ngược giá trị
+                # BMI 20 -> (100-20)*1000 = 80000 điểm
+                # BMI 25 -> (100-25)*1000 = 75000 điểm
+                return ((100 - bmi) * 1000) + rating_bonus
 
         elif sort_mode == 'ambidextrous':
             u_str = str(row.get('Weak Foot Usage', '')).strip().lower()
@@ -1190,7 +1197,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     num_slots = len(required_positions)
     num_players = len(pool_df)
     
-    BIG_PENALTY = 1e9 # Số phạt cực lớn
+    BIG_PENALTY = 1e9 
     cost_matrix = np.full((num_players, num_slots), BIG_PENALTY)
 
     for p_idx, row in pool_df.iterrows():
@@ -1200,15 +1207,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         
         score = row['Build_Score']
         
-        if score < -9000: # Bỏ qua cầu thủ lỗi dữ liệu
+        # Chỉ bỏ qua nếu đúng bằng mã lỗi
+        if score == ERROR_SCORE:
             continue
 
         for s_idx, req_pos in enumerate(required_positions):
-            # Kiểm tra vị trí
             can_play = req_pos in full_pos_list
             
-            # Nếu chế độ BMI/Height/Weight, nới lỏng vị trí Tiền Đạo
-            # CF có thể đá slot SS và ngược lại (để tối ưu chỉ số vật lý)
+            # Nới lỏng vị trí cho các mode vật lý
             if 'bmi' in sort_mode or 'height' in sort_mode or 'weight' in sort_mode:
                  if req_pos in ['CF', 'SS'] and ('CF' in full_pos_list or 'SS' in full_pos_list):
                      can_play = True
@@ -1221,7 +1227,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     except Exception as e:
         return []
 
-    # 5. XÂY DỰNG STARTERS (ĐÁ CHÍNH)
+    # 5. XÂY DỰNG STARTERS
     final_squad = [None] * 11
     used_indices = set()
     used_nations = set()
@@ -1239,7 +1245,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
             row = pool_df.iloc[p_idx]
             
-            # Image logic
             pid = str(row.get('Player ID', '')).strip()
             purl = str(row.get('Player URL', '')).strip()
             if not pid and purl:
@@ -1268,10 +1273,11 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         if final_squad[i] is None:
              final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
 
-    # 6. XÂY DỰNG BENCH (DỰ BỊ)
+    # 6. XÂY DỰNG BENCH
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)]
+    # Bỏ qua các cầu thủ lỗi dữ liệu
+    remaining_pool = remaining_pool[remaining_pool['Build_Score'] != ERROR_SCORE]
     
-    # Sort dự bị theo Score đã tính (BMI/Height/Weight...)
     remaining_pool = remaining_pool.sort_values('Build_Score', ascending=False)
     
     bench_picks_rows = []
