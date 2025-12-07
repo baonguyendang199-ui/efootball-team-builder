@@ -4837,40 +4837,27 @@ def main():
                     elif "POTW" in stat_type or "Epic" in stat_type:
                         metric_to_show = 'Type'
 
-                with col_view1:
-                    st.caption(f"📍 Sơ đồ Đá chính (11) - Chế độ xem: {metric_to_show if metric_to_show else 'Mặc định'}")
-                    render_pitch_view(best_squad, highlight_type=metric_to_show)
+                # ... (Phần code tính toán logic metric_to_show ở trên giữ nguyên) ...
+
+                # --- BẮT ĐẦU THAY ĐỔI TỪ ĐÂY ---
+                # Thay vì chia cột, hiển thị Full width
+                st.write("") # Spacer
                 
-                with col_view2:
-                    st.caption("📋 Danh sách Đầy đủ (23)")
-                    
-                    s_df = pd.DataFrame(best_squad)
-                    
-                    if 'Is_Starter' in s_df.columns:
+                # Gọi hàm render mới
+                render_pitch_view(best_squad, highlight_type=metric_to_show)
+                
+                # Nếu muốn hiển thị danh sách dạng text đơn giản để copy (tùy chọn ẩn trong expander)
+                with st.expander("📋 Xem danh sách chi tiết (Dạng bảng)"):
+                     s_df = pd.DataFrame(best_squad)
+                     if 'Is_Starter' in s_df.columns:
                         s_df['Role'] = s_df['Is_Starter'].apply(lambda x: "⭐ START" if x else "🔄 SUB")
-                    
-                    cols_show = ['Role', 'Position', 'Player', 'Rating', 'Club']
-                    if build_mode == "Theo Chỉ số":
-                        if "Cao" in stat_type or "Thấp" in stat_type: cols_show.append('Height')
-                        elif "Nặng" in stat_type or "Nhẹ" in stat_type: cols_show.append('Weight')
-                        elif "Trẻ" in stat_type or "Già" in stat_type: cols_show.append('Age')
-                        elif "United Nations" in stat_type or "Quốc Gia" in stat_type: cols_show.append('Nation')
-                        elif "Ambidextrous" in stat_type or "Chân" in stat_type: cols_show.append('Ambidextrous')
-                        elif "Tanks" in stat_type or "Agiles" in stat_type or "BMI" in stat_type: cols_show.append('BMI')
-                    
-                    final_cols = [c for c in cols_show if c in s_df.columns]
-                    
-                    st.dataframe(
-                        s_df[final_cols], 
+                     
+                     st.dataframe(
+                        s_df[['Role', 'Position', 'Player', 'Rating', 'Club', 'Player Type']], 
                         hide_index=True, 
-                        use_container_width=True, 
-                        height=750,
-                        column_config={
-                            "Rating": st.column_config.NumberColumn("OVR", format="%d"),
-                            "Player": st.column_config.TextColumn("Cầu thủ", width="medium"),
-                            "Role": st.column_config.TextColumn("Vai trò", width="small"),
-                        }
+                        use_container_width=True
                     )
+                # --- KẾT THÚC THAY ĐỔI ---
 
         # =========================================================
         # TAB 2: MANUAL BUILD (GIỮ NGUYÊN)
