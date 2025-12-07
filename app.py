@@ -1314,8 +1314,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
     """
     Vẽ sơ đồ sân bóng: RESPONSIVE MOBILE FINAL VERSION.
     CẬP NHẬT: 
-    - Đẩy DMF lên cao hơn (60%) để tránh đè CB trong sơ đồ 3-2-4-1.
-    - Chuyển Metric Badge sang bên TRÁI.
+    - Đẩy Metric Badge lên cao hẳn (top: -14px) để KHÔNG che mất Position.
     """
     import streamlit.components.v1 as components
     import re
@@ -1470,10 +1469,8 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             html_starters += create_card_html(cmf_list[0], 55, 28)
             html_starters += create_card_html(cmf_list[1], 55, 72)
             
-        # --- CẬP NHẬT LOGIC CHO 2 DMF (SƠ ĐỒ 3-2-4-1) ---
         elif len(dmf_list) == 2 and len(cmf_list) == 0:
-            # Sơ đồ 3-2-4-1 hoặc tương tự. Đẩy DMF lên 60% (thay vì 66% như cũ)
-            # CB ở 78%. DMF ở 60% -> Khoảng cách 18% là đủ an toàn
+            # 2 DMF: Đẩy lên cao (60%) để tránh đè CB (78%)
             html_starters += create_card_html(dmf_list[0], 60, 35)
             html_starters += create_card_html(dmf_list[1], 60, 65)
             
@@ -1489,14 +1486,12 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             midfielders.sort(key=lambda x: x['Position'], reverse=True)
             for i, p in enumerate(midfielders):
                 left_pos = coords[i] if i < len(coords) else 50
-                # Cập nhật: DMF default lên 60, CMF lên 56
                 effective_top = 60 if p['Position'] == 'DMF' else 56
                 html_starters += create_card_html(p, effective_top, left_pos, is_sub=False)
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
     rows_mobile = math.ceil(len(subs) / 4)
-    total_height_mobile = 750 + 80 + (rows_mobile * 110) 
     rows_desktop = math.ceil(len(subs) / 8)
     total_height_desktop = 800 + 60 + (rows_desktop * 130)
 
@@ -1559,11 +1554,11 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             white-space: nowrap; overflow: hidden;
         }
 
-        /* STAT BADGE: ĐÃ CHUYỂN SANG TRÁI */
+        /* --- CẬP NHẬT STAT BADGE: NẰM CAO HƠN & BÊN TRÁI --- */
         .stat-badge { 
             position: absolute; 
-            top: -8px; 
-            left: -6px; /* Thay đổi từ right sang left */
+            top: -14px; /* Đẩy lên cao hơn để không che Position */
+            left: -6px; /* Chuyển sang trái */
             color: #000; font-size: 10px; font-weight: 800; 
             padding: 1px 5px; border-radius: 3px; z-index: 20; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white;
@@ -1587,7 +1582,9 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             
             /* Badge trên mobile */
             .stat-badge {
-                font-size: 9px; padding: 1px 3px; top: -6px; left: -4px;
+                font-size: 9px; padding: 1px 3px; 
+                top: -12px; /* Đẩy lên cao hơn trên mobile */
+                left: -4px; 
             }
             .bench { padding: 10px; }
             .bench-grid { gap: 6px; }
