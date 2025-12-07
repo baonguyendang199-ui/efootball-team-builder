@@ -1485,7 +1485,7 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list, highlight_type=None):
     """
     Vẽ sơ đồ sân bóng: Phong cách TACTICAL BLUEPRINT.
-    CẬP NHẬT: Xử lý logic dàn ngang cho DMF/CMF để không bị đè nhau.
+    CẬP NHẬT: Font chữ 'Inter' & 'Exo 2' (To, Rõ, Dễ đọc), Fix DMF/CMF dàn ngang.
     """
     import streamlit.components.v1 as components
     import re
@@ -1497,9 +1497,20 @@ def render_pitch_view(squad_list, highlight_type=None):
 
     # --- 2. HÀM TẠO CARD HTML ---
     def create_card_html(p, top=None, left=None, is_sub=False):
-        name = p['Player'].split()[-1].upper() if p['Player'] else "UNKNOWN"
-        if len(name) > 10: name = name[:9] + "."
+        # Xử lý tên: Cắt ngắn thông minh hơn
+        full_name = p['Player'].strip()
+        name_parts = full_name.split()
         
+        # Logic hiển thị tên: Nếu tên dài > 2 từ, lấy từ cuối. Nếu ngắn giữ nguyên.
+        if len(name_parts) > 1:
+            display_name = name_parts[-1].upper()
+            # Nếu tên cuối quá dài (>10 ký tự), cắt bớt
+            if len(display_name) > 10:
+                display_name = display_name[:9] + "."
+        else:
+            display_name = full_name.upper()
+            if len(display_name) > 10: display_name = display_name[:9] + "."
+
         rating = p['Rating']
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
@@ -1552,13 +1563,11 @@ def render_pitch_view(squad_list, highlight_type=None):
             <div class="p-img-box">
                 <img src="{img}" loading="lazy" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
             </div>
-            <div class="p-name">{name}</div>
+            <div class="p-name">{display_name}</div>
         </div>
         """
 
-    # --- 3. MAPPING VỊ TRÍ (CẬP NHẬT LOGIC DÀN NGANG) ---
-    
-    # Tách riêng nhóm Tiền vệ trung tâm (DMF/CMF) để xử lý riêng
+    # --- 3. MAPPING VỊ TRÍ (GIỮ NGUYÊN LOGIC DÀN NGANG) ---
     midfielders = []
     others = {}
     
@@ -1571,12 +1580,8 @@ def render_pitch_view(squad_list, highlight_type=None):
             others[pos].append(p)
             
     html_starters = ""
-
-    # A. Xử lý nhóm khác (GK, Hậu vệ, Tiền đạo...) - Logic cũ
     DEPTH_MAP = {
-        'GK': 92,
-        'CB': 76, 'LB': 76, 'RB': 76,
-        # DMF/CMF sẽ được xử lý riêng bên dưới
+        'GK': 92, 'CB': 76, 'LB': 76, 'RB': 76,
         'LMF': 40, 'RMF': 40, 'AMF': 42,
         'LWF': 20, 'RWF': 20, 'SS': 22, 'CF': 15
     }
@@ -1592,7 +1597,7 @@ def render_pitch_view(squad_list, highlight_type=None):
         elif pos in ['RWF', 'RMF']: coords = [85 - (i*15) for i in range(count)]
         else: # CB, AMF, CF
             if count == 1: coords = [50]
-            elif count == 2: coords = [35, 65] # Giãn rộng ra xíu
+            elif count == 2: coords = [35, 65]
             elif count == 3: coords = [30, 50, 70]
             elif count == 4: coords = [20, 40, 60, 80]
             else: coords = [10 + (i * (80/(count))) for i in range(count)]
@@ -1601,55 +1606,39 @@ def render_pitch_view(squad_list, highlight_type=None):
             left_pos = coords[i] if i < len(coords) else 50
             html_starters += create_card_html(p, row_top, left_pos, is_sub=False)
 
-    # B. Xử lý nhóm Tiền vệ trung tâm (DMF + CMF) - Logic MỚI
-    # Gom chung DMF và CMF lại để tính toán tọa độ X sao cho không đè nhau
     mid_count = len(midfielders)
     if mid_count > 0:
-        # Sắp xếp: Ưu tiên DMF đứng giữa/dưới nếu cần (tùy logic), nhưng ở đây ta xếp theo thứ tự list
-        # Mặc định Depth (độ sâu):
-        # - Nếu toàn DMF hoặc toàn CMF: Ngang hàng.
-        # - Nếu mix: Có thể để DMF thấp hơn xíu hoặc ngang bằng. 
-        # => User yêu cầu "Ngang", nên ta set row_top cố định khoảng 60%
+        if mid_count == 1: coords = [50]
+        elif mid_count == 2: coords = [35, 65]
+        elif mid_count == 3: coords = [25, 50, 75]
+        else: coords = [20, 40, 60, 80]
         
-        mid_row_top = 60 # Vị trí trung tâm
-        
-        if mid_count == 1:
-            coords = [50]
-        elif mid_count == 2:
-            coords = [35, 65] # Dàn sang 2 bên (Trái/Phải) thay vì trên dưới
-        elif mid_count == 3:
-            coords = [25, 50, 75] # Dàn đều 3 người
-        else:
-            coords = [20, 40, 60, 80] # Dàn 4 người (hiếm gặp)
-            
-        # Sắp xếp lại list midfielders để DMF có xu hướng nằm ở các vị trí trung tâm hoặc dưới (nếu muốn)
-        # Ở đây ta giữ nguyên thứ tự hoặc sort theo Position string cũng được
-        midfielders.sort(key=lambda x: x['Position'], reverse=True) # DMF trước CMF
+        midfielders.sort(key=lambda x: x['Position'], reverse=True)
 
         for i, p in enumerate(midfielders):
             left_pos = coords[i] if i < len(coords) else 50
-            # Nếu là DMF có thể để thấp hơn xíu (62%), CMF cao hơn xíu (58%) để tạo chiều sâu nhẹ
-            # Nhưng user thích ngang thì để cùng 60% hoặc chênh lệch rất ít
             effective_top = 62 if p['Position'] == 'DMF' else 58
-            
-            # Tuy nhiên, quan trọng nhất là Coordinates X (left_pos) đã được tách ra
             html_starters += create_card_html(p, effective_top, left_pos, is_sub=False)
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    # --- 4. CSS (TACTICAL BLUEPRINT STYLE) ---
+    # --- 4. CSS (FONT MỚI: INTER & EXO 2) ---
     css = """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;600;700&display=swap');
+        /* Import Font: Inter (Tên) và Exo 2 (Số liệu) */
+        @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@600;700;800&family=Inter:wght@500;600;700&display=swap');
         
         :root {
             --bg-dark: #0f172a;
             --bg-panel: #1e293b;
             --pitch-line: rgba(148, 163, 184, 0.2);
-            --text-main: #e2e8f0;
         }
 
-        body { margin: 0; background: transparent; font-family: 'Teko', sans-serif; overflow: hidden; }
+        body { 
+            margin: 0; background: transparent; 
+            font-family: 'Inter', sans-serif; /* Font mặc định dễ đọc */
+            overflow: hidden; 
+        }
         
         .container {
             display: flex; flex-direction: column; gap: 20px;
@@ -1680,34 +1669,47 @@ def render_pitch_view(squad_list, highlight_type=None):
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 50%; height: 15%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
 
         .p-card {
-            position: relative; width: 90px; height: 115px;
+            position: relative; width: 100px; height: 125px; /* Thẻ to hơn xíu để chữ thoáng */
             border-radius: 8px; cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            z-index: 10;
+            transition: all 0.2s ease-out; z-index: 10;
         }
         
         .card-pitch { position: absolute; }
-        .card-sub { position: relative; width: 80px; height: 100px; margin-bottom: 10px;}
+        .card-sub { position: relative; width: 90px; height: 110px; margin-bottom: 10px;}
 
         .p-bg {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(180deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.9) 100%);
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-bottom: 3px solid var(--accent);
-            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1;
+            background: linear-gradient(180deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.95) 100%);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-bottom: 4px solid var(--accent);
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 1;
         }
 
-        .p-card:hover { transform: translate(-50%, -60%) scale(1.2) !important; z-index: 100; }
+        .p-card:hover { transform: translate(-50%, -60%) scale(1.15) !important; z-index: 100; }
         .card-sub:hover { transform: translateY(-10px) scale(1.1) !important; z-index: 100; }
-        .p-card:hover .p-bg { background: rgba(15,23,42,0.95); border-color: var(--accent); box-shadow: 0 0 20px var(--shadow); }
+        .p-card:hover .p-bg { background: rgba(15,23,42,0.98); border-color: var(--accent); }
 
-        .p-header { position: absolute; top: 4px; left: 6px; right: 6px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
-        .p-pos { font-size: 12px; font-weight: 600; color: #94a3b8; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; }
-        .p-rating { font-size: 18px; font-weight: 700; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        .p-header { 
+            position: absolute; top: 5px; left: 8px; right: 8px; 
+            display: flex; justify-content: space-between; align-items: center; z-index: 3; 
+        }
+        
+        .p-pos { 
+            font-family: 'Exo 2', sans-serif; /* Font đậm, thể thao */
+            font-size: 11px; font-weight: 700; 
+            color: #cbd5e1; background: rgba(0,0,0,0.5); 
+            padding: 2px 5px; border-radius: 4px; 
+        }
+        
+        .p-rating { 
+            font-family: 'Exo 2', sans-serif; /* Font số rõ ràng */
+            font-size: 20px; font-weight: 800; line-height: 1; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8); 
+        }
 
         .p-img-box {
-            position: absolute; bottom: 20px; left: 0; width: 100%; height: 85px;
+            position: absolute; bottom: 26px; left: 0; width: 100%; height: 90px;
             z-index: 2; display: flex; justify-content: center; align-items: flex-end;
             overflow: hidden; border-radius: 0 0 8px 8px;
         }
@@ -1715,19 +1717,38 @@ def render_pitch_view(squad_list, highlight_type=None):
         .p-card:hover .p-img-box img { transform: scale(1.1); }
 
         .p-name {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 22px;
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 26px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
-            color: #fff; background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            
+            /* FONT QUAN TRỌNG NHẤT: INTER */
+            font-family: 'Inter', sans-serif;
+            font-size: 13px; /* Tăng size chữ */
+            font-weight: 600; /* Đậm vừa phải */
+            letter-spacing: 0.3px;
+            
+            color: #fff; background: rgba(2, 6, 23, 0.85);
             z-index: 4; border-radius: 0 0 8px 8px;
+            border-top: 1px solid rgba(255,255,255,0.05);
         }
 
-        .stat-badge { position: absolute; top: -10px; right: -5px; color: #000; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
-        .empty-slot { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transform: translate(-50%, -50%); }
+        .stat-badge { 
+            position: absolute; top: -10px; right: -5px; 
+            font-family: 'Inter', sans-serif;
+            color: #000; font-size: 11px; font-weight: 700; 
+            padding: 2px 7px; border-radius: 4px; z-index: 20; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid white;
+        }
+        
+        .empty-slot { 
+            width: 70px; height: 70px; border-radius: 50%; 
+            border: 2px dashed rgba(255,255,255,0.2); 
+            background: rgba(255,255,255,0.02); 
+            transform: translate(-50%, -50%); 
+        }
 
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; }
-        .bench-title { color: #64748b; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
-        .bench-grid { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+        .bench-title { color: #94a3b8; font-family: 'Exo 2', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+        .bench-grid { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
     </style>
     """
     
@@ -1747,7 +1768,7 @@ def render_pitch_view(squad_list, highlight_type=None):
                 {html_starters}
             </div>
             <div class="bench">
-                <div class="bench-title">Substitute ({len(subs)})</div>
+                <div class="bench-title">Dự bị ({len(subs)})</div>
                 <div class="bench-grid">
                     {html_subs}
                 </div>
@@ -1757,7 +1778,7 @@ def render_pitch_view(squad_list, highlight_type=None):
     </html>
     """
     
-    components.html(html_content, height=1100, scrolling=False)
+    components.html(html_content, height=1150, scrolling=False)
 
 # ==========================================
 # KẾT THÚC BƯỚC 1
