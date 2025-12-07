@@ -1086,59 +1086,56 @@ FORMATIONS = {
 
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
-    Tự động xây dựng đội hình tối ưu sử dụng thuật toán Linear Sum Assignment (Hungarian Algorithm).
-    Đây là thuật toán "Globalization" cũ: Tối ưu hóa tổng điểm toàn đội hình.
+    Tự động xây dựng đội hình tối ưu sử dụng thuật toán Linear Sum Assignment.
+    CẬP NHẬT: Lưu điểm tối ưu (Optimization_Score) để hàm tìm sơ đồ dùng lại chính xác.
     """
-    # 1. SAO CHÉP VÀ CHUẨN HÓA DỮ LIỆU
+    # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
     
-    # Chuẩn hóa các cột số liệu để tính toán
-    if 'Height' in pool_df.columns: 
-        pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
-    if 'Weight' in pool_df.columns: 
-        pool_df['Weight_num'] = pd.to_numeric(pool_df['Weight'], errors='coerce').fillna(0)
-    if 'Age' in pool_df.columns: 
-        pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
+    # Helper convert số an toàn
+    def to_num(col):
+        return pd.to_numeric(pool_df[col], errors='coerce').fillna(0)
+
+    if 'Height' in pool_df.columns: pool_df['Height_num'] = to_num('Height')
+    if 'Weight' in pool_df.columns: pool_df['Weight_num'] = to_num('Weight')
+    if 'Age' in pool_df.columns: pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
     
-    # Chuẩn hóa Secondary Positions (Quan trọng cho thuật toán tìm vị trí)
     if 'Secondary Positions' not in pool_df.columns:
         pool_df['Secondary Positions'] = ""
     else:
         pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper().str.strip()
 
-    # 2. LỌC DỮ LIỆU (Theo yêu cầu User: Club, Nation, League...)
+    # 2. LỌC DỮ LIỆU
     if filter_col and filter_val and filter_val != "(Tất cả)":
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
         
     if pool_df.empty:
         return []
 
-    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING SYSTEM)
-    # Build_Score càng cao thì cầu thủ càng phù hợp với tiêu chí sort_mode
+    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
+    # Thêm Rating/1000 vào các chỉ số phụ để làm Tie-breaker (Ưu tiên thẻ mạnh nếu chỉ số bằng nhau)
     def calculate_score(row):
-        # --- A. RATING (Mặc định - Logic cũ) ---
+        rating_bonus = row['Rating'] / 10000.0 
+        
         if sort_mode == 'rating_desc': 
-            # Ưu tiên nhẹ (0.1) cho thẻ Non-Epic (Epic_Priority=1) để tránh xếp full Epic nếu chỉ số ngang nhau
-            # Hoặc giữ nguyên rating thuần túy
             return row['Rating'] + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
             
-        # --- B. THỂ CHẤT ---
-        elif sort_mode == 'height_desc': return row['Height_num']
-        elif sort_mode == 'height_asc': return -row['Height_num'] # Số âm để tìm Min
-        elif sort_mode == 'weight_desc': return row['Weight_num']
-        elif sort_mode == 'weight_asc': return -row['Weight_num']
-        elif sort_mode == 'age_desc': return row['Age_num']
-        elif sort_mode == 'age_asc': return -row['Age_num']
+        elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
+        elif sort_mode == 'height_asc': return -row['Height_num'] + rating_bonus
+        elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
+        elif sort_mode == 'weight_asc': return -row['Weight_num'] + rating_bonus
+        elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
+        elif sort_mode == 'age_asc': return -row['Age_num'] + rating_bonus
 
-        # --- C. BMI ---
         elif 'bmi' in sort_mode:
             h_m = row['Height_num'] / 100.0
             if h_m > 0:
                 bmi = row['Weight_num'] / (h_m ** 2)
-                return bmi if sort_mode == 'bmi_desc' else -bmi
-            return -999
+                # BMI lớn nhất hoặc nhỏ nhất
+                base_score = bmi if sort_mode == 'bmi_desc' else -bmi
+                return base_score + rating_bonus
+            return -999 # Phạt nặng nếu không có chiều cao
 
-        # --- D. KHÁC ---
         elif sort_mode == 'ambidextrous':
             u_str = str(row.get('Weak Foot Usage', '')).strip().lower()
             a_str = str(row.get('Weak Foot Accuracy', '')).strip().lower()
@@ -1157,66 +1154,48 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
         return row['Rating']
 
-    # Áp dụng tính điểm
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
-    
-    # Reset index để mapping với ma trận
     pool_df = pool_df.reset_index(drop=True)
 
-    # 4. THUẬT TOÁN TỐI ƯU HÓA TOÀN CỤC (GLOBALIZATION / HUNGARIAN)
+    # 4. THUẬT TOÁN HUNGARIAN
     required_positions = FORMATIONS.get(formation_name, [])
-    num_slots = len(required_positions) # 11 vị trí
+    num_slots = len(required_positions)
     num_players = len(pool_df)
     
-    # Cost Matrix: [Số cầu thủ x Số vị trí]
-    # Cost = -Score (Vì thuật toán tìm Min Cost => Tương đương tìm Max Score)
     BIG_PENALTY = 1000000
     cost_matrix = np.full((num_players, num_slots), BIG_PENALTY)
 
-    # Duyệt điền ma trận
     for p_idx, row in pool_df.iterrows():
         p_main_pos = str(row['Position']).strip().upper()
-        p_sec_pos_str = str(row['Secondary Positions']).strip().upper()
-        p_sec_pos_list = [s.strip() for s in p_sec_pos_str.split(',') if s.strip()]
-        
+        p_sec_pos_list = [s.strip() for s in str(row['Secondary Positions']).split(',') if s.strip()]
         score = row['Build_Score']
         
         for s_idx, req_pos in enumerate(required_positions):
-            # Điều kiện: Vị trí chính HOẶC Vị trí phụ
             can_play = (p_main_pos == req_pos) or (req_pos in p_sec_pos_list)
-            
             if can_play:
-                cost_matrix[p_idx, s_idx] = -score  # Dùng số âm cho Hungarian Algorithm
+                cost_matrix[p_idx, s_idx] = -score
 
-    # --- CHẠY THUẬT TOÁN ---
     try:
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
     except Exception as e:
-        print(f"Error in optimization: {e}")
         return []
 
-    # 5. XÂY DỰNG ĐỘI HÌNH ĐÁ CHÍNH (STARTING XI)
+    # 5. XÂY DỰNG STARTERS
     final_squad = [None] * 11
     used_indices = set()
-    used_nations = set() # Dùng cho mode United Nations
+    used_nations = set()
 
     for i in range(len(row_ind)):
         p_idx = row_ind[i]
         s_idx = col_ind[i]
         
-        # Chỉ chấp nhận nếu cost hợp lệ (không phải penalty)
         if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
-            
-            # Logic United Nations
             if sort_mode == 'united_nations':
                 nat = str(pool_df.at[p_idx, 'Nation']).strip()
-                if nat in used_nations and nat != "":
-                    continue 
+                if nat in used_nations and nat != "": continue 
                 used_nations.add(nat)
 
             row = pool_df.iloc[p_idx]
-            
-            # Xử lý hình ảnh
             pid = str(row.get('Player ID', '')).strip()
             purl = str(row.get('Player URL', '')).strip()
             if not pid and purl:
@@ -1224,44 +1203,28 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 pid = m.group(1) if m else ""
             img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
-            player_obj = {
+            final_squad[s_idx] = {
                 "Is_Starter": True,
-                "Position": required_positions[s_idx], # Vị trí trong sơ đồ
-                "Real_Position": row['Position'],      # Vị trí gốc
+                "Position": required_positions[s_idx],
+                "Real_Position": row['Position'],
                 "Player": row['Player'],
                 "Rating": row['Rating'],
                 "Type": row['Player Type'],
-                "Club": row['Club'],
-                "Nation": row['Nation'],
+                "Image": img_url,
                 "Height": row.get('Height', ''),
                 "Weight": row.get('Weight', ''),
                 "Age": row.get('Age', ''),
-                "Image": img_url,
+                "Score": row['Build_Score'], # QUAN TRỌNG: Lưu điểm để tính tổng sơ đồ
                 "Data": row.to_dict()
             }
-            
-            final_squad[s_idx] = player_obj
             used_indices.add(p_idx)
 
-    # Fill slot trống
     for i in range(11):
         if final_squad[i] is None:
-             final_squad[i] = {
-                "Is_Starter": True, 
-                "Position": required_positions[i], 
-                "Player": "---", 
-                "Rating": 0, 
-                "Type": "N/A", 
-                "Image": None
-            }
+             final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999}
 
-    # 6. XÂY DỰNG DỰ BỊ (SUBSTITUTES) - SORT THEO TIÊU CHÍ & GIỚI HẠN GK
-    # Lấy pool còn lại
+    # 6. XÂY DỰNG BENCH
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)]
-    
-    # QUAN TRỌNG: Sort remaining_pool theo Build_Score
-    # Nếu đang chọn Tallest, Build_Score là Height -> Sort Height giảm dần
-    # Nếu đang chọn Shortest, Build_Score là -Height -> Sort -Height giảm dần (tức là Height tăng dần)
     remaining_pool = remaining_pool.sort_values('Build_Score', ascending=False)
     
     bench_picks_rows = []
@@ -1269,23 +1232,16 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     for idx, row in remaining_pool.iterrows():
         if len(bench_picks_rows) >= 12: break
-            
-        # Check GK Limit
         is_gk = str(row.get('Position', '')).strip().upper() == 'GK'
-        if is_gk and gk_on_bench_count >= 1:
-            continue # Skip nếu đã có 1 GK dự bị
-
-        # United Nations Logic
+        if is_gk and gk_on_bench_count >= 1: continue
         if sort_mode == 'united_nations':
             p_nation = str(row.get('Nation', '')).strip()
-            if p_nation and p_nation in used_nations:
-                continue
+            if p_nation and p_nation in used_nations: continue
             used_nations.add(p_nation)
 
         bench_picks_rows.append(row)
         if is_gk: gk_on_bench_count += 1
-        
-    # Format dữ liệu dự bị
+            
     for row in bench_picks_rows:
         r_get = row.get if isinstance(row, dict) else row.get
         pid = str(r_get('Player ID', '')).strip()
@@ -1295,163 +1251,60 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             pid = m.group(1) if m else ""
         img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
         
-        row_data = row if isinstance(row, dict) else row.to_dict()
-
         final_squad.append({
             "Is_Starter": False,
             "Position": r_get('Position'),
-            "Real_Position": r_get('Position'),
             "Player": r_get('Player'),
             "Rating": r_get('Rating'),
             "Type": r_get('Player Type'),
-            "Club": r_get('Club'),
-            "Nation": r_get('Nation'),
+            "Image": img_url,
             "Height": r_get('Height', ''),
             "Weight": r_get('Weight', ''),
             "Age": r_get('Age', ''),
-            "Image": img_url,
-            "Data": row_data
+            "Score": r_get('Build_Score'),
+            "Data": row.to_dict() if hasattr(row, 'to_dict') else row
         })
 
     return final_squad
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Tìm sơ đồ tối ưu dựa trên tiêu chí (Sort Mode).
-    - Nếu sort theo Rating: Ưu tiên Rating cao + Có DMF.
-    - Nếu sort theo Chiều cao: Ưu tiên Tổng chiều cao lớn nhất (Bất chấp vị trí).
-    - Nếu sort theo Tuổi: Ưu tiên Tổng tuổi lớn nhất/nhỏ nhất.
+    Tìm sơ đồ tối ưu dựa trên tổng điểm 'Optimization_Score' đã được tính trong auto_build_squad.
+    Cách này đảm bảo tính nhất quán tuyệt đối giữa việc xếp cầu thủ và chọn sơ đồ.
     """
-    best_score = -float('inf') # Điểm thấp vô cùng
+    best_score = -float('inf')
     best_squad = []
     best_formation_name = ""
-
-    # Helper: Lấy giá trị số từ chuỗi (vd: "194cm" -> 194.0)
-    def get_numeric_value(player_data, key):
-        try:
-            val_str = str(player_data.get(key, 0))
-            return float(re.sub(r'[^\d.]', '', val_str))
-        except:
-            return 0
 
     # Quét qua toàn bộ sơ đồ
     for form_name in FORMATIONS.keys():
         # Build thử đội hình
         squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
         
-        # Chỉ lấy 11 người ĐÁ CHÍNH để tính điểm
+        # Lấy 11 người ĐÁ CHÍNH
         starters = [p for p in squad if p.get('Is_Starter', False)]
         
-        # Đếm số người thực (không phải "---")
-        valid_starters = [p for p in starters if p['Rating'] > 0]
-        count_valid = len(valid_starters)
+        # Kiểm tra số lượng người hợp lệ
+        valid_starters = [p for p in starters if p['Player'] != "---"]
         
-        # Phạt nặng nếu thiếu người
+        # Nếu thiếu người đá chính -> Phạt nặng
         if len(valid_starters) < 11:
-            current_score = -10000000 
+            current_total_score = -1e15 # Số âm cực lớn
         else:
-            # =========================================
-            # 🆕 LOGIC TÍNH ĐIỂM SƠ ĐỒ MỚI
-            # =========================================
+            # QUAN TRỌNG: Cộng tổng điểm 'Score' mà hàm auto_build_squad đã tính
+            # Điểm này đã bao gồm Logic BMI, Height, Weight, Rating tie-breaker v.v...
+            current_total_score = sum(p.get('Score', 0) for p in valid_starters)
             
-            # 1. BMI (Tanks / Agiles)
-            if 'bmi' in sort_mode:
-                total_bmi = 0
-                for p in valid_starters:
-                    h = get_numeric_value(p, 'Height') / 100.0
-                    w = get_numeric_value(p, 'Weight')
-                    if h > 0: total_bmi += (w / (h**2))
-                
-                if sort_mode == 'bmi_desc': current_score = total_bmi
-                else: current_score = -total_bmi
-
-            # 2. Ambidextrous (2 chân như 1)
-            elif sort_mode == 'ambidextrous':
-                score_bonus = 0
-                total_rating = 0
-                
-                for p in valid_starters:
-                    data = p.get('Data', {})
-                    u_str = str(data.get('Weak Foot Usage', '')).strip().lower()
-                    a_str = str(data.get('Weak Foot Accuracy', '')).strip().lower()
-                    
-                    # Check Tier 1
-                    is_usage_perfect = 'regularly' in u_str or '4' in u_str
-                    is_acc_perfect = 'very high' in a_str or '4' in a_str
-                    
-                    # Check Tier 2
-                    is_usage_good = is_usage_perfect or 'occasionally' in u_str or '3' in u_str
-                    is_acc_good = is_acc_perfect or 'high' in a_str or '3' in a_str
-
-                    if is_usage_perfect and is_acc_perfect:
-                        score_bonus += 20000 # Điểm thưởng lớn
-                    elif is_usage_good and is_acc_good:
-                        score_bonus += 10000 # Điểm thưởng vừa
-                        
-                    total_rating += p['Rating']
-                
-                current_score = score_bonus + total_rating
-
-            # 3. POTW Only
-            elif sort_mode == 'potw_only':
-                count_potw = 0
-                total_rating = 0
-                for p in valid_starters:
-                    if 'POTW' in str(p['Type']).upper() or 'TRENDING' in str(p['Type']).upper():
-                        count_potw += 1
-                    total_rating += p['Rating']
-                current_score = (count_potw * 10000) + total_rating
-
-            # 4. United Nations
-            elif sort_mode == 'united_nations':
-                # Đếm số quốc gia duy nhất
-                unique_nations = set(p['Nation'] for p in valid_starters if p['Nation'])
-                total_rating = sum(p['Rating'] for p in valid_starters)
-                
-                # Ưu tiên sơ đồ nào xếp được nhiều quốc gia nhất
-                current_score = (len(unique_nations) * 100000) + total_rating
-            
-            # 1. CASE: RATING (MẶC ĐỊNH)
+            # Bonus đặc biệt cho Rating mode (Ưu tiên DMF)
             if sort_mode == 'rating_desc':
-                # Cộng tổng Rating
-                current_score = sum(p['Rating'] for p in valid_starters)
-                
-                # Ưu tiên DMF (Chỉ áp dụng khi build đội hình mạnh nhất)
                 has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
                 needs_dmf = "DMF" in FORMATIONS[form_name]
-                if has_dmf: current_score += 50000 # Bonus cực lớn cho đội có DMF
-                elif needs_dmf: current_score -= 20000 # Phạt nếu cần DMF mà không có
-            
-            # 2. CASE: CHIỀU CAO (TALLEST / SHORTEST)
-            elif 'height' in sort_mode:
-                total_height = sum(get_numeric_value(p, 'Height') for p in valid_starters)
-                
-                if sort_mode == 'height_desc': # Tallest
-                    current_score = total_height 
-                else: # Shortest (Ưu tiên chiều cao thấp -> Điểm càng thấp càng tốt -> Lấy âm)
-                    current_score = -total_height 
+                if has_dmf: current_total_score += 50000 
+                elif needs_dmf: current_total_score -= 20000
 
-            # 3. CASE: CÂN NẶNG (HEAVIEST / LIGHTEST)
-            elif 'weight' in sort_mode:
-                total_weight = sum(get_numeric_value(p, 'Weight') for p in valid_starters)
-                
-                if sort_mode == 'weight_desc': 
-                    current_score = total_weight
-                else: 
-                    current_score = -total_weight
-
-            # 4. CASE: TUỔI (OLDEST / YOUNGEST)
-            elif 'age' in sort_mode:
-                total_age = sum(get_numeric_value(p, 'Age') for p in valid_starters)
-                
-                if sort_mode == 'age_desc': # Oldest
-                    current_score = total_age
-                else: # Youngest
-                    current_score = -total_age
-
-        # So sánh và cập nhật Best Team
-        if current_score > best_score:
-            best_score = current_score
+        # So sánh và cập nhật
+        if current_total_score > best_score:
+            best_score = current_total_score
             best_squad = squad
             best_formation_name = form_name
             
