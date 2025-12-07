@@ -1310,51 +1310,63 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
             
     return best_formation_name, best_squad
 
-def render_pitch_view(squad_list, highlight_type=None):
+def render_pitch_view(squad_list, sort_mode='rating_desc'):
     """
     Vẽ sơ đồ sân bóng: Phong cách TACTICAL BLUEPRINT.
-    CẬP NHẬT: 
-    - Dự bị sort theo tiêu chí (Height, Weight...) thay vì Rating.
-    - Fix font chữ, Fix vị trí DMF/CMF.
+    CẬP NHẬT:
+    1. Logic Sort dự bị: Tự động đảo chiều (Tăng/Giảm) tùy theo sort_mode (Shortest/Lightest).
+    2. Logic Tiền vệ thông minh: 1 DMF + 2 CMF sẽ xếp thành hình tam giác ngược (DMF thấp nhất).
     """
     import streamlit.components.v1 as components
     import re
 
-    # --- 1. PHÂN LOẠI & SẮP XẾP ---
+    # --- 1. XÁC ĐỊNH KIỂU HIGHLIGHT & CHIỀU SORT ---
+    highlight_type = None
+    is_reverse = True # Mặc định là Giảm dần (Cao -> Thấp, Nặng -> Nhẹ, Rating cao -> Thấp)
+
+    if 'height' in sort_mode: 
+        highlight_type = 'Height'
+        if 'asc' in sort_mode: is_reverse = False # Shortest -> Tăng dần (Thấp lên đầu)
+    elif 'weight' in sort_mode: 
+        highlight_type = 'Weight'
+        if 'asc' in sort_mode: is_reverse = False # Lightest -> Tăng dần (Nhẹ lên đầu)
+    elif 'age' in sort_mode: 
+        highlight_type = 'Age'
+        if 'asc' in sort_mode: is_reverse = False # Youngest -> Tăng dần (Trẻ lên đầu)
+    elif 'bmi' in sort_mode: 
+        highlight_type = 'BMI'
+        if 'asc' in sort_mode: is_reverse = False # Agiles -> Tăng dần
+    elif 'potw' in sort_mode: highlight_type = 'Type'
+    elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous'
+    elif 'united_nations' in sort_mode: highlight_type = 'Nation'
+
+    # --- 2. PHÂN LOẠI DATA ---
     starters = [p for p in squad_list if p.get('Is_Starter', False)]
     raw_subs = [p for p in squad_list if not p.get('Is_Starter', False)]
 
-    # --- HÀM HELPER: LẤY GIÁ TRỊ SỐ ĐỂ SORT ---
+    # Helper lấy giá trị số
     def get_sort_value(p, key):
-        try:
-            val_str = str(p.get(key, '0'))
-            # Lấy số từ chuỗi (vd: "190cm" -> 190.0)
-            return float(re.sub(r'[^\d.]', '', val_str))
-        except:
-            return 0
+        try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
+        except: return 0
 
-    # --- LOGIC SORT DỰ BỊ ---
+    # Logic Sort Dự bị (Đã fix chiều sort)
     if highlight_type == 'Height':
-        # Sort Cao -> Thấp
-        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Height'), reverse=True)
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Height'), reverse=is_reverse)
     elif highlight_type == 'Weight':
-        # Sort Nặng -> Nhẹ
-        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Weight'), reverse=True)
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Weight'), reverse=is_reverse)
     elif highlight_type == 'Age':
-        # Sort Già -> Trẻ (Để những người lớn tuổi nhất lên đầu)
-        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Age'), reverse=True)
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Age'), reverse=is_reverse)
     elif highlight_type == 'BMI':
-        # Sort BMI Cao -> Thấp
         def get_bmi(p):
             h = get_sort_value(p, 'Height') / 100.0
             w = get_sort_value(p, 'Weight')
             return w / (h**2) if h > 0 else 0
-        subs = sorted(raw_subs, key=get_bmi, reverse=True)
+        subs = sorted(raw_subs, key=get_bmi, reverse=is_reverse)
     else:
-        # Mặc định: Sort theo Rating
+        # Mặc định sort theo Rating giảm dần
         subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
-    # --- 2. HÀM TẠO CARD HTML ---
+    # --- 3. HÀM TẠO CARD HTML ---
     def create_card_html(p, top=None, left=None, is_sub=False):
         full_name = p['Player'].strip()
         name_parts = full_name.split()
@@ -1421,19 +1433,21 @@ def render_pitch_view(squad_list, highlight_type=None):
         </div>
         """
 
-    # --- 3. MAPPING VỊ TRÍ ---
-    midfielders = []
-    others = {}
+    # --- 4. MAPPING VỊ TRÍ CHIẾN THUẬT ---
+    
+    # Tách nhóm tiền vệ
+    midfielders = [p for p in starters if p['Position'] in ['DMF', 'CMF']]
+    others = {} # Nhóm còn lại (GK, DEF, ATT)
     
     for p in starters:
-        pos = p['Position']
-        if pos in ['DMF', 'CMF']:
-            midfielders.append(p)
-        else:
+        if p['Position'] not in ['DMF', 'CMF']:
+            pos = p['Position']
             if pos not in others: others[pos] = []
             others[pos].append(p)
             
     html_starters = ""
+
+    # A. Xếp nhóm cơ bản (GK, Def, Att)
     DEPTH_MAP = {
         'GK': 92, 'CB': 76, 'LB': 76, 'RB': 76,
         'LMF': 40, 'RMF': 40, 'AMF': 42,
@@ -1460,23 +1474,48 @@ def render_pitch_view(squad_list, highlight_type=None):
             left_pos = coords[i] if i < len(coords) else 50
             html_starters += create_card_html(p, row_top, left_pos, is_sub=False)
 
-    mid_count = len(midfielders)
-    if mid_count > 0:
-        if mid_count == 1: coords = [50]
-        elif mid_count == 2: coords = [35, 65]
-        elif mid_count == 3: coords = [25, 50, 75]
-        else: coords = [20, 40, 60, 80]
-        
-        midfielders.sort(key=lambda x: x['Position'], reverse=True)
+    # B. Xếp nhóm Tiền vệ (Smart Midfield Logic)
+    # Phân loại cụ thể
+    dmf_list = [p for p in midfielders if p['Position'] == 'DMF']
+    cmf_list = [p for p in midfielders if p['Position'] == 'CMF']
+    mid_total = len(midfielders)
 
-        for i, p in enumerate(midfielders):
-            left_pos = coords[i] if i < len(coords) else 50
-            effective_top = 62 if p['Position'] == 'DMF' else 58
-            html_starters += create_card_html(p, effective_top, left_pos, is_sub=False)
+    if mid_total > 0:
+        # Case 1: 1 DMF + 2 CMF (Tam giác ngược - Yêu cầu của bạn)
+        if len(dmf_list) == 1 and len(cmf_list) == 2:
+            # DMF đá thấp nhất (Giữa)
+            html_starters += create_card_html(dmf_list[0], 64, 50)
+            # 2 CMF đá cao hơn và rộng ra
+            html_starters += create_card_html(cmf_list[0], 54, 30)
+            html_starters += create_card_html(cmf_list[1], 54, 70)
+        
+        # Case 2: 2 DMF + 1 CMF (Tam giác thuận)
+        elif len(dmf_list) == 2 and len(cmf_list) == 1:
+            # 2 DMF đá thấp
+            html_starters += create_card_html(dmf_list[0], 64, 35)
+            html_starters += create_card_html(dmf_list[1], 64, 65)
+            # 1 CMF đá cao (Giữa)
+            html_starters += create_card_html(cmf_list[0], 54, 50)
+            
+        # Case 3: Các trường hợp còn lại (Dàn đều)
+        else:
+            if mid_total == 1: coords = [50]
+            elif mid_total == 2: coords = [35, 65]
+            elif mid_total == 3: coords = [25, 50, 75]
+            else: coords = [20, 40, 60, 80]
+            
+            # Sort để DMF ưu tiên nằm ở giữa hoặc các vị trí focus
+            midfielders.sort(key=lambda x: x['Position'], reverse=True) # DMF trước
+
+            for i, p in enumerate(midfielders):
+                left_pos = coords[i] if i < len(coords) else 50
+                # DMF luôn thấp hơn (62%) so với CMF (56%)
+                effective_top = 62 if p['Position'] == 'DMF' else 56
+                html_starters += create_card_html(p, effective_top, left_pos, is_sub=False)
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    # --- 4. CSS (GIỮ NGUYÊN STYLE MỚI) ---
+    # --- 5. CSS (STYLE INTER & EXO 2) ---
     css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@600;700;800&family=Inter:wght@500;600;700&display=swap');
@@ -1488,7 +1527,6 @@ def render_pitch_view(squad_list, highlight_type=None):
         }
 
         body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
-        
         .container { display: flex; flex-direction: column; gap: 20px; max-width: 1000px; margin: 0 auto; }
 
         .pitch {
@@ -1512,11 +1550,7 @@ def render_pitch_view(squad_list, highlight_type=None):
         .box-top { position: absolute; top: -2px; left: 50%; width: 50%; height: 15%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-top: none; }
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 50%; height: 15%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
 
-        .p-card {
-            position: relative; width: 100px; height: 125px;
-            border-radius: 8px; cursor: pointer; transition: all 0.2s ease-out; z-index: 10;
-        }
-        
+        .p-card { position: relative; width: 100px; height: 125px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-out; z-index: 10; }
         .card-pitch { position: absolute; }
         .card-sub { position: relative; width: 90px; height: 110px; margin-bottom: 10px;}
 
@@ -4726,7 +4760,7 @@ def main():
                 st.write("") # Spacer
                 
                 # Gọi hàm render mới
-                render_pitch_view(best_squad, highlight_type=metric_to_show)
+                render_pitch_view(best_squad, sort_mode=sort_mode)
                
 
         # =========================================================
