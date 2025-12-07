@@ -1491,7 +1491,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
 
     for i, p in enumerate(att_mid_list):
         left_pos = coords[i] if i < len(coords) else 50
-        html_starters += create_card_html(p, 36, left_pos)
+        html_starters += create_card_html(p, 30, left_pos)
 
     # 4.6 TIỀN ĐẠO (14-20%)
     wings = [p for p in fwd_list if p['Position'] in ['LWF', 'RWF']]
