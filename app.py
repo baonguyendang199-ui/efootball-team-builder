@@ -1449,13 +1449,38 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         elif highlight_type == 'Ambidextrous':
             d = p.get('Data', {})
             def get_wf_num(text):
-                t = str(text).lower()
-                if '4' in t or 'regularly' in t or 'very high' in t: return '4'
-                if '3' in t or 'high' in t: return '3'
-                if '2' in t or 'medium' in t: return '2'
+                t = str(text).strip().lower()
+                
+                # Mức 4: Thường xuyên / Rất cao
+                if any(k in t for k in ['regularly', 'very high', '4']): 
+                    return '4'
+                
+                # Mức 3: Thỉnh thoảng / Cao (Đây là cái bạn đang thiếu)
+                if any(k in t for k in ['occasionally', 'high', '3']): 
+                    return '3'
+                
+                # Mức 2: Hiếm khi / Trung bình
+                if any(k in t for k in ['rarely', 'medium', '2']): 
+                    return '2'
+                
+                # Mức 1: Hầu như không / Thấp
                 return '1'
+
             u = get_wf_num(d.get('Weak Foot Usage', ''))
             a = get_wf_num(d.get('Weak Foot Accuracy', ''))
+            
+            # Tô màu cho đẹp: 4 màu tím, 3 màu xanh, <3 màu thường
+            u_color = "#d946ef" if u == '4' else ("#4ade80" if u == '3' else "#cbd5e1")
+            a_color = "#d946ef" if a == '4' else ("#4ade80" if a == '3' else "#cbd5e1")
+            
+            # Hiển thị dạng HTML màu sắc
+            val_display = f"""
+            <span style='color:{u_color}'>{u}</span> | <span style='color:{a_color}'>{a}</span>
+            """
+            
+            # Lưu ý: Vì val_display giờ chứa HTML, ta cần sửa lại badge_html ở đoạn dưới một chút
+            # Tuy nhiên để đơn giản và không phá vỡ layout CSS, ta cứ để text thuần, 
+            # hoặc chỉ trả về text số:
             val_display = f"🦶 {u} | {a}"
         
         # Color Logic
