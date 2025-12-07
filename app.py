@@ -4845,19 +4845,7 @@ def main():
                 
                 # Gọi hàm render mới
                 render_pitch_view(best_squad, highlight_type=metric_to_show)
-                
-                # Nếu muốn hiển thị danh sách dạng text đơn giản để copy (tùy chọn ẩn trong expander)
-                with st.expander("📋 Xem danh sách chi tiết (Dạng bảng)"):
-                     s_df = pd.DataFrame(best_squad)
-                     if 'Is_Starter' in s_df.columns:
-                        s_df['Role'] = s_df['Is_Starter'].apply(lambda x: "⭐ START" if x else "🔄 SUB")
-                     
-                     st.dataframe(
-                        s_df[['Role', 'Position', 'Player', 'Rating', 'Club', 'Player Type']], 
-                        hide_index=True, 
-                        use_container_width=True
-                    )
-                # --- KẾT THÚC THAY ĐỔI ---
+               
 
         # =========================================================
         # TAB 2: MANUAL BUILD (GIỮ NGUYÊN)
