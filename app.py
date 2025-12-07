@@ -1313,28 +1313,54 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list, highlight_type=None):
     """
     Vẽ sơ đồ sân bóng: Phong cách TACTICAL BLUEPRINT.
-    CẬP NHẬT: Font chữ 'Inter' & 'Exo 2' (To, Rõ, Dễ đọc), Fix DMF/CMF dàn ngang.
+    CẬP NHẬT: 
+    - Dự bị sort theo tiêu chí (Height, Weight...) thay vì Rating.
+    - Fix font chữ, Fix vị trí DMF/CMF.
     """
     import streamlit.components.v1 as components
     import re
 
-    # --- 1. PHÂN LOẠI DATA ---
+    # --- 1. PHÂN LOẠI & SẮP XẾP ---
     starters = [p for p in squad_list if p.get('Is_Starter', False)]
-    subs = sorted([p for p in squad_list if not p.get('Is_Starter', False)], 
-                  key=lambda x: x.get('Rating', 0), reverse=True)
+    raw_subs = [p for p in squad_list if not p.get('Is_Starter', False)]
+
+    # --- HÀM HELPER: LẤY GIÁ TRỊ SỐ ĐỂ SORT ---
+    def get_sort_value(p, key):
+        try:
+            val_str = str(p.get(key, '0'))
+            # Lấy số từ chuỗi (vd: "190cm" -> 190.0)
+            return float(re.sub(r'[^\d.]', '', val_str))
+        except:
+            return 0
+
+    # --- LOGIC SORT DỰ BỊ ---
+    if highlight_type == 'Height':
+        # Sort Cao -> Thấp
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Height'), reverse=True)
+    elif highlight_type == 'Weight':
+        # Sort Nặng -> Nhẹ
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Weight'), reverse=True)
+    elif highlight_type == 'Age':
+        # Sort Già -> Trẻ (Để những người lớn tuổi nhất lên đầu)
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Age'), reverse=True)
+    elif highlight_type == 'BMI':
+        # Sort BMI Cao -> Thấp
+        def get_bmi(p):
+            h = get_sort_value(p, 'Height') / 100.0
+            w = get_sort_value(p, 'Weight')
+            return w / (h**2) if h > 0 else 0
+        subs = sorted(raw_subs, key=get_bmi, reverse=True)
+    else:
+        # Mặc định: Sort theo Rating
+        subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
     # --- 2. HÀM TẠO CARD HTML ---
     def create_card_html(p, top=None, left=None, is_sub=False):
-        # Xử lý tên: Cắt ngắn thông minh hơn
         full_name = p['Player'].strip()
         name_parts = full_name.split()
-        
-        # Logic hiển thị tên: Nếu tên dài > 2 từ, lấy từ cuối. Nếu ngắn giữ nguyên.
         if len(name_parts) > 1:
             display_name = name_parts[-1].upper()
-            # Nếu tên cuối quá dài (>10 ký tự), cắt bớt
-            if len(display_name) > 10:
-                display_name = display_name[:9] + "."
+            if len(display_name) > 10: display_name = display_name[:9] + "."
         else:
             display_name = full_name.upper()
             if len(display_name) > 10: display_name = display_name[:9] + "."
@@ -1358,13 +1384,13 @@ def render_pitch_view(squad_list, highlight_type=None):
         # Color Logic
         ptype = str(p['Type']).upper()
         if "POTW" in ptype or "TRENDING" in ptype:
-            accent_color = "#d946ef" # Neon Purple
+            accent_color = "#d946ef" 
             shadow_color = "rgba(217, 70, 239, 0.4)"
         elif "EPIC" in ptype and "NON" not in ptype:
-            accent_color = "#fbbf24" # Bright Amber
+            accent_color = "#fbbf24" 
             shadow_color = "rgba(251, 191, 36, 0.4)"
         else:
-            accent_color = "#38bdf8" # Sky Blue
+            accent_color = "#38bdf8"
             shadow_color = "rgba(56, 189, 248, 0.4)"
 
         if is_sub:
@@ -1395,7 +1421,7 @@ def render_pitch_view(squad_list, highlight_type=None):
         </div>
         """
 
-    # --- 3. MAPPING VỊ TRÍ (GIỮ NGUYÊN LOGIC DÀN NGANG) ---
+    # --- 3. MAPPING VỊ TRÍ ---
     midfielders = []
     others = {}
     
@@ -1450,10 +1476,9 @@ def render_pitch_view(squad_list, highlight_type=None):
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    # --- 4. CSS (FONT MỚI: INTER & EXO 2) ---
+    # --- 4. CSS (GIỮ NGUYÊN STYLE MỚI) ---
     css = """
     <style>
-        /* Import Font: Inter (Tên) và Exo 2 (Số liệu) */
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@600;700;800&family=Inter:wght@500;600;700&display=swap');
         
         :root {
@@ -1462,24 +1487,15 @@ def render_pitch_view(squad_list, highlight_type=None):
             --pitch-line: rgba(148, 163, 184, 0.2);
         }
 
-        body { 
-            margin: 0; background: transparent; 
-            font-family: 'Inter', sans-serif; /* Font mặc định dễ đọc */
-            overflow: hidden; 
-        }
+        body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
         
-        .container {
-            display: flex; flex-direction: column; gap: 20px;
-            max-width: 1000px; margin: 0 auto;
-        }
+        .container { display: flex; flex-direction: column; gap: 20px; max-width: 1000px; margin: 0 auto; }
 
         .pitch {
-            position: relative;
-            width: 100%; height: 780px;
+            position: relative; width: 100%; height: 780px;
             background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%);
             border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 20px 50px -10px rgba(0,0,0,0.5);
-            overflow: hidden; perspective: 1000px;
+            box-shadow: 0 20px 50px -10px rgba(0,0,0,0.5); overflow: hidden; perspective: 1000px;
         }
 
         .pitch::before {
@@ -1497,9 +1513,8 @@ def render_pitch_view(squad_list, highlight_type=None):
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 50%; height: 15%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
 
         .p-card {
-            position: relative; width: 100px; height: 125px; /* Thẻ to hơn xíu để chữ thoáng */
-            border-radius: 8px; cursor: pointer;
-            transition: all 0.2s ease-out; z-index: 10;
+            position: relative; width: 100px; height: 125px;
+            border-radius: 8px; cursor: pointer; transition: all 0.2s ease-out; z-index: 10;
         }
         
         .card-pitch { position: absolute; }
@@ -1509,8 +1524,7 @@ def render_pitch_view(squad_list, highlight_type=None):
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(180deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.95) 100%);
             backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-bottom: 4px solid var(--accent);
+            border: 1px solid rgba(255,255,255,0.15); border-bottom: 4px solid var(--accent);
             border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 1;
         }
 
@@ -1518,61 +1532,24 @@ def render_pitch_view(squad_list, highlight_type=None):
         .card-sub:hover { transform: translateY(-10px) scale(1.1) !important; z-index: 100; }
         .p-card:hover .p-bg { background: rgba(15,23,42,0.98); border-color: var(--accent); }
 
-        .p-header { 
-            position: absolute; top: 5px; left: 8px; right: 8px; 
-            display: flex; justify-content: space-between; align-items: center; z-index: 3; 
-        }
-        
-        .p-pos { 
-            font-family: 'Exo 2', sans-serif; /* Font đậm, thể thao */
-            font-size: 11px; font-weight: 700; 
-            color: #cbd5e1; background: rgba(0,0,0,0.5); 
-            padding: 2px 5px; border-radius: 4px; 
-        }
-        
-        .p-rating { 
-            font-family: 'Exo 2', sans-serif; /* Font số rõ ràng */
-            font-size: 20px; font-weight: 800; line-height: 1; 
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8); 
-        }
+        .p-header { position: absolute; top: 5px; left: 8px; right: 8px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
+        .p-pos { font-family: 'Exo 2', sans-serif; font-size: 11px; font-weight: 700; color: #cbd5e1; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px; }
+        .p-rating { font-family: 'Exo 2', sans-serif; font-size: 20px; font-weight: 800; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
 
-        .p-img-box {
-            position: absolute; bottom: 26px; left: 0; width: 100%; height: 90px;
-            z-index: 2; display: flex; justify-content: center; align-items: flex-end;
-            overflow: hidden; border-radius: 0 0 8px 8px;
-        }
+        .p-img-box { position: absolute; bottom: 26px; left: 0; width: 100%; height: 90px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 8px 8px; }
         .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); transition: transform 0.3s; }
         .p-card:hover .p-img-box img { transform: scale(1.1); }
 
         .p-name {
             position: absolute; bottom: 0; left: 0; width: 100%; height: 26px;
             display: flex; align-items: center; justify-content: center;
-            
-            /* FONT QUAN TRỌNG NHẤT: INTER */
-            font-family: 'Inter', sans-serif;
-            font-size: 13px; /* Tăng size chữ */
-            font-weight: 600; /* Đậm vừa phải */
-            letter-spacing: 0.3px;
-            
-            color: #fff; background: rgba(2, 6, 23, 0.85);
-            z-index: 4; border-radius: 0 0 8px 8px;
+            font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+            color: #fff; background: rgba(2, 6, 23, 0.85); z-index: 4; border-radius: 0 0 8px 8px;
             border-top: 1px solid rgba(255,255,255,0.05);
         }
 
-        .stat-badge { 
-            position: absolute; top: -10px; right: -5px; 
-            font-family: 'Inter', sans-serif;
-            color: #000; font-size: 11px; font-weight: 700; 
-            padding: 2px 7px; border-radius: 4px; z-index: 20; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid white;
-        }
-        
-        .empty-slot { 
-            width: 70px; height: 70px; border-radius: 50%; 
-            border: 2px dashed rgba(255,255,255,0.2); 
-            background: rgba(255,255,255,0.02); 
-            transform: translate(-50%, -50%); 
-        }
+        .stat-badge { position: absolute; top: -10px; right: -5px; font-family: 'Inter', sans-serif; color: #000; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid white; }
+        .empty-slot { width: 70px; height: 70px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transform: translate(-50%, -50%); }
 
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; }
         .bench-title { color: #94a3b8; font-family: 'Exo 2', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
