@@ -1086,13 +1086,13 @@ FORMATIONS = {
 
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
-    Tự động xây dựng đội hình tối ưu sử dụng thuật toán Linear Sum Assignment (Hungarian Algorithm).
-    Giải quyết bài toán phân công: Cầu thủ -> Vị trí sao cho Tổng điểm là lớn nhất.
+    Tự động xây dựng đội hình tối ưu sử dụng thuật toán Linear Sum Assignment.
+    CẬP NHẬT: Giới hạn tối đa 1 GK trên ghế dự bị.
     """
     # 1. SAO CHÉP VÀ CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
     
-    # Chuẩn hóa các cột số liệu để tính toán
+    # Chuẩn hóa các cột số liệu
     if 'Height' in pool_df.columns: 
         pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
     if 'Weight' in pool_df.columns: 
@@ -1100,142 +1100,97 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     if 'Age' in pool_df.columns: 
         pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(99)
     
-    # Chuẩn hóa Secondary Positions (Quan trọng cho thuật toán tìm vị trí)
+    # Chuẩn hóa Secondary Positions
     if 'Secondary Positions' not in pool_df.columns:
         pool_df['Secondary Positions'] = ""
     else:
         pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper().str.strip()
 
-    # 2. LỌC DỮ LIỆU (Theo yêu cầu User: Club, Nation, League...)
+    # 2. LỌC DỮ LIỆU
     if filter_col and filter_val and filter_val != "(Tất cả)":
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
         
     if pool_df.empty:
         return []
 
-    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING SYSTEM)
-    # Mỗi cầu thủ sẽ có 1 điểm số (Build_Score) dựa trên tiêu chí sort_mode
+    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     def calculate_score(row):
-        # --- A. RATING (Mặc định) ---
+        # A. RATING
         if sort_mode == 'rating_desc': 
-            # Ưu tiên nhẹ cho thẻ Non-Epic (Epic_Priority=1) để tránh xếp full Epic nếu chỉ số ngang nhau
             return row['Rating'] + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
-            
-        # --- B. THỂ CHẤT (Height, Weight, Age) ---
+        # B. PHYSICAL
         elif sort_mode == 'height_desc': return row['Height_num']
-        elif sort_mode == 'height_asc': return -row['Height_num'] # Số âm để khi tìm Max sẽ ra người thấp nhất
+        elif sort_mode == 'height_asc': return -row['Height_num']
         elif sort_mode == 'weight_desc': return row['Weight_num']
         elif sort_mode == 'weight_asc': return -row['Weight_num']
         elif sort_mode == 'age_desc': return row['Age_num']
         elif sort_mode == 'age_asc': return -row['Age_num']
-
-        # --- C. BMI (Tanks & Agiles) ---
+        # C. BMI
         elif 'bmi' in sort_mode:
             h_m = row['Height_num'] / 100.0
             if h_m > 0:
                 bmi = row['Weight_num'] / (h_m ** 2)
                 return bmi if sort_mode == 'bmi_desc' else -bmi
             return -999
-
-        # --- D. AMBIDEXTROUS (Chân thuận) ---
+        # D. OTHERS
         elif sort_mode == 'ambidextrous':
             u_str = str(row.get('Weak Foot Usage', '')).strip().lower()
             a_str = str(row.get('Weak Foot Accuracy', '')).strip().lower()
-            
-            # Tier 1: Perfect (Regularly/Very High hoặc số 4)
             is_usage_p = any(x in u_str for x in ['regularly', '4'])
             is_acc_p = any(x in a_str for x in ['very high', '4'])
-            
-            # Tier 2: Good (Occasionally/High hoặc số 3)
-            is_usage_g = is_usage_p or any(x in u_str for x in ['occasionally', '3'])
-            is_acc_g = is_acc_p or any(x in a_str for x in ['high', '3'])
-            
-            base_score = row['Rating']
-            if is_usage_p and is_acc_p: return 20000 + base_score
-            if is_usage_g and is_acc_g: return 10000 + base_score
-            return base_score
-
-        # --- E. POTW ONLY ---
+            if is_usage_p and is_acc_p: return 20000 + row['Rating']
+            return row['Rating']
         elif sort_mode == 'potw_only':
             ptype = str(row.get('Player Type', '')).upper()
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
             return (10000 if is_potw else 0) + row['Rating']
-
-        # --- F. UNITED NATIONS ---
         elif sort_mode == 'united_nations':
-            # Vẫn dùng Rating làm trọng số chính, logic lọc quốc gia sẽ xử lý ở bước sau
             return row['Rating']
 
         return row['Rating']
 
-    # Áp dụng tính điểm
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
-    
-    # Reset index để mapping với ma trận
     pool_df = pool_df.reset_index(drop=True)
 
     # 4. THUẬT TOÁN TỐI ƯU HÓA (HUNGARIAN ALGORITHM)
     required_positions = FORMATIONS.get(formation_name, [])
-    num_slots = len(required_positions) # 11 vị trí
+    num_slots = len(required_positions)
     num_players = len(pool_df)
     
-    # Tạo Ma Trận Chi Phí (Cost Matrix): [Số cầu thủ x Số vị trí]
-    # Cost = Giá trị âm của Score (Vì thuật toán tìm Min Cost => Tương đương tìm Max Score)
-    # Nếu cầu thủ KHÔNG đá được vị trí đó => Cost = Vô cực (Phạt nặng)
     BIG_PENALTY = 1000000
     cost_matrix = np.full((num_players, num_slots), BIG_PENALTY)
 
-    # Duyệt qua từng cầu thủ để điền vào ma trận
     for p_idx, row in pool_df.iterrows():
-        # Chuẩn hóa vị trí cầu thủ
         p_main_pos = str(row['Position']).strip().upper()
-        p_sec_pos_str = str(row['Secondary Positions']).strip().upper()
-        
-        # Tách vị trí phụ thành list để so sánh chính xác (tránh lỗi 'SS' match trong 'PASS')
-        p_sec_pos_list = [s.strip() for s in p_sec_pos_str.split(',') if s.strip()]
-        
+        p_sec_pos_list = [s.strip() for s in str(row['Secondary Positions']).split(',') if s.strip()]
         score = row['Build_Score']
         
         for s_idx, req_pos in enumerate(required_positions):
-            # Kiểm tra: Cầu thủ đá được vị trí yêu cầu không?
-            # Điều kiện: (Là vị trí chính) HOẶC (Nằm trong list vị trí phụ)
             can_play = (p_main_pos == req_pos) or (req_pos in p_sec_pos_list)
-            
             if can_play:
-                cost_matrix[p_idx, s_idx] = -score  # Dùng số âm
+                cost_matrix[p_idx, s_idx] = -score
 
-    # --- GIẢI THUẬT ---
-    # row_ind: danh sách index cầu thủ được chọn
-    # col_ind: danh sách index vị trí (slot) tương ứng
     try:
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
     except Exception as e:
-        print(f"Error in optimization: {e}")
         return []
 
-    # 5. XÂY DỰNG ĐỘI HÌNH ĐÁ CHÍNH (STARTING XI)
+    # 5. XÂY DỰNG ĐỘI HÌNH ĐÁ CHÍNH
     final_squad = [None] * 11
     used_indices = set()
-    used_nations = set() # Dùng cho mode United Nations
+    used_nations = set()
 
     for i in range(len(row_ind)):
         p_idx = row_ind[i]
         s_idx = col_ind[i]
         
-        # Kiểm tra cost. Nếu cost vẫn là BIG_PENALTY nghĩa là thuật toán ép gán dù không đá được
-        # Ta chỉ chấp nhận nếu cost nhỏ hơn mức phạt
         if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
-            
-            # Logic riêng cho United Nations: Kiểm tra trùng quốc tịch ở bước này
             if sort_mode == 'united_nations':
                 nat = str(pool_df.at[p_idx, 'Nation']).strip()
-                if nat in used_nations and nat != "":
-                    continue # Bỏ qua nếu trùng quốc tịch (Slot này sẽ bị trống -> fill placeholder sau)
+                if nat in used_nations and nat != "": continue 
                 used_nations.add(nat)
 
             row = pool_df.iloc[p_idx]
-            
-            # Xử lý hình ảnh
             pid = str(row.get('Player ID', '')).strip()
             purl = str(row.get('Player URL', '')).strip()
             if not pid and purl:
@@ -1243,75 +1198,74 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 pid = m.group(1) if m else ""
             img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
-            # Tạo object cầu thủ
             player_obj = {
                 "Is_Starter": True,
-                "Position": required_positions[s_idx], # Vị trí trong sơ đồ
-                "Real_Position": row['Position'],      # Vị trí gốc
+                "Position": required_positions[s_idx],
+                "Real_Position": row['Position'],
                 "Player": row['Player'],
                 "Rating": row['Rating'],
                 "Type": row['Player Type'],
-                "Club": row['Club'],
-                "Nation": row['Nation'],
-                "Height": row.get('Height', ''),
+                "Image": img_url,
+                "Height": row.get('Height', ''), # Lưu để sort hiển thị
                 "Weight": row.get('Weight', ''),
                 "Age": row.get('Age', ''),
-                "Image": img_url,
                 "Data": row.to_dict()
             }
-            
             final_squad[s_idx] = player_obj
             used_indices.add(p_idx)
 
-    # Điền nốt slot trống (nếu không tìm được người phù hợp hoặc bị lọc bởi United Nations)
     for i in range(11):
         if final_squad[i] is None:
-             final_squad[i] = {
-                "Is_Starter": True, 
-                "Position": required_positions[i], 
-                "Player": "---", 
-                "Rating": 0, 
-                "Type": "N/A", 
-                "Image": None
-            }
+             final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Image": None}
 
-    # 6. XÂY DỰNG DỰ BỊ (SUBSTITUTES)
-    # Lấy 12 cầu thủ tốt nhất còn lại trong pool (không quan tâm vị trí)
+    # 6. XÂY DỰNG DỰ BỊ (SUBSTITUTES) - CÓ GIỚI HẠN GK
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)]
-    
-    # Sort lại pool còn lại theo điểm cao nhất
     remaining_pool = remaining_pool.sort_values('Build_Score', ascending=False)
     
     bench_picks_rows = []
+    gk_on_bench_count = 0 # Biến đếm GK trên ghế dự bị
 
-    # Logic riêng cho United Nations: Ưu tiên quốc tịch mới
-    if sort_mode == 'united_nations':
-        # Vòng 1: Tìm quốc tịch mới
-        for idx, row in remaining_pool.iterrows():
-            if len(bench_picks_rows) >= 12: break
-            p_nation = str(row.get('Nation', '')).strip()
-            if p_nation and p_nation not in used_nations:
-                bench_picks_rows.append(row)
-                used_nations.add(p_nation)
-                used_indices.add(idx)
-        
-        # Vòng 2: Nếu chưa đủ 12, fill bằng người giỏi nhất còn lại (chấp nhận trùng)
-        if len(bench_picks_rows) < 12:
-            needed = 12 - len(bench_picks_rows)
-            # Lọc lại lần nữa trừ đi những người vừa pick ở Vòng 1
-            final_pool = pool_df[~pool_df.index.isin(used_indices)].sort_values('Build_Score', ascending=False)
-            bench_picks_rows.extend(final_pool.head(needed).to_dict('records'))
+    for idx, row in remaining_pool.iterrows():
+        # Đã đủ 12 người thì dừng
+        if len(bench_picks_rows) >= 12: 
+            break
             
-    else:
-        # Logic thường: Lấy top 12
-        bench_picks_rows = remaining_pool.head(12).to_dict('records')
+        # Kiểm tra logic Max 1 GK
+        is_gk = str(row.get('Position', '')).strip().upper() == 'GK'
+        
+        # Nếu là GK và đã có 1 GK rồi thì bỏ qua (Skip)
+        if is_gk and gk_on_bench_count >= 1:
+            continue
 
-    # Format dữ liệu dự bị và thêm vào final_squad
+        # Logic United Nations (vẫn áp dụng nếu đang ở mode đó)
+        if sort_mode == 'united_nations':
+            p_nation = str(row.get('Nation', '')).strip()
+            if p_nation and p_nation in used_nations:
+                continue # Bỏ qua nếu trùng quốc tịch
+            used_nations.add(p_nation)
+            
+        # Thêm vào danh sách chọn
+        bench_picks_rows.append(row)
+        used_indices.add(idx)
+        
+        if is_gk:
+            gk_on_bench_count += 1
+            
+    # Trường hợp United Nations có thể thiếu người, fill thêm nếu cần (vẫn giữ luật Max 1 GK)
+    if len(bench_picks_rows) < 12 and sort_mode == 'united_nations':
+        final_pool = pool_df[~pool_df.index.isin(used_indices)].sort_values('Build_Score', ascending=False)
+        for idx, row in final_pool.iterrows():
+            if len(bench_picks_rows) >= 12: break
+            
+            is_gk = str(row.get('Position', '')).strip().upper() == 'GK'
+            if is_gk and gk_on_bench_count >= 1: continue # Vẫn áp dụng luật GK
+            
+            bench_picks_rows.append(row)
+            if is_gk: gk_on_bench_count += 1
+
+    # Format dữ liệu dự bị
     for row in bench_picks_rows:
-        # Nếu row là dict (từ to_dict) hoặc Series (từ iterrows), xử lý an toàn
-        # Ở đây ta đã convert sang dict hoặc lấy từ Series, truy cập kiểu dict-like an toàn hơn
         r_get = row.get if isinstance(row, dict) else row.get
-
         pid = str(r_get('Player ID', '')).strip()
         purl = str(r_get('Player URL', '')).strip()
         if not pid and purl:
@@ -1319,7 +1273,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             pid = m.group(1) if m else ""
         img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
         
-        # Chuyển Series sang dict nếu cần cho field 'Data'
         row_data = row if isinstance(row, dict) else row.to_dict()
 
         final_squad.append({
@@ -1329,12 +1282,10 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             "Player": r_get('Player'),
             "Rating": r_get('Rating'),
             "Type": r_get('Player Type'),
-            "Club": r_get('Club'),
-            "Nation": r_get('Nation'),
+            "Image": img_url,
             "Height": r_get('Height', ''),
             "Weight": r_get('Weight', ''),
             "Age": r_get('Age', ''),
-            "Image": img_url,
             "Data": row_data
         })
 
@@ -1485,28 +1436,54 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list, highlight_type=None):
     """
     Vẽ sơ đồ sân bóng: Phong cách TACTICAL BLUEPRINT.
-    CẬP NHẬT: Font chữ 'Inter' & 'Exo 2' (To, Rõ, Dễ đọc), Fix DMF/CMF dàn ngang.
+    CẬP NHẬT: 
+    - Dự bị sort theo tiêu chí (Height, Weight...) thay vì Rating.
+    - Fix font chữ, Fix vị trí DMF/CMF.
     """
     import streamlit.components.v1 as components
     import re
 
-    # --- 1. PHÂN LOẠI DATA ---
+    # --- 1. PHÂN LOẠI & SẮP XẾP ---
     starters = [p for p in squad_list if p.get('Is_Starter', False)]
-    subs = sorted([p for p in squad_list if not p.get('Is_Starter', False)], 
-                  key=lambda x: x.get('Rating', 0), reverse=True)
+    raw_subs = [p for p in squad_list if not p.get('Is_Starter', False)]
+
+    # --- HÀM HELPER: LẤY GIÁ TRỊ SỐ ĐỂ SORT ---
+    def get_sort_value(p, key):
+        try:
+            val_str = str(p.get(key, '0'))
+            # Lấy số từ chuỗi (vd: "190cm" -> 190.0)
+            return float(re.sub(r'[^\d.]', '', val_str))
+        except:
+            return 0
+
+    # --- LOGIC SORT DỰ BỊ ---
+    if highlight_type == 'Height':
+        # Sort Cao -> Thấp
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Height'), reverse=True)
+    elif highlight_type == 'Weight':
+        # Sort Nặng -> Nhẹ
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Weight'), reverse=True)
+    elif highlight_type == 'Age':
+        # Sort Già -> Trẻ (Để những người lớn tuổi nhất lên đầu)
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Age'), reverse=True)
+    elif highlight_type == 'BMI':
+        # Sort BMI Cao -> Thấp
+        def get_bmi(p):
+            h = get_sort_value(p, 'Height') / 100.0
+            w = get_sort_value(p, 'Weight')
+            return w / (h**2) if h > 0 else 0
+        subs = sorted(raw_subs, key=get_bmi, reverse=True)
+    else:
+        # Mặc định: Sort theo Rating
+        subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
     # --- 2. HÀM TẠO CARD HTML ---
     def create_card_html(p, top=None, left=None, is_sub=False):
-        # Xử lý tên: Cắt ngắn thông minh hơn
         full_name = p['Player'].strip()
         name_parts = full_name.split()
-        
-        # Logic hiển thị tên: Nếu tên dài > 2 từ, lấy từ cuối. Nếu ngắn giữ nguyên.
         if len(name_parts) > 1:
             display_name = name_parts[-1].upper()
-            # Nếu tên cuối quá dài (>10 ký tự), cắt bớt
-            if len(display_name) > 10:
-                display_name = display_name[:9] + "."
+            if len(display_name) > 10: display_name = display_name[:9] + "."
         else:
             display_name = full_name.upper()
             if len(display_name) > 10: display_name = display_name[:9] + "."
@@ -1530,13 +1507,13 @@ def render_pitch_view(squad_list, highlight_type=None):
         # Color Logic
         ptype = str(p['Type']).upper()
         if "POTW" in ptype or "TRENDING" in ptype:
-            accent_color = "#d946ef" # Neon Purple
+            accent_color = "#d946ef" 
             shadow_color = "rgba(217, 70, 239, 0.4)"
         elif "EPIC" in ptype and "NON" not in ptype:
-            accent_color = "#fbbf24" # Bright Amber
+            accent_color = "#fbbf24" 
             shadow_color = "rgba(251, 191, 36, 0.4)"
         else:
-            accent_color = "#38bdf8" # Sky Blue
+            accent_color = "#38bdf8"
             shadow_color = "rgba(56, 189, 248, 0.4)"
 
         if is_sub:
@@ -1567,7 +1544,7 @@ def render_pitch_view(squad_list, highlight_type=None):
         </div>
         """
 
-    # --- 3. MAPPING VỊ TRÍ (GIỮ NGUYÊN LOGIC DÀN NGANG) ---
+    # --- 3. MAPPING VỊ TRÍ ---
     midfielders = []
     others = {}
     
@@ -1622,10 +1599,9 @@ def render_pitch_view(squad_list, highlight_type=None):
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    # --- 4. CSS (FONT MỚI: INTER & EXO 2) ---
+    # --- 4. CSS (GIỮ NGUYÊN STYLE MỚI) ---
     css = """
     <style>
-        /* Import Font: Inter (Tên) và Exo 2 (Số liệu) */
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@600;700;800&family=Inter:wght@500;600;700&display=swap');
         
         :root {
@@ -1634,24 +1610,15 @@ def render_pitch_view(squad_list, highlight_type=None):
             --pitch-line: rgba(148, 163, 184, 0.2);
         }
 
-        body { 
-            margin: 0; background: transparent; 
-            font-family: 'Inter', sans-serif; /* Font mặc định dễ đọc */
-            overflow: hidden; 
-        }
+        body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
         
-        .container {
-            display: flex; flex-direction: column; gap: 20px;
-            max-width: 1000px; margin: 0 auto;
-        }
+        .container { display: flex; flex-direction: column; gap: 20px; max-width: 1000px; margin: 0 auto; }
 
         .pitch {
-            position: relative;
-            width: 100%; height: 780px;
+            position: relative; width: 100%; height: 780px;
             background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%);
             border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 20px 50px -10px rgba(0,0,0,0.5);
-            overflow: hidden; perspective: 1000px;
+            box-shadow: 0 20px 50px -10px rgba(0,0,0,0.5); overflow: hidden; perspective: 1000px;
         }
 
         .pitch::before {
@@ -1669,9 +1636,8 @@ def render_pitch_view(squad_list, highlight_type=None):
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 50%; height: 15%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
 
         .p-card {
-            position: relative; width: 100px; height: 125px; /* Thẻ to hơn xíu để chữ thoáng */
-            border-radius: 8px; cursor: pointer;
-            transition: all 0.2s ease-out; z-index: 10;
+            position: relative; width: 100px; height: 125px;
+            border-radius: 8px; cursor: pointer; transition: all 0.2s ease-out; z-index: 10;
         }
         
         .card-pitch { position: absolute; }
@@ -1681,8 +1647,7 @@ def render_pitch_view(squad_list, highlight_type=None):
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(180deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.95) 100%);
             backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-bottom: 4px solid var(--accent);
+            border: 1px solid rgba(255,255,255,0.15); border-bottom: 4px solid var(--accent);
             border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 1;
         }
 
@@ -1690,61 +1655,24 @@ def render_pitch_view(squad_list, highlight_type=None):
         .card-sub:hover { transform: translateY(-10px) scale(1.1) !important; z-index: 100; }
         .p-card:hover .p-bg { background: rgba(15,23,42,0.98); border-color: var(--accent); }
 
-        .p-header { 
-            position: absolute; top: 5px; left: 8px; right: 8px; 
-            display: flex; justify-content: space-between; align-items: center; z-index: 3; 
-        }
-        
-        .p-pos { 
-            font-family: 'Exo 2', sans-serif; /* Font đậm, thể thao */
-            font-size: 11px; font-weight: 700; 
-            color: #cbd5e1; background: rgba(0,0,0,0.5); 
-            padding: 2px 5px; border-radius: 4px; 
-        }
-        
-        .p-rating { 
-            font-family: 'Exo 2', sans-serif; /* Font số rõ ràng */
-            font-size: 20px; font-weight: 800; line-height: 1; 
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8); 
-        }
+        .p-header { position: absolute; top: 5px; left: 8px; right: 8px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
+        .p-pos { font-family: 'Exo 2', sans-serif; font-size: 11px; font-weight: 700; color: #cbd5e1; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px; }
+        .p-rating { font-family: 'Exo 2', sans-serif; font-size: 20px; font-weight: 800; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
 
-        .p-img-box {
-            position: absolute; bottom: 26px; left: 0; width: 100%; height: 90px;
-            z-index: 2; display: flex; justify-content: center; align-items: flex-end;
-            overflow: hidden; border-radius: 0 0 8px 8px;
-        }
+        .p-img-box { position: absolute; bottom: 26px; left: 0; width: 100%; height: 90px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 8px 8px; }
         .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); transition: transform 0.3s; }
         .p-card:hover .p-img-box img { transform: scale(1.1); }
 
         .p-name {
             position: absolute; bottom: 0; left: 0; width: 100%; height: 26px;
             display: flex; align-items: center; justify-content: center;
-            
-            /* FONT QUAN TRỌNG NHẤT: INTER */
-            font-family: 'Inter', sans-serif;
-            font-size: 13px; /* Tăng size chữ */
-            font-weight: 600; /* Đậm vừa phải */
-            letter-spacing: 0.3px;
-            
-            color: #fff; background: rgba(2, 6, 23, 0.85);
-            z-index: 4; border-radius: 0 0 8px 8px;
+            font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+            color: #fff; background: rgba(2, 6, 23, 0.85); z-index: 4; border-radius: 0 0 8px 8px;
             border-top: 1px solid rgba(255,255,255,0.05);
         }
 
-        .stat-badge { 
-            position: absolute; top: -10px; right: -5px; 
-            font-family: 'Inter', sans-serif;
-            color: #000; font-size: 11px; font-weight: 700; 
-            padding: 2px 7px; border-radius: 4px; z-index: 20; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid white;
-        }
-        
-        .empty-slot { 
-            width: 70px; height: 70px; border-radius: 50%; 
-            border: 2px dashed rgba(255,255,255,0.2); 
-            background: rgba(255,255,255,0.02); 
-            transform: translate(-50%, -50%); 
-        }
+        .stat-badge { position: absolute; top: -10px; right: -5px; font-family: 'Inter', sans-serif; color: #000; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid white; }
+        .empty-slot { width: 70px; height: 70px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transform: translate(-50%, -50%); }
 
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; }
         .bench-title { color: #94a3b8; font-family: 'Exo 2', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
