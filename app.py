@@ -1484,29 +1484,97 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
 def render_pitch_view(squad_list, highlight_type=None):
     """
-    Vẽ sơ đồ sân bóng với Tooltip thông minh.
-    - highlight_type: 'Age', 'Height', 'Weight' hoặc None.
-    - Khi hover vào thẻ, sẽ hiện thông số tương ứng.
+    Vẽ sơ đồ sân bóng và danh sách dự bị với UI đồng bộ.
     """
     import streamlit.components.v1 as components
     
-    # 1. Định nghĩa độ sâu
+    # --- 1. PHÂN LOẠI CẦU THỦ ---
+    starters = [p for p in squad_list if p.get('Is_Starter', False)]
+    subs = [p for p in squad_list if not p.get('Is_Starter', False)]
+    
+    # Sắp xếp dự bị theo Rating giảm dần để đẹp mắt
+    subs = sorted(subs, key=lambda x: x.get('Rating', 0), reverse=True)
+
+    # --- 2. HÀM HELPER TẠO THẺ HTML ---
+    def create_card_html(p, top=None, left=None, is_sub=False):
+        # Lấy dữ liệu tooltip
+        tooltip_text = f"{p['Player']} | Rating: {p['Rating']}"
+        p_data = p.get('Data', {})
+        
+        if highlight_type == 'Height':
+            tooltip_text = f"{p['Player']}\nChiều cao: {p.get('Height', '?')} cm"
+        elif highlight_type == 'Weight':
+            tooltip_text = f"{p['Player']}\nCân nặng: {p.get('Weight', '?')} kg"
+        elif highlight_type == 'Age':
+            tooltip_text = f"{p['Player']}\nTuổi: {p.get('Age', '?')}"
+        elif highlight_type == 'BMI':
+            try:
+                h_str = str(p.get('Height', '0'))
+                w_str = str(p.get('Weight', '0'))
+                h = float(re.sub(r'[^\d.]', '', h_str)) / 100.0
+                w = float(re.sub(r'[^\d.]', '', w_str))
+                if h > 0:
+                    bmi = w / (h**2)
+                    tooltip_text = f"{p['Player']}\nBMI: {bmi:.1f}"
+            except: pass
+        elif highlight_type == 'Ambidextrous':
+            usage = str(p_data.get('Weak Foot Usage', '?'))
+            acc = str(p_data.get('Weak Foot Accuracy', '?'))
+            tooltip_text = f"{p['Player']}\nWF: {usage} | {acc}"
+        elif highlight_type == 'Nation':
+            tooltip_text = f"{p['Player']}\n{p.get('Nation', '?')}"
+
+        player_name = p['Player']
+        pos = p['Position']
+        rating = p['Rating']
+        
+        # Xử lý thẻ trống
+        if player_name == "---":
+            style_pos = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%); position: absolute;" if not is_sub else "position: relative;"
+            return f"""<div style="{style_pos} width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #666; display: flex; align-items: center; justify-content: center; color: #888; font-size: 10px; z-index: 5;"><div style="text-align:center;">{pos}<br>Trống</div></div>"""
+
+        # Màu sắc viền
+        ptype = str(p['Type']).upper()
+        border_color = "#f59e0b" if "EPIC" in ptype else ("#d946ef" if "POTW" in ptype else "#3b82f6")
+        
+        img_src = p['Image']
+        img_tag = f"""<img src='{img_src}' class="p-img" onerror="this.onerror=null;this.src='https://pesdb.net/assets/img/card/f0.png';this.style.display='none';this.nextElementSibling.style.display='block';"><div class="p-icon">👤</div>"""
+        
+        # Style vị trí (Absolute cho sân, Relative cho bench)
+        if is_sub:
+            # Thẻ dự bị: Relative, không có transform translate
+            wrapper_style = f"position: relative; margin: 6px;"
+            hover_effect = "transform: scale(1.15); z-index: 100;"
+        else:
+            # Thẻ sân chính: Absolute, có translate center
+            wrapper_style = f"position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%);"
+            hover_effect = "transform: translate(-50%, -50%) scale(1.15); z-index: 100;"
+
+        return f"""
+        <div class="player-card" title="{tooltip_text}" style="{wrapper_style} border-color: {border_color};" 
+             onmouseover="this.style.cssText='{wrapper_style} border-color: {border_color}; {hover_effect}'" 
+             onmouseout="this.style.cssText='{wrapper_style} border-color: {border_color};'">
+            {img_tag}
+            <div class="p-name">{player_name}</div>
+            <div class="p-info">
+                <span class="p-pos">{pos}</span>
+                <span class="p-rate" style="color: {border_color};">{rating}</span>
+            </div>
+        </div>"""
+
+    # --- 3. TẠO HTML CHO ĐỘI HÌNH CHÍNH (STARTERS) ---
     DEPTH_MAP = {
         'CF': 12, 'SS': 20, 'LWF': 20, 'RWF': 20,
         'AMF': 32, 'LMF': 45, 'RMF': 45, 
         'CMF': 50, 'DMF': 60,
         'LB': 75, 'RB': 75, 'CB': 82, 'GK': 93
     }
-
-    # 2. Phân nhóm
-    starters_list = [p for p in squad_list if p.get('Is_Starter', False)]
-    groups = {p['Position']: [] for p in starters_list}
-    for p in starters_list:
-        groups[p['Position']].append(p)
-
-    final_cards_html = ""
     LEFT_SIDE = ['LWF', 'LMF', 'LB']
     RIGHT_SIDE = ['RWF', 'RMF', 'RB']
+    
+    starters_html = ""
+    groups = {p['Position']: [] for p in starters}
+    for p in starters: groups[p['Position']].append(p)
 
     for pos, players in groups.items():
         count = len(players)
@@ -1518,135 +1586,122 @@ def render_pitch_view(squad_list, highlight_type=None):
             if pos in LEFT_SIDE: left = 15
             elif pos in RIGHT_SIDE: left = 85
             else:
-                is_midfield_duo = (pos == 'DMF' and len(groups.get('CMF', [])) == 1) or \
-                                  (pos == 'CMF' and len(groups.get('DMF', [])) == 1)
-                
-                if is_midfield_duo and count == 1:
-                    if pos == 'DMF': left = 40
-                    if pos == 'CMF': left = 60
+                is_mid_duo = (pos == 'DMF' and len(groups.get('CMF', [])) == 1) or \
+                             (pos == 'CMF' and len(groups.get('DMF', [])) == 1)
+                if is_mid_duo and count == 1:
+                    left = 40 if pos == 'DMF' else 60
                 elif count == 1: left = 50
                 elif count == 2: left = 35 if i == 0 else 65
                 elif count == 3: left = 30 if i == 0 else (50 if i == 1 else 70)
                 elif count == 4: left = 20 + (i * 20)
+            
+            starters_html += create_card_html(p, top, left, is_sub=False)
 
-            # --- XỬ LÝ TOOLTIP (HOVER INFO) ---
-            # --- XỬ LÝ TOOLTIP (HOVER INFO) - ĐÃ CẬP NHẬT ---
-            tooltip_text = f"{p['Player']} | Rating: {p['Rating']}" # Mặc định
-            
-            # Lấy dữ liệu gốc để tra cứu các chỉ số sâu hơn
-            p_data = p.get('Data', {})
-            
-            if highlight_type == 'Height':
-                tooltip_text = f"{p['Player']}\nChiều cao: {p.get('Height', '?')} cm"
-            
-            elif highlight_type == 'Weight':
-                tooltip_text = f"{p['Player']}\nCân nặng: {p.get('Weight', '?')} kg"
-            
-            elif highlight_type == 'Age':
-                tooltip_text = f"{p['Player']}\nTuổi: {p.get('Age', '?')}"
-            
-            elif highlight_type == 'BMI':
-                try:
-                    # Lấy số từ chuỗi (vd: "185" hoặc "185cm")
-                    h_str = str(p.get('Height', '0'))
-                    w_str = str(p.get('Weight', '0'))
-                    h = float(re.sub(r'[^\d.]', '', h_str)) / 100.0
-                    w = float(re.sub(r'[^\d.]', '', w_str))
-                    
-                    if h > 0:
-                        bmi = w / (h**2)
-                        tooltip_text = f"{p['Player']}\nBMI: {bmi:.1f} ({w}kg / {int(h*100)}cm)"
-                    else:
-                        tooltip_text = f"{p['Player']}\nBMI: ?"
-                except:
-                    tooltip_text = f"{p['Player']}\nBMI: Lỗi dữ liệu"
-            
-            elif highlight_type == 'Ambidextrous':
-                usage = str(p_data.get('Weak Foot Usage', '?'))
-                acc = str(p_data.get('Weak Foot Accuracy', '?'))
-                tooltip_text = f"{p['Player']}\nWF Usage: {usage}\nWF Accuracy: {acc}"
+    # --- 4. TẠO HTML CHO DỰ BỊ (SUBS) ---
+    subs_html = ""
+    for p in subs:
+        subs_html += create_card_html(p, is_sub=True)
 
-            elif highlight_type == 'Nation':
-                tooltip_text = f"{p['Player']}\nQuốc tịch: {p.get('Nation', '?')}"
-
-            elif highlight_type == 'Type':
-                tooltip_text = f"{p['Player']}\nLoại thẻ: {p.get('Type', '?')}"
-            
-            # --- RENDER HTML ---
-            player_name = p['Player']
-            if player_name == "---":
-                card_html = f"""<div style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%); width: 70px; height: 90px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #666; display: flex; align-items: center; justify-content: center; color: #888; font-size: 10px; z-index: 5;"><div style="text-align:center;">{pos}<br>Trống</div></div>"""
-            else:
-                ptype = str(p['Type']).upper()
-                border_color = "#f59e0b" if "EPIC" in ptype else ("#a855f7" if "POTW" in ptype else "#3b82f6")
-                img_src = p['Image']
-                img_tag = f"""<img src='{img_src}' style='width:48px;height:auto;margin-bottom:3px;display:block;' onerror="this.onerror=null;this.src='https://pesdb.net/assets/img/card/f0.png';this.style.display='none';this.nextElementSibling.style.display='block';"><div style='font-size:24px;margin-bottom:3px;display:none;'>👤</div>""" if img_src else "<div style='font-size:24px;margin-bottom:3px;'>👤</div>"
-                
-                # Thêm thuộc tính title="{tooltip_text}" vào thẻ div bao ngoài
-                card_html = f"""
-                <div title="{tooltip_text}" style="position: absolute; top: {top}%; left: {left}%; transform: translate(-50%, -50%); width: 85px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%); border: 1px solid {border_color}; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.transform='translate(-50%, -50%) scale(1.15)'; this.style.zIndex='100';" onmouseout="this.style.transform='translate(-50%, -50%) scale(1)'; this.style.zIndex='10';">
-                    {img_tag}
-                    <div style="font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 95%; text-align: center; text-shadow: 1px 1px 2px black; margin-bottom: 2px;">{player_name}</div>
-                    <div style="display:flex; gap:3px; align-items:center;">
-                        <div style="font-family: sans-serif; font-size: 9px; font-weight:bold; color: #cbd5e1; background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;">{pos}</div>
-                        <div style="font-family: sans-serif; font-size: 10px; font-weight:bold; color: {border_color};">{p['Rating']}</div>
-                    </div>
-                </div>"""
-            final_cards_html += card_html
-
-    css = """<style>body { margin: 0; padding: 0; background: transparent; overflow: hidden; } .pitch-container { position: relative; width: 100%; height: 750px; background: linear-gradient(180deg, #1e5631 0%, #14532d 40%, #064e3b 100%); border: 2px solid rgba(255,255,255,0.7); border-radius: 12px; box-shadow: inset 0 0 60px rgba(0,0,0,0.5); } .grass-pattern { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0,0,0,0.08) 50px, rgba(0,0,0,0.08) 100px); z-index: 1; pointer-events: none; } .lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; } .line { position: absolute; background: rgba(255,255,255,0.4); } .border-line { position: absolute; border: 2px solid rgba(255,255,255,0.4); } .center-line { top: 50%; left: 0; width: 100%; height: 2px; } .center-circle { top: 50%; left: 50%; width: 120px; height: 120px; border-radius: 50%; transform: translate(-50%, -50%); } .center-dot { top: 50%; left: 50%; width: 6px; height: 6px; background: rgba(255,255,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); } .box-top { top: 0; left: 50%; width: 45%; height: 15%; border-top: none; transform: translateX(-50%); } .box-bottom { bottom: 0; left: 50%; width: 45%; height: 15%; border-bottom: none; transform: translateX(-50%); } .goal-top { top: 0; left: 50%; width: 20%; height: 5%; border-top: none; transform: translateX(-50%); } .goal-bottom { bottom: 0; left: 50%; width: 20%; height: 5%; border-bottom: none; transform: translateX(-50%); }</style>"""
-    html_content = f"""<!DOCTYPE html><html><head>{css}</head><body><div class="pitch-container"><div class="grass-pattern"></div><div class="lines"><div class="line center-line"></div><div class="border-line center-circle"></div><div class="line center-dot"></div><div class="border-line box-top"></div><div class="border-line box-bottom"></div><div class="border-line goal-top"></div><div class="border-line goal-bottom"></div></div>{final_cards_html}</div></body></html>"""
-    components.html(html_content, height=760, scrolling=False)
-
-# ==========================================
-# KẾT THÚC BƯỚC 1
-# ==========================================
-
-# ===== CẤU HÌNH TEAMS CẦN BUILD =====
-target_clubs = [
-    "FC Barcelona", "Madrid Chamartin B", "Munich", "Internazionale Milano", "Manchester B", "Liverpool R", 
-    "Paris Saint-Germain", "Borussia Dortmund", "Bayer 04 Leverkusen", "Madrid Rosas RB", "Arsenal FC", 
-    "Chelsea B", "Manchester United", "Atalanta BC", "AC Milan", "Tottenham WB", 
-    "Piemonte BN", "Napoli A", "Roma GR"
-]
+    # --- 5. CSS & HTML STRUCTURE ---
+    css = """
+    <style>
+        body { margin: 0; padding: 0; background: transparent; font-family: 'Segoe UI', sans-serif; }
         
-# Club được miễn trừ (không bao giờ bán)
-PROTECTED_CLUBS = ["FC Barcelona"]
+        /* Container chính */
+        .main-wrapper { display: flex; flex-direction: column; gap: 15px; width: 100%; }
         
-target_nations = [
-    "Spain", "France", "Argentina", "England", "Portugal", 
-    "Brazil", "Netherlands", "Belgium", "Italy", "Germany", 
-    "Uruguay", "Japan"
-        ]
-        
-target_leagues = ["Spanish League", "English League", "Italian League", "Bundesliga", "Ligue 1 McDonald's"]
+        /* Sân cỏ */
+        .pitch-container { 
+            position: relative; width: 100%; height: 750px; 
+            background: linear-gradient(180deg, #1e5631 0%, #14532d 40%, #064e3b 100%); 
+            border: 2px solid rgba(255,255,255,0.7); border-radius: 12px; 
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.5); 
+            overflow: hidden;
+        }
+        .grass-pattern { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0,0,0,0.08) 50px, rgba(0,0,0,0.08) 100px); z-index: 1; pointer-events: none; }
+        .lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        .line { position: absolute; background: rgba(255,255,255,0.4); }
+        .border-line { position: absolute; border: 2px solid rgba(255,255,255,0.4); }
+        .center-line { top: 50%; left: 0; width: 100%; height: 2px; }
+        .center-circle { top: 50%; left: 50%; width: 120px; height: 120px; border-radius: 50%; transform: translate(-50%, -50%); }
+        .center-dot { top: 50%; left: 50%; width: 6px; height: 6px; background: rgba(255,255,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); }
+        .box-top { top: 0; left: 50%; width: 45%; height: 15%; border-top: none; transform: translateX(-50%); }
+        .box-bottom { bottom: 0; left: 50%; width: 45%; height: 15%; border-bottom: none; transform: translateX(-50%); }
+        .goal-top { top: 0; left: 50%; width: 20%; height: 5%; border-top: none; transform: translateX(-50%); }
+        .goal-bottom { bottom: 0; left: 50%; width: 20%; height: 5%; border-bottom: none; transform: translateX(-50%); }
 
+        /* Bench (Dự bị) */
+        .bench-section {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+        }
+        .bench-title {
+            color: #94a3b8; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 10px;
+        }
+        .bench-grid {
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+        }
 
-# ===== TỰ ĐỘNG CẬP NHẬT TARGET LISTS DỰA TRÊN PLAYER COUNT =====
-def check_squad_requirement(team_df, remove_duplicates=False):
+        /* Player Card Style (Dùng chung cho cả Pitch và Bench) */
+        .player-card {
+            width: 85px; padding: 4px 2px;
+            display: flex; flex-direction: column; align-items: center;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%);
+            border: 1px solid #3b82f6; border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 10; cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .p-img { width: 48px; height: auto; margin-bottom: 3px; display: block; }
+        .p-icon { font-size: 24px; margin-bottom: 3px; display: none; }
+        .p-name {
+            font-size: 10px; font-weight: 700; color: white;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            width: 95%; text-align: center;
+            text-shadow: 1px 1px 2px black; margin-bottom: 2px;
+        }
+        .p-info { display: flex; gap: 3px; align-items: center; }
+        .p-pos {
+            font-size: 9px; font-weight: bold; color: #cbd5e1;
+            background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;
+        }
+        .p-rate { font-size: 10px; font-weight: bold; }
+    </style>
     """
-    Kiểm tra đội hình có đủ điều kiện tối thiểu:
-    - Có ít nhất 1 GK
-    - Có ít nhất 2 CB
     
-    Args:
-        team_df: DataFrame chứa players của team
-        remove_duplicates: Nếu True, loại trùng tên player (dùng cho Nation/League)
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>{css}</head>
+    <body>
+        <div class="main-wrapper">
+            <!-- Sân thi đấu -->
+            <div class="pitch-container">
+                <div class="grass-pattern"></div>
+                <div class="lines">
+                    <div class="line center-line"></div><div class="border-line center-circle"></div>
+                    <div class="line center-dot"></div><div class="border-line box-top"></div>
+                    <div class="border-line box-bottom"></div><div class="border-line goal-top"></div>
+                    <div class="border-line goal-bottom"></div>
+                </div>
+                {starters_html}
+            </div>
+            
+            <!-- Khu vực dự bị -->
+            <div class="bench-section">
+                <div class="bench-title">Substitutes ({len(subs)})</div>
+                <div class="bench-grid">
+                    {subs_html}
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
     """
-    if team_df.empty:
-        return False
-    
-    team_df_unique = team_df.copy()
-    
-    # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
-    if remove_duplicates and 'Player' in team_df_unique.columns:
-        team_df_unique = team_df_unique.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
-        team_df_unique = team_df_unique.drop_duplicates(subset=['Player'], keep='first')
-    
-    gk_count = len(team_df_unique[team_df_unique['Position'] == 'GK'])
-    cb_count = len(team_df_unique[team_df_unique['Position'] == 'CB'])
-    
-    return gk_count >= 1 and cb_count >= 2
+    # Tăng chiều cao lên để chứa đủ cả sân + bench (750px sân + ~250px bench)
+    components.html(html_content, height=1050, scrolling=False)
 
 def auto_update_target_lists(df):
     """
@@ -4732,40 +4787,27 @@ def main():
                     elif "POTW" in stat_type or "Epic" in stat_type:
                         metric_to_show = 'Type'
 
-                with col_view1:
-                    st.caption(f"📍 Sơ đồ Đá chính (11) - Chế độ xem: {metric_to_show if metric_to_show else 'Mặc định'}")
-                    render_pitch_view(best_squad, highlight_type=metric_to_show)
+                # ... (Phần code tính toán logic metric_to_show ở trên giữ nguyên) ...
+
+                # --- BẮT ĐẦU THAY ĐỔI TỪ ĐÂY ---
+                # Thay vì chia cột, hiển thị Full width
+                st.write("") # Spacer
                 
-                with col_view2:
-                    st.caption("📋 Danh sách Đầy đủ (23)")
-                    
-                    s_df = pd.DataFrame(best_squad)
-                    
-                    if 'Is_Starter' in s_df.columns:
+                # Gọi hàm render mới
+                render_pitch_view(best_squad, highlight_type=metric_to_show)
+                
+                # Nếu muốn hiển thị danh sách dạng text đơn giản để copy (tùy chọn ẩn trong expander)
+                with st.expander("📋 Xem danh sách chi tiết (Dạng bảng)"):
+                     s_df = pd.DataFrame(best_squad)
+                     if 'Is_Starter' in s_df.columns:
                         s_df['Role'] = s_df['Is_Starter'].apply(lambda x: "⭐ START" if x else "🔄 SUB")
-                    
-                    cols_show = ['Role', 'Position', 'Player', 'Rating', 'Club']
-                    if build_mode == "Theo Chỉ số":
-                        if "Cao" in stat_type or "Thấp" in stat_type: cols_show.append('Height')
-                        elif "Nặng" in stat_type or "Nhẹ" in stat_type: cols_show.append('Weight')
-                        elif "Trẻ" in stat_type or "Già" in stat_type: cols_show.append('Age')
-                        elif "United Nations" in stat_type or "Quốc Gia" in stat_type: cols_show.append('Nation')
-                        elif "Ambidextrous" in stat_type or "Chân" in stat_type: cols_show.append('Ambidextrous')
-                        elif "Tanks" in stat_type or "Agiles" in stat_type or "BMI" in stat_type: cols_show.append('BMI')
-                    
-                    final_cols = [c for c in cols_show if c in s_df.columns]
-                    
-                    st.dataframe(
-                        s_df[final_cols], 
+                     
+                     st.dataframe(
+                        s_df[['Role', 'Position', 'Player', 'Rating', 'Club', 'Player Type']], 
                         hide_index=True, 
-                        use_container_width=True, 
-                        height=750,
-                        column_config={
-                            "Rating": st.column_config.NumberColumn("OVR", format="%d"),
-                            "Player": st.column_config.TextColumn("Cầu thủ", width="medium"),
-                            "Role": st.column_config.TextColumn("Vai trò", width="small"),
-                        }
+                        use_container_width=True
                     )
+                # --- KẾT THÚC THAY ĐỔI ---
 
         # =========================================================
         # TAB 2: MANUAL BUILD (GIỮ NGUYÊN)
