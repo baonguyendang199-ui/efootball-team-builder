@@ -1313,8 +1313,10 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list, sort_mode='rating_desc'):
     """
     Vẽ sơ đồ sân bóng: RESPONSIVE MOBILE FINAL VERSION.
-    CẬP NHẬT: 
-    - Đẩy Metric Badge lên cao hẳn (top: -14px) để KHÔNG che mất Position.
+    CẬP NHẬT TỌA ĐỘ KỸ LƯỠNG (Fine-tuned):
+    - GK (96%) & CB (82%) tách biệt.
+    - AMF (38%) đẩy cao để không đè DMF/CMF (62%).
+    - Badge nằm cao và bên trái.
     """
     import streamlit.components.v1 as components
     import re
@@ -1422,72 +1424,94 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         </div>
         """
 
-    # --- 4. MAPPING VỊ TRÍ ---
-    midfielders = [p for p in starters if p['Position'] in ['DMF', 'CMF']]
-    others = {}
-    for p in starters:
-        if p['Position'] not in ['DMF', 'CMF']:
-            pos = p['Position']
-            if pos not in others: others[pos] = []
-            others[pos].append(p)
-            
+    # --- 4. MAPPING VỊ TRÍ (COORDINATE SYSTEM) ---
+    
+    # 4.1 Tách các nhóm vị trí đặc thù
+    gk_list = [p for p in starters if p['Position'] == 'GK']
+    def_list = [p for p in starters if p['Position'] in ['CB', 'LB', 'RB']]
+    pivot_list = [p for p in starters if p['Position'] in ['DMF', 'CMF']] # Tiền vệ trụ/trung tâm
+    att_mid_list = [p for p in starters if p['Position'] == 'AMF'] # Hộ công
+    wide_mid_list = [p for p in starters if p['Position'] in ['LMF', 'RMF']] # Tiền vệ cánh
+    fwd_list = [p for p in starters if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']] # Tiền đạo
+
     html_starters = ""
-    DEPTH_MAP = {
-        'GK': 92, 'CB': 78, 'LB': 78, 'RB': 78,
-        'LMF': 42, 'RMF': 42, 'AMF': 45,
-        'LWF': 20, 'RWF': 20, 'SS': 25, 'CF': 15
-    }
 
-    # Xếp nhóm thường
-    for pos, players in others.items():
-        count = len(players)
-        row_top = DEPTH_MAP.get(pos, 50)
-        
-        if pos == 'GK': coords = [50]
-        elif pos == 'LB': coords = [15]
-        elif pos == 'RB': coords = [85]
-        elif pos in ['LWF', 'LMF']: coords = [15 + (i*15) for i in range(count)]
-        elif pos in ['RWF', 'RMF']: coords = [85 - (i*15) for i in range(count)]
-        else: # CB, AMF, CF
-            if count == 1: coords = [50]
-            elif count == 2: coords = [35, 65]
-            elif count == 3: coords = [28, 50, 72]
-            else: coords = [15, 38, 62, 85]
+    # 4.2 XỬ LÝ GK (Đẩy sâu xuống 96%)
+    for p in gk_list:
+        html_starters += create_card_html(p, 96, 50)
 
-        for i, p in enumerate(players):
-            left_pos = coords[i] if i < len(coords) else 50
-            html_starters += create_card_html(p, row_top, left_pos, is_sub=False)
+    # 4.3 XỬ LÝ HẬU VỆ (CB/LB/RB - Đẩy xuống 82%)
+    # Sắp xếp theo thứ tự: LB -> CB -> RB
+    def_list.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
+    
+    def_count = len(def_list)
+    if def_count == 3: # 3 CB
+        coords = [25, 50, 75]
+    elif def_count == 4: # LB - CB - CB - RB
+        coords = [15, 38, 62, 85]
+    elif def_count == 5:
+        coords = [10, 30, 50, 70, 90]
+    else:
+        coords = [50] # Fallback
 
-    # Xếp nhóm Tiền vệ
-    dmf_list = [p for p in midfielders if p['Position'] == 'DMF']
-    cmf_list = [p for p in midfielders if p['Position'] == 'CMF']
-    mid_total = len(midfielders)
+    for i, p in enumerate(def_list):
+        left_pos = coords[i] if i < len(coords) else 50
+        # Nếu là LB/RB đẩy cao hơn CB một xíu (80% vs 82%) tạo hình vòng cung
+        top_pos = 80 if p['Position'] in ['LB', 'RB'] else 82
+        html_starters += create_card_html(p, top_pos, left_pos)
 
-    if mid_total > 0:
-        if len(dmf_list) == 1 and len(cmf_list) == 2:
-            html_starters += create_card_html(dmf_list[0], 66, 50)
-            html_starters += create_card_html(cmf_list[0], 55, 28)
-            html_starters += create_card_html(cmf_list[1], 55, 72)
-            
-        elif len(dmf_list) == 2 and len(cmf_list) == 0:
-            # 2 DMF: Đẩy lên cao (60%) để tránh đè CB (78%)
-            html_starters += create_card_html(dmf_list[0], 60, 35)
-            html_starters += create_card_html(dmf_list[1], 60, 65)
-            
-        elif len(dmf_list) == 2 and len(cmf_list) == 1:
-            html_starters += create_card_html(dmf_list[0], 64, 35)
-            html_starters += create_card_html(dmf_list[1], 64, 65)
-            html_starters += create_card_html(cmf_list[0], 55, 50)
-        else:
-            if mid_total == 1: coords = [50]
-            elif mid_total == 2: coords = [35, 65]
-            elif mid_total == 3: coords = [25, 50, 75]
-            else: coords = [20, 40, 60, 80]
-            midfielders.sort(key=lambda x: x['Position'], reverse=True)
-            for i, p in enumerate(midfielders):
-                left_pos = coords[i] if i < len(coords) else 50
-                effective_top = 60 if p['Position'] == 'DMF' else 56
-                html_starters += create_card_html(p, effective_top, left_pos, is_sub=False)
+    # 4.4 XỬ LÝ TIỀN VỆ TRỤ (DMF/CMF - Mức 62%)
+    pivot_count = len(pivot_list)
+    # Sort DMF trước CMF
+    pivot_list.sort(key=lambda x: {'DMF': 1, 'CMF': 2}.get(x['Position'], 2))
+    
+    if pivot_count == 1: coords = [50]
+    elif pivot_count == 2: coords = [35, 65]
+    elif pivot_count == 3: coords = [28, 50, 72]
+    else: coords = [20, 40, 60, 80]
+
+    for i, p in enumerate(pivot_list):
+        left_pos = coords[i] if i < len(coords) else 50
+        # DMF thấp hơn CMF 1 chút
+        top_pos = 64 if p['Position'] == 'DMF' else 60
+        html_starters += create_card_html(p, top_pos, left_pos)
+
+    # 4.5 XỬ LÝ TIỀN VỆ CÁNH (LMF/RMF - Mức 42% - Rộng biên)
+    for p in wide_mid_list:
+        left_pos = 12 if p['Position'] == 'LMF' else 88
+        html_starters += create_card_html(p, 42, left_pos)
+
+    # 4.6 XỬ LÝ HỘ CÔNG (AMF - Đẩy lên 38% - Tránh đè Pivot)
+    amf_count = len(att_mid_list)
+    if amf_count == 1: coords = [50]
+    elif amf_count == 2: coords = [35, 65] # Song song với Pivot nhưng cao hơn hẳn
+    else: coords = [25, 50, 75]
+
+    for i, p in enumerate(att_mid_list):
+        left_pos = coords[i] if i < len(coords) else 50
+        html_starters += create_card_html(p, 38, left_pos)
+
+    # 4.7 XỬ LÝ TIỀN ĐẠO (CF/SS/Wingers - Mức 15-20%)
+    # Gom SS và CF vào giữa, LWF/RWF ra biên
+    wings = [p for p in fwd_list if p['Position'] in ['LWF', 'RWF']]
+    centers = [p for p in fwd_list if p['Position'] in ['SS', 'CF']]
+    
+    # Vẽ Wingers (LWF/RWF)
+    for p in wings:
+        l = 15 if p['Position'] == 'LWF' else 85
+        html_starters += create_card_html(p, 20, l)
+    
+    # Vẽ Center Forwards (CF/SS)
+    c_count = len(centers)
+    if c_count == 1: coords = [50]
+    elif c_count == 2: coords = [35, 65]
+    elif c_count == 3: coords = [25, 50, 75]
+    else: coords = [50]
+
+    for i, p in enumerate(centers):
+        left_pos = coords[i] if i < len(coords) else 50
+        t = 15 if p['Position'] == 'CF' else 22 # SS đá thấp hơn CF
+        html_starters += create_card_html(p, t, left_pos)
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
@@ -1554,11 +1578,11 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             white-space: nowrap; overflow: hidden;
         }
 
-        /* --- CẬP NHẬT STAT BADGE: NẰM CAO HƠN & BÊN TRÁI --- */
+        /* STAT BADGE: Đẩy lên cao & Bên trái */
         .stat-badge { 
             position: absolute; 
-            top: -14px; /* Đẩy lên cao hơn để không che Position */
-            left: -6px; /* Chuyển sang trái */
+            top: -14px; 
+            left: -6px; 
             color: #000; font-size: 10px; font-weight: 800; 
             padding: 1px 5px; border-radius: 3px; z-index: 20; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white;
@@ -1580,10 +1604,9 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             .p-name { font-size: 9px; height: 18px; }
             .p-img-box { height: 65px; bottom: 18px; }
             
-            /* Badge trên mobile */
             .stat-badge {
                 font-size: 9px; padding: 1px 3px; 
-                top: -12px; /* Đẩy lên cao hơn trên mobile */
+                top: -12px; 
                 left: -4px; 
             }
             .bench { padding: 10px; }
