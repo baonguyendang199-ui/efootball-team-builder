@@ -1313,9 +1313,9 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list, sort_mode='rating_desc'):
     """
     Vẽ sơ đồ sân bóng: RESPONSIVE MOBILE FINAL VERSION.
-    - Tự động co giãn thẻ cầu thủ trên điện thoại.
-    - Tính toán chiều cao khung hình động (Dynamic Height) để không bị che dự bị.
-    - Hiển thị đầy đủ Badge chỉ số phụ.
+    CẬP NHẬT: 
+    - Đẩy DMF lên cao hơn (60%) để tránh đè CB trong sơ đồ 3-2-4-1.
+    - Chuyển Metric Badge sang bên TRÁI.
     """
     import streamlit.components.v1 as components
     import re
@@ -1345,7 +1345,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
     starters = [p for p in squad_list if p.get('Is_Starter', False)]
     raw_subs = [p for p in squad_list if not p.get('Is_Starter', False)]
 
-    # Helper lấy giá trị số
     def get_sort_value(p, key):
         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
         except: return 0
@@ -1363,7 +1362,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
 
     # --- 3. HÀM TẠO CARD HTML ---
     def create_card_html(p, top=None, left=None, is_sub=False):
-        # Tên cầu thủ: Lấy tên cuối, tối đa 8 ký tự cho mobile
         full_name = p['Player'].strip()
         name_parts = full_name.split()
         if len(name_parts) > 1:
@@ -1371,7 +1369,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         else:
             display_name = full_name.upper()
         
-        # Cắt ngắn nếu quá dài
         if len(display_name) > 9: display_name = display_name[:8] + "."
 
         rating = p['Rating']
@@ -1403,7 +1400,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             position_css = ""
             card_class = "card-sub"
         else:
-            # Scale nhỏ hơn trên mobile để không đè nhau
             position_css = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%);"
             card_class = "card-pitch"
 
@@ -1473,9 +1469,17 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             html_starters += create_card_html(dmf_list[0], 66, 50)
             html_starters += create_card_html(cmf_list[0], 55, 28)
             html_starters += create_card_html(cmf_list[1], 55, 72)
+            
+        # --- CẬP NHẬT LOGIC CHO 2 DMF (SƠ ĐỒ 3-2-4-1) ---
+        elif len(dmf_list) == 2 and len(cmf_list) == 0:
+            # Sơ đồ 3-2-4-1 hoặc tương tự. Đẩy DMF lên 60% (thay vì 66% như cũ)
+            # CB ở 78%. DMF ở 60% -> Khoảng cách 18% là đủ an toàn
+            html_starters += create_card_html(dmf_list[0], 60, 35)
+            html_starters += create_card_html(dmf_list[1], 60, 65)
+            
         elif len(dmf_list) == 2 and len(cmf_list) == 1:
-            html_starters += create_card_html(dmf_list[0], 66, 35)
-            html_starters += create_card_html(dmf_list[1], 66, 65)
+            html_starters += create_card_html(dmf_list[0], 64, 35)
+            html_starters += create_card_html(dmf_list[1], 64, 65)
             html_starters += create_card_html(cmf_list[0], 55, 50)
         else:
             if mid_total == 1: coords = [50]
@@ -1485,23 +1489,18 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             midfielders.sort(key=lambda x: x['Position'], reverse=True)
             for i, p in enumerate(midfielders):
                 left_pos = coords[i] if i < len(coords) else 50
-                effective_top = 64 if p['Position'] == 'DMF' else 56
+                # Cập nhật: DMF default lên 60, CMF lên 56
+                effective_top = 60 if p['Position'] == 'DMF' else 56
                 html_starters += create_card_html(p, effective_top, left_pos, is_sub=False)
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    # --- 5. TÍNH TOÁN CHIỀU CAO IFRAME ---
-    # Mobile: 4 cầu thủ / dòng. Desktop: 8 cầu thủ / dòng
-    # Chiều cao Pitch ~ 750px (Desktop) hoặc co lại trên mobile
-    # Bench Row Height ~ 110px
-    # Ước lượng an toàn:
     rows_mobile = math.ceil(len(subs) / 4)
-    total_height_mobile = 750 + 80 + (rows_mobile * 110) # 750 pitch + header + bench
-    
+    total_height_mobile = 750 + 80 + (rows_mobile * 110) 
     rows_desktop = math.ceil(len(subs) / 8)
     total_height_desktop = 800 + 60 + (rows_desktop * 130)
 
-    # CSS RESPONSIVE (MOBILE-FIRST)
+    # CSS RESPONSIVE
     css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@700;800&family=Inter:wght@600;700&display=swap');
@@ -1512,9 +1511,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
 
         /* --- PITCH --- */
         .pitch {
-            position: relative; width: 100%; 
-            /* Chiều cao pitch thay đổi theo màn hình */
-            height: 720px; 
+            position: relative; width: 100%; height: 720px; 
             background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%);
             border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; perspective: 800px;
@@ -1531,10 +1528,9 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         .box-top { position: absolute; top: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-top: none; }
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
 
-        /* --- CARD STYLE (Base for Desktop) --- */
+        /* --- CARD STYLE --- */
         .p-card {
-            position: relative; 
-            width: 90px; height: 120px; /* Size chuẩn desktop */
+            position: relative; width: 90px; height: 120px;
             border-radius: 6px; cursor: pointer; transition: all 0.2s; z-index: 10;
         }
         .card-pitch { position: absolute; }
@@ -1563,8 +1559,11 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             white-space: nowrap; overflow: hidden;
         }
 
+        /* STAT BADGE: ĐÃ CHUYỂN SANG TRÁI */
         .stat-badge { 
-            position: absolute; top: -8px; right: -6px; 
+            position: absolute; 
+            top: -8px; 
+            left: -6px; /* Thay đổi từ right sang left */
             color: #000; font-size: 10px; font-weight: 800; 
             padding: 1px 5px; border-radius: 3px; z-index: 20; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white;
@@ -1577,35 +1576,25 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         .bench-title { color: #94a3b8; font-weight: 700; font-size: 14px; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
         .bench-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
-        /* ========================================= */
-        /* MEDIA QUERIES FOR MOBILE (MAX-WIDTH 600px) */
-        /* ========================================= */
         @media only screen and (max-width: 600px) {
-            .pitch { height: 620px; } /* Giảm chiều cao sân trên mobile */
-            
-            .p-card { 
-                width: 64px; height: 90px; /* Thẻ nhỏ lại đáng kể */
-            }
+            .pitch { height: 620px; }
+            .p-card { width: 64px; height: 90px; }
             .card-sub { width: 64px; height: 90px; }
-
-            .p-rating { font-size: 14px; } /* Số nhỏ lại */
+            .p-rating { font-size: 14px; }
             .p-pos { font-size: 8px; padding: 0 2px; }
             .p-name { font-size: 9px; height: 18px; }
             .p-img-box { height: 65px; bottom: 18px; }
             
+            /* Badge trên mobile */
             .stat-badge {
-                font-size: 9px; padding: 1px 3px; top: -6px; right: -4px;
+                font-size: 9px; padding: 1px 3px; top: -6px; left: -4px;
             }
-            
             .bench { padding: 10px; }
             .bench-grid { gap: 6px; }
         }
     </style>
     """
     
-    # Tính chiều cao cho iframe dựa trên thiết bị (gần đúng)
-    # Streamlit component không biết user đang dùng mobile hay PC, nên ta set height đủ lớn cho cả hai.
-    # Nhưng CSS sẽ lo việc hiển thị đẹp. Ta set height theo chiều cao lớn nhất có thể.
     final_iframe_height = total_height_desktop 
 
     html_content = f"""
@@ -1633,12 +1622,10 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
                 </div>
             </div>
         </div>
-        <!-- Script tự động gửi chiều cao về Streamlit nếu cần (Advanced) -->
     </body>
     </html>
     """
     
-    # Dùng chiều cao động để đảm bảo không bị cắt
     components.html(html_content, height=final_iframe_height, scrolling=False)
 
 # ==========================================
