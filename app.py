@@ -1313,10 +1313,10 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list, sort_mode='rating_desc'):
     """
     Vẽ sơ đồ sân bóng: RESPONSIVE MOBILE FINAL VERSION.
-    CẬP NHẬT TỌA ĐỘ KỸ LƯỠNG (Fine-tuned):
-    - GK (96%) & CB (82%) tách biệt.
-    - AMF (38%) đẩy cao để không đè DMF/CMF (62%).
-    - Badge nằm cao và bên trái.
+    FIX LỖI:
+    - GK bị chìm nghỉm -> Đẩy lên 90%.
+    - CB đè GK -> Đẩy CB lên 74% (Giãn cách an toàn).
+    - Cân chỉnh lại toàn bộ trục dọc để đội hình thoáng hơn.
     """
     import streamlit.components.v1 as components
     import re
@@ -1426,25 +1426,23 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
 
     # --- 4. MAPPING VỊ TRÍ (COORDINATE SYSTEM) ---
     
-    # 4.1 Tách các nhóm vị trí đặc thù
     gk_list = [p for p in starters if p['Position'] == 'GK']
     def_list = [p for p in starters if p['Position'] in ['CB', 'LB', 'RB']]
-    pivot_list = [p for p in starters if p['Position'] in ['DMF', 'CMF']] # Tiền vệ trụ/trung tâm
-    att_mid_list = [p for p in starters if p['Position'] == 'AMF'] # Hộ công
-    wide_mid_list = [p for p in starters if p['Position'] in ['LMF', 'RMF']] # Tiền vệ cánh
-    fwd_list = [p for p in starters if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']] # Tiền đạo
+    pivot_list = [p for p in starters if p['Position'] in ['DMF', 'CMF']] 
+    att_mid_list = [p for p in starters if p['Position'] == 'AMF'] 
+    wide_mid_list = [p for p in starters if p['Position'] in ['LMF', 'RMF']] 
+    fwd_list = [p for p in starters if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']] 
 
     html_starters = ""
 
-    # 4.2 XỬ LÝ GK (Đẩy sâu xuống 96%)
+    # 4.1 GK (Đẩy lên 90% thay vì 96%)
     for p in gk_list:
-        html_starters += create_card_html(p, 96, 50)
+        html_starters += create_card_html(p, 90, 50)
 
-    # 4.3 XỬ LÝ HẬU VỆ (CB/LB/RB - Đẩy xuống 82%)
-    # Sắp xếp theo thứ tự: LB -> CB -> RB
+    # 4.2 HẬU VỆ (Đẩy lên 74% thay vì 82% -> Tạo khoảng trống lớn với GK)
     def_list.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
-    
     def_count = len(def_list)
+    
     if def_count == 3: # 3 CB
         coords = [25, 50, 75]
     elif def_count == 4: # LB - CB - CB - RB
@@ -1452,17 +1450,16 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
     elif def_count == 5:
         coords = [10, 30, 50, 70, 90]
     else:
-        coords = [50] # Fallback
+        coords = [50]
 
     for i, p in enumerate(def_list):
         left_pos = coords[i] if i < len(coords) else 50
-        # Nếu là LB/RB đẩy cao hơn CB một xíu (80% vs 82%) tạo hình vòng cung
-        top_pos = 80 if p['Position'] in ['LB', 'RB'] else 82
+        # CB 74%, LB/RB 72% (cao hơn xíu tạo vòng cung)
+        top_pos = 72 if p['Position'] in ['LB', 'RB'] else 74
         html_starters += create_card_html(p, top_pos, left_pos)
 
-    # 4.4 XỬ LÝ TIỀN VỆ TRỤ (DMF/CMF - Mức 62%)
+    # 4.3 TIỀN VỆ TRỤ (Đẩy lên 56-58%)
     pivot_count = len(pivot_list)
-    # Sort DMF trước CMF
     pivot_list.sort(key=lambda x: {'DMF': 1, 'CMF': 2}.get(x['Position'], 2))
     
     if pivot_count == 1: coords = [50]
@@ -1472,36 +1469,33 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
 
     for i, p in enumerate(pivot_list):
         left_pos = coords[i] if i < len(coords) else 50
-        # DMF thấp hơn CMF 1 chút
-        top_pos = 64 if p['Position'] == 'DMF' else 60
+        # DMF 58%, CMF 56%
+        top_pos = 58 if p['Position'] == 'DMF' else 56
         html_starters += create_card_html(p, top_pos, left_pos)
 
-    # 4.5 XỬ LÝ TIỀN VỆ CÁNH (LMF/RMF - Mức 42% - Rộng biên)
+    # 4.4 TIỀN VỆ CÁNH (Giữ 42%)
     for p in wide_mid_list:
         left_pos = 12 if p['Position'] == 'LMF' else 88
         html_starters += create_card_html(p, 42, left_pos)
 
-    # 4.6 XỬ LÝ HỘ CÔNG (AMF - Đẩy lên 38% - Tránh đè Pivot)
+    # 4.5 HỘ CÔNG (Đẩy lên 36%)
     amf_count = len(att_mid_list)
     if amf_count == 1: coords = [50]
-    elif amf_count == 2: coords = [35, 65] # Song song với Pivot nhưng cao hơn hẳn
+    elif amf_count == 2: coords = [35, 65] 
     else: coords = [25, 50, 75]
 
     for i, p in enumerate(att_mid_list):
         left_pos = coords[i] if i < len(coords) else 50
-        html_starters += create_card_html(p, 38, left_pos)
+        html_starters += create_card_html(p, 36, left_pos)
 
-    # 4.7 XỬ LÝ TIỀN ĐẠO (CF/SS/Wingers - Mức 15-20%)
-    # Gom SS và CF vào giữa, LWF/RWF ra biên
+    # 4.6 TIỀN ĐẠO (Đẩy lên 14-20%)
     wings = [p for p in fwd_list if p['Position'] in ['LWF', 'RWF']]
     centers = [p for p in fwd_list if p['Position'] in ['SS', 'CF']]
     
-    # Vẽ Wingers (LWF/RWF)
     for p in wings:
         l = 15 if p['Position'] == 'LWF' else 85
         html_starters += create_card_html(p, 20, l)
     
-    # Vẽ Center Forwards (CF/SS)
     c_count = len(centers)
     if c_count == 1: coords = [50]
     elif c_count == 2: coords = [35, 65]
@@ -1510,7 +1504,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
 
     for i, p in enumerate(centers):
         left_pos = coords[i] if i < len(coords) else 50
-        t = 15 if p['Position'] == 'CF' else 22 # SS đá thấp hơn CF
+        t = 14 if p['Position'] == 'CF' else 22 
         html_starters += create_card_html(p, t, left_pos)
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
@@ -1604,6 +1598,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             .p-name { font-size: 9px; height: 18px; }
             .p-img-box { height: 65px; bottom: 18px; }
             
+            /* Badge trên mobile */
             .stat-badge {
                 font-size: 9px; padding: 1px 3px; 
                 top: -12px; 
