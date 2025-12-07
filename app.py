@@ -1529,7 +1529,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         
         # Nếu là sơ đồ 3-2-4-1 (2 DMF), ép cứng về 52%
         if def_count == 3 and pivot_count == 2 and p['Position'] == 'DMF':
-             top_pos = 50
+             top_pos = 48
 
         html_starters += create_card_html(p, top_pos, left_pos)
 
