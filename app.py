@@ -1368,10 +1368,7 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 def render_pitch_view(squad_list, sort_mode='rating_desc'):
     """
     Vẽ sơ đồ sân bóng: RESPONSIVE MOBILE FINAL VERSION.
-    CẬP NHẬT TỌA ĐỘ (User Request):
-    - CB: 70% (Tách biệt hoàn toàn với GK 90%).
-    - DMF/CMF: ~52% (DMF 54%, CMF 50%).
-    - AMF: 34% (Đẩy cao để tránh đè CMF).
+    Đã FIX: Sort dự bị cho Ambidextrous (2 chân như 1) và hiển thị chỉ số chân trên thẻ.
     """
     import streamlit.components.v1 as components
     import re
@@ -1394,7 +1391,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         highlight_type = 'BMI'; 
         if 'asc' in sort_mode: is_reverse = False
     elif 'potw' in sort_mode: highlight_type = 'Type'
-    elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous'
+    elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous' # Chế độ 2 chân
     elif 'united_nations' in sort_mode: highlight_type = 'Nation'
 
     # --- 2. PHÂN LOẠI DATA ---
@@ -1405,7 +1402,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
         except: return 0
 
-    # Logic Sort Dự bị
+    # === LOGIC SORT DỰ BỊ (ĐÃ SỬA) ===
     if highlight_type == 'Height': subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Height'), reverse=is_reverse)
     elif highlight_type == 'Weight': subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Weight'), reverse=is_reverse)
     elif highlight_type == 'Age': subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Age'), reverse=is_reverse)
@@ -1414,6 +1411,11 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             h = get_sort_value(p, 'Height') / 100.0; w = get_sort_value(p, 'Weight')
             return w / (h**2) if h > 0 else 0
         subs = sorted(raw_subs, key=get_bmi, reverse=is_reverse)
+    
+    # FIX: Sắp xếp theo Score đã tính (đã cộng điểm bonus cho chân thuận)
+    elif highlight_type == 'Ambidextrous':
+        subs = sorted(raw_subs, key=lambda x: x.get('Score', 0), reverse=True)
+        
     else: subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
     # --- 3. HÀM TẠO CARD HTML ---
@@ -1431,7 +1433,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
         
-        # Badge Value
+        # Badge Value (Hiển thị chỉ số trên đầu thẻ)
         val_display = ""
         if highlight_type == 'Height': val_display = f"{p.get('Height', '-')}cm"
         elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '-')}kg"
@@ -1442,6 +1444,19 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
                 w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
                 if h > 0: val_display = f"{(w/(h**2)):.1f}"
             except: pass
+        
+        # FIX: Hiển thị chỉ số chân (Usage | Acc)
+        elif highlight_type == 'Ambidextrous':
+            d = p.get('Data', {})
+            def get_wf_num(text):
+                t = str(text).lower()
+                if '4' in t or 'regularly' in t or 'very high' in t: return '4'
+                if '3' in t or 'high' in t: return '3'
+                if '2' in t or 'medium' in t: return '2'
+                return '1'
+            u = get_wf_num(d.get('Weak Foot Usage', ''))
+            a = get_wf_num(d.get('Weak Foot Accuracy', ''))
+            val_display = f"🦶 {u} | {a}"
         
         # Color Logic
         ptype = str(p['Type']).upper()
@@ -1479,8 +1494,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         </div>
         """
 
-    # --- 4. MAPPING VỊ TRÍ (FINE-TUNED COORDINATES) ---
-    
+    # --- 4. MAPPING VỊ TRÍ ---
     gk_list = [p for p in starters if p['Position'] == 'GK']
     def_list = [p for p in starters if p['Position'] in ['CB', 'LB', 'RB']]
     pivot_list = [p for p in starters if p['Position'] in ['DMF', 'CMF']] 
@@ -1490,78 +1504,59 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
 
     html_starters = ""
 
-    # 4.1 GK (90%)
-    for p in gk_list:
-        html_starters += create_card_html(p, 90, 50)
+    # 4.1 GK
+    for p in gk_list: html_starters += create_card_html(p, 90, 50)
 
-    # 4.2 HẬU VỆ (CB 70% - LB/RB 68%)
+    # 4.2 HẬU VỆ
     def_list.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
     def_count = len(def_list)
-    
-    if def_count == 3: # 3 CB
-        coords = [25, 50, 75]
-    elif def_count == 4: # LB - CB - CB - RB
-        coords = [15, 38, 62, 85]
-    elif def_count == 5:
-        coords = [10, 30, 50, 70, 90]
-    else:
-        coords = [50]
-
+    if def_count == 3: coords = [25, 50, 75]
+    elif def_count == 4: coords = [15, 38, 62, 85]
+    elif def_count == 5: coords = [10, 30, 50, 70, 90]
+    else: coords = [50]
     for i, p in enumerate(def_list):
         left_pos = coords[i] if i < len(coords) else 50
-        # CB 70%, LB/RB 68%
         top_pos = 68 if p['Position'] in ['LB', 'RB'] else 70
         html_starters += create_card_html(p, top_pos, left_pos)
 
-    # 4.3 TIỀN VỆ TRỤ (DMF 54% - CMF 50% => Trung bình 52%)
+    # 4.3 PIVOT
     pivot_count = len(pivot_list)
     pivot_list.sort(key=lambda x: {'DMF': 1, 'CMF': 2}.get(x['Position'], 2))
-    
     if pivot_count == 1: coords = [50]
     elif pivot_count == 2: coords = [35, 65]
     elif pivot_count == 3: coords = [28, 50, 72]
     else: coords = [20, 40, 60, 80]
-
     for i, p in enumerate(pivot_list):
         left_pos = coords[i] if i < len(coords) else 50
-        # DMF thấp hơn CMF một chút
         top_pos = 54 if p['Position'] == 'DMF' else 50
-        
-        # Nếu là sơ đồ 3-2-4-1 (2 DMF), ép cứng về 52%
-        if def_count == 3 and pivot_count == 2 and p['Position'] == 'DMF':
-             top_pos = 48
-
+        if def_count == 3 and pivot_count == 2 and p['Position'] == 'DMF': top_pos = 52
         html_starters += create_card_html(p, top_pos, left_pos)
 
-    # 4.4 TIỀN VỆ CÁNH (40%)
+    # 4.4 WIDE MID
     for p in wide_mid_list:
         left_pos = 12 if p['Position'] == 'LMF' else 88
         html_starters += create_card_html(p, 40, left_pos)
 
-    # 4.5 HỘ CÔNG (34% - Tránh đè CMF ở 50%)
+    # 4.5 AMF
     amf_count = len(att_mid_list)
     if amf_count == 1: coords = [50]
     elif amf_count == 2: coords = [35, 65] 
     else: coords = [25, 50, 75]
-
     for i, p in enumerate(att_mid_list):
         left_pos = coords[i] if i < len(coords) else 50
         html_starters += create_card_html(p, 32, left_pos)
 
-    # 4.6 TIỀN ĐẠO (14-20%)
+    # 4.6 FWD
     wings = [p for p in fwd_list if p['Position'] in ['LWF', 'RWF']]
     centers = [p for p in fwd_list if p['Position'] in ['SS', 'CF']]
-    
     for p in wings:
         l = 15 if p['Position'] == 'LWF' else 85
         html_starters += create_card_html(p, 20, l)
-    
     c_count = len(centers)
     if c_count == 1: coords = [50]
     elif c_count == 2: coords = [35, 65]
     elif c_count == 3: coords = [25, 50, 75]
     else: coords = [50]
-
     for i, p in enumerate(centers):
         left_pos = coords[i] if i < len(coords) else 50
         t = 14 if p['Position'] == 'CF' else 22 
@@ -1582,7 +1577,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
         .container { display: flex; flex-direction: column; gap: 15px; width: 100%; margin: 0 auto; }
 
-        /* --- PITCH --- */
         .pitch {
             position: relative; width: 100%; height: 720px; 
             background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%);
@@ -1601,7 +1595,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         .box-top { position: absolute; top: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-top: none; }
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
 
-        /* --- CARD STYLE --- */
         .p-card {
             position: relative; width: 90px; height: 120px;
             border-radius: 6px; cursor: pointer; transition: all 0.2s; z-index: 10;
@@ -1632,7 +1625,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             white-space: nowrap; overflow: hidden;
         }
 
-        /* STAT BADGE: Đẩy lên cao & Bên trái */
         .stat-badge { 
             position: absolute; 
             top: -14px; 
@@ -1657,13 +1649,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             .p-pos { font-size: 8px; padding: 0 2px; }
             .p-name { font-size: 9px; height: 18px; }
             .p-img-box { height: 65px; bottom: 18px; }
-            
-            /* Badge trên mobile */
-            .stat-badge {
-                font-size: 9px; padding: 1px 3px; 
-                top: -12px; 
-                left: -4px; 
-            }
+            .stat-badge { font-size: 9px; padding: 1px 3px; top: -12px; left: -4px; }
             .bench { padding: 10px; }
             .bench-grid { gap: 6px; }
         }
