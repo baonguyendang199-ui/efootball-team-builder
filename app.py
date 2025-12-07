@@ -1484,24 +1484,24 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
 def render_pitch_view(squad_list, highlight_type=None):
     """
-    Vẽ sơ đồ sân bóng: Phong cách REALISTIC STADIUM & 3D PLATES.
-    Khắc phục hoàn toàn lỗi mất đầu cầu thủ.
+    Vẽ sơ đồ sân bóng: Phong cách TACTICAL DARK GLASS & NEON.
+    Hiện đại, tối giản, tập trung vào thẻ cầu thủ.
     """
     import streamlit.components.v1 as components
     import re
-    
-    # --- 1. SẮP XẾP DỮ LIỆU ---
+
+    # --- 1. CHUẨN BỊ DỮ LIỆU ---
     starters = [p for p in squad_list if p.get('Is_Starter', False)]
     subs = sorted([p for p in squad_list if not p.get('Is_Starter', False)], 
                   key=lambda x: x.get('Rating', 0), reverse=True)
 
-    # --- 2. HÀM TẠO CARD HTML ---
+    # --- 2. HÀM TẠO HTML THẺ CẦU THỦ ---
     def create_card_html(p, top=None, left=None, is_sub=False):
-        # --- Tooltip ---
+        # --- Tooltip Info ---
         tooltip_parts = [f"{p['Player']}", f"Pos: {p['Position']} | Rate: {p['Rating']}"]
         extra_info = ""
         
-        # Highlight Logic
+        # Highlight Logic (Hiển thị chỉ số phụ nếu được chọn)
         if highlight_type == 'Height': extra_info = f"{p.get('Height', '?')} cm"
         elif highlight_type == 'Weight': extra_info = f"{p.get('Weight', '?')} kg"
         elif highlight_type == 'Age': extra_info = f"{p.get('Age', '?')} tuổi"
@@ -1512,96 +1512,104 @@ def render_pitch_view(squad_list, highlight_type=None):
                 w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
                 if h > 0: extra_info = f"BMI: {(w/(h**2)):.1f}"
             except: pass
+        elif highlight_type == 'Ambidextrous':
+            try:
+                d = p.get('Data', {})
+                u = str(d.get('Weak Foot Usage', ''))
+                a = str(d.get('Weak Foot Accuracy', ''))
+                extra_info = f"WF: {u[:1]}/{a[:1]}"
+            except: pass
         
         if extra_info: tooltip_parts.append(f"📌 {extra_info}")
         tooltip_text = "&#10;".join(tooltip_parts)
 
-        # --- THEME COLOR & CLASS ---
+        # --- THEME CONFIG (Màu sắc theo loại thẻ) ---
         ptype = str(p['Type']).upper().strip()
         
         if "POTW" in ptype or "TRENDING" in ptype: 
-            theme_class = "theme-potw"
-            bg_grad = "linear-gradient(135deg, #4c1d95 0%, #a21caf 100%)" # Tím đậm sang tím hồng
-            border_color = "#d946ef"
+            card_theme = "card-potw"
+            glow_color = "rgba(217, 70, 239, 0.6)" # Tím Neon
         elif "EPIC" in ptype and "NON" not in ptype: 
-            theme_class = "theme-epic"
-            bg_grad = "linear-gradient(135deg, #78350f 0%, #b45309 60%, #fbbf24 100%)" # Nâu sang vàng kim
-            border_color = "#fbbf24"
+            card_theme = "card-epic"
+            glow_color = "rgba(251, 191, 36, 0.6)" # Vàng Gold
         else: 
-            theme_class = "theme-std"
-            bg_grad = "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)" # Xanh đậm sang xanh sáng
-            border_color = "#60a5fa"
+            card_theme = "card-std"
+            glow_color = "rgba(59, 130, 246, 0.6)" # Xanh Blue
 
-        # --- VỊ TRÍ ---
+        # --- POSITIONING ---
         if is_sub:
-            pos_style = "" 
-            wrapper_class = "sub-card"
+            # Dự bị: Không có top/left tuyệt đối, dùng relative trong grid
+            wrapper_style = "" 
+            wrapper_class = "player-card sub-card"
         else:
-            # Dùng % để position
-            pos_style = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%); position: absolute;"
-            wrapper_class = "pitch-card"
+            # Đá chính: Absolute positioning trên sân
+            wrapper_style = f"top: {top}%; left: {left}%;"
+            wrapper_class = "player-card pitch-card"
 
-        # --- ẢNH CẦU THỦ (FIX LỖI MẤT ĐẦU) ---
+        # --- ẢNH CẦU THỦ ---
         img_src = p['Image']
-        # Thêm onerror để handle ảnh lỗi
+        # Fallback ảnh nếu lỗi
         img_html = f"""
-        <div class="player-img-container">
+        <div class="p-img-wrapper">
             <img src='{img_src}' class="p-img" loading="lazy" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
         </div>
         """
 
-        # Tên cầu thủ (Cắt ngắn thông minh)
+        # --- TÊN CẦU THỦ (Cắt gọn) ---
         player_name = p['Player']
         display_name = player_name
+        # Logic cắt tên: Lấy từ cuối cùng (thường là tên họ)
         if len(player_name) > 12:
             parts = player_name.split()
-            display_name = parts[-1].upper() # Lấy tên cuối
+            display_name = parts[-1].upper() if parts else player_name[:10]
 
-        # Badge thông tin phụ (nếu có)
-        badge_html = f'<div class="extra-badge">{extra_info}</div>' if extra_info else ""
+        # Badge phụ (Hiển thị chỉ số highlight)
+        badge_html = f'<div class="stat-badge">{extra_info}</div>' if extra_info else ""
 
-        # --- CARD TRỐNG ---
+        # --- CARD TRỐNG (Empty Slot) ---
         if player_name == "---":
             return f"""
-            <div class="plate-base empty-plate {wrapper_class}" style="{pos_style}">
-                <div class="plate-content">
-                    <span style="font-size:20px; opacity:0.3; font-weight:bold;">{p['Position']}</span>
-                </div>
+            <div class="{wrapper_class} empty-slot" style="{wrapper_style}">
+                <div class="empty-pos">{p['Position']}</div>
             </div>
             """
 
-        # --- RENDER CARD (3D PLATE DESIGN) ---
-        # Card gồm 3 phần: Header (Rating/Pos), Body (Ảnh), Footer (Tên)
+        # --- RENDER HTML ---
         return f"""
-        <div class="plate-base {theme_class} {wrapper_class}" style="{pos_style} --bg-grad: {bg_grad}; --border-c: {border_color};" title="{tooltip_text}">
+        <div class="{wrapper_class} {card_theme}" style="{wrapper_style} --glow: {glow_color};" title="{tooltip_text}">
             {badge_html}
             
-            <!-- Hiệu ứng bóng sáng background -->
-            <div class="plate-bg"></div>
-            
-            <!-- Phần thông tin trên cùng -->
-            <div class="plate-header">
-                <div class="ph-rating">{p['Rating']}</div>
-                <div class="ph-pos">{p['Position']}</div>
+            <!-- Rating & Position Bubble -->
+            <div class="card-meta">
+                <span class="meta-rating">{p['Rating']}</span>
+                <span class="meta-pos">{p['Position']}</span>
             </div>
-            
-            <!-- Ảnh cầu thủ -->
+
+            <!-- Player Image -->
             {img_html}
-            
-            <!-- Tên cầu thủ -->
-            <div class="plate-footer">
-                <div class="pf-name">{display_name}</div>
-                <div class="pf-sub">{p.get('Club', '')[:15]}</div>
+
+            <!-- Info Bar -->
+            <div class="card-info">
+                <div class="p-name">{display_name}</div>
+                <div class="p-club-logo">{p.get('Club', '')[:18]}</div>
             </div>
+            
+            <!-- Shine Effect -->
+            <div class="shine"></div>
         </div>
         """
 
-    # --- 3. TÍNH TOÁN VỊ TRÍ TRÊN SÂN (Đã tinh chỉnh cho thoáng hơn) ---
+    # --- 3. TÍNH TOÁN TỌA ĐỘ (CÂN CHỈNH CHO SÂN MỚI) ---
+    # Sân mới rộng hơn, thoáng hơn
     DEPTH_MAP = {
-        'CF': 10, 'SS': 18, 'LWF': 18, 'RWF': 18,
-        'AMF': 32, 'LMF': 42, 'RMF': 42, 'CMF': 50, 'DMF': 60,
-        'LB': 78, 'RB': 78, 'CB': 85, 'GK': 94
+        'GK': 92,
+        'CB': 82, 'LB': 78, 'RB': 78,
+        'DMF': 62, 'CMF': 52, 'LMF': 45, 'RMF': 45, 'AMF': 38,
+        'LWF': 20, 'RWF': 20, 'SS': 20, 'CF': 12
     }
+    
+    # Logic tính toán offset trục ngang (Left/Right)
+    # Giữ nguyên logic chia nhóm để tránh chồng chéo
     LEFT_SIDE = ['LWF', 'LMF', 'LB']
     RIGHT_SIDE = ['RWF', 'RMF', 'RB']
     
@@ -1612,176 +1620,235 @@ def render_pitch_view(squad_list, highlight_type=None):
     for pos, players in groups.items():
         count = len(players)
         if count == 0: continue
+        
+        # Base Top position
         top = DEPTH_MAP.get(pos, 50)
+        
         for i, p in enumerate(players):
             left = 50 
-            if pos in LEFT_SIDE: left = 15
-            elif pos in RIGHT_SIDE: left = 85
+            
+            # Logic chia cánh
+            if pos in LEFT_SIDE: 
+                left = 20 # Kéo sát biên hơn
+            elif pos in RIGHT_SIDE: 
+                left = 80 
             else:
+                # Trục giữa (Central)
                 if count == 1: left = 50
-                elif count == 2: left = 35 if i == 0 else 65
+                elif count == 2: left = 38 if i == 0 else 62
                 elif count == 3: left = 30 if i == 0 else (50 if i == 1 else 70)
                 elif count == 4: left = 20 + (i * 20)
                 
-                # Fix dính nhau giữa DMF và CMF
-                is_mid_duo = (pos == 'DMF' and len(groups.get('CMF', [])) == 1) or \
-                             (pos == 'CMF' and len(groups.get('DMF', [])) == 1)
-                if is_mid_duo and count == 1: left = 40 if pos == 'DMF' else 60
+                # Fix overlap DMF/CMF/AMF
+                if pos == 'DMF' and count == 1 and len(groups.get('CMF', [])) == 1: left = 42
+                if pos == 'CMF' and count == 1 and len(groups.get('DMF', [])) == 1: left = 58
             
             starters_html += create_card_html(p, top, left, is_sub=False)
 
     subs_html = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    # --- 4. CSS (REALISTIC GRASS & 3D CARD) ---
+    # --- 4. CSS STYLING (TACTICAL DARK THEME) ---
     css = """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap');
         
-        body { margin: 0; padding: 0; background: transparent; font-family: 'Chakra Petch', sans-serif; user-select: none; }
-
-        /* --- SÂN BÓNG (REALISTIC GRASS) --- */
-        .pitch-container {
-            position: relative; width: 100%; height: 800px;
-            background-color: #2d6a36; /* Màu cỏ cơ bản */
-            
-            /* Họa tiết cỏ sọc ngang (Lawn Stripes) */
-            background-image: 
-                linear-gradient(0deg, transparent 50%, rgba(0,0,0,0.1) 50%),
-                radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.4) 100%);
-            background-size: 100% 80px, 100% 100%; /* Sọc mỗi 80px */
-            
-            border: 4px solid #fff;
-            border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            overflow: hidden;
+        :root {
+            --pitch-bg: #0f172a; /* Slate 900 */
+            --line-color: rgba(255, 255, 255, 0.15);
+            --card-w: 90px;
+            --card-h: 120px;
         }
-        
-        /* Vạch sơn trắng trên sân */
-        .pitch-line { position: absolute; border: 3px solid rgba(255,255,255,0.8); pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); }
-        .p-center-line { top: 50%; left: 0; width: 100%; height: 0; border-top: 3px solid rgba(255,255,255,0.8); }
-        .p-center-circle { top: 50%; left: 50%; width: 130px; height: 130px; border-radius: 50%; transform: translate(-50%, -50%); }
-        .p-box-top { top: -3px; left: 50%; width: 50%; height: 16%; border-top: none; transform: translateX(-50%); }
-        .p-box-bottom { bottom: -3px; left: 50%; width: 50%; height: 16%; border-bottom: none; transform: translateX(-50%); }
 
-        /* --- CARD STYLE (3D PLATE) --- */
-        .plate-base {
-            width: 100px; height: 135px;
+        body { margin: 0; padding: 0; font-family: 'Rajdhani', sans-serif; background: transparent; }
+
+        /* --- SÂN BÓNG (TACTICAL BOARD) --- */
+        .tactical-pitch {
             position: relative;
-            background: var(--bg-grad);
-            border-radius: 8px;
-            /* Viền màu theo rarity */
-            border: 2px solid var(--border-c);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-            display: flex; flex-direction: column;
+            width: 100%;
+            height: 900px;
+            background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%);
+            border-radius: 12px;
+            border: 2px solid #334155;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
             overflow: hidden;
-            cursor: pointer;
-            transition: transform 0.2s ease-out, box-shadow 0.2s;
+            perspective: 1000px; /* Tạo chiều sâu */
         }
 
-        .plate-base:hover {
-            transform: translate(-50%, -60%) scale(1.2) !important;
-            z-index: 999 !important;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-            border-color: #fff; /* Hover thì viền sáng trắng */
+        /* Họa tiết nền sân */
+        .pitch-pattern {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+        }
+
+        /* Vạch sơn */
+        .line { position: absolute; border: 2px solid var(--line-color); pointer-events: none; }
+        .center-circle { top: 50%; left: 50%; width: 140px; height: 140px; border-radius: 50%; transform: translate(-50%, -50%); }
+        .half-line { top: 50%; left: 0; width: 100%; border-top: 2px solid var(--line-color); }
+        .box-top { top: -2px; left: 50%; width: 40%; height: 15%; border-top: none; transform: translateX(-50%); }
+        .box-bottom { bottom: -2px; left: 50%; width: 40%; height: 15%; border-bottom: none; transform: translateX(-50%); }
+        .goal-arc-top { top: 12%; left: 50%; width: 80px; height: 40px; border-radius: 0 0 40px 40px; border-top: none; transform: translateX(-50%); }
+        .goal-arc-bottom { bottom: 12%; left: 50%; width: 80px; height: 40px; border-radius: 40px 40px 0 0; border-bottom: none; transform: translateX(-50%); }
+
+        /* --- PLAYER CARD (GLASS STYLE) --- */
+        .player-card {
+            width: var(--card-w);
+            height: var(--card-h);
+            position: absolute;
+            transform: translate(-50%, -50%);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-end;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Bouncy effect */
+            z-index: 10;
+        }
+
+        /* Hover Effect: Phóng to và nổi lên */
+        .player-card:hover {
+            transform: translate(-50%, -60%) scale(1.3); /* Sub-card sẽ override translate này */
+            z-index: 100;
         }
         
-        /* Hover cho sub (không có translate -50%) */
-        .sub-card:hover { transform: translateY(-10px) scale(1.15) !important; }
+        .sub-card { 
+            position: relative; 
+            transform: none; 
+            margin-bottom: 10px;
+        }
+        .sub-card:hover { transform: translateY(-10px) scale(1.2); }
 
-        /* Nền họa tiết chìm trong card */
-        .plate-bg {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 8px);
+        /* Card Background & Border */
+        .player-card::before {
+            content: ''; position: absolute; top: 15%; left: 0; width: 100%; height: 85%;
+            background: rgba(15, 23, 42, 0.7); /* Nền tối mờ */
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             z-index: 0;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
 
-        /* --- HEADER CARD --- */
-        .plate-header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 4px 6px;
-            z-index: 2;
-            background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%);
+        /* Rarity Borders & Glows */
+        .card-potw::before { border-bottom: 3px solid #d946ef; box-shadow: 0 5px 20px rgba(217, 70, 239, 0.2); }
+        .card-epic::before { border-bottom: 3px solid #f59e0b; box-shadow: 0 5px 20px rgba(245, 158, 11, 0.2); }
+        .card-std::before { border-bottom: 3px solid #3b82f6; box-shadow: 0 5px 20px rgba(59, 130, 246, 0.2); }
+
+        .player-card:hover::before {
+            border-color: rgba(255,255,255,0.6);
+            box-shadow: 0 0 25px var(--glow);
         }
-        .ph-rating {
-            font-size: 18px; font-weight: 700; color: #fff;
-            text-shadow: 0 2px 2px rgba(0,0,0,0.8);
+
+        /* --- PLAYER IMAGE (POP-OUT) --- */
+        .p-img-wrapper {
+            position: absolute; bottom: 32px; left: 0; right: 0;
+            height: 100%; 
+            display: flex; align-items: flex-end; justify-content: center;
+            z-index: 1; /* Nằm trên background nhưng dưới text */
+            pointer-events: none;
+        }
+        .p-img {
+            height: 100%; width: 100%;
+            object-fit: contain;
+            object-position: bottom;
+            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.6));
+            transition: transform 0.3s;
+        }
+        .player-card:hover .p-img { transform: scale(1.1); }
+
+        /* --- META DATA (Rating & Pos) --- */
+        .card-meta {
+            position: absolute; top: 20%; left: 5px;
+            display: flex; flex-direction: column;
+            align-items: flex-start;
+            z-index: 2;
+        }
+        .meta-rating {
+            font-size: 18px; font-weight: 800; color: #fff;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
             line-height: 1;
         }
-        .ph-pos {
-            font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.9);
-            background: rgba(0,0,0,0.5); padding: 1px 4px; border-radius: 3px;
+        .meta-pos {
+            font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8);
+            background: rgba(0,0,0,0.6); padding: 1px 3px; border-radius: 3px;
+            margin-top: 2px;
         }
+        .card-potw .meta-rating { color: #f0abfc; }
+        .card-epic .meta-rating { color: #fcd34d; }
 
-        /* --- ẢNH CẦU THỦ (FIX) --- */
-        .player-img-container {
-            flex-grow: 1;
-            position: relative;
-            z-index: 1;
-            display: flex;
-            align-items: flex-end; /* Căn đáy */
-            justify-content: center; /* Căn giữa ngang */
-            margin-top: -10px; /* Kéo lên một chút để lấp khoảng trống */
-            margin-bottom: -5px; /* Đẩy xuống footer */
-            overflow: hidden; /* Quan trọng: Không cho ảnh tràn ra ngoài div này */
-        }
-        
-        .p-img {
-            height: 115%; /* Phóng to nhẹ để lấp đầy */
-            width: 100%;
-            object-fit: contain; /* Quan trọng: Giữ tỉ lệ, không bị méo, không bị cắt đầu */
-            object-position: bottom center; /* Neo ảnh ở đáy giữa */
-            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
-        }
-
-        /* --- FOOTER CARD --- */
-        .plate-footer {
+        /* --- CARD INFO (Bottom) --- */
+        .card-info {
             position: relative; z-index: 2;
-            background: rgba(0,0,0,0.85); /* Nền đen đậm */
+            width: 100%;
             padding: 4px 2px;
             text-align: center;
-            border-top: 1px solid rgba(255,255,255,0.1);
+            border-radius: 0 0 8px 8px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
         }
-        .pf-name {
-            font-size: 11px; font-weight: 700; color: #fff;
-            text-transform: uppercase;
+        .p-name {
+            font-size: 11px; font-weight: 700; color: white;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,1);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .pf-sub {
+        .p-club-logo {
             font-size: 9px; color: #94a3b8; margin-top: 1px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         /* --- EXTRAS --- */
-        .extra-badge {
-            position: absolute; top: 0; right: 0;
+        .stat-badge {
+            position: absolute; top: 12%; right: -5px;
             background: #ef4444; color: white;
-            font-size: 9px; font-weight: bold; padding: 2px 6px;
-            border-bottom-left-radius: 6px; z-index: 10;
+            font-size: 9px; font-weight: bold;
+            padding: 2px 6px; border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            z-index: 20; transform: rotate(10deg);
         }
         
-        .empty-plate {
-            background: rgba(0,0,0,0.3); border: 2px dashed rgba(255,255,255,0.3);
+        .empty-slot {
+            opacity: 0.6; border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 8px; background: rgba(0,0,0,0.2);
             justify-content: center; align-items: center;
         }
+        .empty-pos { font-size: 20px; font-weight: bold; color: rgba(255,255,255,0.3); }
 
-        /* --- KHU VỰC DỰ BỊ --- */
-        .bench-area {
+        /* --- BENCH AREA (New Design) --- */
+        .bench-container {
             margin-top: 20px;
-            background: #1e293b;
-            border-top: 4px solid #3b82f6;
-            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid #334155;
+            border-radius: 12px;
             padding: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
-        .bench-title {
-            color: #fff; font-size: 16px; font-weight: 700; margin-bottom: 10px;
-            display: flex; align-items: center; gap: 10px;
+        .bench-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
+        .bench-title { font-size: 16px; font-weight: 700; color: #e2e8f0; display: flex; align-items: center; gap: 8px; }
+        .bench-badge { background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+        
+        /* Grid cho dự bị */
         .bench-grid {
-            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
         }
-        .sub-card { width: 75px; height: 105px; } /* Sub nhỏ hơn */
-        .sub-card .ph-rating { font-size: 16px; }
-        .sub-card .pf-name { font-size: 9px; }
+
+        /* Shine Animation */
+        .shine {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.1) 40%, transparent 60%);
+            background-size: 200% 100%;
+            animation: shine 4s infinite linear;
+            pointer-events: none; z-index: 5;
+            border-radius: 8px;
+        }
+        @keyframes shine { 0% {background-position: 100% 0} 100% {background-position: -100% 0} }
+
     </style>
     """
     
@@ -1790,19 +1857,30 @@ def render_pitch_view(squad_list, highlight_type=None):
     <html>
     <head>{css}</head>
     <body>
-        <div class="pitch-container">
-            <div class="p-center-circle pitch-line"></div>
-            <div class="p-center-line pitch-line"></div>
-            <div class="p-box-top pitch-line"></div>
-            <div class="p-box-bottom pitch-line"></div>
+        <!-- SÂN BÓNG -->
+        <div class="tactical-pitch">
+            <div class="pitch-pattern"></div>
             
+            <!-- Vạch sân -->
+            <div class="line half-line"></div>
+            <div class="line center-circle"></div>
+            <div class="line box-top"></div>
+            <div class="line goal-arc-top"></div>
+            <div class="line box-bottom"></div>
+            <div class="line goal-arc-bottom"></div>
+            
+            <!-- Cầu thủ đá chính -->
             {starters_html}
         </div>
         
-        <div class="bench-area">
-            <div class="bench-title">
-                <span>Dự bị</span>
-                <span style="background:#3b82f6; padding:2px 8px; border-radius:10px; font-size:12px;">{len(subs)}</span>
+        <!-- DỰ BỊ -->
+        <div class="bench-container">
+            <div class="bench-header">
+                <div class="bench-title">
+                    <span>RESERVES / SUBSTITUTES</span>
+                    <span class="bench-badge">{len(subs)}</span>
+                </div>
+                <div style="font-size: 11px; color: #64748b;">Sorted by Rating</div>
             </div>
             <div class="bench-grid">
                 {subs_html}
@@ -1812,7 +1890,8 @@ def render_pitch_view(squad_list, highlight_type=None):
     </html>
     """
     
-    components.html(html_content, height=1150, scrolling=False)
+    # Render ra Streamlit
+    components.html(html_content, height=1250, scrolling=False)
 
 # ==========================================
 # KẾT THÚC BƯỚC 1
