@@ -1086,50 +1086,36 @@ FORMATIONS = {
 
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
-    Tự động xây dựng đội hình tối ưu (Đã FIX lỗi đội hình trống khi chọn BMI/Chiều cao nhỏ nhất).
+    Tự động xây dựng đội hình tối ưu (Đã FIX logic Tier 2 chân: Acc là vua).
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
     
-    # Helper convert số an toàn tuyệt đối
     def clean_and_to_num(val):
-        if pd.isna(val) or str(val).strip() == "":
-            return 0.0
+        if pd.isna(val) or str(val).strip() == "": return 0.0
         cleaned = re.sub(r'[^\d.]', '', str(val).replace(',', '.'))
-        try:
-            return float(cleaned)
-        except ValueError:
-            return 0.0
+        try: return float(cleaned)
+        except ValueError: return 0.0
 
-    if 'Height' in pool_df.columns: 
-        pool_df['Height_num'] = pool_df['Height'].apply(clean_and_to_num)
-    else:
-        pool_df['Height_num'] = 0.0
+    if 'Height' in pool_df.columns: pool_df['Height_num'] = pool_df['Height'].apply(clean_and_to_num)
+    else: pool_df['Height_num'] = 0.0
         
-    if 'Weight' in pool_df.columns: 
-        pool_df['Weight_num'] = pool_df['Weight'].apply(clean_and_to_num)
-    else:
-        pool_df['Weight_num'] = 0.0
+    if 'Weight' in pool_df.columns: pool_df['Weight_num'] = pool_df['Weight'].apply(clean_and_to_num)
+    else: pool_df['Weight_num'] = 0.0
         
-    if 'Age' in pool_df.columns: 
-        pool_df['Age_num'] = pool_df['Age'].apply(clean_and_to_num)
-    else:
-        pool_df['Age_num'] = 99.0
+    if 'Age' in pool_df.columns: pool_df['Age_num'] = pool_df['Age'].apply(clean_and_to_num)
+    else: pool_df['Age_num'] = 99.0
     
-    if 'Secondary Positions' not in pool_df.columns:
-        pool_df['Secondary Positions'] = ""
-    else:
-        pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper().str.strip()
+    if 'Secondary Positions' not in pool_df.columns: pool_df['Secondary Positions'] = ""
+    else: pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper().str.strip()
 
     # 2. LỌC DỮ LIỆU
     if filter_col and filter_val and filter_val != "(Tất cả)":
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
-        
-    if pool_df.empty:
-        return []
+    if pool_df.empty: return []
 
-    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING) - ĐÃ SỬA LẠI LOGIC ASC (TĂNG DẦN)
-    ERROR_SCORE = -999999 # Mã lỗi
+    # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
+    ERROR_SCORE = -999999
 
     def calculate_score(row):
         rating_bonus = row['Rating'] / 100000.0 
@@ -1137,56 +1123,63 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         if sort_mode == 'rating_desc': 
             return row['Rating'] + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
             
-        # --- FIX LOGIC: Dùng phép trừ để điểm số luôn dương ---
-        # Ví dụ: Muốn tìm người thấp nhất. 
-        # Người 160cm: 250 - 160 = 90 điểm (Cao điểm hơn -> Được chọn)
-        # Người 190cm: 250 - 190 = 60 điểm
-        
         elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
         elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus 
-        
         elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
         elif sort_mode == 'weight_asc': return (150 - row['Weight_num']) + rating_bonus
-        
         elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
         elif sort_mode == 'age_asc': return (100 - row['Age_num']) + rating_bonus
 
         elif 'bmi' in sort_mode:
-            h_m = row['Height_num'] / 100.0
-            w = row['Weight_num']
-            
-            # Logic loại bỏ dữ liệu rác
-            if h_m < 1.0 or w < 30: 
-                return ERROR_SCORE
-                
+            h_m = row['Height_num'] / 100.0; w = row['Weight_num']
+            if h_m < 1.0 or w < 30: return ERROR_SCORE
             bmi = w / (h_m ** 2)
-            
-            if sort_mode == 'bmi_desc': # BMI lớn nhất (The Tanks)
-                return (bmi * 1000) + rating_bonus
-            else: # bmi_asc (BMI nhỏ nhất - The Agiles)
-                # Dùng hằng số 100 trừ đi BMI để đảo ngược giá trị
-                # BMI 20 -> (100-20)*1000 = 80000 điểm
-                # BMI 25 -> (100-25)*1000 = 75000 điểm
-                return ((100 - bmi) * 1000) + rating_bonus
+            if sort_mode == 'bmi_desc': return (bmi * 1000) + rating_bonus
+            else: return ((100 - bmi) * 1000) + rating_bonus
 
+        # --- FIX LOGIC TIER 2 CHÂN (AMBIDEXTROUS) ---
         elif sort_mode == 'ambidextrous':
-            u_str = str(row.get('Weak Foot Usage', '')).strip().lower()
-            a_str = str(row.get('Weak Foot Accuracy', '')).strip().lower()
-            is_usage_p = any(x in u_str for x in ['regularly', '4'])
-            is_acc_p = any(x in a_str for x in ['very high', '4'])
-            score = row['Rating']
-            if is_usage_p and is_acc_p: score += 20000
-            elif is_usage_p or is_acc_p: score += 10000
-            return score
+            def get_wf_val(text):
+                t = str(text).strip().lower()
+                if any(k in t for k in ['regularly', 'very high', '4']): return 4
+                if any(k in t for k in ['occasionally', 'high', '3']): return 3
+                if any(k in t for k in ['rarely', 'medium', '2']): return 2
+                return 1
+
+            u_val = get_wf_val(row.get('Weak Foot Usage', ''))
+            a_val = get_wf_val(row.get('Weak Foot Accuracy', ''))
+
+            # Logic Tier theo yêu cầu:
+            tier_score = 0
+            
+            # Tier 1: 4 | 4
+            if a_val == 4 and u_val == 4:
+                tier_score = 50000
+            
+            # Tier 2: X | 4 (Acc 4 nhưng Usage < 4)
+            elif a_val == 4:
+                tier_score = 40000
+            
+            # Tier 3: X | 3 (Acc 3)
+            elif a_val == 3:
+                tier_score = 30000
+            
+            # Tier 4: X | 2 (Acc 2)
+            elif a_val == 2:
+                tier_score = 20000
+
+            # Cộng thêm điểm Usage nhỏ để sắp xếp trong cùng 1 Tier
+            # Ví dụ trong Tier 2: 3|4 sẽ > 2|4 > 1|4
+            sub_tier_bonus = u_val * 100
+
+            return row['Rating'] + tier_score + sub_tier_bonus
 
         elif sort_mode == 'potw_only':
             ptype = str(row.get('Player Type', '')).upper()
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
             return (10000 if is_potw else 0) + row['Rating']
 
-        elif sort_mode == 'united_nations':
-            return row['Rating']
-
+        elif sort_mode == 'united_nations': return row['Rating']
         return row['Rating']
 
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
@@ -1196,7 +1189,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     required_positions = FORMATIONS.get(formation_name, [])
     num_slots = len(required_positions)
     num_players = len(pool_df)
-    
     BIG_PENALTY = 1e9 
     cost_matrix = np.full((num_players, num_slots), BIG_PENALTY)
 
@@ -1204,96 +1196,63 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         p_main_pos = str(row['Position']).strip().upper()
         p_sec_pos_list = [s.strip() for s in str(row['Secondary Positions']).split(',') if s.strip()]
         full_pos_list = [p_main_pos] + p_sec_pos_list
-        
         score = row['Build_Score']
-        
-        # Chỉ bỏ qua nếu đúng bằng mã lỗi
-        if score == ERROR_SCORE:
-            continue
+        if score == ERROR_SCORE: continue
 
         for s_idx, req_pos in enumerate(required_positions):
             can_play = req_pos in full_pos_list
-            
-            # Nới lỏng vị trí cho các mode vật lý
             if 'bmi' in sort_mode or 'height' in sort_mode or 'weight' in sort_mode:
-                 if req_pos in ['CF', 'SS'] and ('CF' in full_pos_list or 'SS' in full_pos_list):
-                     can_play = True
-            
-            if can_play:
-                cost_matrix[p_idx, s_idx] = -score
+                 if req_pos in ['CF', 'SS'] and ('CF' in full_pos_list or 'SS' in full_pos_list): can_play = True
+            if can_play: cost_matrix[p_idx, s_idx] = -score
 
-    try:
-        row_ind, col_ind = linear_sum_assignment(cost_matrix)
-    except Exception as e:
-        return []
+    try: row_ind, col_ind = linear_sum_assignment(cost_matrix)
+    except: return []
 
-    # 5. XÂY DỰNG STARTERS
     final_squad = [None] * 11
     used_indices = set()
     used_nations = set()
 
     for i in range(len(row_ind)):
-        p_idx = row_ind[i]
-        s_idx = col_ind[i]
-        
+        p_idx = row_ind[i]; s_idx = col_ind[i]
         if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
             if sort_mode == 'united_nations':
                 nat = str(pool_df.at[p_idx, 'Nation']).strip()
-                if nat in used_nations and nat != "": 
-                    continue
+                if nat in used_nations and nat != "": continue
                 used_nations.add(nat)
 
             row = pool_df.iloc[p_idx]
-            
             pid = str(row.get('Player ID', '')).strip()
             purl = str(row.get('Player URL', '')).strip()
             if not pid and purl:
-                m = re.search(r"(\d{14,})", purl)
-                pid = m.group(1) if m else ""
+                m = re.search(r"(\d{14,})", purl); pid = m.group(1) if m else ""
             img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
             final_squad[s_idx] = {
-                "Is_Starter": True,
-                "Position": required_positions[s_idx],
-                "Real_Position": row['Position'],
-                "Player": row['Player'],
-                "Rating": row['Rating'],
-                "Type": row['Player Type'],
-                "Image": img_url,
-                "Height": row.get('Height', ''),
-                "Weight": row.get('Weight', ''),
-                "Age": row.get('Age', ''),
-                "Score": row['Build_Score'], 
-                "Data": row.to_dict()
+                "Is_Starter": True, "Position": required_positions[s_idx],
+                "Real_Position": row['Position'], "Player": row['Player'],
+                "Rating": row['Rating'], "Type": row['Player Type'], "Image": img_url,
+                "Height": row.get('Height', ''), "Weight": row.get('Weight', ''),
+                "Age": row.get('Age', ''), "Score": row['Build_Score'], "Data": row.to_dict()
             }
             used_indices.add(p_idx)
 
-    # Fill empty
     for i in range(11):
-        if final_squad[i] is None:
-             final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
+        if final_squad[i] is None: final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
 
-    # 6. XÂY DỰNG BENCH
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)]
-    # Bỏ qua các cầu thủ lỗi dữ liệu
     remaining_pool = remaining_pool[remaining_pool['Build_Score'] != ERROR_SCORE]
-    
     remaining_pool = remaining_pool.sort_values('Build_Score', ascending=False)
     
     bench_picks_rows = []
     gk_on_bench_count = 0
-
     for idx, row in remaining_pool.iterrows():
         if len(bench_picks_rows) >= 12: break
-        
         is_gk = str(row.get('Position', '')).strip().upper() == 'GK'
         if is_gk and gk_on_bench_count >= 1: continue
-        
         if sort_mode == 'united_nations':
-            p_nation = str(row.get('Nation', '')).strip()
+            p_nation = str(row.get('Nation', '')).strip(); 
             if p_nation and p_nation in used_nations: continue
             used_nations.add(p_nation)
-
         bench_picks_rows.append(row)
         if is_gk: gk_on_bench_count += 1
             
@@ -1301,25 +1260,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         r_get = row.get if isinstance(row, dict) else row.get
         pid = str(r_get('Player ID', '')).strip()
         purl = str(r_get('Player URL', '')).strip()
-        if not pid and purl:
-            m = re.search(r"(\d{14,})", purl)
-            pid = m.group(1) if m else ""
+        if not pid and purl: m = re.search(r"(\d{14,})", purl); pid = m.group(1) if m else ""
         img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
-        
         final_squad.append({
-            "Is_Starter": False,
-            "Position": r_get('Position'),
-            "Player": r_get('Player'),
-            "Rating": r_get('Rating'),
-            "Type": r_get('Player Type'),
-            "Image": img_url,
-            "Height": r_get('Height', ''),
-            "Weight": r_get('Weight', ''),
-            "Age": r_get('Age', ''),
-            "Score": r_get('Build_Score'),
-            "Data": row.to_dict() if hasattr(row, 'to_dict') else row
+            "Is_Starter": False, "Position": r_get('Position'), "Player": r_get('Player'),
+            "Rating": r_get('Rating'), "Type": r_get('Player Type'), "Image": img_url,
+            "Height": r_get('Height', ''), "Weight": r_get('Weight', ''), "Age": r_get('Age', ''),
+            "Score": r_get('Build_Score'), "Data": row.to_dict() if hasattr(row, 'to_dict') else row
         })
-
     return final_squad
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
@@ -1450,38 +1398,16 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             d = p.get('Data', {})
             def get_wf_num(text):
                 t = str(text).strip().lower()
-                
-                # Mức 4: Thường xuyên / Rất cao
-                if any(k in t for k in ['regularly', 'very high', '4']): 
-                    return '4'
-                
-                # Mức 3: Thỉnh thoảng / Cao (Đây là cái bạn đang thiếu)
-                if any(k in t for k in ['occasionally', 'high', '3']): 
-                    return '3'
-                
-                # Mức 2: Hiếm khi / Trung bình
-                if any(k in t for k in ['rarely', 'medium', '2']): 
-                    return '2'
-                
-                # Mức 1: Hầu như không / Thấp
+                if any(k in t for k in ['regularly', 'very high', '4']): return '4'
+                if any(k in t for k in ['occasionally', 'high', '3']): return '3'
+                if any(k in t for k in ['rarely', 'medium', '2']): return '2'
                 return '1'
 
             u = get_wf_num(d.get('Weak Foot Usage', ''))
             a = get_wf_num(d.get('Weak Foot Accuracy', ''))
             
-            # Tô màu cho đẹp: 4 màu tím, 3 màu xanh, <3 màu thường
-            u_color = "#d946ef" if u == '4' else ("#4ade80" if u == '3' else "#cbd5e1")
-            a_color = "#d946ef" if a == '4' else ("#4ade80" if a == '3' else "#cbd5e1")
-            
-            # Hiển thị dạng HTML màu sắc
-            val_display = f"""
-            <span style='color:{u_color}'>{u}</span> | <span style='color:{a_color}'>{a}</span>
-            """
-            
-            # Lưu ý: Vì val_display giờ chứa HTML, ta cần sửa lại badge_html ở đoạn dưới một chút
-            # Tuy nhiên để đơn giản và không phá vỡ layout CSS, ta cứ để text thuần, 
-            # hoặc chỉ trả về text số:
-            val_display = f"🦶 {u} |🎯 {a}"
+            # Hiển thị icon: 🦶 Usage | 🎯 Accuracy
+            val_display = f"🦶{u} | 🎯{a}"
         
         # Color Logic
         ptype = str(p['Type']).upper()
