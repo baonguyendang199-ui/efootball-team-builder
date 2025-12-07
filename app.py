@@ -1747,7 +1747,7 @@ def render_pitch_view(squad_list, highlight_type=None):
                 {html_starters}
             </div>
             <div class="bench">
-                <div class="bench-title">Dự bị ({len(subs)})</div>
+                <div class="bench-title">Substitute ({len(subs)})</div>
                 <div class="bench-grid">
                     {html_subs}
                 </div>
