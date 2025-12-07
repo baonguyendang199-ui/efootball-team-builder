@@ -1484,127 +1484,115 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
 def render_pitch_view(squad_list, highlight_type=None):
     """
-    Vẽ sơ đồ sân bóng: Phong cách NEXT-GEN 3D & NEON GLASS.
-    Thiết kế lại: Sử dụng Miniface markers thay vì Full Cards để thoáng sân hơn.
+    Vẽ sơ đồ sân bóng: Phong cách TACTICAL BOARD 2.5D (Redesign).
+    - Sân bóng phẳng hơn, dễ nhìn vị trí.
+    - Bench chuyển thành dạng Grid (Lưới) để không phải slide khó chịu.
     """
     import streamlit.components.v1 as components
     import re
 
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
+    # Tách đội hình chính và dự bị
     starters = [p for p in squad_list if p.get('Is_Starter', False)]
+    # Sắp xếp dự bị theo Rating giảm dần
     subs = sorted([p for p in squad_list if not p.get('Is_Starter', False)], 
                   key=lambda x: x.get('Rating', 0), reverse=True)
 
     # --- 2. HÀM TẠO HTML THẺ CẦU THỦ ---
     def create_card_html(p, top=None, left=None, is_sub=False):
-        # --- Tooltip Info (Hiển thị khi di chuột) ---
+        # --- Tooltip ---
         tooltip_parts = [f"{p['Player']}", f"Pos: {p['Position']} | Rate: {p['Rating']}"]
-        extra_info = ""
         
-        # Highlight Logic (Hiển thị chỉ số phụ nếu có yêu cầu)
+        # Highlight Logic
         val_display = ""
+        badge_html = ""
+        
         if highlight_type == 'Height': val_display = f"{p.get('Height', '?')} cm"
         elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '?')} kg"
         elif highlight_type == 'Age': val_display = f"{p.get('Age', '?')} tuổi"
         elif highlight_type == 'Nation': val_display = f"{p.get('Nation', '?')}"
+        elif highlight_type == 'Type': val_display = f"{p.get('Type', '?')}"
         elif highlight_type == 'BMI':
             try:
                 h = float(re.sub(r'[^\d.]', '', str(p.get('Height', '0')))) / 100.0
                 w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
                 if h > 0: val_display = f"BMI: {(w/(h**2)):.1f}"
             except: pass
-        elif highlight_type == 'Ambidextrous':
-            try:
-                d = p.get('Data', {})
-                u = str(d.get('Weak Foot Usage', ''))
-                a = str(d.get('Weak Foot Accuracy', ''))
-                val_display = f"WF: {u[:1]}/{a[:1]}"
-            except: pass
         
-        if val_display: 
+        if val_display:
             tooltip_parts.append(f"📌 {val_display}")
-            extra_info = f'<div class="highlight-badge">{val_display}</div>'
+            # Badge hiển thị chỉ số phụ ngay trên thẻ
+            badge_html = f'<div class="stat-badge">{val_display}</div>'
 
         tooltip_text = "&#10;".join(tooltip_parts)
 
         # --- THEME CONFIG ---
         ptype = str(p['Type']).upper().strip()
-        if "POTW" in ptype or "TRENDING" in ptype: 
-            card_class = "card-potw"
-        elif "EPIC" in ptype and "NON" not in ptype: 
-            card_class = "card-epic"
-        else: 
-            card_class = "card-std"
+        
+        # Class màu sắc
+        if "POTW" in ptype or "TRENDING" in ptype: card_class = "potw"
+        elif "EPIC" in ptype and "NON" not in ptype: card_class = "epic"
+        else: card_class = "std"
 
-        # --- POSITIONING & SCALING ---
+        # --- POSITIONING ---
         style_attr = ""
-        wrapper_class = "player-card"
+        wrapper_class = "player-node"
         
         if not is_sub:
-            # Perspective adjustment: 
-            # Cầu thủ ở xa (Top nhỏ - GK) -> Scale nhỏ hơn 1 chút
-            # Cầu thủ ở gần (Top lớn - CF) -> Scale to hơn
-            # top giá trị càng lớn = càng gần đáy màn hình
-            
-            # Logic cũ: GK=88 (đáy), CF=15 (đỉnh). 
-            # Để map đúng perspective 3D của CSS:
-            # Ta cần đảo ngược visual một chút hoặc giữ nguyên nhưng scale theo chiều sâu.
-            # Ở đây ta giữ nguyên coordinate cũ nhưng chỉnh scale.
-            
-            scale = 0.9 + (top / 100.0) * 0.2  # Càng xuống dưới (top lớn) càng to
-            
-            # Fix tọa độ để căn giữa
+            # Sân bóng: Absolute Position
+            # Chỉnh scale nhẹ: Cầu thủ ở dưới (GK) to hơn 1 chút so với ở trên (CF) tạo chiều sâu 2.5D
+            scale = 0.95 + (top / 100.0) * 0.15
             style_attr = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%) scale({scale});"
             wrapper_class += " on-pitch"
         else:
-            style_attr = "" # Flexbox xử lý layout dự bị
+            # Dự bị: Relative cho Grid
+            style_attr = ""
             wrapper_class += " on-bench"
 
-        # --- IMAGE HANDLING ---
+        # --- IMAGE ---
         img_src = p['Image']
-        # Dùng ảnh fallback nếu lỗi
-        img_html = f"""<img src='{img_src}' class="p-img" loading="lazy" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">"""
-
-        # --- NAME HANDLING ---
+        if not img_src: img_src = 'https://pesdb.net/assets/img/card/f0.png'
+        
+        # --- NAME ---
         display_name = p['Player']
-        # Chỉ lấy tên cuối nếu quá dài
-        if len(display_name) > 12:
-            display_name = display_name.split()[-1].upper()
+        # Tên ngắn gọn
+        if len(display_name) > 10:
+            names = display_name.split()
+            if len(names) > 1: display_name = f"{names[0][0]}. {names[-1]}" # L. Messi
+            else: display_name = display_name[:10] + ".."
 
         # --- EMPTY SLOT ---
-        if p['Player'] == "---": 
-            return f"""<div class="{wrapper_class} empty" style="{style_attr}"><div class="empty-pos">{p['Position']}</div></div>"""
+        if p['Player'] == "---":
+            return f"""<div class="{wrapper_class} empty-slot" style="{style_attr}"></div>"""
 
-        # --- RENDER HTML ---
+        # --- HTML STRUCTURE ---
         return f"""
         <div class="{wrapper_class} {card_class}" style="{style_attr}" title="{tooltip_text}">
-            {extra_info}
-            <div class="card-inner">
-                <div class="rating-box">{p['Rating']}</div>
-                <div class="img-box">{img_html}</div>
-                <div class="info-plate">
-                    <div class="pos-label">{p['Position']}</div>
-                    <div class="name-label">{display_name}</div>
-                </div>
+            {badge_html}
+            <div class="p-rating">{p['Rating']}</div>
+            <div class="p-image-box">
+                <img src="{img_src}" loading="lazy" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
             </div>
-            <div class="base-shadow"></div>
+            <div class="p-info">
+                <div class="p-pos">{p['Position']}</div>
+                <div class="p-name">{display_name}</div>
+            </div>
         </div>
         """
 
-    # --- 3. LOGIC TÍNH TỌA ĐỘ (GIỮ NGUYÊN LOGIC CŨ NHƯNG CÂN CHỈNH LẠI CHO 3D) ---
-    # Top 0% = Xa (Goal đối phương), Top 100% = Gần (Goal nhà - GK)
-    # Tuy nhiên code cũ đang set: GK ~ 88 (Gần), CF ~ 15 (Xa).
-    # Ta sẽ dùng layout 3D nên GK ở đáy là hợp lý (gần người xem nhất).
-    
+    # --- 3. LOGIC TỌA ĐỘ (CÂN CHỈNH LẠI CHO ĐẸP) ---
+    # Top 0 = Đối phương (Xa), Top 100 = Gôn nhà (Gần)
+    # Mapping lại để đội hình thoáng hơn
     DEPTH_MAP = {
-        'GK': 90,
+        'GK': 92,
         'CB': 78, 'LB': 78, 'RB': 78,
-        'DMF': 62, 'CMF': 55, 
-        'LMF': 45, 'RMF': 45, 'AMF': 42,
-        'LWF': 25, 'RWF': 25, 'SS': 25, 'CF': 18
+        'DMF': 64, 'CMF': 55, 
+        'LMF': 48, 'RMF': 48, 'AMF': 45,
+        'LWF': 25, 'RWF': 25, 'SS': 28, 'CF': 18
     }
 
     starters_html = ""
+    # Gom nhóm cầu thủ theo vị trí để chia đều chiều ngang (left)
     groups = {} 
     for p in starters:
         pos = p['Position']
@@ -1615,252 +1603,195 @@ def render_pitch_view(squad_list, highlight_type=None):
         count = len(players)
         row_top = DEPTH_MAP.get(pos, 50)
         
+        # Xử lý tọa độ ngang (Left)
         if pos == 'GK': players[0]['left'] = 50
-        elif pos == 'LB': players[0]['left'] = 15
-        elif pos == 'RB': players[0]['left'] = 85
+        elif pos == 'LB': players[0]['left'] = 12
+        elif pos == 'RB': players[0]['left'] = 88
         elif pos == 'LWF' or pos == 'LMF': 
-            for i, p in enumerate(players): p['left'] = 20
+             for i, p in enumerate(players): p['left'] = 15 + (i*10)
         elif pos == 'RWF' or pos == 'RMF':
-            for i, p in enumerate(players): p['left'] = 80
+             for i, p in enumerate(players): p['left'] = 85 - (i*10)
         else:
+            # Trung lộ chia đều
             if count == 1: players[0]['left'] = 50
             elif count == 2:
                 players[0]['left'] = 35; players[1]['left'] = 65
             elif count == 3:
                 players[0]['left'] = 30; players[1]['left'] = 50; players[2]['left'] = 70
             elif count >= 4:
-                step = 60 / (count - 1)
-                for i in range(count): players[i]['left'] = 20 + (i * step)
+                # Dàn hàng ngang
+                margin = 20
+                width_avail = 100 - (margin * 2)
+                step = width_avail / (count - 1)
+                for i in range(count): players[i]['left'] = margin + (i * step)
 
         for p in players:
-            left = p.get('left', 50)
-            starters_html += create_card_html(p, row_top, left, is_sub=False)
+            starters_html += create_card_html(p, row_top, p.get('left', 50), is_sub=False)
 
+    # Render bench HTML
     subs_html = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    # --- 4. CSS STYLING (MODERN UI) ---
+    # --- 4. CSS (MODERN TACTICAL UI) ---
     css = """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap');
         
         :root {
-            --bg-dark: #0f172a;
-            --pitch-grad-1: #020617;
-            --pitch-grad-2: #1e293b;
-            --line-color: rgba(255,255,255,0.15);
+            --pitch-bg: #1e293b; /* Slate-800 */
+            --line-col: rgba(255,255,255,0.15);
+            --card-w: 80px;
+            --card-h: 95px;
             
-            /* Rarity Colors */
-            --col-std: #3b82f6;
-            --col-epic: #fbbf24;
-            --col-potw: #d946ef;
+            /* Colors */
+            --c-std: #3b82f6;
+            --c-epic: #f59e0b;
+            --c-potw: #d946ef;
+            --c-bg-card: rgba(15, 23, 42, 0.9);
         }
 
-        body { margin: 0; padding: 0; font-family: 'Rajdhani', sans-serif; background: transparent; overflow: hidden; }
+        body { margin: 0; padding: 0; font-family: 'Chakra Petch', sans-serif; background: transparent; }
 
-        /* --- 3D PITCH CONTAINER --- */
-        .scene {
-            width: 100%;
-            height: 900px; /* Tổng chiều cao */
-            display: flex;
-            flex-direction: column;
-            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
-            perspective: 1000px; /* Điểm tụ 3D */
-            overflow: hidden;
-            position: relative;
+        /* --- CONTAINER --- */
+        .container {
+            display: flex; flex-direction: column; gap: 15px;
+            width: 100%; max-width: 800px; margin: 0 auto;
         }
 
-        .pitch-board {
+        /* --- PITCH AREA (TACTICAL BOARD) --- */
+        .pitch-wrapper {
             position: relative;
-            width: 85%;
-            height: 72%; /* Chiếm 72% chiều cao container */
-            margin: 20px auto 0;
-            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+            width: 100%; 
+            height: 600px; /* Chiều cao cố định cho sân */
+            background: radial-gradient(circle at 50% 50%, #334155 0%, #0f172a 100%);
             border: 2px solid rgba(255,255,255,0.1);
             border-radius: 12px;
-            /* 3D Transform */
-            transform: rotateX(35deg); 
-            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
-            transform-style: preserve-3d;
+            overflow: hidden;
+            perspective: 800px; /* Perspective nhẹ hơn để dễ nhìn */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
-        /* Pitch Pattern (Grid) */
-        .pitch-board::before {
-            content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
-            background-image: 
-                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-            background-size: 50px 50px;
+        /* Pitch Lines */
+        .pitch-lines {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            transform: rotateX(20deg) scale(0.9); /* Nghiêng nhẹ 2.5D */
+            transform-origin: 50% 50%;
             pointer-events: none;
         }
-        
-        /* Pitch Lines */
-        .line { position: absolute; border: 2px solid var(--line-color); pointer-events: none; box-shadow: 0 0 10px rgba(255,255,255,0.1); }
-        .center-circle { top: 50%; left: 50%; width: 140px; height: 140px; border-radius: 50%; transform: translate(-50%, -50%); }
-        .half-line { top: 50%; left: 0; width: 100%; border-top: 2px solid var(--line-color); }
-        .box-area { left: 50%; width: 45%; height: 16%; transform: translateX(-50%); background: rgba(255,255,255,0.02); }
-        .box-top { top: 0; border-top: none; }
-        .box-bottom { bottom: 0; border-bottom: none; }
-        .penalty-dot { width: 4px; height: 4px; background: white; border-radius: 50%; position: absolute; left: 50%; transform: translateX(-50%); }
+        .line { position: absolute; border: 2px solid var(--line-col); }
+        .center-circle { top:50%; left:50%; width:120px; height:120px; border-radius:50%; transform:translate(-50%,-50%); }
+        .half-line { top:50%; width:100%; border-top:2px solid var(--line-col); }
+        .box { left:50%; transform:translateX(-50%); width:40%; height:15%; background:rgba(255,255,255,0.03); }
+        .box-top { top:0; border-top:none; }
+        .box-bot { bottom:0; border-bottom:none; }
 
-        /* --- PLAYER MARKER --- */
-        .player-card {
-            width: 90px; height: 100px;
+        /* --- PLAYER NODE (COMMON) --- */
+        .player-node {
+            width: var(--card-w); height: var(--card-h);
+            display: flex; flex-direction: column; align-items: center;
+            cursor: pointer; transition: all 0.2s ease;
             position: relative;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             z-index: 10;
         }
-
-        .on-pitch { position: absolute; transform-origin: center bottom; }
-        .on-pitch:hover { z-index: 100; transform: translate(-50%, -60%) scale(1.25) !important; }
         
-        .card-inner {
-            width: 100%; height: 100%;
-            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-            position: relative;
-        }
+        .on-pitch { position: absolute; }
+        .on-pitch:hover { z-index: 100; transform: translate(-50%, -60%) scale(1.15) !important; }
+        
+        .on-bench { transform: scale(0.9); }
+        .on-bench:hover { transform: scale(1.05); z-index: 20; }
 
-        /* Image (Cutout) */
-        .img-box {
-            position: absolute; bottom: 22px; 
-            width: 100px; height: 100px;
-            display: flex; justify-content: center; align-items: flex-end;
-            z-index: 2;
-            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));
-            transition: transform 0.2s;
-        }
-        .p-img { width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
-
-        /* Rating Badge (Top Left) */
-        .rating-box {
-            position: absolute; top: 10px; left: 0;
-            width: 28px; height: 28px;
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white;
-            font-size: 14px; font-weight: 800;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 6px;
-            z-index: 5;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-        }
-
-        /* Info Plate (Name & Pos) */
-        .info-plate {
-            width: 100%; height: 28px;
-            background: rgba(2, 6, 23, 0.95);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 4px;
-            display: flex; align-items: center;
-            padding: 0 4px;
-            z-index: 4;
-            position: relative;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+        /* --- IMAGE BOX --- */
+        .p-image-box {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.2);
+            background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(0,0,0,0.3));
             overflow: hidden;
+            display: flex; justify-content: center; align-items: flex-end;
+            margin-bottom: -10px; z-index: 2;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            transition: border-color 0.2s;
         }
-        
-        /* Color Strip for Position */
-        .pos-label {
-            width: 26px; height: 100%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 10px; font-weight: 800;
-            color: rgba(255,255,255,0.9);
-            background: rgba(255,255,255,0.1);
-            margin-right: 4px;
-            margin-left: -4px; /* Pull to edge */
-        }
-        
-        .name-label {
-            flex-grow: 1;
-            font-size: 11px; font-weight: 700; color: #fff;
-            text-transform: uppercase;
+        .p-image-box img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+
+        /* --- INFO BOX --- */
+        .p-info {
+            width: 100%; background: var(--c-bg-card);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 12px 2px 2px 2px; /* Padding top để né ảnh */
             text-align: center;
-            white-space: nowrap; overflow: hidden;
-            text-shadow: 0 1px 2px black;
+            display: flex; flex-direction: column;
+            z-index: 1;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .p-pos { font-size: 9px; font-weight: bold; color: #94a3b8; line-height: 1; margin-bottom: 1px; }
+        .p-name { font-size: 10px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase;}
+
+        /* --- RATING BADGE --- */
+        .p-rating {
+            position: absolute; top: 0; right: 5px;
+            background: #0f172a; color: white;
+            font-size: 11px; font-weight: 800;
+            padding: 2px 5px; border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.3);
+            z-index: 5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
-        /* Base Shadow (Hiệu ứng bóng dưới chân) */
-        .base-shadow {
-            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-            width: 60px; height: 15px;
-            background: radial-gradient(ellipse at center, rgba(0,0,0,0.6) 0%, transparent 70%);
-            z-index: 1;
-            pointer-events: none;
+        /* --- STAT HIGHLIGHT BADGE --- */
+        .stat-badge {
+            position: absolute; top: 0; left: -5px;
+            background: #ef4444; color: white;
+            font-size: 9px; font-weight: bold;
+            padding: 2px 4px; border-radius: 3px;
+            z-index: 6; box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            white-space: nowrap;
         }
 
         /* --- RARITY STYLES --- */
-        /* STANDARD */
-        .card-std .info-plate { border-bottom: 2px solid var(--col-std); }
-        .card-std .pos-label { background: var(--col-std); }
-        .card-std .rating-box { color: #60a5fa; border-color: var(--col-std); }
-
-        /* EPIC (Gold Glow) */
-        .card-epic .info-plate { 
-            border-bottom: 2px solid var(--col-epic); 
-            background: linear-gradient(to right, #451a03, #020617);
-        }
-        .card-epic .pos-label { background: var(--col-epic); color: #451a03; }
-        .card-epic .rating-box { 
-            color: var(--col-epic); border-color: var(--col-epic); 
-            box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
-        }
-        .card-epic .img-box { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.3)); }
-
-        /* POTW (Purple Glow) */
-        .card-potw .info-plate { 
-            border-bottom: 2px solid var(--col-potw); 
-            background: linear-gradient(to right, #4a044e, #020617);
-        }
-        .card-potw .pos-label { background: var(--col-potw); color: #fff; }
-        .card-potw .rating-box { 
-            color: #f0abfc; border-color: var(--col-potw);
-            box-shadow: 0 0 10px rgba(217, 70, 239, 0.4);
-        }
-        .card-potw .img-box { filter: drop-shadow(0 0 8px rgba(217, 70, 239, 0.3)); }
-
-        /* --- BENCH (DOCK STYLE) --- */
-        .bench-dock {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; height: 140px;
-            background: rgba(15, 23, 42, 0.85);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px;
-            display: flex; flex-direction: column;
-            padding: 10px 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            z-index: 200;
-        }
-
-        .bench-header {
-            font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px;
-            margin-bottom: 5px; display: flex; justify-content: space-between;
-        }
-
-        .bench-list {
-            display: flex; gap: 10px; overflow-x: auto; overflow-y: hidden;
-            height: 100%; align-items: center;
-            padding-bottom: 5px;
-        }
-        /* Hide scrollbar */
-        .bench-list::-webkit-scrollbar { height: 4px; }
-        .bench-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
-
-        .on-bench { transform: scale(0.85); flex-shrink: 0; }
-        .on-bench:hover { transform: scale(1.0); }
-
-        /* Extras */
-        .empty { border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; }
-        .empty-pos { font-size: 24px; font-weight: 800; color: rgba(255,255,255,0.1); }
+        /* EPIC */
+        .epic .p-image-box { border-color: var(--c-epic); box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
+        .epic .p-rating { color: var(--c-epic); border-color: var(--c-epic); }
+        .epic .p-info { border-bottom: 2px solid var(--c-epic); }
         
-        .highlight-badge {
-            position: absolute; top: -15px; right: -5px;
-            background: #ef4444; color: white; font-size: 10px; font-weight: bold;
-            padding: 2px 6px; border-radius: 4px; z-index: 20;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-            animation: float 2s infinite ease-in-out;
+        /* POTW */
+        .potw .p-image-box { border-color: var(--c-potw); box-shadow: 0 0 10px rgba(217, 70, 239, 0.4); }
+        .potw .p-rating { color: var(--c-potw); border-color: var(--c-potw); }
+        .potw .p-info { border-bottom: 2px solid var(--c-potw); }
+
+        /* STD */
+        .std .p-image-box { border-color: var(--c-std); }
+        .std .p-rating { color: var(--c-std); }
+        .std .p-info { border-bottom: 2px solid var(--c-std); }
+
+        /* --- BENCH AREA (GRID) --- */
+        .bench-wrapper {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
         }
-        @keyframes float { 0%, 100% {transform: translateY(0);} 50% {transform: translateY(-3px);} }
+        .bench-title {
+            font-size: 14px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;
+            display: flex; justify-content: space-between;
+        }
+        .bench-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start; /* Canh trái */
+        }
+
+        /* Empty Slot */
+        .empty-slot {
+            border: 2px dashed rgba(255,255,255,0.1);
+            border-radius: 50%;
+            width: 60px; height: 60px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.02);
+        }
 
     </style>
     """
@@ -1870,25 +1801,25 @@ def render_pitch_view(squad_list, highlight_type=None):
     <html>
     <head>{css}</head>
     <body>
-        <div class="scene">
-            <!-- 3D PITCH BOARD -->
-            <div class="pitch-board">
-                <div class="line half-line"></div>
-                <div class="line center-circle"></div>
-                <div class="line box-area box-top"><div class="penalty-dot" style="top:70%"></div></div>
-                <div class="line box-area box-bottom"><div class="penalty-dot" style="bottom:70%"></div></div>
-                
-                <!-- PLAYERS ON PITCH -->
+        <div class="container">
+            <!-- PITCH -->
+            <div class="pitch-wrapper">
+                <div class="pitch-lines">
+                    <div class="line half-line"></div>
+                    <div class="line center-circle"></div>
+                    <div class="line box box-top"></div>
+                    <div class="line box box-bot"></div>
+                </div>
                 {starters_html}
             </div>
             
-            <!-- BENCH DOCK -->
-            <div class="bench-dock">
-                <div class="bench-header">
+            <!-- BENCH (GRID) -->
+            <div class="bench-wrapper">
+                <div class="bench-title">
                     <span>Substitutes</span>
                     <span>{len(subs)} players</span>
                 </div>
-                <div class="bench-list">
+                <div class="bench-grid">
                     {subs_html}
                 </div>
             </div>
@@ -1897,8 +1828,8 @@ def render_pitch_view(squad_list, highlight_type=None):
     </html>
     """
     
-    # Render ra Streamlit
-    components.html(html_content, height=900, scrolling=False)
+    # Render với chiều cao tự động giãn theo nội dung, nhưng set tối thiểu
+    components.html(html_content, height=950, scrolling=True)
 
 # ==========================================
 # KẾT THÚC BƯỚC 1
