@@ -1481,7 +1481,7 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             # Lưu ý: Vì val_display giờ chứa HTML, ta cần sửa lại badge_html ở đoạn dưới một chút
             # Tuy nhiên để đơn giản và không phá vỡ layout CSS, ta cứ để text thuần, 
             # hoặc chỉ trả về text số:
-            val_display = f"🦶 {u} | {a}"
+            val_display = f"🦶 {u} |🎯 {a}"
         
         # Color Logic
         ptype = str(p['Type']).upper()
