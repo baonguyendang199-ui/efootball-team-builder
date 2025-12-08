@@ -187,9 +187,9 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%", highlight_metric=None):
     """
-    Tạo HTML Card - Đã FIX lỗi hình ảnh bị hỏng (Broken Image).
+    Tạo HTML Card - Đã nâng cấp giao diện hiển thị chỉ số (Stat Tag) đẹp hơn.
     """
-    import re # Đảm bảo thư viện regex được import
+    import re
     
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
@@ -197,76 +197,93 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
     p_type = str(player_data.get('Player Type', 'NON-EPIC')).upper()
     action = str(player_data.get('Action', '')).upper()
     
-    # --- [FIX] LOGIC XỬ LÝ HÌNH ẢNH MỚI ---
-    # Mặc định là ảnh rỗng
+    # --- XỬ LÝ ẢNH ---
     img_url = "https://pesdb.net/assets/img/card/f0.png"
-    
-    # 1. Tìm ID cầu thủ
     pid = str(player_data.get('Player ID', '')).strip()
-    
-    # Nếu không có ID, thử "đào" ID từ Player URL
     if not pid or pid == "0" or pid == "":
         purl = str(player_data.get('Player URL', '')).strip()
-        # Tìm chuỗi số dài (thường là ID) trong URL
         match = re.search(r"id=(\d+)", purl) or re.search(r"(\d{5,})", purl)
-        if match:
-            pid = match.group(1)
-            
-    # 2. Tạo link ảnh chuẩn từ ID
+        if match: pid = match.group(1)
     if pid and pid.isdigit():
         img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
-        
-    # 3. Nếu có cột 'Image' riêng (người dùng tự điền link ảnh), ưu tiên dùng nó
     custom_img = str(player_data.get('Image', '')).strip()
     if custom_img and custom_img.startswith('http'):
         img_url = custom_img
-    # ----------------------------------------
 
-    # Màu sắc thẻ
+    # --- MÀU SẮC ---
     card_class = "std"
     bg_gradient = "linear-gradient(180deg, #172554 0%, #020617 100%)" 
-    badge_bg = "#38bdf8" # Blue default
+    stat_color = "#38bdf8" # Cyan
     
     if "POTW" in p_type or "TRENDING" in p_type:
         card_class = "potw"
         bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)" 
-        badge_bg = "#d946ef"
+        stat_color = "#e879f9" # Pink/Purple
     elif "EPIC" in p_type and "NON" not in p_type:
         card_class = "epic"
         bg_gradient = "linear-gradient(180deg, #713f12 0%, #451a03 100%)" 
-        badge_bg = "#fbbf24"
+        stat_color = "#fbbf24" # Gold
 
     club = player_data.get('Club', '')
     
-    # --- LOGIC BADGE / ACTION ---
+    # --- LOGIC ACTION BADGE (GIỮ/BÁN) - Giữ nguyên vị trí ---
     top_badge_html = ""
     if "BÁN" in action:
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
     elif "GIỮ" in action:
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
     
-    # --- LOGIC SMART METRIC BADGE ---
+    # --- LOGIC METRIC DISPLAY (STAT TAG) - Thiết kế mới ---
     metric_val = ""
+    metric_label = ""
+    
     if highlight_metric:
         try:
             if highlight_metric == 'BMI':
                 h = float(player_data.get('Height', 0)) / 100.0
                 w = float(player_data.get('Weight', 0))
-                if h > 0: metric_val = f"{(w/(h**2)):.1f}"
+                if h > 0: 
+                    bmi = w/(h**2)
+                    metric_val = f"{bmi:.1f}"
+                    metric_label = "BMI"
             elif highlight_metric == 'Height':
-                metric_val = f"{player_data.get('Height', '-')}cm"
+                metric_val = f"{player_data.get('Height', '-')} cm"
             elif highlight_metric == 'Weight':
-                metric_val = f"{player_data.get('Weight', '-')}kg"
+                metric_val = f"{player_data.get('Weight', '-')} kg"
             elif highlight_metric == 'Age':
-                metric_val = f"{player_data.get('Age', '-')}t"
+                metric_val = f"{player_data.get('Age', '-')} tuổi"
         except:
             pass
             
     metric_html = ""
     if metric_val:
-        metric_html = f'<div style="position:absolute; top:-8px; right:-8px; background:{badge_bg}; color:#000; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px; z-index:20; box-shadow:0 2px 5px rgba(0,0,0,0.5); border:1px solid white;">{metric_val}</div>'
+        # Style mới: Nằm giữa, đè lên phần dưới của ảnh, bo tròn (Pill shape)
+        metric_html = f'''
+        <div style="
+            position: absolute; 
+            bottom: 58px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            background: rgba(15, 23, 42, 0.9); 
+            color: {stat_color}; 
+            font-size: 10px; 
+            font-weight: 700; 
+            padding: 2px 10px; 
+            border-radius: 12px; 
+            border: 1px solid rgba(255,255,255,0.2);
+            z-index: 20; 
+            white-space: nowrap;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        ">
+            {f"<span style='color:#94a3b8; font-weight:500'>{metric_label}:</span>" if metric_label else ""}
+            <span>{metric_val}</span>
+        </div>
+        '''
 
-    # HTML Card (Viết liền dòng để tránh lỗi indentation hiển thị code)
+    # HTML Card (Viết liền dòng)
     html = f"""<div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">{metric_html}{top_badge_html}<div class="shine"></div><div class="card-header"><div class="rating-box">{rating}</div><div class="position-box">{pos}</div></div><img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'"><div class="card-info"><div class="player-name">{p_name}</div><div class="sub-info"><span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span><span>{str(player_data.get('Nation', ''))[:3].upper()}</span></div></div></div>"""
     return html
 
