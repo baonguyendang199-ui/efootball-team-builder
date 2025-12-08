@@ -1033,258 +1033,114 @@ POSITION_STYLE_ORDER = {
 }
 
 # ==========================================
-# BẮT ĐẦU CODE MỚI - AUTO BUILD (BƯỚC 1)
+# 1. DANH SÁCH SƠ ĐỒ (LOGIC CHỌN NGƯỜI)
 # ==========================================
-
 FORMATIONS = {
+    # 4 Hậu vệ
+    "4-2-1-3 (Standard)":   ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+    "4-3-3 (Holding)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "4-3-3 (Attack)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"],
+    "4-3-3 (False 9)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "SS"],
+    "4-2-3-1 (Wide)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LMF", "RMF", "CF"],
+    "4-2-3-1 (Control)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
+    "4-2-3-1 (Flat)":       ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LMF", "RMF", "CF"],
+    "4-4-2 (Flat)":         ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF", "CF"],
+    "4-2-4 (Pressing)":     ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "CF", "CF"],
+    "4-2-2-2 (Magic Box)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
+    "4-3-1-2 (Diamond)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
+    "4-1-2-3 (2 CF, 1 SS)": ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
+    "4-3-2-1 (Xmas Tree)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "AMF", "CF"],
+    "4-1-4-1 (Solid Mid)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
 
-    # =================================================================
-    # 🛡️ 4 HẬU VỆ - TIÊU CHUẨN (STANDARD BACK 4)
-    # =================================================================
-    # Cân bằng nhất, dùng cho mọi lối đá
-    "4-2-1-3 (Standard)":           ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
-    "4-3-3 (Holding)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
-    "4-3-3 (Attack)":               ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"],
-    "4-3-3 (False 9)":              ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "SS"],
+    # 3 Hậu vệ
+    "3-5-2 (Possession)":   ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "AMF", "CF", "CF"],
+    "3-4-3 (Standard)":     ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "3-4-1-2 (Classic)":    ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "CF", "CF"],
+    "3-2-4-1 (Box Mid)":    ["GK", "CB", "CB", "CB", "DMF", "DMF", "AMF", "AMF", "LMF", "RMF", "CF"],
+    "3-4-2-1 (Xabi Ball)":  ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"],
 
-    # Sơ đồ quốc dân, phòng ngự chắc, công rộng
-    "4-2-3-1 (Wide)":               ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LMF", "RMF", "CF"],
-    "4-2-3-1 (Control)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
-    "4-2-3-1 (Flat)":            ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LMF", "RMF", "CF"],
-
-    # =================================================================
-    # ⚔️ 4 HẬU VỆ - 2 TIỀN ĐẠO (TWO STRIKERS)
-    # =================================================================
-    # Cổ điển nhưng hiệu quả (Simeone style)
-    "4-4-2 (Flat)":                 ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF", "CF"],
-    # Tấn công tổng lực (Gegenpressing)
-    "4-2-4 (Pressing)":             ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "CF", "CF"],
-    "4-2-2-2 (Magic Box)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
-    
-    # =================================================================
-    # 🛡️ 3 HẬU VỆ - TẤN CÔNG BIÊN (BACK 3 ATTACK)
-    # =================================================================
-    # Conte/Tuchel style
-    "3-5-2 (Possession)":           ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "AMF", "CF", "CF"],
-    "3-4-3 (Standard)":             ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
-    "3-4-3 (Standard)":             ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "LWF", "RWF", "CF"],
-    "3-4-1-2 (Classic)":            ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "CF", "CF"],
-
-    # =================================================================
-    # 🧱 5 HẬU VỆ - PHÒNG NGỰ PHẢN CÔNG (DEFENSIVE/COUNTER)
-    # =================================================================
-    # Đổ bê tông (Parking Bus)
-    "5-4-1 (Low Block)":            ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CF"],
-    # Phản công nhanh (Meta 3 tiền đạo cắm)
-    "5-2-3 (Counter)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF"],
-    "5-2-3 (Counter)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "RWF", "CF"],
-    "5-3-2 (Solid)":                ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "CF", "CF"],
-
-    # =================================================================
-    # 🔥 SƠ ĐỒ HIỆN ĐẠI & META (TRENDING NOW)
-    # =================================================================
-    # Man City (Pep) - Kiểm soát tuyệt đối, trung vệ dâng cao
-    "3-2-4-1 (Box Midfield)":       ["GK", "CB", "CB", "CB", "DMF", "DMF", "AMF", "AMF", "LMF", "RMF", "CF"],
-    # Leverkusen (Xabi Alonso) - Tấn công trung lộ cực mạnh
-    "3-4-2-1 (Xabi Ball)":          ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"], 
-    # Real Madrid (Ancelotti) - Biến thể Bellingham đá đỉnh kim cương
-    "4-3-1-2 (Diamond)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
-    # Sơ đồ "Tam tấu" (2 CF + 1 SS) - Rất mạnh để spam ban bật
-    "4-1-2-3 (2 CF, 1 SS)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
-
-    # =================================================================
-    # 🎄 SƠ ĐỒ ĐẶC BIỆT (SPECIAL TACTICS)
-    # =================================================================
-    "4-3-2-1 (Christmas Tree)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "AMF", "CF"],
-    "4-1-4-1 (Solid Mid)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
+    # 5 Hậu vệ
+    "5-4-1 (Low Block)":    ["GK", "LB", "CB", "CB", "CB", "RB", "LMF", "RMF", "DMF", "CMF", "CF"],
+    "5-2-3 (Counter)":      ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF"],
+    "5-3-2 (Solid)":        ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "CF", "CF"],
 }
 
-# Mapping Tọa độ (Top%, Left%) cho từng vị trí trong sơ đồ
-# Thứ tự tọa độ PHẢI KHỚP TUYỆT ĐỐI với thứ tự vị trí trong biến FORMATIONS
+# ==========================================
+# 2. TỌA ĐỘ HIỂN THỊ (PIXEL PERFECT)
+# ==========================================
+# Cấu trúc: (Top%, Left%)
 FORMATION_COORDS = {
-    # =================================================================
-    # 🛡️ 4 HẬU VỆ
-    # =================================================================
+    # --- 4 HẬU VỆ ---
     "4-2-1-3 (Standard)": [
-        (92, 50), # GK
-        (78, 12), (82, 38), (82, 62), (78, 88), # LB, CB, CB, RB
-        (62, 40), (62, 60), # DMF, CMF
-        (42, 50), # AMF
-        (25, 15), (25, 85), # LWF, RWF
-        (15, 50)  # CF
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (65, 40), (65, 60), (45, 50), (25, 15), (25, 85), (15, 50)
     ],
     "4-3-3 (Holding)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (65, 50), # DMF (Anchor)
-        (45, 30), (45, 70), # CMF-CMF
-        (25, 15), (25, 85), # LWF-RWF
-        (15, 50)
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (68, 50), (50, 30), (50, 70), (25, 15), (25, 85), (15, 50)
     ],
     "4-3-3 (Attack)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (65, 50), # DMF
-        (38, 30), (38, 70), # AMF-AMF
-        (22, 12), (22, 88), # LWF-RWF
-        (12, 50)
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (68, 50), (40, 30), (40, 70), (25, 15), (25, 85), (15, 50)
     ],
     "4-3-3 (False 9)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (65, 50), # DMF
-        (45, 30), (45, 70), # CMF-CMF
-        (20, 15), (20, 85), # LWF-RWF (Cao hơn chút)
-        (28, 50)  # SS (Lùi sâu hơn CF)
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (68, 50), (50, 30), (50, 70), (20, 15), (20, 85), (28, 50)
     ],
     "4-2-3-1 (Wide)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (62, 35), (62, 65), # DMF-DMF
-        (42, 50), # AMF
-        (35, 10), (35, 90), # LMF-RMF
-        (15, 50)
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (65, 40), (65, 60), (45, 50), (35, 12), (35, 88), (15, 50)
     ],
     "4-2-3-1 (Control)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (62, 40), (55, 65), # DMF-CMF (Lệch nhau chút)
-        (40, 50), # AMF
-        (25, 20), (25, 80), # LWF-RWF (Bó vào trong hơn Wide)
-        (15, 50)
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (65, 40), (60, 65), (45, 50), (25, 20), (25, 80), (15, 50)
     ],
     "4-2-3-1 (Flat)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (58, 40), (58, 60), # CMF-CMF
-        (40, 50), # AMF
-        (35, 10), (35, 90), # LMF-RMF
-        (15, 50)
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (60, 40), (60, 60), (45, 50), (35, 12), (35, 88), (15, 50)
     ],
     "4-4-2 (Flat)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (45, 10), (45, 90), # LMF-RMF
-        (55, 35), (55, 65), # CMF-CMF
-        (15, 35), (15, 65)  # CF-CF
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (45, 10), (45, 90), (55, 35), (55, 65), (15, 35), (15, 65)
     ],
     "4-2-4 (Pressing)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (55, 35), (55, 65), # CMF-CMF
-        (22, 10), (22, 90), # LWF-RWF (Rất cao)
-        (15, 35), (15, 65)  # CF-CF
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (55, 35), (55, 65), (25, 10), (25, 90), (15, 35), (15, 65)
     ],
     "4-2-2-2 (Magic Box)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (65, 35), (65, 65), # 2 DMF
-        (40, 25), (40, 75), # 2 AMF (Rộng ra biên chút)
-        (15, 35), (15, 65)  # 2 CF
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (65, 35), (65, 65), (40, 25), (40, 75), (15, 35), (15, 65)
     ],
     "4-3-1-2 (Diamond)": [
-        (92, 50),
-        (78, 15), (84, 38), (84, 62), (78, 85),
-        (68, 50), # DMF
-        (50, 30), (50, 70), # CMF-CMF
-        (35, 50), # AMF
-        (15, 35), (15, 65) # CF-CF
+        (92, 50), (78, 15), (82, 38), (82, 62), (78, 85), (68, 50), (50, 30), (50, 70), (35, 50), (15, 35), (15, 65)
     ],
     "4-1-2-3 (2 CF, 1 SS)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (65, 50), # DMF
-        (40, 30), (40, 70), # 2 AMF
-        (25, 50), # SS (Giữa)
-        (15, 30), (15, 70) # 2 CF (Dạt cánh)
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (65, 50), (40, 30), (40, 70), (25, 50), (15, 30), (15, 70)
     ],
-    "4-3-2-1 (Christmas Tree)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (65, 50), # DMF
-        (55, 30), (55, 70), # 2 CMF
-        (35, 35), (35, 65), # 2 AMF (Bó vào trong sau lưng CF)
-        (15, 50) # CF
+    "4-3-2-1 (Xmas Tree)": [
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (65, 50), (55, 30), (55, 70), (35, 35), (35, 65), (15, 50)
     ],
     "4-1-4-1 (Solid Mid)": [
-        (92, 50),
-        (78, 12), (82, 38), (82, 62), (78, 88),
-        (68, 50), # DMF
-        (45, 10), (45, 90), # LMF-RMF
-        (50, 35), (50, 65), # 2 CMF
-        (15, 50) # CF
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (68, 50), (45, 10), (45, 90), (50, 35), (50, 65), (15, 50)
     ],
 
-    # =================================================================
-    # 🛡️ 3 HẬU VỆ
-    # =================================================================
+    # --- 3 HẬU VỆ ---
     "3-5-2 (Possession)": [
-        (92, 50),
-        (82, 25), (85, 50), (82, 75), # 3 CB
-        (55, 8), (55, 92), # LMF-RMF (Wingback)
-        (65, 50), # DMF
-        (50, 40), (50, 60), # 2 CMF (Gần nhau để kiểm soát)
-        (35, 50), # AMF
-        (15, 35), (15, 65) # 2 CF
-    ],
-    "3-2-4-1 (Box Midfield)": [
-        (92, 50),
-        (82, 25), (85, 50), (82, 75),
-        (65, 35), (65, 65), # 2 DMF
-        (40, 10), (40, 90), # LMF-RMF
-        (35, 35), (35, 65), # 2 AMF
-        (15, 50)
+        (92, 50), (80, 25), (82, 50), (80, 75), (50, 8), (50, 92), (65, 50), (55, 35), (35, 65), (15, 35), (15, 65)
     ],
     "3-4-3 (Standard)": [
-        (92, 50),
-        (82, 25), (85, 50), (82, 75),
-        (55, 10), (55, 90), # LMF-RMF
-        (60, 35), (60, 65), # CMF-CMF
-        (25, 20), (25, 80), # LWF-RWF
-        (15, 50)
-    ],
-    "3-4-2-1 (Xabi Ball)": [
-        (92, 50),
-        (82, 25), (85, 50), (82, 75),
-        (55, 8), (55, 92), # Wingbacks
-        (60, 35), (60, 65), # Pivot
-        (30, 30), (30, 70), # 2 AMF
-        (15, 50)
+        (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (25, 20), (25, 80), (15, 50)
     ],
     "3-4-1-2 (Classic)": [
-        (92, 50),
-        (82, 25), (85, 50), (82, 75),
-        (55, 8), (55, 92),
-        (60, 35), (60, 65),
-        (40, 50), # AMF
-        (15, 35), (15, 65)
+        (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (40, 50), (15, 35), (15, 65)
+    ],
+    "3-2-4-1 (Box Mid)": [
+        (92, 50), (80, 25), (82, 50), (80, 75), (65, 35), (65, 65), (35, 35), (35, 65), (40, 10), (40, 90), (15, 50)
+    ],
+    "3-4-2-1 (Xabi Ball)": [
+        (92, 50), (80, 25), (82, 50), (80, 75), (50, 8), (50, 92), (65, 35), (65, 65), (30, 30), (30, 70), (15, 50)
     ],
 
-    # =================================================================
-    # 🧱 5 HẬU VỆ
-    # =================================================================
+    # --- 5 HẬU VỆ ---
     "5-4-1 (Low Block)": [
-        (92, 50),
-        (75, 8), (82, 28), (85, 50), (82, 72), (75, 92), # 5 Backs
-        (55, 10), (55, 90), # LMF-RMF
-        (65, 50), # DMF
-        (60, 40), (60, 60), # CMF
-        (15, 50) # Lone CF
+        (92, 50), (75, 10), (82, 28), (85, 50), (82, 72), (75, 90), (50, 10), (50, 90), (65, 50), (60, 40), (15, 50)
     ],
     "5-2-3 (Counter)": [
-        (92, 50),
-        (75, 8), (82, 28), (85, 50), (82, 72), (75, 92),
-        (60, 35), (60, 65),
-        (25, 20), (25, 80),
-        (15, 50)
+        (92, 50), (75, 10), (82, 28), (85, 50), (82, 72), (75, 90), (60, 35), (60, 65), (25, 15), (25, 85), (15, 50)
     ],
     "5-3-2 (Solid)": [
-        (92, 50),
-        (75, 8), (82, 28), (85, 50), (82, 72), (75, 92),
-        (65, 50), # DMF
-        (55, 30), (55, 70), # 2 CMF
-        (15, 35), (15, 65)
-    ]
+        (92, 50), (75, 10), (82, 28), (85, 50), (82, 72), (75, 90), (65, 50), (55, 30), (55, 70), (15, 35), (15, 65)
+    ],
 }
 
 # ==========================================
@@ -1626,7 +1482,8 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
 def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     """
-    Vẽ sơ đồ sân bóng: SỬ DỤNG TỌA ĐỘ CỐ ĐỊNH (Hardcoded Coordinates) cho đẹp.
+    Vẽ sơ đồ sân bóng: SỬ DỤNG TỌA ĐỘ CỐ ĐỊNH.
+    FIX: Fallback an toàn về 4-4-2 nếu không tìm thấy tọa độ, tránh vỡ hình.
     """
     import streamlit.components.v1 as components
     import re
@@ -1724,79 +1581,44 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         """
 
     # =========================================================================
-    # 🔥 LOGIC SẮP XẾP VỊ TRÍ - SỬ DỤNG MAPPING
+    # 🔥 LOGIC SẮP XẾP VỊ TRÍ - FIX LỖI TỌA ĐỘ
     # =========================================================================
     html_starters = ""
     
+    # Lấy tọa độ từ mapping
     coords = FORMATION_COORDS.get(formation_name)
 
-    if coords and len(coords) == 11:
-        # ✅ CASE 1: CÓ TỌA ĐỘ CỨNG
-        for i, p in enumerate(starters):
-            if i < 11:
-                t, l = coords[i]
-                html_starters += create_card_html(p, t, l)
-    else:
-        # ⚠️ CASE 2: FALLBACK
-        gk_group = [p for p in starters if p['Position'] == 'GK']
-        def_group = [p for p in starters if p['Position'] in ['CB', 'LB', 'RB']]
-        def_group.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
-        
-        mid_group = [p for p in starters if p['Position'] in ['DMF', 'CMF', 'AMF', 'LMF', 'RMF']]
-        mid_group.sort(key=lambda x: {'DMF': 3, 'CMF': 2, 'LMF': 2, 'RMF': 2, 'AMF': 1}.get(x['Position'], 2), reverse=True)
-        
-        fwd_group = [p for p in starters if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']]
-        fwd_group.sort(key=lambda x: {'LWF': 1, 'SS': 2, 'CF': 2, 'RWF': 3}.get(x['Position'], 2))
+    # 🛑 SAFE FALLBACK: Nếu không tìm thấy tọa độ, dùng tạm sơ đồ 4-4-2 chuẩn để không bị vỡ hình
+    if not coords or len(coords) != 11:
+        # Default 4-4-2 Flat coords
+        coords = [
+            (92, 50), # GK
+            (78, 10), (82, 35), (82, 65), (78, 90), # LB-CB-CB-RB
+            (45, 10), (45, 90), # LMF-RMF
+            (55, 35), (55, 65), # CMF-CMF
+            (15, 35), (15, 65)  # CF-CF
+        ]
 
-        def calc_coords(group, base_top):
-            count = len(group)
-            res = []
-            if count == 0: return []
-            width_step = 100 / (count + 1)
-            for i in range(count):
-                res.append((base_top, (i + 1) * width_step))
-            return res
-
-        for p in gk_group: html_starters += create_card_html(p, 92, 50)
-        
-        def_locs = calc_coords(def_group, 78)
-        for i, p in enumerate(def_group):
-            t, l = def_locs[i]
-            if p['Position'] == 'CB': t = 82
-            else: t = 75
-            html_starters += create_card_html(p, t, l)
-
-        mid_locs = calc_coords(mid_group, 50)
-        for i, p in enumerate(mid_group):
-            t, l = mid_locs[i]
-            if p['Position'] == 'DMF': t = 65
-            elif p['Position'] == 'AMF': t = 38
-            html_starters += create_card_html(p, t, l)
-
-        fwd_locs = calc_coords(fwd_group, 20)
-        for i, p in enumerate(fwd_group):
-            t, l = fwd_locs[i]
-            if p['Position'] == 'CF': t = 15
-            elif p['Position'] == 'SS': t = 25
+    # Render với tọa độ cứng (đảm bảo đẹp)
+    for i, p in enumerate(starters):
+        if i < 11:
+            t, l = coords[i]
             html_starters += create_card_html(p, t, l)
 
     # =========================================================================
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
     rows_desktop = math.ceil(len(subs) / 8)
-    
-    # -----------------------------------------------------------
-    # 🔧 FIX: ĐỊNH NGHĨA BIẾN final_iframe_height
-    # -----------------------------------------------------------
     final_iframe_height = 800 + 60 + (rows_desktop * 130)
 
-    # CSS
+    # CSS (Đã tinh chỉnh kích thước thẻ)
     css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@700;800&family=Inter:wght@600;700&display=swap');
         :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --pitch-line: rgba(148, 163, 184, 0.15); }
         body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
         .container { display: flex; flex-direction: column; gap: 10px; width: 100%; margin: 0 auto; }
+        /* Sân bóng đẹp hơn */
         .pitch { position: relative; width: 100%; height: 720px; background: radial-gradient(circle at 50% 50%, #172554 0%, #020617 90%); border-radius: 12px; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; perspective: 1000px; }
         .pitch::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px), linear-gradient(90deg, var(--pitch-line) 1px, transparent 1px); background-size: 50px 50px; opacity: 0.4; transform: perspective(600px) rotateX(25deg) scale(1.1); pointer-events: none; }
         .lines { position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; }
