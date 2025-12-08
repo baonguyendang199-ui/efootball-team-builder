@@ -2607,228 +2607,213 @@ def main():
 
     if current_tab == 'overview':
         # =========================================================================
-        # 💎 1. PREMIUM DARK UI STYLES (Đã tối ưu)
+        # 💎 1. CSS: PREMIUM DARK COMMAND CENTER
         # =========================================================================
         st.markdown("""
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;500;700;800&family=Inter:wght@400;600&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
             
-            .main-dashboard { font-family: 'Inter', sans-serif; color: #e2e8f0; }
+            .overview-container { font-family: 'Inter', sans-serif; color: #f1f5f9; display: flex; flex-direction: column; gap: 24px; }
             
-            /* Card Container */
-            .premium-card {
-                background: #1e293b; 
-                border: 1px solid #334155; 
-                border-radius: 12px; 
-                padding: 20px;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-                height: 100%;
+            /* Metric Box Styles */
+            .stat-box {
+                background: linear-gradient(145deg, #1e293b, #0f172a);
+                border: 1px solid #334155;
+                border-radius: 12px;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                height: 100px;
+                position: relative;
+                overflow: hidden;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.2);
             }
+            .stat-box:hover { border-color: #64748b; transform: translateY(-2px); transition: all 0.2s; }
             
-            /* Header Style */
-            .card-header-title {
-                font-family: 'Exo 2', sans-serif; font-size: 1rem; font-weight: 700;
-                color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px;
-                margin-bottom: 15px; display: flex; align-items: center; gap: 10px;
-                border-bottom: 1px solid #334155; padding-bottom: 8px;
-            }
-            .highlight-bar { width: 4px; height: 16px; border-radius: 2px; }
+            .stat-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+            .stat-value { font-family: 'Exo 2', sans-serif; font-size: 2rem; font-weight: 800; color: #fff; line-height: 1.1; margin-top: 4px; }
+            .stat-sub { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
+            .stat-icon { position: absolute; right: 10px; top: 10px; font-size: 1.5rem; opacity: 0.1; }
 
-            /* KPI Box */
-            .kpi-box {
-                background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
-                border: 1px solid #334155; border-radius: 10px; padding: 15px;
-                display: flex; flex-direction: column; justify-content: center;
-                height: 100px; position: relative; overflow: hidden;
+            /* Section Header */
+            .section-head {
+                font-family: 'Exo 2', sans-serif; font-size: 1.1rem; font-weight: 700; color: #e2e8f0;
+                border-left: 4px solid #3b82f6; padding-left: 10px; margin-bottom: 5px; display: flex; align-items: center;
             }
-            .kpi-label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
-            .kpi-value { font-family: 'Exo 2', sans-serif; font-size: 1.8rem; font-weight: 800; color: #fff; line-height: 1.1; margin-top: 4px; }
             
             /* Text Gradients */
-            .txt-blue { background: -webkit-linear-gradient(0deg, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-            .txt-gold { background: -webkit-linear-gradient(0deg, #fde047, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-            .txt-green { background: -webkit-linear-gradient(0deg, #4ade80, #22c55e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-            .txt-pink { background: -webkit-linear-gradient(0deg, #f472b6, #e879f9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .text-blue { background: -webkit-linear-gradient(0deg, #60a5fa, #2563eb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .text-gold { background: -webkit-linear-gradient(0deg, #fde047, #d97706); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .text-purple { background: -webkit-linear-gradient(0deg, #e879f9, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .text-green { background: -webkit-linear-gradient(0deg, #4ade80, #16a34a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .text-red { background: -webkit-linear-gradient(0deg, #f87171, #dc2626); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         </style>
         """, unsafe_allow_html=True)
 
         # =========================================================================
-        # ⚙️ 2. XỬ LÝ DỮ LIỆU
+        # 🧮 2. XỬ LÝ DỮ LIỆU (DATA PROCESSING)
         # =========================================================================
         if df.empty:
             st.error("Chưa có dữ liệu.")
             return
 
-        # Ép kiểu dữ liệu
+        # 1. Chuyển đổi số liệu (Height, Weight, Age, Rating)
+        df['Height_num'] = pd.to_numeric(df['Height'], errors='coerce')
+        df['Weight_num'] = pd.to_numeric(df['Weight'], errors='coerce')
         df['Age_num'] = pd.to_numeric(df['Age'], errors='coerce')
         df['Rating_num'] = pd.to_numeric(df['Rating'], errors='coerce')
-        
-        # Lọc dữ liệu sạch cho biểu đồ
-        valid_age = df.dropna(subset=['Age_num', 'Rating_num'])
-        valid_age = valid_age[valid_age['Age_num'] > 10] # Lọc nhiễu
 
-        # Tính toán KPI
-        avg_rating = df['Rating'].mean()
-        avg_age = valid_age['Age_num'].mean()
+        # 2. Tính BMI
+        df['BMI_num'] = df.apply(lambda x: x['Weight_num'] / ((x['Height_num']/100)**2) if x['Height_num'] > 0 else 0, axis=1)
+
+        # 3. Lọc dữ liệu sạch để tính trung bình
+        valid_stats = df.dropna(subset=['Height_num', 'Weight_num', 'BMI_num', 'Rating_num', 'Age_num'])
+        valid_stats = valid_stats[valid_stats['Height_num'] > 0]
+
+        # --- A. CÁC SỐ LIỆU TỔNG QUAN ---
         total_players = len(df)
         total_clubs = df['Club'].nunique()
         total_nations = df['Nation'].nunique()
+        total_leagues = df['League'].nunique()
+
+        # --- B. SỐ LIỆU META & THẺ ---
+        # Form: Unwavering
+        unwavering_cnt = len(df[df['Form'].astype(str).str.contains('Unwavering', case=False, na=False)])
         
-        # Đếm form (Phong độ)
-        unwavering_count = len(df[df['Form'].astype(str).str.contains('Unwavering', case=False, na=False)])
+        # Ambidextrous: Chân không thuận (Usage >= 3 & Accuracy >= 3 hoặc theo text "Very High")
+        # Logic: Tìm text "Very High" hoặc "Regularly" trong Usage VÀ "Very High" trong Accuracy
+        # Hoặc đơn giản hóa theo meta game: Usage >= 3 (High/Very High) AND Accuracy >= 3 (High/Very High)
+        def is_ambidextrous(row):
+            u = str(row.get('Weak Foot Usage', '')).upper()
+            a = str(row.get('Weak Foot Accuracy', '')).upper()
+            usage_ok = 'VERY HIGH' in u or 'REGULARLY' in u or '4' in u
+            acc_ok = 'VERY HIGH' in a or '4' in a
+            return usage_ok and acc_ok
+
+        ambi_cnt = df.apply(is_ambidextrous, axis=1).sum()
+
+        # Card Types
+        epic_cnt = len(df[df['Player Type'] == 'EPIC'])
+        potw_cnt = len(df[df['Player Type'] == 'POTW'])
+
+        # --- C. TRUNG BÌNH (AVERAGES) ---
+        avg_rating = df['Rating_num'].mean()
+        avg_age = valid_stats['Age_num'].mean()
+        avg_height = valid_stats['Height_num'].mean()
+        avg_weight = valid_stats['Weight_num'].mean()
+        avg_bmi = valid_stats['BMI_num'].mean()
 
         # =========================================================================
-        # 🚀 3. HERO KPI SECTION
+        # 🖥️ 3. GIAO DIỆN DASHBOARD
         # =========================================================================
-        st.markdown('<div class="main-dashboard">', unsafe_allow_html=True)
+        st.markdown('<div class="overview-container">', unsafe_allow_html=True)
+
+        # ---------------------------------------------------------------------
+        # ROW 1: QUY MÔ DỮ LIỆU (Total Counts)
+        # ---------------------------------------------------------------------
+        st.markdown('<div class="section-head">📦 QUY MÔ DỮ LIỆU</div>', unsafe_allow_html=True)
+        r1c1, r1c2, r1c3, r1c4 = st.columns(4)
         
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        def kpi_card(col, label, value, sub_text, color_class):
+        def render_box(col, label, value, sub, color_cls, icon):
             col.markdown(f"""
-            <div class="kpi-box">
-                <div class="kpi-label">{label}</div>
-                <div class="kpi-value {color_class}">{value}</div>
-                <div style="font-size: 0.7rem; color: #64748b; margin-top: 4px;">{sub_text}</div>
+            <div class="stat-box">
+                <div class="stat-icon">{icon}</div>
+                <div class="stat-label">{label}</div>
+                <div class="stat-value {color_cls}">{value}</div>
+                <div class="stat-sub">{sub}</div>
             </div>
             """, unsafe_allow_html=True)
 
-        with col1: kpi_card(st, "Tổng nhân sự", f"{total_players}", "Thẻ cầu thủ", "txt-blue")
-        with col2: kpi_card(st, "Sức mạnh TB", f"{avg_rating:.1f}", "Overall Rating", "txt-gold")
-        with col3: kpi_card(st, "Độ tuổi TB", f"{avg_age:.1f}", "Tuổi", "txt-green")
-        with col4: kpi_card(st, "Phong độ Đỉnh", f"{unwavering_count}", "Unwavering Form", "txt-pink")
-        with col5: kpi_card(st, "Quốc gia", f"{total_nations}", "Nation", "txt-blue")
+        with r1c1: render_box(st, "Tổng Cầu Thủ", f"{total_players}", "Trong Database", "text-blue", "👤")
+        with r1c2: render_box(st, "Câu Lạc Bộ", f"{total_clubs}", "Clubs", "text-blue", "🛡️")
+        with r1c3: render_box(st, "Quốc Gia", f"{total_nations}", "Nations", "text-blue", "🌍")
+        with r1c4: render_box(st, "Giải Đấu", f"{total_leagues}", "Leagues", "text-blue", "🏆")
 
-        st.write("") 
+        # ---------------------------------------------------------------------
+        # ROW 2: PHÂN TÍCH META & LOẠI THẺ (Form, Ambi, Epic, POTW)
+        # ---------------------------------------------------------------------
+        st.markdown('<div class="section-head" style="margin-top:10px;">🔥 CHỈ SỐ META & LOẠI THẺ</div>', unsafe_allow_html=True)
+        r2c1, r2c2, r2c3, r2c4 = st.columns(4)
 
-        # =========================================================================
-        # 🏆 4. MAIN LAYOUT: LEFT (RANKINGS) - RIGHT (CHARTS)
-        # =========================================================================
-        grid_col1, grid_col2 = st.columns([1.6, 1])
+        with r2c1: render_box(st, "Unwavering Form", f"{unwavering_cnt}", "Phong độ ổn định", "text-green", "📈")
+        with r2c2: render_box(st, "2 Chân Như 1", f"{ambi_cnt}", "Ambidextrous", "text-gold", "🦶")
+        with r2c3: render_box(st, "Thẻ EPIC", f"{epic_cnt}", "Huyền thoại", "text-gold", "✨")
+        with r2c4: render_box(st, "Thẻ POTW", f"{potw_cnt}", "Player of the Week", "text-purple", "⚡")
 
-        # --- LEFT: TOP 10 RANKINGS (Club/Nation/League) ---
-        with grid_col1:
-            with st.container():
-                st.markdown("""
-                <div class="premium-card">
-                    <div class="card-header-title"><div class="highlight-bar" style="background: linear-gradient(#3b82f6, #06b6d4);"></div>🏆 Bảng Xếp Hạng Top 10</div>
-                """, unsafe_allow_html=True)
-                
-                t1, t2, t3 = st.tabs(["🏛️ Câu lạc bộ", "🌍 Quốc gia", "⚽ Giải đấu"])
-                
-                def render_leaderboard(group_col, label):
-                    top_df = df[group_col].value_counts().head(10).reset_index()
-                    top_df.columns = [group_col, 'Count']
-                    max_val = top_df['Count'].max()
-                    
-                    st.dataframe(
-                        top_df,
-                        column_config={
-                            group_col: st.column_config.TextColumn(label, width="medium"),
-                            "Count": st.column_config.ProgressColumn(
-                                "Số lượng", format="%d", min_value=0, max_value=int(max_val), width="medium"
-                            ),
-                        },
-                        hide_index=True, use_container_width=True, height=380
-                    )
+        # ---------------------------------------------------------------------
+        # ROW 3: TRUNG BÌNH THỂ CHẤT (Averages)
+        # ---------------------------------------------------------------------
+        st.markdown('<div class="section-head" style="margin-top:10px;">🧬 TRUNG BÌNH THỂ CHẤT & CHỈ SỐ</div>', unsafe_allow_html=True)
+        r3c1, r3c2, r3c3, r3c4, r3c5 = st.columns(5)
 
-                with t1:
-                    render_leaderboard('Club', 'CLB')
-                    st.caption(f"Tổng: {total_clubs} Club")
-                with t2:
-                    render_leaderboard('Nation', 'Quốc Gia')
-                    st.caption(f"Tổng: {total_nations} Nation")
-                with t3:
-                    df_clean = df[df['League'].str.strip() != '']
-                    top_lg = df_clean['League'].value_counts().head(10).reset_index()
-                    top_lg.columns = ['League', 'Count']
-                    st.dataframe(
-                        top_lg,
-                        column_config={
-                            "League": st.column_config.TextColumn("Giải Đấu", width="medium"),
-                            "Count": st.column_config.ProgressColumn("Số lượng", format="%d", min_value=0, max_value=int(top_lg['Count'].max()))
-                        }, hide_index=True, use_container_width=True, height=380
-                    )
-                
-                st.markdown("</div>", unsafe_allow_html=True)
+        with r3c1: render_box(st, "Rating TB", f"{avg_rating:.1f}", "Overall Rating", "text-red", "⭐")
+        with r3c2: render_box(st, "Tuổi TB", f"{avg_age:.1f}", "Years Old", "text-blue", "🎂")
+        with r3c3: render_box(st, "Chiều Cao TB", f"{avg_height:.1f}", "Centimet (cm)", "text-blue", "📏")
+        with r3c4: render_box(st, "Cân Nặng TB", f"{avg_weight:.1f}", "Kilogram (kg)", "text-blue", "⚖️")
+        with r3c5: render_box(st, "BMI TB", f"{avg_bmi:.1f}", "Chỉ số cơ thể", "text-blue", "💪")
 
-        # --- RIGHT: USEFUL CHARTS (Age vs Rating & Playstyle) ---
-        with grid_col2:
-            import plotly.express as px
-
-            # CHART 1: WONDERKID FINDER (Age vs Rating)
-            with st.container():
-                st.markdown("""
-                <div class="premium-card" style="margin-bottom: 20px;">
-                    <div class="card-header-title"><div class="highlight-bar" style="background: #f43f5e;"></div>💎 Săn "Wonderkids" & Lão Tướng</div>
-                """, unsafe_allow_html=True)
-                
-                st.caption("Trục hoành: Tuổi • Trục tung: Rating • Màu: Vị trí")
-                
-                fig_age = px.scatter(
-                    valid_age, 
-                    x="Age_num", y="Rating_num",
-                    color="Position",           # Phân loại theo vị trí để dễ nhìn
-                    size="Rating_num",          # Bong bóng to hơn nếu Rating cao
-                    hover_name="Player",
-                    hover_data=["Club", "Player Type"],
-                    color_discrete_sequence=px.colors.qualitative.Bold,
-                    size_max=12
+        # ---------------------------------------------------------------------
+        # ROW 4: TOP 10 LEADERBOARDS (3 Columns Layout)
+        # ---------------------------------------------------------------------
+        st.markdown('<div class="section-head" style="margin-top:15px;">🏅 TOP 10 LEADERBOARDS</div>', unsafe_allow_html=True)
+        
+        # Hàm vẽ bảng Top 10
+        def render_top10_table(col, group_col, title, color_theme):
+            # Lấy data
+            top_df = df[group_col].value_counts().head(10).reset_index()
+            top_df.columns = [group_col, 'Count']
+            max_val = top_df['Count'].max()
+            
+            with col.container(border=True):
+                st.markdown(f"**{title}**")
+                st.dataframe(
+                    top_df,
+                    column_config={
+                        group_col: st.column_config.TextColumn("Tên", width="medium"),
+                        "Count": st.column_config.ProgressColumn(
+                            "Số lượng",
+                            format="%d",
+                            min_value=0,
+                            max_value=int(max_val),
+                        ),
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                    height=370 # Chiều cao vừa đủ cho 10 dòng
                 )
-                
-                # Thêm đường tham chiếu (Rating trung bình)
-                fig_age.add_hline(y=avg_rating, line_dash="dot", line_color="rgba(255,255,255,0.3)", annotation_text="AVG OVR")
-                
-                fig_age.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    margin=dict(l=0, r=0, t=10, b=0),
-                    height=250,
-                    xaxis=dict(showgrid=False, title="Tuổi (Càng trẻ càng tốt)"),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', title="Rating"),
-                    showlegend=False # Ẩn legend cho gọn
-                )
-                st.plotly_chart(fig_age, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
 
-            # CHART 2: PLAYSTYLE DISTRIBUTION (Hữu ích hơn Card Type)
-            with st.container():
-                st.markdown("""
-                <div class="premium-card">
-                    <div class="card-header-title"><div class="highlight-bar" style="background: #8b5cf6;"></div>🎮 Phong cách thi đấu (Meta)</div>
-                """, unsafe_allow_html=True)
-                
-                if 'Position Style' in df.columns:
-                    style_counts = df['Position Style'].value_counts().head(7).reset_index() # Lấy Top 7
-                    style_counts.columns = ['Style', 'Count']
-                    # Lọc rỗng
-                    style_counts = style_counts[style_counts['Style'].str.strip() != '']
-                    
-                    fig_style = px.bar(
-                        style_counts, 
-                        x='Count', y='Style', 
-                        orientation='h',
-                        text='Count',
-                        color='Count',
-                        color_continuous_scale='Purples'
-                    )
-                    
-                    fig_style.update_layout(
-                        template="plotly_dark",
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        margin=dict(l=0, r=0, t=0, b=0),
-                        height=220,
-                        xaxis=dict(showgrid=False, showticklabels=False, title=None),
-                        yaxis=dict(title=None, categoryorder='total ascending'),
-                        coloraxis_showscale=False
-                    )
-                    st.plotly_chart(fig_style, use_container_width=True)
-                else:
-                    st.info("Không có dữ liệu Position Style")
-                    
-                st.markdown("</div>", unsafe_allow_html=True)
+        l_c1, l_c2, l_c3 = st.columns(3)
+
+        # 1. Top 10 Clubs
+        render_top10_table(l_c1, 'Club', '🏛️ Câu Lạc Bộ (Clubs)', 'blue')
+        
+        # 2. Top 10 Nations
+        render_top10_table(l_c2, 'Nation', '🌍 Quốc Gia (Nations)', 'red')
+        
+        # 3. Top 10 Leagues (Lọc rỗng)
+        # Tạo df tạm để lọc league rỗng
+        df_league_clean = df[df['League'].astype(str).str.strip() != '']
+        top_league_df = df_league_clean['League'].value_counts().head(10).reset_index()
+        top_league_df.columns = ['League', 'Count']
+        
+        with l_c3.container(border=True):
+            st.markdown(f"**🏆 Giải Đấu (Leagues)**")
+            st.dataframe(
+                top_league_df,
+                column_config={
+                    "League": st.column_config.TextColumn("Tên", width="medium"),
+                    "Count": st.column_config.ProgressColumn(
+                        "Số lượng",
+                        format="%d",
+                        min_value=0,
+                        max_value=int(top_league_df['Count'].max()),
+                    ),
+                },
+                hide_index=True,
+                use_container_width=True,
+                height=370
+            )
 
         st.markdown('</div>', unsafe_allow_html=True)
 
