@@ -187,7 +187,7 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%", highlight_metric=None):
     """
-    Tạo HTML Card với Smart Badge (Hiển thị chỉ số theo ngữ cảnh Sort).
+    Tạo HTML Card với Smart Badge - Đã FIX lỗi hiển thị Code Text do thụt dòng.
     """
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
@@ -196,13 +196,11 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
     action = str(player_data.get('Action', '')).upper()
     
     # Xử lý hình ảnh
-    img_url = player_data.get('Player URL', '') # Lấy URL gốc nếu có
-    # Fallback sang logic ID
+    img_url = player_data.get('Player URL', '') 
     if not img_url or "pesdb" not in str(img_url):
          pid = str(player_data.get('Player ID', '')).strip()
          if pid: img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
          else: img_url = "https://pesdb.net/assets/img/card/f0.png"
-    # Nếu trong dữ liệu đã có cột Image xử lý sẵn
     if 'Image' in player_data and player_data['Image']:
         img_url = player_data['Image']
 
@@ -224,18 +222,14 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
     club = player_data.get('Club', '')
     
     # --- LOGIC BADGE / ACTION ---
-    # Ưu tiên hiển thị Action (Bán/Giữ) nếu có, nếu không thì hiển thị Metric
     top_badge_html = ""
-    
     if "BÁN" in action:
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
     elif "GIỮ" in action:
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
     
-    # --- LOGIC SMART METRIC BADGE (Góc trên phải - như tab Squad) ---
+    # --- LOGIC SMART METRIC BADGE ---
     metric_val = ""
-    metric_label = ""
-    
     if highlight_metric:
         try:
             if highlight_metric == 'BMI':
@@ -248,40 +242,32 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
                 metric_val = f"{player_data.get('Weight', '-')}kg"
             elif highlight_metric == 'Age':
                 metric_val = f"{player_data.get('Age', '-')}t"
-            # Thêm các logic khác nếu cần
         except:
             pass
             
-    # HTML cho Metric Badge (Chỉ hiện khi có giá trị đặc biệt và không trùng Rating)
+    # HTML cho Metric Badge (Viết trên 1 dòng để tránh lỗi indentation)
     metric_html = ""
     if metric_val:
-        metric_html = f'''
-        <div style="position:absolute; top:-8px; right:-8px; background:{badge_bg}; color:#000; 
-                    font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px; 
-                    z-index:20; box-shadow:0 2px 5px rgba(0,0,0,0.5); border:1px solid white;">
-            {metric_val}
-        </div>
-        '''
+        metric_html = f'<div style="position:absolute; top:-8px; right:-8px; background:{badge_bg}; color:#000; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px; z-index:20; box-shadow:0 2px 5px rgba(0,0,0,0.5); border:1px solid white;">{metric_val}</div>'
 
-    html = f"""
-    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">
-        {metric_html}
-        {top_badge_html}
-        <div class="shine"></div>
-        <div class="card-header">
-            <div class="rating-box">{rating}</div>
-            <div class="position-box">{pos}</div>
-        </div>
-        <img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
-        <div class="card-info">
-            <div class="player-name">{p_name}</div>
-            <div class="sub-info">
-                <span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span>
-                <span>{str(player_data.get('Nation', ''))[:3].upper()}</span>
-            </div>
+    # QUAN TRỌNG: HTML tổng phải viết sát lề trái, không thụt đầu dòng
+    html = f"""<div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">
+    {metric_html}
+    {top_badge_html}
+    <div class="shine"></div>
+    <div class="card-header">
+        <div class="rating-box">{rating}</div>
+        <div class="position-box">{pos}</div>
+    </div>
+    <img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
+    <div class="card-info">
+        <div class="player-name">{p_name}</div>
+        <div class="sub-info">
+            <span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span>
+            <span>{str(player_data.get('Nation', ''))[:3].upper()}</span>
         </div>
     </div>
-    """
+</div>"""
     return html
 
 @st.dialog("Hồ sơ cầu thủ", width="large")
