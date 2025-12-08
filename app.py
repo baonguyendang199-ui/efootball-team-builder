@@ -4564,7 +4564,7 @@ def main():
                             if team_type != "(Toàn bộ)":
                                 # --- CẬP NHẬT: SẮP XẾP THEO SỐ LƯỢNG GIẢM DẦN (GIỐNG TAB THỦ CÔNG) ---
                                 # 1. Đếm số lượng
-                                group_counts = df[team_type].value_counts().to_dict()
+                                group_counts = df.groupby(team_type)['Player'].nunique().to_dict()
                                 
                                 # 2. Lấy danh sách duy nhất và loại bỏ giá trị rỗng
                                 unique_vals = [x for x in df[team_type].astype(str).unique() if str(x).strip()]
