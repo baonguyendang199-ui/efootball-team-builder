@@ -1123,6 +1123,27 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # Reset index để thuật toán bên dưới chạy đúng index
     pool_df = pool_df.reset_index(drop=True)
 
+    # ... (Sau đoạn xóa trùng tên cầu thủ) ...
+
+    # --- LOGIC MỚI CHO UNITED NATIONS ---
+    if sort_mode == 'united_nations':
+        # Chiến thuật: Để đảm bảo luôn có GK và đủ người đá, ta chia làm 2 nhóm:
+        # 1. Nhóm GK: Giữ lại GK giỏi nhất của từng quốc gia.
+        # 2. Nhóm Cầu thủ khác: Giữ lại cầu thủ giỏi nhất của từng quốc gia.
+        # Kết quả: Mỗi quốc gia tối đa góp mặt 2 người (1 GK + 1 vị trí khác), đảm bảo tính đa dạng cực cao.
+        
+        # Lọc GK
+        gks = pool_df[pool_df['Position'] == 'GK'].sort_values('Rating', ascending=False)
+        gks = gks.drop_duplicates(subset=['Nation'], keep='first')
+        
+        # Lọc vị trí khác
+        others = pool_df[pool_df['Position'] != 'GK'].sort_values('Rating', ascending=False)
+        others = others.drop_duplicates(subset=['Nation'], keep='first')
+        
+        # Gộp lại thành danh sách chọn
+        pool_df = pd.concat([gks, others]).reset_index(drop=True)
+    # ------------------------------------
+
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
 
@@ -1224,10 +1245,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     for i in range(len(row_ind)):
         p_idx = row_ind[i]; s_idx = col_ind[i]
         if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
-            if sort_mode == 'united_nations':
-                nat = str(pool_df.at[p_idx, 'Nation']).strip()
-                if nat in used_nations and nat != "": continue
-                used_nations.add(nat)
 
             row = pool_df.iloc[p_idx]
             pid = str(row.get('Player ID', '')).strip()
