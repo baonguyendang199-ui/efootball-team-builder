@@ -1601,7 +1601,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         .p-img-box { position: absolute; bottom: 22px; left: 0; width: 100%; height: 85px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 6px 6px; }
         .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
         .p-name { position: absolute; bottom: 0; left: 0; width: 100%; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; background: rgba(2, 6, 23, 0.9); z-index: 4; border-radius: 0 0 6px 6px; white-space: nowrap; overflow: hidden; }
-        .stat-badge { position: absolute; top: -14px; left: -6px; color: #000; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 3px; z-index: 20; box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white; white-space: nowrap; }
+        .stat-badge { position: absolute; top: -14px; right: -6px; color: #000; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 3px; z-index: 20; box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white; white-space: nowrap; }
         .empty-slot { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transform: translate(-50%, -50%); }
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; }
         .bench-title { color: #94a3b8; font-weight: 700; font-size: 14px; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
