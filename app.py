@@ -4710,7 +4710,11 @@ def main():
                         custom_value = f"{count_tier1} Perf / {count_tier2} Good"
 
                     elif "United Nations" in stat_type:
-                        nations = set(p['Nation'] for p in all_valid_players if p['Nation'])
+                        # FIX: Lấy Nation từ p['Data'] thay vì p['Nation']
+                        nations = set(p.get('Data', {}).get('Nation', '') for p in all_valid_players)
+                        # Loại bỏ giá trị rỗng nếu có
+                        if '' in nations: nations.remove('')
+                        
                         custom_label = "Số Quốc gia"
                         custom_value = f"{len(nations)}"
                     
