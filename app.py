@@ -2922,24 +2922,254 @@ def main():
                 st.divider()
 
     elif current_tab == 'analytics':
-        st.header("📈 Phân tích chi tiết")
+        st.header("📈 Phân tích & So sánh")
         
-        import plotly.express as px
+        # Tạo Tabs mới, đưa Radar lên đầu
+        analysis_tabs = st.tabs(["🕸️ So sánh (Radar)", "⚽ CLB", "🌍 Nation", "🏆 League", "👥 Players"])
         
+        # Config cho Plotly
         config = {
-            "displayModeBar": True,
-            "modeBarButtonsToRemove": [
-                "zoom2d", "zoomIn2d", "zoomOut2d",
-                "autoScale2d", "resetScale2d",
-                "select2d", "lasso2d"
-            ],
+            "displayModeBar": False,
             "displaylogo": False
         }
-        
-        analysis_tabs = st.tabs(["⚽ CLB", "🌍 Nation", "🏆 League", "👥 Players"])
+
+        # =================================================================
+        # TAB 1: RADAR CHART (SO SÁNH ĐỐI ĐẦU) - NEW FEATURE
+        # =================================================================
+        with analysis_tabs[0]:
+            st.markdown("### 🕸️ So sánh Đối đầu (Head-to-Head)")
+            
+            # Chọn chế độ so sánh
+            radar_mode = st.radio("Chế độ so sánh:", ["👤 Cầu thủ vs Cầu thủ", "🛡️ CLB vs CLB"], horizontal=True)
+            
+            import plotly.graph_objects as go
+
+            def normalize_val(val, min_v, max_v, inverse=False):
+                """Chuẩn hóa giá trị về thang 0-100"""
+                if val is None or pd.isna(val): return 0
+                val = float(val)
+                if val < min_v: val = min_v
+                if val > max_v: val = max_v
+                
+                score = ((val - min_v) / (max_v - min_v)) * 100
+                return 100 - score if inverse else score
+
+            # --- MODE: PLAYER VS PLAYER ---
+            if "Cầu thủ" in radar_mode:
+                col_sel1, col_sel2 = st.columns(2)
+                
+                # Lấy danh sách cầu thủ (kèm Rating để dễ chọn)
+                player_options = df.sort_values('Rating', ascending=False).apply(
+                    lambda x: f"{x['Player']} ({x['Rating']}) - {x['Position']}", axis=1
+                ).tolist()
+                
+                # Map lại từ chuỗi hiển thị sang Index
+                player_map = {
+                    f"{row['Player']} ({row['Rating']}) - {row['Position']}": idx 
+                    for idx, row in df.iterrows()
+                }
+                
+                with col_sel1:
+                    p1_str = st.selectbox("Chọn Cầu thủ A", player_options, index=0 if len(player_options)>0 else None)
+                with col_sel2:
+                    p2_str = st.selectbox("Chọn Cầu thủ B", player_options, index=1 if len(player_options)>1 else 0)
+                
+                if p1_str and p2_str:
+                    idx1 = player_map[p1_str]
+                    idx2 = player_map[p2_str]
+                    
+                    row1 = df.loc[idx1]
+                    row2 = df.loc[idx2]
+                    
+                    # Chuẩn bị dữ liệu
+                    def get_metrics(row):
+                        h = pd.to_numeric(row.get('Height', 0), errors='coerce')
+                        w = pd.to_numeric(row.get('Weight', 0), errors='coerce')
+                        bmi = w / ((h/100)**2) if h > 0 else 0
+                        return {
+                            'Rating': row['Rating'],
+                            'Height': h,
+                            'Weight': w,
+                            'BMI': bmi,
+                            'Age': pd.to_numeric(row.get('Age', 0), errors='coerce')
+                        }
+
+                    m1 = get_metrics(row1)
+                    m2 = get_metrics(row2)
+                    
+                    # Categories & Ranges
+                    categories = ['Rating', 'Height (cm)', 'Weight (kg)', 'BMI', 'Age (Tuổi)']
+                    # Định nghĩa Max/Min để chuẩn hóa (Tùy chỉnh theo game)
+                    limits = {
+                        'Rating': (70, 105),
+                        'Height': (160, 200),
+                        'Weight': (55, 100),
+                        'BMI': (18, 28),
+                        'Age': (16, 40)
+                    }
+                    
+                    # Tính điểm chuẩn hóa (0-100)
+                    # Lưu ý: Age có thể để inverse (Trẻ hơn = Tốt hơn) hoặc không. Ở đây để Normal (Già = Kinh nghiệm)
+                    v1 = [
+                        normalize_val(m1['Rating'], *limits['Rating']),
+                        normalize_val(m1['Height'], *limits['Height']),
+                        normalize_val(m1['Weight'], *limits['Weight']),
+                        normalize_val(m1['BMI'], *limits['BMI']),
+                        normalize_val(m1['Age'], *limits['Age']),
+                    ]
+                    v2 = [
+                        normalize_val(m2['Rating'], *limits['Rating']),
+                        normalize_val(m2['Height'], *limits['Height']),
+                        normalize_val(m2['Weight'], *limits['Weight']),
+                        normalize_val(m2['BMI'], *limits['BMI']),
+                        normalize_val(m2['Age'], *limits['Age']),
+                    ]
+                    
+                    # Đóng vòng tròn biểu đồ
+                    v1 += [v1[0]]
+                    v2 += [v2[0]]
+                    cats_closed = categories + [categories[0]]
+                    
+                    # Vẽ biểu đồ
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Scatterpolar(
+                        r=v1, theta=cats_closed, fill='toself', name=row1['Player'],
+                        line_color='#22d3ee', fillcolor='rgba(34, 211, 238, 0.2)'
+                    ))
+                    fig.add_trace(go.Scatterpolar(
+                        r=v2, theta=cats_closed, fill='toself', name=row2['Player'],
+                        line_color='#f472b6', fillcolor='rgba(244, 114, 182, 0.2)'
+                    ))
+                    
+                    fig.update_layout(
+                        polar=dict(
+                            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False),
+                            bgcolor='rgba(0,0,0,0)'
+                        ),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white'),
+                        showlegend=True,
+                        margin=dict(l=40, r=40, t=20, b=20)
+                    )
+                    
+                    c_chart, c_stat = st.columns([1.5, 1])
+                    with c_chart:
+                        st.plotly_chart(fig, use_container_width=True, config=config)
+                    
+                    with c_stat:
+                        st.markdown(f"#### 📊 Thông số chi tiết")
+                        
+                        # So sánh từng chỉ số
+                        comparison_data = {
+                            "Chỉ số": categories,
+                            f"{row1['Player']}": [m1['Rating'], m1['Height'], m1['Weight'], f"{m1['BMI']:.1f}", m1['Age']],
+                            f"{row2['Player']}": [m2['Rating'], m2['Height'], m2['Weight'], f"{m2['BMI']:.1f}", m2['Age']]
+                        }
+                        st.dataframe(pd.DataFrame(comparison_data), hide_index=True, use_container_width=True)
+                        
+                        # Tổng điểm (Diện tích gần đúng)
+                        score1 = sum(v1[:-1])/5
+                        score2 = sum(v2[:-1])/5
+                        
+                        st.divider()
+                        if score1 > score2:
+                            st.success(f"🏆 **{row1['Player']}** toàn diện hơn (+{score1-score2:.1f}%)")
+                        elif score2 > score1:
+                            st.error(f"🏆 **{row2['Player']}** toàn diện hơn (+{score2-score1:.1f}%)")
+                        else:
+                            st.info("⚖️ Hai cầu thủ cân bằng")
+
+            # --- MODE: CLUB VS CLUB ---
+            else:
+                club_list = sorted([str(x) for x in df['Club'].unique() if str(x).strip()])
+                # Chỉ lấy CLB có > 5 cầu thủ để so sánh có ý nghĩa
+                valid_clubs = [c for c in club_list if len(df[df['Club']==c]) >= 5]
+                
+                col_sel1, col_sel2 = st.columns(2)
+                with col_sel1:
+                    c1_str = st.selectbox("Chọn CLB A", valid_clubs, index=0 if len(valid_clubs)>0 else None)
+                with col_sel2:
+                    c2_str = st.selectbox("Chọn CLB B", valid_clubs, index=1 if len(valid_clubs)>1 else 0)
+                
+                if c1_str and c2_str:
+                    df1 = df[df['Club'] == c1_str]
+                    df2 = df[df['Club'] == c2_str]
+                    
+                    def get_club_metrics(d):
+                        h = pd.to_numeric(d['Height'], errors='coerce').mean()
+                        w = pd.to_numeric(d['Weight'], errors='coerce').mean()
+                        age = pd.to_numeric(d['Age'], errors='coerce').mean()
+                        rating = d['Rating'].mean()
+                        # Tỷ lệ Epic/Highlight
+                        epic_count = d['Player Type'].apply(lambda x: 1 if str(x).upper()=='EPIC' else 0).sum()
+                        epic_ratio = (epic_count / len(d)) * 100 if len(d) > 0 else 0
+                        return {'Rating': rating, 'Height': h, 'Weight': w, 'Age': age, 'Epic%': epic_ratio}
+
+                    m1 = get_club_metrics(df1)
+                    m2 = get_club_metrics(df2)
+                    
+                    categories = ['Rating TB', 'Chiều cao TB', 'Cân nặng TB', 'Tuổi TB', 'Tỷ lệ EPIC (%)']
+                    limits = {
+                        'Rating': (80, 98),
+                        'Height': (175, 188),
+                        'Weight': (70, 85),
+                        'Age': (22, 32),
+                        'Epic%': (0, 50)
+                    }
+                    
+                    v1 = [
+                        normalize_val(m1['Rating'], *limits['Rating']),
+                        normalize_val(m1['Height'], *limits['Height']),
+                        normalize_val(m1['Weight'], *limits['Weight']),
+                        normalize_val(m1['Age'], *limits['Age']),
+                        normalize_val(m1['Epic%'], *limits['Epic%']),
+                    ]
+                    v2 = [
+                        normalize_val(m2['Rating'], *limits['Rating']),
+                        normalize_val(m2['Height'], *limits['Height']),
+                        normalize_val(m2['Weight'], *limits['Weight']),
+                        normalize_val(m2['Age'], *limits['Age']),
+                        normalize_val(m2['Epic%'], *limits['Epic%']),
+                    ]
+                    
+                    v1 += [v1[0]]; v2 += [v2[0]]
+                    cats_closed = categories + [categories[0]]
+                    
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatterpolar(
+                        r=v1, theta=cats_closed, fill='toself', name=c1_str,
+                        line_color='#fbbf24', fillcolor='rgba(251, 191, 36, 0.2)'
+                    ))
+                    fig.add_trace(go.Scatterpolar(
+                        r=v2, theta=cats_closed, fill='toself', name=c2_str,
+                        line_color='#a78bfa', fillcolor='rgba(167, 139, 250, 0.2)'
+                    ))
+                    fig.update_layout(
+                        polar=dict(radialaxis=dict(visible=True, range=[0, 100], showticklabels=False), bgcolor='rgba(0,0,0,0)'),
+                        paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), showlegend=True,
+                        margin=dict(l=40, r=40, t=20, b=20)
+                    )
+                    
+                    c_chart, c_stat = st.columns([1.5, 1])
+                    with c_chart:
+                        st.plotly_chart(fig, use_container_width=True, config=config)
+                    with c_stat:
+                        st.markdown(f"#### 🛡️ Thống kê đội hình")
+                        comp_data = {
+                            "Chỉ số": categories,
+                            f"{c1_str}": [f"{m1['Rating']:.1f}", f"{m1['Height']:.1f}", f"{m1['Weight']:.1f}", f"{m1['Age']:.1f}", f"{m1['Epic%']:.1f}%"],
+                            f"{c2_str}": [f"{m2['Rating']:.1f}", f"{m2['Height']:.1f}", f"{m2['Weight']:.1f}", f"{m2['Age']:.1f}", f"{m2['Epic%']:.1f}%"]
+                        }
+                        st.dataframe(pd.DataFrame(comp_data), hide_index=True, use_container_width=True)
+                        st.caption(f"*So sánh dựa trên {len(df1)} cầu thủ của {c1_str} và {len(df2)} cầu thủ của {c2_str}")
+
+        # =================================================================
+        # CÁC TAB CŨ (GIỮ NGUYÊN CODE, CHỈ THỤT VÀO TRONG WITH)
+        # =================================================================
         
         # ===== TAB CLB =====
-        with analysis_tabs[0]:
+        with analysis_tabs[1]:
             if 'Club' in df.columns:
                 st.markdown("### ⚽ Phân tích theo Câu lạc bộ")
                 
@@ -3129,7 +3359,7 @@ def main():
                 st.info("Chưa có dữ liệu Club")
         
         # ===== TAB NATION =====
-        with analysis_tabs[1]:
+        with analysis_tabs[2]:
             if 'Nation' in df.columns:
                 st.markdown("### 🌍 Phân tích theo Quốc gia")
                 
@@ -3318,7 +3548,7 @@ def main():
                 st.info("Chưa có dữ liệu Nation")
         
         # ===== TAB LEAGUE =====
-        with analysis_tabs[2]:
+        with analysis_tabs[3]:
             if 'League' in df.columns:
                 st.markdown("### 🏆 Phân tích theo Giải đấu")
                 
@@ -3478,7 +3708,7 @@ def main():
                 st.info("Chưa có dữ liệu League")
         
         # ===== TAB PLAYERS =====
-        with analysis_tabs[3]:
+        with analysis_tabs[4]:
             st.markdown("### 👥 Phân tích theo Cầu thủ")
             
             col1, col2, col3 = st.columns(3)
