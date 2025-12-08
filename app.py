@@ -1207,11 +1207,30 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     # --- LOGIC MỚI CHO UNITED NATIONS ---
     if sort_mode == 'united_nations':
-        gks = pool_df[pool_df['Position'] == 'GK'].sort_values('Rating', ascending=False)
-        gks = gks.drop_duplicates(subset=['Nation'], keep='first')
-        others = pool_df[pool_df['Position'] != 'GK'].sort_values('Rating', ascending=False)
-        others = others.drop_duplicates(subset=['Nation'], keep='first')
-        pool_df = pd.concat([gks, others]).reset_index(drop=True)
+        # 1. Sắp xếp toàn bộ theo Rating giảm dần
+        pool_df = pool_df.sort_values('Rating', ascending=False)
+        
+        # 2. Tách nhóm GK và Non-GK
+        gks = pool_df[pool_df['Position'] == 'GK']
+        others = pool_df[pool_df['Position'] != 'GK']
+        
+        # 3. Lấy Top 3 GK xuất sắc nhất từ 3 quốc gia khác nhau
+        # (Tại sao Top 3? Để đảm bảo sơ đồ có GK xịn, tránh trường hợp chọn Tiền đạo xịn hết xong phải bắt GK 70 rating)
+        top_gks = gks.drop_duplicates(subset=['Nation'], keep='first').head(3)
+        
+        # Danh sách các quốc gia đã có GK (Ví dụ: Spain, Germany, Italy)
+        gk_nations = set(top_gks['Nation'].unique())
+        
+        # 4. Lấy cầu thủ các vị trí khác
+        # QUAN TRỌNG: Loại bỏ những cầu thủ thuộc quốc gia đã có GK
+        # (Ví dụ: Đã chọn Casillas thì loại Iniesta khỏi danh sách candidates)
+        others_filtered = others[~others['Nation'].isin(gk_nations)]
+        
+        # Giữ lại cầu thủ tốt nhất của các quốc gia còn lại
+        others_unique = others_filtered.drop_duplicates(subset=['Nation'], keep='first')
+        
+        # 5. Gộp lại thành hồ sơ ứng viên
+        pool_df = pd.concat([top_gks, others_unique]).reset_index(drop=True)
 
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
