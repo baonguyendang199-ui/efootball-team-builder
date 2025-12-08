@@ -2705,33 +2705,50 @@ def main():
         df['Age_num'] = pd.to_numeric(df['Age'], errors='coerce')
         df['Rating_num'] = pd.to_numeric(df['Rating'], errors='coerce')
         
-        # --- A. KPI CALCULATIONS ---
+        # --- CALCULATIONS ---
         total_players = len(df)
         avg_rating = df['Rating_num'].mean()
         epic_cnt = len(df[df['Player Type'] == 'EPIC'])
         potw_cnt = len(df[df['Player Type'] == 'POTW'])
         barca_cnt = len(df[df['Club'] == 'FC Barcelona'])
         
-        # --- B. CHART DATA PREP ---
-        # 1. Rating Distribution
         rating_dist = df['Rating_num'].value_counts().reset_index()
         rating_dist.columns = ['Rating', 'Count']
         
-        # 2. Player Types
         type_dist = df['Player Type'].value_counts().reset_index()
         type_dist.columns = ['Type', 'Count']
         
-        # 3. Top Clubs/Nations
         top_clubs = df['Club'].value_counts().head(10).reset_index()
         top_clubs.columns = ['Club', 'Count']
         
         top_nations = df['Nation'].value_counts().head(10).reset_index()
         top_nations.columns = ['Nation', 'Count']
 
-        # 4. Physical Scatter (Sampled if too large)
         scatter_df = df.dropna(subset=['Height_num', 'Weight_num', 'Position'])
-        if len(scatter_df) > 500:
-            scatter_df = scatter_df.sample(500)
+        if len(scatter_df) > 500: scatter_df = scatter_df.sample(500)
+
+        # --- HELPER FUNCTION: ALTAIR THEME ---
+        def apply_altair_theme(chart):
+            """Hàm định dạng riêng cho Altair Chart để tránh lỗi AttributeError"""
+            return chart.configure(
+                background='transparent',
+                font='Inter, sans-serif'
+            ).configure_axis(
+                gridColor='rgba(255,255,255,0.08)',
+                domainColor='rgba(255,255,255,0.15)',
+                tickColor='rgba(255,255,255,0.15)',
+                labelColor='#94A3B8',
+                titleColor='#94A3B8',
+                titleFontWeight=500
+            ).configure_view(
+                strokeWidth=0
+            ).configure_legend(
+                labelColor='#E2E8F0',
+                titleColor='#94A3B8'
+            ).configure_text(
+                color='#E2E8F0',
+                font='Inter, sans-serif'
+            )
 
         # =========================================================================
         # 🖥️ 3. DASHBOARD LAYOUT
@@ -2780,13 +2797,14 @@ def main():
                     y=alt.Y('Count:Q', title='Số lượng'),
                     color=alt.condition(
                         alt.datum.Rating >= 100,
-                        alt.value('#f59e0b'),  # Gold for 100+
-                        alt.value('#3b82f6')   # Blue for others
+                        alt.value('#f59e0b'),
+                        alt.value('#3b82f6')
                     ),
                     tooltip=['Rating', 'Count']
                 ).properties(height=250)
                 
-                st.altair_chart(apply_plotly_theme(chart_rating), use_container_width=True)
+                # SỬA LỖI: Dùng apply_altair_theme thay vì apply_plotly_theme
+                st.altair_chart(apply_altair_theme(chart_rating), use_container_width=True)
 
         with c2:
             with st.container(border=True):
@@ -2801,14 +2819,14 @@ def main():
                     tooltip=['Type', 'Count']
                 ).properties(height=250)
                 
-                # Add text labels
                 text = chart_donut.mark_text(radius=80).encode(
                     text=alt.Text("Count", format=".0f"),
                     order=alt.Order("Type"),
                     color=alt.value('white')  
                 )
                 
-                st.altair_chart(apply_plotly_theme(chart_donut + text), use_container_width=True)
+                # SỬA LỖI: Dùng apply_altair_theme
+                st.altair_chart(apply_altair_theme(chart_donut + text), use_container_width=True)
 
         # --- ROW 3: TOP RANKINGS (TABS) ---
         st.write("")
@@ -2824,7 +2842,8 @@ def main():
                 ).properties(height=350)
                 
                 text_club = chart_club.mark_text(align='left', dx=2).encode(text='Count:Q')
-                st.altair_chart(apply_plotly_theme(chart_club + text_club), use_container_width=True)
+                # SỬA LỖI: Dùng apply_altair_theme
+                st.altair_chart(apply_altair_theme(chart_club + text_club), use_container_width=True)
 
             with t2:
                 chart_nation = alt.Chart(top_nations).mark_bar().encode(
@@ -2835,10 +2854,10 @@ def main():
                 ).properties(height=350)
                 
                 text_nation = chart_nation.mark_text(align='left', dx=2).encode(text='Count:Q')
-                st.altair_chart(apply_plotly_theme(chart_nation + text_nation), use_container_width=True)
+                # SỬA LỖI: Dùng apply_altair_theme
+                st.altair_chart(apply_altair_theme(chart_nation + text_nation), use_container_width=True)
                 
             with t3:
-                # Scatter Plot: Height vs Weight colored by Position
                 chart_scatter = alt.Chart(scatter_df).mark_circle(size=60).encode(
                     x=alt.X('Weight_num', title='Cân nặng (kg)', scale=alt.Scale(zero=False)),
                     y=alt.Y('Height_num', title='Chiều cao (cm)', scale=alt.Scale(zero=False)),
@@ -2846,7 +2865,8 @@ def main():
                     tooltip=['Player', 'Position', 'Height', 'Weight', 'BMI_num']
                 ).properties(height=350).interactive()
                 
-                st.altair_chart(apply_plotly_theme(chart_scatter), use_container_width=True)
+                # SỬA LỖI: Dùng apply_altair_theme
+                st.altair_chart(apply_altair_theme(chart_scatter), use_container_width=True)
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
