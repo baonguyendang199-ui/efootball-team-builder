@@ -1086,7 +1086,8 @@ FORMATIONS = {
 
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
-    Tự động xây dựng đội hình tối ưu (Đã FIX logic Tier 2 chân: Acc là vua).
+    Tự động xây dựng đội hình tối ưu.
+    CẬP NHẬT: Logic dự bị thông minh - Ưu tiên cầu thủ hợp sơ đồ khi bằng điểm.
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
@@ -1114,35 +1115,18 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
-    # Sắp xếp: Rating cao nhất lên đầu, nếu bằng Rating thì ưu tiên Epic (Epic_Priority nhỏ hơn)
+    # Sắp xếp: Rating cao nhất lên đầu
     pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
-    
-    # Xóa các dòng trùng tên cầu thủ (chỉ giữ dòng đầu tiên - tức dòng ngon nhất)
     pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
-    
-    # Reset index để thuật toán bên dưới chạy đúng index
     pool_df = pool_df.reset_index(drop=True)
-
-    # ... (Sau đoạn xóa trùng tên cầu thủ) ...
 
     # --- LOGIC MỚI CHO UNITED NATIONS ---
     if sort_mode == 'united_nations':
-        # Chiến thuật: Để đảm bảo luôn có GK và đủ người đá, ta chia làm 2 nhóm:
-        # 1. Nhóm GK: Giữ lại GK giỏi nhất của từng quốc gia.
-        # 2. Nhóm Cầu thủ khác: Giữ lại cầu thủ giỏi nhất của từng quốc gia.
-        # Kết quả: Mỗi quốc gia tối đa góp mặt 2 người (1 GK + 1 vị trí khác), đảm bảo tính đa dạng cực cao.
-        
-        # Lọc GK
         gks = pool_df[pool_df['Position'] == 'GK'].sort_values('Rating', ascending=False)
         gks = gks.drop_duplicates(subset=['Nation'], keep='first')
-        
-        # Lọc vị trí khác
         others = pool_df[pool_df['Position'] != 'GK'].sort_values('Rating', ascending=False)
         others = others.drop_duplicates(subset=['Nation'], keep='first')
-        
-        # Gộp lại thành danh sách chọn
         pool_df = pd.concat([gks, others]).reset_index(drop=True)
-    # ------------------------------------
 
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
@@ -1152,22 +1136,18 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         
         if sort_mode == 'rating_desc': 
             return row['Rating'] + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
-            
         elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
         elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus 
         elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
         elif sort_mode == 'weight_asc': return (150 - row['Weight_num']) + rating_bonus
         elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
         elif sort_mode == 'age_asc': return (100 - row['Age_num']) + rating_bonus
-
         elif 'bmi' in sort_mode:
             h_m = row['Height_num'] / 100.0; w = row['Weight_num']
             if h_m < 1.0 or w < 30: return ERROR_SCORE
             bmi = w / (h_m ** 2)
             if sort_mode == 'bmi_desc': return (bmi * 1000) + rating_bonus
             else: return ((100 - bmi) * 1000) + rating_bonus
-
-        # --- FIX LOGIC TIER 2 CHÂN (AMBIDEXTROUS) ---
         elif sort_mode == 'ambidextrous':
             def get_wf_val(text):
                 t = str(text).strip().lower()
@@ -1175,48 +1155,29 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 if any(k in t for k in ['occasionally', 'high', '3']): return 3
                 if any(k in t for k in ['rarely', 'medium', '2']): return 2
                 return 1
-
             u_val = get_wf_val(row.get('Weak Foot Usage', ''))
             a_val = get_wf_val(row.get('Weak Foot Accuracy', ''))
-
-            # Logic Tier theo yêu cầu:
             tier_score = 0
-            
-            # Tier 1: 4 | 4
-            if a_val == 4 and u_val == 4:
-                tier_score = 50000
-            
-            # Tier 2: X | 4 (Acc 4 nhưng Usage < 4)
-            elif a_val == 4:
-                tier_score = 40000
-            
-            # Tier 3: X | 3 (Acc 3)
-            elif a_val == 3:
-                tier_score = 30000
-            
-            # Tier 4: X | 2 (Acc 2)
-            elif a_val == 2:
-                tier_score = 20000
-
-            # Cộng thêm điểm Usage nhỏ để sắp xếp trong cùng 1 Tier
-            # Ví dụ trong Tier 2: 3|4 sẽ > 2|4 > 1|4
+            if a_val == 4 and u_val == 4: tier_score = 50000
+            elif a_val == 4: tier_score = 40000
+            elif a_val == 3: tier_score = 30000
+            elif a_val == 2: tier_score = 20000
             sub_tier_bonus = u_val * 100
-
             return row['Rating'] + tier_score + sub_tier_bonus
-
         elif sort_mode == 'potw_only':
             ptype = str(row.get('Player Type', '')).upper()
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
             return (10000 if is_potw else 0) + row['Rating']
-
-        elif sort_mode == 'united_nations': return row['Rating']
         return row['Rating']
 
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
     pool_df = pool_df.reset_index(drop=True)
 
-    # 4. THUẬT TOÁN HUNGARIAN
+    # 4. THUẬT TOÁN HUNGARIAN (CHỌN ĐÁ CHÍNH)
     required_positions = FORMATIONS.get(formation_name, [])
+    # Tạo set các vị trí cần thiết trong sơ đồ để dùng cho logic dự bị sau này
+    unique_formation_positions = set(required_positions)
+    
     num_slots = len(required_positions)
     num_players = len(pool_df)
     BIG_PENALTY = 1e9 
@@ -1242,10 +1203,10 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     used_indices = set()
     used_nations = set()
 
+    # Xếp Starters
     for i in range(len(row_ind)):
         p_idx = row_ind[i]; s_idx = col_ind[i]
         if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
-
             row = pool_df.iloc[p_idx]
             pid = str(row.get('Player ID', '')).strip()
             purl = str(row.get('Player URL', '')).strip()
@@ -1265,20 +1226,51 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     for i in range(11):
         if final_squad[i] is None: final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
 
-    remaining_pool = pool_df[~pool_df.index.isin(used_indices)]
+    # 5. CHỌN DỰ BỊ (CẬP NHẬT LOGIC: ƯU TIÊN UTILITY)
+    remaining_pool = pool_df[~pool_df.index.isin(used_indices)].copy()
     remaining_pool = remaining_pool[remaining_pool['Build_Score'] != ERROR_SCORE]
-    remaining_pool = remaining_pool.sort_values('Build_Score', ascending=False)
+
+    # --- TÍNH ĐIỂM "HỢP SƠ ĐỒ" (UTILITY) ---
+    def check_formation_fit(row):
+        # Kiểm tra vị trí chính
+        p_main = str(row.get('Position', '')).strip().upper()
+        if p_main in unique_formation_positions:
+            return 1 # Có ích
+        
+        # Kiểm tra vị trí phụ
+        p_sec = str(row.get('Secondary Positions', '')).split(',')
+        for ps in p_sec:
+            if ps.strip().upper() in unique_formation_positions:
+                return 1 # Có ích
+        
+        return 0 # Không đá được vị trí nào trong sơ đồ hiện tại
+
+    remaining_pool['Formation_Fit'] = remaining_pool.apply(check_formation_fit, axis=1)
+
+    # --- SORT LẠI ---
+    # Tiêu chí 1: Build_Score (Điểm chính theo mode chọn: Rating, Height, BMI...)
+    # Tiêu chí 2: Formation_Fit (Ưu tiên người đá được trong sơ đồ)
+    # Tiêu chí 3: Rating (Tie-breaker cuối cùng)
+    remaining_pool = remaining_pool.sort_values(
+        ['Build_Score', 'Formation_Fit', 'Rating'], 
+        ascending=[False, False, False]
+    )
     
     bench_picks_rows = []
     gk_on_bench_count = 0
+    
     for idx, row in remaining_pool.iterrows():
         if len(bench_picks_rows) >= 12: break
+        
         is_gk = str(row.get('Position', '')).strip().upper() == 'GK'
+        # Logic GK: Chỉ tối đa 1 GK dự bị
         if is_gk and gk_on_bench_count >= 1: continue
+        
         if sort_mode == 'united_nations':
             p_nation = str(row.get('Nation', '')).strip(); 
             if p_nation and p_nation in used_nations: continue
             used_nations.add(p_nation)
+            
         bench_picks_rows.append(row)
         if is_gk: gk_on_bench_count += 1
             
@@ -1288,12 +1280,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         purl = str(r_get('Player URL', '')).strip()
         if not pid and purl: m = re.search(r"(\d{14,})", purl); pid = m.group(1) if m else ""
         img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+        
         final_squad.append({
             "Is_Starter": False, "Position": r_get('Position'), "Player": r_get('Player'),
             "Rating": r_get('Rating'), "Type": r_get('Player Type'), "Image": img_url,
             "Height": r_get('Height', ''), "Weight": r_get('Weight', ''), "Age": r_get('Age', ''),
             "Score": r_get('Build_Score'), "Data": row.to_dict() if hasattr(row, 'to_dict') else row
         })
+        
     return final_squad
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
