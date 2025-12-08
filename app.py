@@ -2916,7 +2916,7 @@ def main():
             # Format hiển thị: "Club: Manchester B (5/11)"
             if in_top_club:
                 rank_str = club_rank_map[idx]
-                reasons.append(f"Club: {club} **({rank_str})**")
+                reasons.append(f"Club: {club} ({rank_str})")
             if in_top_nation:
                 rank_str = nation_rank_map[idx]
                 reasons.append(f"Nation: {nation} ({rank_str})")
