@@ -249,8 +249,9 @@ def render_efootball_card_html(player_data, width="100%"):
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
     """
-    Giao diện Scouting Profile - Cập nhật hiển thị Lý do Bán/Giữ
+    Giao diện Scouting Profile - Đã sửa lỗi hiển thị HTML text.
     """
+    
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
     rating = row.get('Rating', 0)
@@ -260,10 +261,6 @@ def show_player_modal(row):
     club = row.get('Club', 'Unknown Club')
     nation = row.get('Nation', 'Unknown Nation')
     
-    # Lấy thông tin Action/Reasons (nếu có từ bộ lọc)
-    action = row.get('Action', '')
-    reasons = row.get('Reasons', '')
-
     # Xử lý ảnh
     img_url = row.get('Player URL', '') 
     pid = str(row.get('Player ID', '')).strip()
@@ -274,18 +271,22 @@ def show_player_modal(row):
 
     # Theme Config
     if "POTW" in p_type or "TRENDING" in p_type:
+        # Ưu tiên tím trước
         accent_color = "#D946EF" # Fuchsia
         badge_bg = "linear-gradient(135deg, #701a75 0%, #D946EF 100%)"
         shadow_color = "rgba(217, 70, 239, 0.4)"
     elif "EPIC" in p_type and "NON" not in p_type:
+        # Chỉ vàng nếu là Epic và KHÔNG phải NON-EPIC
         accent_color = "#F59E0B" # Amber
         badge_bg = "linear-gradient(135deg, #78350f 0%, #F59E0B 100%)"
         shadow_color = "rgba(245, 158, 11, 0.4)"
     else:
+        # Mặc định xanh (Non-Epic rơi vào đây)
         accent_color = "#3B82F6" # Blue
         badge_bg = "linear-gradient(135deg, #1e3a8a 0%, #3B82F6 100%)"
         shadow_color = "rgba(59, 130, 246, 0.4)"
 
+    # Helper render thanh chỉ số (LƯU Ý: Phải viết sát lề để không bị lỗi indent)
     def render_stat_bar(label, value_text, max_score=4):
         val = str(value_text).upper()
         score = 1
@@ -297,37 +298,35 @@ def show_player_modal(row):
         for i in range(1, max_score + 1):
             bg = accent_color if i <= score else "rgba(255,255,255,0.1)"
             bars += f'<div style="flex:1; height:4px; background:{bg}; border-radius:2px; margin-right:2px;"></div>'
+            
+        # QUAN TRỌNG: Dòng dưới không được thụt đầu dòng quá sâu
         return f"""<div style="margin-bottom: 8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
 
-    # Skills
+    # --- 2. XỬ LÝ DANH SÁCH SKILLS ---
     base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
     added_skills = [s.strip() for s in str(row.get('Added Skills','')).split(',') if s.strip()]
-    skills_html = "".join([f'<span class="pf-skill">{s}</span>' for s in base_skills])
-    skills_html += "".join([f'<span class="pf-skill added" title="Added Skill">+{s}</span>' for s in added_skills]) or '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
+    
+    skills_html = ""
+    for s in base_skills:
+        skills_html += f'<span class="pf-skill">{s}</span>'
+    for s in added_skills:
+        skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
+    if not skills_html:
+        skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
-    # Action HTML (Hiển thị Lý do)
-    action_block = ""
-    if action:
-        bg_act = "#22c55e" if "GIỮ" in action else "#ef4444"
-        action_block = f"""
-        <div style="margin-top:15px; padding:12px; background:rgba(255,255,255,0.05); border-radius:8px; border-left:4px solid {bg_act}; display:flex; align-items:center; gap:10px;">
-            <div style="background:{bg_act}; color:white; font-weight:bold; padding:4px 8px; border-radius:4px; font-size:0.9rem;">{action}</div>
-            <div style="color:#e2e8f0; font-size:0.9rem;">{reasons}</div>
-        </div>
-        """
-
+    # --- 3. RENDER HTML (QUAN TRỌNG: Viết sát lề trái tuyệt đối) ---
     html_content = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
-.profile-container {{ font-family: 'Space Grotesk', sans-serif; background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 1) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; color: white; margin-bottom: 10px; }}
+.profile-container {{ font-family: 'Space Grotesk', sans-serif; background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 1) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 0 40px rgba(0,0,0,0.5); color: white; margin-bottom: 10px; }}
 .pf-hero {{ position: relative; height: 140px; background: radial-gradient(circle at top right, {shadow_color}, transparent 60%); display: flex; align-items: flex-end; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }}
-.pf-img-wrapper {{ width: 110px; height: 110px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 20px; backdrop-filter: blur(4px); }}
+.pf-img-wrapper {{ width: 110px; height: 110px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); backdrop-filter: blur(4px); }}
 .pf-img {{ width: 100%; height: 100%; object-fit: contain; transform: scale(1.1); }}
 .pf-header-info {{ flex-grow: 1; }}
-.pf-name {{ font-size: 2rem; font-weight: 700; line-height: 1.1; margin-bottom: 5px; text-transform: uppercase; }}
+.pf-name {{ font-size: 2rem; font-weight: 700; line-height: 1.1; margin-bottom: 5px; text-transform: uppercase; letter-spacing: -0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
 .pf-badges {{ display: flex; gap: 8px; align-items: center; }}
-.pf-badge {{ font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: 600; background: rgba(255,255,255,0.1); }}
-.pf-rating {{ background: {badge_bg}; color: white; }}
+.pf-badge {{ font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: 600; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); }}
+.pf-rating {{ background: {badge_bg}; color: white; border: none; box-shadow: 0 0 10px {shadow_color}; }}
 .pf-grid {{ display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; padding: 20px; }}
 .pf-section-title {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }}
 .stat-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }}
@@ -335,7 +334,8 @@ def show_player_modal(row):
 .stat-label {{ font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }}
 .stat-val {{ font-size: 1.1rem; font-weight: 600; color: white; }}
 .skill-container {{ display: flex; flex-wrap: wrap; gap: 6px; }}
-.pf-skill {{ font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; }}
+.pf-skill {{ font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; transition: all 0.2s; }}
+.pf-skill:hover {{ background: {accent_color}33; border-color: {accent_color}; color: white; }}
 .pf-skill.added {{ border-left: 3px solid #4ade80; background: rgba(74, 222, 128, 0.1); }}
 </style>
 <div class="profile-container">
@@ -367,7 +367,6 @@ def show_player_modal(row):
                 {render_stat_bar("Form / Condition", row.get('Form', '-'))}
                 {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
             </div>
-            {action_block}
         </div>
         <div>
             <div class="pf-section-title">Phong cách thi đấu</div>
@@ -384,10 +383,13 @@ def show_player_modal(row):
 </div>
 """
     st.markdown(html_content, unsafe_allow_html=True)
-    
+
+    # Footer Actions
     st.write("")
-    if row.get('Player URL'):
-        st.link_button("🌐 Xem trên PESDB", row.get('Player URL'), use_container_width=True)
+    c1, c2 = st.columns([1, 4])
+    with c1:
+        if row.get('Player URL'):
+            st.link_button("🌐 PESDB Link", row.get('Player URL'), use_container_width=True)
     with c2:
         pass
 
