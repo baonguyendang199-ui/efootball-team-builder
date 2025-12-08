@@ -2923,6 +2923,8 @@ def main():
 
     elif current_tab == 'analytics':
         st.header("📈 Phân tích & So sánh")
+
+        import plotly.express as px
         
         # Tạo Tabs mới, đưa Radar lên đầu
         analysis_tabs = st.tabs(["🕸️ So sánh (Radar)", "⚽ CLB", "🌍 Nation", "🏆 League", "👥 Players"])
