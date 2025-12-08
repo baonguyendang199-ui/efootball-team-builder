@@ -1357,63 +1357,78 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Tìm sơ đồ tối ưu dựa trên 2 tiêu chí theo thứ tự ưu tiên:
-    1. Tổng điểm Score (Cao nhất là tốt nhất).
-    2. Độ chuẩn vị trí (Position Fidelity): Nếu Score ngang bằng, 
-       chọn sơ đồ có nhiều cầu thủ đá đúng Vị trí Sở trường (Main Position) hơn.
+    Tìm sơ đồ tối ưu với logic phân cấp (Tier-based Logic):
+    1. Ưu tiên TUYỆT ĐỐI cho sự đầy đủ đội hình (Đủ người > Thiếu 1 > Thiếu 2...).
+    2. Nếu cùng số lượng người thiếu: So sánh tổng điểm Score.
+    3. Nếu cùng điểm Score: So sánh số lượng cầu thủ đá đúng vị trí sở trường.
     """
     best_score = -float('inf')
-    best_main_pos_count = -1 # Tiêu chí phụ: Số cầu thủ đá đúng sở trường
+    best_main_pos_count = -1 
     best_squad = []
     best_formation_name = ""
+
+    # Hằng số phạt cho mỗi vị trí thiếu (Đủ lớn để tách biệt các trường hợp)
+    # Ví dụ: Thiếu 1 người bị trừ 1 tỷ điểm. Thiếu 2 người bị trừ 2 tỷ điểm.
+    MISSING_PENALTY = 1_000_000_000 
 
     # Quét qua toàn bộ sơ đồ
     for form_name in FORMATIONS.keys():
         # Build thử đội hình
         squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
         
-        # Lấy 11 người ĐÁ CHÍNH
+        # Lấy danh sách đá chính
         starters = [p for p in squad if p.get('Is_Starter', False)]
         
-        # Kiểm tra số lượng người hợp lệ
+        # Lọc ra những người CÓ MẶT (không phải placeholder "---")
         valid_starters = [p for p in starters if p['Player'] != "---"]
         
-        # Nếu thiếu người đá chính -> Phạt nặng
-        if len(valid_starters) < 11:
-            current_total_score = -1e15 # Số âm cực lớn
-            current_main_pos_count = 0
-        else:
-            # QUAN TRỌNG: Cộng tổng điểm 'Score'
-            current_total_score = sum(p.get('Score', 0) for p in valid_starters)
+        # Đếm số người thiếu
+        missing_count = 11 - len(valid_starters)
+        
+        # Tính tổng điểm của những người ĐANG CÓ
+        current_rating_score = sum(p.get('Score', 0) for p in valid_starters)
+        
+        # --- TÍNH ĐIỂM TỔNG HỢP (QUAN TRỌNG) ---
+        if missing_count == 0:
+            # Trường hợp ĐỦ NGƯỜI: Điểm dương bình thường
+            current_total_score = current_rating_score
             
-            # Bonus đặc biệt cho Rating mode (Ưu tiên DMF)
+            # Bonus đặc biệt cho Rating mode (Ưu tiên DMF) chỉ áp dụng khi đủ người
             if sort_mode == 'rating_desc':
                 has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
                 needs_dmf = "DMF" in FORMATIONS[form_name]
                 if has_dmf: current_total_score += 50000 
                 elif needs_dmf: current_total_score -= 20000
-            
-            # --- TÍNH TOÁN POSITION FIDELITY (Số cầu thủ đá đúng Main Position) ---
-            current_main_pos_count = 0
-            for p in valid_starters:
-                assigned_pos = str(p.get('Position', '')).strip().upper()
-                real_pos = str(p.get('Real_Position', '')).strip().upper()
-                if assigned_pos == real_pos:
-                    current_main_pos_count += 1
+        else:
+            # Trường hợp THIẾU NGƯỜI: 
+            # Điểm = (Điểm của cầu thủ có sẵn) - (Số người thiếu * 1 Tỷ)
+            # Ví dụ: Rating 1000. Thiếu 1 -> Score = -999,999,000
+            #        Rating 1200. Thiếu 2 -> Score = -1,999,998,800
+            # => Thiếu 1 luôn luôn lớn hơn Thiếu 2.
+            current_total_score = current_rating_score - (missing_count * MISSING_PENALTY)
 
-        # --- LOGIC SO SÁNH NÂNG CAO ---
-        # 1. Nếu điểm số mới VƯỢT TRỘI (lớn hơn rõ rệt, tránh lỗi số thực float)
+        # --- TÍNH TOÁN POSITION FIDELITY (Số cầu thủ đá đúng Main Position) ---
+        current_main_pos_count = 0
+        for p in valid_starters:
+            assigned_pos = str(p.get('Position', '')).strip().upper()
+            real_pos = str(p.get('Real_Position', '')).strip().upper()
+            if assigned_pos == real_pos:
+                current_main_pos_count += 1
+
+        # --- LOGIC SO SÁNH ---
+        # 1. Nếu điểm số mới VƯỢT TRỘI (lớn hơn rõ rệt)
+        # (Điều này sẽ tự động chọn đội hình thiếu ít người nhất)
         if current_total_score > best_score + 0.01:
             best_score = current_total_score
             best_main_pos_count = current_main_pos_count
             best_squad = squad
             best_formation_name = form_name
             
-        # 2. Nếu điểm số NGANG BẰNG (chênh lệch rất nhỏ) -> Dùng Tie-breaker: Position Fidelity
+        # 2. Nếu điểm số NGANG BẰNG (VD: Cùng thiếu 1 người, cùng tổng rating)
         elif abs(current_total_score - best_score) <= 0.01:
-            # Nếu đội hình này có nhiều cầu thủ đá đúng sở trường hơn -> Chọn nó
+            # Ưu tiên đội hình có nhiều người đá đúng sở trường hơn
             if current_main_pos_count > best_main_pos_count:
-                best_score = current_total_score # Cập nhật lại cho chắc
+                best_score = current_total_score
                 best_main_pos_count = current_main_pos_count
                 best_squad = squad
                 best_formation_name = form_name
@@ -4427,6 +4442,16 @@ def main():
             else:
                 if found_name:
                     st.success(f"✅ Đội hình tối ưu nhất (Đá chính): **{found_name}**")
+
+# --- CODE MỚI: KIỂM TRA & BÁO THIẾU NGƯỜI ---
+                    missing_slots = [p['Position'] for p in best_squad if p.get('Is_Starter') and p['Player'] == "---"]
+                    if missing_slots:
+                        from collections import Counter
+                        missing_counts = Counter(missing_slots)
+                        missing_text = ", ".join([f"{k} ({v})" for k, v in missing_counts.items()])
+                        st.error(f"⚠️ Đội hình chưa hoàn thiện! Đang thiếu {len(missing_slots)} vị trí: **{missing_text}**")
+                        st.info("💡 Hệ thống đã chọn sơ đồ này vì nó cần ít cầu thủ bổ sung nhất.")
+                    # ---------------------------------------------
 
                 # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
                 all_valid_players = [p for p in best_squad if p['Rating'] > 0]
