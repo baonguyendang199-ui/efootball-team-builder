@@ -1186,7 +1186,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     """
     Tự động xây dựng đội hình tối ưu.
     CẬP NHẬT: 
-    1. Luật Anti-Spam CB áp dụng cho cả Height và Weight.
+    1. Luật Anti-Spam CB ĐỘNG: 
+       - Sơ đồ 2 CB đá chính -> Max 2 CB dự bị.
+       - Sơ đồ 3 CB đá chính (3HV/5HV) -> Max 3 CB dự bị.
     2. Luật Strict Fit: Dự bị bắt buộc phải đá được 1 trong các vị trí của sơ đồ.
     """
     # 1. CHUẨN HÓA DỮ LIỆU
@@ -1278,9 +1280,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     # 4. CHỌN ĐÁ CHÍNH (STARTERS)
     required_positions = FORMATIONS.get(formation_name, [])
-    
-    # [QUAN TRỌNG] Tạo set các vị trí có trong sơ đồ (Ví dụ: {GK, CB, LB, RB, DMF, CMF, AMF, CF})
-    # Dùng để lọc cầu thủ dự bị "lạc loài"
     unique_formation_positions = set(required_positions)
     
     num_slots = len(required_positions)
@@ -1330,7 +1329,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     for i in range(11):
         if final_squad[i] is None: final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
 
-    # 5. CHỌN DỰ BỊ (DRAFTING) - CẬP NHẬT LOGIC STRICT
+    # ==========================================================
+    # 5. CHỌN DỰ BỊ (DRAFTING) - CÓ CẬP NHẬT LOGIC CB ĐỘNG
+    # ==========================================================
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)].copy()
     remaining_pool = remaining_pool[remaining_pool['Build_Score'] != ERROR_SCORE]
     
@@ -1338,6 +1339,15 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     bench_pos_counts = {} 
     gk_on_bench_count = 0
     MAX_BENCH = 12
+
+    # --- [NEW] TÍNH GIỚI HẠN CB DỰ BỊ DỰA TRÊN SƠ ĐỒ ĐÁ CHÍNH ---
+    # Đếm số lượng 'CB' trong required_positions
+    num_starting_cbs = required_positions.count('CB')
+    
+    # Nếu đá chính >= 3 CB (Sơ đồ 3HV hoặc 5HV) -> Max 3 dự bị
+    # Nếu đá chính < 3 CB (Sơ đồ 4HV) -> Max 2 dự bị
+    max_cb_subs_allowed = 3 if num_starting_cbs >= 3 else 2
+    # -----------------------------------------------------------
 
     for _ in range(MAX_BENCH):
         if remaining_pool.empty:
@@ -1347,44 +1357,38 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             base_score = row['Build_Score']
             pos = str(row.get('Position', '')).strip().upper()
             
-            # --- [LOGIC MỚI 1] STRICT FORMATION FIT ---
-            # Cầu thủ bắt buộc phải đá được ít nhất 1 vị trí có trong sơ đồ
-            # Ví dụ: Sơ đồ 5-3-2 không có LWF/RWF. Cầu thủ chỉ đá được LWF -> Loại
+            # --- 1. STRICT FORMATION FIT ---
             secs = [s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()]
             all_playable_pos = set([pos] + secs)
-            
-            # Kiểm tra giao thoa: Nếu không có vị trí nào trùng với sơ đồ -> LOẠI
             if not all_playable_pos.intersection(unique_formation_positions):
                 return -999999
 
-            # --- [LOGIC MỚI 2] ANTI-SPAM CB (Height & Weight) ---
+            # --- 2. ANTI-SPAM CB (DYNAMIC LIMIT) ---
             if pos == 'GK' and gk_on_bench_count >= 1:
                 return -999999
             
-            # Áp dụng cho cả Height và Weight
             if sort_mode in ['height_desc', 'weight_desc'] and pos == 'CB':
                 cb_count = bench_pos_counts.get('CB', 0)
-                if cb_count >= 3:
-                    # Kiểm tra sự đa năng
+                
+                # SỬ DỤNG BIẾN ĐỘNG max_cb_subs_allowed THAY VÌ SỐ CỨNG 3
+                if cb_count >= max_cb_subs_allowed:
                     useful_positions = ['LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF']
                     is_versatile = any(p in str(row.get('Secondary Positions', '')).upper() for p in useful_positions)
                     
                     if not is_versatile:
                         return -999999 
             
-            # --- LUẬT UNITED NATIONS ---
+            # --- 3. LUẬT UNITED NATIONS ---
             if sort_mode == 'united_nations':
                 p_nation = str(row.get('Nation', '')).strip()
                 if p_nation and p_nation in used_nations:
                     return -999999
             
-            # --- BONUS ---
-            # Vẫn giữ bonus nhỏ để ưu tiên người hợp vị trí chính hơn nếu chỉ số bằng nhau
+            # --- 4. BONUS ---
             fit_bonus = 0
             if pos in unique_formation_positions:
                 fit_bonus = 0.2
             
-            # Điểm bão hòa để phân bổ đều các vị trí dự bị
             current_count_on_bench = bench_pos_counts.get(pos, 0)
             saturation_penalty = current_count_on_bench * 0.1
             
@@ -1392,7 +1396,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
         remaining_pool['Draft_Score'] = remaining_pool.apply(calculate_draft_priority, axis=1)
         
-        # Chỉ lấy những người có điểm hợp lệ (không bị loại bởi các bộ lọc trên)
         candidates = remaining_pool[remaining_pool['Draft_Score'] > -500000]
         
         if candidates.empty:
@@ -1413,8 +1416,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             
         remaining_pool = remaining_pool.drop(best_pick.name)
 
-    # Nếu vẫn chưa đủ 12 người (do lọc quá kỹ), fill nốt bằng những người còn lại tốt nhất
-    # (Trường hợp dự phòng để không bị lỗi array)
     while len(bench_picks) < 12 and not remaining_pool.empty:
         top = remaining_pool.iloc[0]
         bench_picks.append(top)
