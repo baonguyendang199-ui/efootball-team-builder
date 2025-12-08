@@ -2923,53 +2923,51 @@ def main():
 
     elif current_tab == 'analytics':
         st.header("📈 Phân tích & So sánh")
-
+        
+        # Import thư viện vẽ biểu đồ (QUAN TRỌNG: Sửa lỗi thiếu 'px')
         import plotly.express as px
+        import plotly.graph_objects as go
         
-        # Tạo Tabs mới, đưa Radar lên đầu
-        analysis_tabs = st.tabs(["🕸️ So sánh (Radar)", "⚽ CLB", "🌍 Nation", "🏆 League", "👥 Players"])
+        # Cấu hình Tabs mới: Đưa các biểu đồ cao cấp lên trước
+        analysis_tabs = st.tabs([
+            "🕸️ Radar (So sánh)", 
+            "📉 Thể chất (Scatter)", 
+            "🔥 Chiều sâu (Heatmap)", 
+            "📦 Phân bố (Box Plot)",
+            "🗺️ Toàn cảnh (Treemap)",
+            "📊 Thống kê Chi tiết"
+        ])
         
-        # Config cho Plotly
+        # Config chung cho Plotly
         config = {
             "displayModeBar": False,
             "displaylogo": False
         }
 
+        # Hàm chuẩn hóa giá trị cho Radar
+        def normalize_val(val, min_v, max_v, inverse=False):
+            if val is None or pd.isna(val): return 0
+            val = float(val)
+            if val < min_v: val = min_v
+            if val > max_v: val = max_v
+            score = ((val - min_v) / (max_v - min_v)) * 100
+            return 100 - score if inverse else score
+
         # =================================================================
-        # TAB 1: RADAR CHART (SO SÁNH ĐỐI ĐẦU) - NEW FEATURE
+        # TAB 1: RADAR CHART (SO SÁNH ĐỐI ĐẦU)
         # =================================================================
         with analysis_tabs[0]:
             st.markdown("### 🕸️ So sánh Đối đầu (Head-to-Head)")
+            radar_mode = st.radio("Chế độ so sánh:", ["👤 Cầu thủ vs Cầu thủ", "🛡️ CLB vs CLB"], horizontal=True, label_visibility="collapsed")
             
-            # Chọn chế độ so sánh
-            radar_mode = st.radio("Chế độ so sánh:", ["👤 Cầu thủ vs Cầu thủ", "🛡️ CLB vs CLB"], horizontal=True)
-            
-            import plotly.graph_objects as go
-
-            def normalize_val(val, min_v, max_v, inverse=False):
-                """Chuẩn hóa giá trị về thang 0-100"""
-                if val is None or pd.isna(val): return 0
-                val = float(val)
-                if val < min_v: val = min_v
-                if val > max_v: val = max_v
-                
-                score = ((val - min_v) / (max_v - min_v)) * 100
-                return 100 - score if inverse else score
-
             # --- MODE: PLAYER VS PLAYER ---
             if "Cầu thủ" in radar_mode:
                 col_sel1, col_sel2 = st.columns(2)
-                
-                # Lấy danh sách cầu thủ (kèm Rating để dễ chọn)
+                # Tạo danh sách chọn nhanh
                 player_options = df.sort_values('Rating', ascending=False).apply(
                     lambda x: f"{x['Player']} ({x['Rating']}) - {x['Position']}", axis=1
                 ).tolist()
-                
-                # Map lại từ chuỗi hiển thị sang Index
-                player_map = {
-                    f"{row['Player']} ({row['Rating']}) - {row['Position']}": idx 
-                    for idx, row in df.iterrows()
-                }
+                player_map = {f"{row['Player']} ({row['Rating']}) - {row['Position']}": idx for idx, row in df.iterrows()}
                 
                 with col_sel1:
                     p1_str = st.selectbox("Chọn Cầu thủ A", player_options, index=0 if len(player_options)>0 else None)
@@ -2977,839 +2975,285 @@ def main():
                     p2_str = st.selectbox("Chọn Cầu thủ B", player_options, index=1 if len(player_options)>1 else 0)
                 
                 if p1_str and p2_str:
-                    idx1 = player_map[p1_str]
-                    idx2 = player_map[p2_str]
+                    idx1 = player_map[p1_str]; idx2 = player_map[p2_str]
+                    row1 = df.loc[idx1]; row2 = df.loc[idx2]
                     
-                    row1 = df.loc[idx1]
-                    row2 = df.loc[idx2]
-                    
-                    # Chuẩn bị dữ liệu
                     def get_metrics(row):
                         h = pd.to_numeric(row.get('Height', 0), errors='coerce')
                         w = pd.to_numeric(row.get('Weight', 0), errors='coerce')
                         bmi = w / ((h/100)**2) if h > 0 else 0
-                        return {
-                            'Rating': row['Rating'],
-                            'Height': h,
-                            'Weight': w,
-                            'BMI': bmi,
-                            'Age': pd.to_numeric(row.get('Age', 0), errors='coerce')
-                        }
+                        return {'Rating': row['Rating'], 'Height': h, 'Weight': w, 'BMI': bmi, 'Age': pd.to_numeric(row.get('Age', 0), errors='coerce')}
 
-                    m1 = get_metrics(row1)
-                    m2 = get_metrics(row2)
-                    
-                    # Categories & Ranges
+                    m1 = get_metrics(row1); m2 = get_metrics(row2)
                     categories = ['Rating', 'Height (cm)', 'Weight (kg)', 'BMI', 'Age (Tuổi)']
-                    # Định nghĩa Max/Min để chuẩn hóa (Tùy chỉnh theo game)
-                    limits = {
-                        'Rating': (70, 105),
-                        'Height': (160, 200),
-                        'Weight': (55, 100),
-                        'BMI': (18, 28),
-                        'Age': (16, 40)
-                    }
+                    limits = {'Rating': (70, 105), 'Height': (160, 200), 'Weight': (55, 100), 'BMI': (18, 28), 'Age': (16, 40)}
                     
-                    # Tính điểm chuẩn hóa (0-100)
-                    # Lưu ý: Age có thể để inverse (Trẻ hơn = Tốt hơn) hoặc không. Ở đây để Normal (Già = Kinh nghiệm)
-                    v1 = [
-                        normalize_val(m1['Rating'], *limits['Rating']),
-                        normalize_val(m1['Height'], *limits['Height']),
-                        normalize_val(m1['Weight'], *limits['Weight']),
-                        normalize_val(m1['BMI'], *limits['BMI']),
-                        normalize_val(m1['Age'], *limits['Age']),
-                    ]
-                    v2 = [
-                        normalize_val(m2['Rating'], *limits['Rating']),
-                        normalize_val(m2['Height'], *limits['Height']),
-                        normalize_val(m2['Weight'], *limits['Weight']),
-                        normalize_val(m2['BMI'], *limits['BMI']),
-                        normalize_val(m2['Age'], *limits['Age']),
-                    ]
-                    
-                    # Đóng vòng tròn biểu đồ
-                    v1 += [v1[0]]
-                    v2 += [v2[0]]
-                    cats_closed = categories + [categories[0]]
-                    
-                    # Vẽ biểu đồ
-                    fig = go.Figure()
-                    
-                    fig.add_trace(go.Scatterpolar(
-                        r=v1, theta=cats_closed, fill='toself', name=row1['Player'],
-                        line_color='#22d3ee', fillcolor='rgba(34, 211, 238, 0.2)'
-                    ))
-                    fig.add_trace(go.Scatterpolar(
-                        r=v2, theta=cats_closed, fill='toself', name=row2['Player'],
-                        line_color='#f472b6', fillcolor='rgba(244, 114, 182, 0.2)'
-                    ))
-                    
-                    fig.update_layout(
-                        polar=dict(
-                            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False),
-                            bgcolor='rgba(0,0,0,0)'
-                        ),
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='white'),
-                        showlegend=True,
-                        margin=dict(l=40, r=40, t=20, b=20)
-                    )
-                    
-                    c_chart, c_stat = st.columns([1.5, 1])
-                    with c_chart:
-                        st.plotly_chart(fig, use_container_width=True, config=config)
-                    
-                    with c_stat:
-                        st.markdown(f"#### 📊 Thông số chi tiết")
-                        
-                        # So sánh từng chỉ số
-                        comparison_data = {
-                            "Chỉ số": categories,
-                            f"{row1['Player']}": [m1['Rating'], m1['Height'], m1['Weight'], f"{m1['BMI']:.1f}", m1['Age']],
-                            f"{row2['Player']}": [m2['Rating'], m2['Height'], m2['Weight'], f"{m2['BMI']:.1f}", m2['Age']]
-                        }
-                        st.dataframe(pd.DataFrame(comparison_data), hide_index=True, use_container_width=True)
-                        
-                        # Tổng điểm (Diện tích gần đúng)
-                        score1 = sum(v1[:-1])/5
-                        score2 = sum(v2[:-1])/5
-                        
-                        st.divider()
-                        if score1 > score2:
-                            st.success(f"🏆 **{row1['Player']}** toàn diện hơn (+{score1-score2:.1f}%)")
-                        elif score2 > score1:
-                            st.error(f"🏆 **{row2['Player']}** toàn diện hơn (+{score2-score1:.1f}%)")
-                        else:
-                            st.info("⚖️ Hai cầu thủ cân bằng")
-
-            # --- MODE: CLUB VS CLUB ---
-            else:
-                club_list = sorted([str(x) for x in df['Club'].unique() if str(x).strip()])
-                # Chỉ lấy CLB có > 5 cầu thủ để so sánh có ý nghĩa
-                valid_clubs = [c for c in club_list if len(df[df['Club']==c]) >= 5]
-                
-                col_sel1, col_sel2 = st.columns(2)
-                with col_sel1:
-                    c1_str = st.selectbox("Chọn CLB A", valid_clubs, index=0 if len(valid_clubs)>0 else None)
-                with col_sel2:
-                    c2_str = st.selectbox("Chọn CLB B", valid_clubs, index=1 if len(valid_clubs)>1 else 0)
-                
-                if c1_str and c2_str:
-                    df1 = df[df['Club'] == c1_str]
-                    df2 = df[df['Club'] == c2_str]
-                    
-                    def get_club_metrics(d):
-                        h = pd.to_numeric(d['Height'], errors='coerce').mean()
-                        w = pd.to_numeric(d['Weight'], errors='coerce').mean()
-                        age = pd.to_numeric(d['Age'], errors='coerce').mean()
-                        rating = d['Rating'].mean()
-                        # Tỷ lệ Epic/Highlight
-                        epic_count = d['Player Type'].apply(lambda x: 1 if str(x).upper()=='EPIC' else 0).sum()
-                        epic_ratio = (epic_count / len(d)) * 100 if len(d) > 0 else 0
-                        return {'Rating': rating, 'Height': h, 'Weight': w, 'Age': age, 'Epic%': epic_ratio}
-
-                    m1 = get_club_metrics(df1)
-                    m2 = get_club_metrics(df2)
-                    
-                    categories = ['Rating TB', 'Chiều cao TB', 'Cân nặng TB', 'Tuổi TB', 'Tỷ lệ EPIC (%)']
-                    limits = {
-                        'Rating': (80, 98),
-                        'Height': (175, 188),
-                        'Weight': (70, 85),
-                        'Age': (22, 32),
-                        'Epic%': (0, 50)
-                    }
-                    
-                    v1 = [
-                        normalize_val(m1['Rating'], *limits['Rating']),
-                        normalize_val(m1['Height'], *limits['Height']),
-                        normalize_val(m1['Weight'], *limits['Weight']),
-                        normalize_val(m1['Age'], *limits['Age']),
-                        normalize_val(m1['Epic%'], *limits['Epic%']),
-                    ]
-                    v2 = [
-                        normalize_val(m2['Rating'], *limits['Rating']),
-                        normalize_val(m2['Height'], *limits['Height']),
-                        normalize_val(m2['Weight'], *limits['Weight']),
-                        normalize_val(m2['Age'], *limits['Age']),
-                        normalize_val(m2['Epic%'], *limits['Epic%']),
-                    ]
+                    v1 = [normalize_val(m1['Rating'], *limits['Rating']), normalize_val(m1['Height'], *limits['Height']), normalize_val(m1['Weight'], *limits['Weight']), normalize_val(m1['BMI'], *limits['BMI']), normalize_val(m1['Age'], *limits['Age'])]
+                    v2 = [normalize_val(m2['Rating'], *limits['Rating']), normalize_val(m2['Height'], *limits['Height']), normalize_val(m2['Weight'], *limits['Weight']), normalize_val(m2['BMI'], *limits['BMI']), normalize_val(m2['Age'], *limits['Age'])]
                     
                     v1 += [v1[0]]; v2 += [v2[0]]
                     cats_closed = categories + [categories[0]]
                     
                     fig = go.Figure()
-                    fig.add_trace(go.Scatterpolar(
-                        r=v1, theta=cats_closed, fill='toself', name=c1_str,
-                        line_color='#fbbf24', fillcolor='rgba(251, 191, 36, 0.2)'
-                    ))
-                    fig.add_trace(go.Scatterpolar(
-                        r=v2, theta=cats_closed, fill='toself', name=c2_str,
-                        line_color='#a78bfa', fillcolor='rgba(167, 139, 250, 0.2)'
-                    ))
-                    fig.update_layout(
-                        polar=dict(radialaxis=dict(visible=True, range=[0, 100], showticklabels=False), bgcolor='rgba(0,0,0,0)'),
-                        paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), showlegend=True,
-                        margin=dict(l=40, r=40, t=20, b=20)
-                    )
+                    fig.add_trace(go.Scatterpolar(r=v1, theta=cats_closed, fill='toself', name=row1['Player'], line_color='#22d3ee', fillcolor='rgba(34, 211, 238, 0.2)'))
+                    fig.add_trace(go.Scatterpolar(r=v2, theta=cats_closed, fill='toself', name=row2['Player'], line_color='#f472b6', fillcolor='rgba(244, 114, 182, 0.2)'))
+                    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100], showticklabels=False), bgcolor='rgba(0,0,0,0)'), paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), showlegend=True, margin=dict(l=40, r=40, t=20, b=20))
                     
                     c_chart, c_stat = st.columns([1.5, 1])
-                    with c_chart:
-                        st.plotly_chart(fig, use_container_width=True, config=config)
+                    with c_chart: st.plotly_chart(fig, use_container_width=True, config=config)
                     with c_stat:
-                        st.markdown(f"#### 🛡️ Thống kê đội hình")
-                        comp_data = {
-                            "Chỉ số": categories,
-                            f"{c1_str}": [f"{m1['Rating']:.1f}", f"{m1['Height']:.1f}", f"{m1['Weight']:.1f}", f"{m1['Age']:.1f}", f"{m1['Epic%']:.1f}%"],
-                            f"{c2_str}": [f"{m2['Rating']:.1f}", f"{m2['Height']:.1f}", f"{m2['Weight']:.1f}", f"{m2['Age']:.1f}", f"{m2['Epic%']:.1f}%"]
-                        }
-                        st.dataframe(pd.DataFrame(comp_data), hide_index=True, use_container_width=True)
-                        st.caption(f"*So sánh dựa trên {len(df1)} cầu thủ của {c1_str} và {len(df2)} cầu thủ của {c2_str}")
+                        st.markdown(f"#### 📊 Chi tiết")
+                        st.dataframe(pd.DataFrame({"Chỉ số": categories, row1['Player']: [m1['Rating'], m1['Height'], m1['Weight'], f"{m1['BMI']:.1f}", m1['Age']], row2['Player']: [m2['Rating'], m2['Height'], m2['Weight'], f"{m2['BMI']:.1f}", m2['Age']]}), hide_index=True, use_container_width=True)
+
+            # --- MODE: CLUB VS CLUB ---
+            else:
+                club_list = sorted([str(x) for x in df['Club'].unique() if str(x).strip()])
+                valid_clubs = [c for c in club_list if len(df[df['Club']==c]) >= 5]
+                col_sel1, col_sel2 = st.columns(2)
+                with col_sel1: c1_str = st.selectbox("Chọn CLB A", valid_clubs, index=0 if len(valid_clubs)>0 else None)
+                with col_sel2: c2_str = st.selectbox("Chọn CLB B", valid_clubs, index=1 if len(valid_clubs)>1 else 0)
+                
+                if c1_str and c2_str:
+                    df1 = df[df['Club'] == c1_str]; df2 = df[df['Club'] == c2_str]
+                    def get_club_metrics(d):
+                        return {'Rating': d['Rating'].mean(), 'Height': pd.to_numeric(d['Height'], errors='coerce').mean(), 'Weight': pd.to_numeric(d['Weight'], errors='coerce').mean(), 'Age': pd.to_numeric(d['Age'], errors='coerce').mean(), 'Epic%': (d['Player Type'].astype(str).str.upper()=='EPIC').sum()/len(d)*100}
+                    m1 = get_club_metrics(df1); m2 = get_club_metrics(df2)
+                    categories = ['Rating TB', 'Chiều cao TB', 'Cân nặng TB', 'Tuổi TB', 'Tỷ lệ EPIC (%)']
+                    limits = {'Rating': (80, 98), 'Height': (175, 188), 'Weight': (70, 85), 'Age': (22, 32), 'Epic%': (0, 50)}
+                    v1 = [normalize_val(m1['Rating'],*limits['Rating']), normalize_val(m1['Height'],*limits['Height']), normalize_val(m1['Weight'],*limits['Weight']), normalize_val(m1['Age'],*limits['Age']), normalize_val(m1['Epic%'],*limits['Epic%'])]
+                    v2 = [normalize_val(m2['Rating'],*limits['Rating']), normalize_val(m2['Height'],*limits['Height']), normalize_val(m2['Weight'],*limits['Weight']), normalize_val(m2['Age'],*limits['Age']), normalize_val(m2['Epic%'],*limits['Epic%'])]
+                    v1 += [v1[0]]; v2 += [v2[0]]; cats_closed = categories + [categories[0]]
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatterpolar(r=v1, theta=cats_closed, fill='toself', name=c1_str, line_color='#fbbf24', fillcolor='rgba(251, 191, 36, 0.2)'))
+                    fig.add_trace(go.Scatterpolar(r=v2, theta=cats_closed, fill='toself', name=c2_str, line_color='#a78bfa', fillcolor='rgba(167, 139, 250, 0.2)'))
+                    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100], showticklabels=False), bgcolor='rgba(0,0,0,0)'), paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), showlegend=True, margin=dict(l=40, r=40, t=20, b=20))
+                    st.plotly_chart(fig, use_container_width=True, config=config)
 
         # =================================================================
-        # CÁC TAB CŨ (GIỮ NGUYÊN CODE, CHỈ THỤT VÀO TRONG WITH)
+        # TAB 2: SCATTER PLOT (THỂ CHẤT & XU HƯỚNG)
         # =================================================================
-        
-        # ===== TAB CLB =====
         with analysis_tabs[1]:
-            if 'Club' in df.columns:
-                st.markdown("### ⚽ Phân tích theo Câu lạc bộ")
+            st.markdown("### 📉 Phân tích Thể chất (Chiều cao vs Cân nặng)")
+            
+            # Chuẩn bị dữ liệu số
+            scatter_df = df.copy()
+            scatter_df['Height_num'] = pd.to_numeric(scatter_df['Height'], errors='coerce')
+            scatter_df['Weight_num'] = pd.to_numeric(scatter_df['Weight'], errors='coerce')
+            scatter_df = scatter_df.dropna(subset=['Height_num', 'Weight_num'])
+            
+            # Controls
+            c_sc1, c_sc2 = st.columns([1, 3])
+            with c_sc1:
+                color_by = st.selectbox("Tô màu theo:", ["Vị trí (Position)", "Loại thẻ (Card Type)", "Giải đấu (League)"], index=0)
+                color_map = {"Vị trí (Position)": "Position", "Loại thẻ (Card Type)": "Player Type", "Giải đấu (League)": "League"}
+            
+            with c_sc2:
+                # Lọc bớt nhiễu nếu cần
+                hl_clubs = st.multiselect("Lọc theo CLB (để trống = tất cả)", sorted(df['Club'].unique()))
+                if hl_clubs:
+                    scatter_df = scatter_df[scatter_df['Club'].isin(hl_clubs)]
+
+            if not scatter_df.empty:
+                fig_scatter = px.scatter(
+                    scatter_df,
+                    x="Height_num",
+                    y="Weight_num",
+                    color=color_map[color_by],
+                    hover_name="Player",
+                    hover_data=["Club", "Rating", "Age"],
+                    size="Rating", 
+                    size_max=15,
+                    opacity=0.7,
+                    labels={"Height_num": "Chiều cao (cm)", "Weight_num": "Cân nặng (kg)"},
+                    title=f"Tương quan Thể chất ({len(scatter_df)} cầu thủ)"
+                )
                 
-                # Chuẩn bị dữ liệu
-                height_club_df = df[df['Height'].astype(str).str.strip().ne('')].copy() if 'Height' in df.columns else pd.DataFrame()
-                if not height_club_df.empty:
-                    height_club_df['Height_num'] = pd.to_numeric(height_club_df['Height'], errors='coerce')
-                    height_club_df = height_club_df.dropna(subset=['Height_num', 'Club'])
+                # Vẽ các đường tham chiếu (Average)
+                avg_h = scatter_df['Height_num'].mean()
+                avg_w = scatter_df['Weight_num'].mean()
+                fig_scatter.add_vline(x=avg_h, line_width=1, line_dash="dash", line_color="white", opacity=0.5)
+                fig_scatter.add_hline(y=avg_w, line_width=1, line_dash="dash", line_color="white", opacity=0.5)
                 
-                weight_club_df = df[df['Weight'].astype(str).str.strip().ne('')].copy() if 'Weight' in df.columns else pd.DataFrame()
-                if not weight_club_df.empty:
-                    weight_club_df['Weight_num'] = pd.to_numeric(weight_club_df['Weight'], errors='coerce')
-                    weight_club_df = weight_club_df.dropna(subset=['Weight_num', 'Club'])
+                # Annotations cho 4 góc
+                fig_scatter.add_annotation(x=scatter_df['Height_num'].max(), y=scatter_df['Weight_num'].max(), text="Xe tăng (Cao+Nặng)", showarrow=False, xanchor="right", yanchor="top", font=dict(color="rgba(255,255,255,0.5)"))
+                fig_scatter.add_annotation(x=scatter_df['Height_num'].min(), y=scatter_df['Weight_num'].min(), text="Nhỏ con (Thấp+Nhẹ)", showarrow=False, xanchor="left", yanchor="bottom", font=dict(color="rgba(255,255,255,0.5)"))
                 
-                age_club_df = df[df['Age'].astype(str).str.strip().ne('')].copy() if 'Age' in df.columns else pd.DataFrame()
-                if not age_club_df.empty:
-                    age_club_df['Age_num'] = pd.to_numeric(age_club_df['Age'], errors='coerce')
-                    age_club_df = age_club_df.dropna(subset=['Age_num', 'Club'])
+                fig_scatter = apply_plotly_theme(fig_scatter)
+                st.plotly_chart(fig_scatter, use_container_width=True, config=config)
                 
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("#### 📏 CLB cao nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not height_club_df.empty:
-                        # Chỉ tính các CLB có >= 10 cầu thủ
-                        club_counts = height_club_df['Club'].value_counts()
-                        valid_clubs = club_counts[club_counts >= 10].index
-                        height_club_df_filtered = height_club_df[height_club_df['Club'].isin(valid_clubs)]
-                        
-                        if not height_club_df_filtered.empty:
-                            avg_height_club = height_club_df_filtered.groupby('Club')['Height_num'].mean().sort_values(ascending=False).head(10).reset_index()
-                            avg_height_club.columns = ['CLB', 'Chiều cao TB (cm)']
-                            avg_height_club['Chiều cao TB (cm)'] = avg_height_club['Chiều cao TB (cm)'].round(1)
-                            
-                            fig_height_club = px.bar(
-                                avg_height_club,
-                                x="CLB",
-                                y="Chiều cao TB (cm)",
-                                text="Chiều cao TB (cm)"
-                            )
-                            fig_height_club.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_height_club.update_layout(
-                                xaxis=dict(categoryorder="total descending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_height_club = apply_plotly_theme(fig_height_club)
-                            st.plotly_chart(fig_height_club, use_container_width=True, config=config, key="analytics_height_club")
-                        else:
-                            st.info("Không có CLB nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu chiều cao")
-                    
-                    st.markdown("#### ⚖️ CLB nặng nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not weight_club_df.empty:
-                        # Chỉ tính các CLB có >= 10 cầu thủ
-                        club_counts = weight_club_df['Club'].value_counts()
-                        valid_clubs = club_counts[club_counts >= 10].index
-                        weight_club_df_filtered = weight_club_df[weight_club_df['Club'].isin(valid_clubs)]
-                        
-                        if not weight_club_df_filtered.empty:
-                            avg_weight_club = weight_club_df_filtered.groupby('Club')['Weight_num'].mean().sort_values(ascending=False).head(10).reset_index()
-                            avg_weight_club.columns = ['CLB', 'Cân nặng TB (kg)']
-                            avg_weight_club['Cân nặng TB (kg)'] = avg_weight_club['Cân nặng TB (kg)'].round(1)
-                            
-                            fig_weight_club = px.bar(
-                                avg_weight_club,
-                                x="CLB",
-                                y="Cân nặng TB (kg)",
-                                text="Cân nặng TB (kg)"
-                            )
-                            fig_weight_club.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_weight_club.update_layout(
-                                xaxis=dict(categoryorder="total descending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_weight_club = apply_plotly_theme(fig_weight_club)
-                            st.plotly_chart(fig_weight_club, use_container_width=True, config=config, key="analytics_weight_club")
-                        else:
-                            st.info("Không có CLB nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu cân nặng")
-                
-                with col2:
-                    st.markdown("#### 🎂 CLB trẻ nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not age_club_df.empty:
-                        # Chỉ tính các CLB có >= 10 cầu thủ
-                        club_counts = age_club_df['Club'].value_counts()
-                        valid_clubs = club_counts[club_counts >= 10].index
-                        age_club_df_filtered = age_club_df[age_club_df['Club'].isin(valid_clubs)]
-                        
-                        if not age_club_df_filtered.empty:
-                            avg_age_club = age_club_df_filtered.groupby('Club')['Age_num'].mean().sort_values(ascending=True).head(10).reset_index()
-                            avg_age_club.columns = ['CLB', 'Tuổi TB']
-                            avg_age_club['Tuổi TB'] = avg_age_club['Tuổi TB'].round(1)
-                            
-                            fig_age_club = px.bar(
-                                avg_age_club,
-                                x="CLB",
-                                y="Tuổi TB",
-                                text="Tuổi TB"
-                            )
-                            fig_age_club.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_age_club.update_layout(
-                                xaxis=dict(categoryorder="total ascending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_age_club = apply_plotly_theme(fig_age_club)
-                            st.plotly_chart(fig_age_club, use_container_width=True, config=config, key="analytics_age_club")
-                        else:
-                            st.info("Không có CLB nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu tuổi")
-                    
-                    st.markdown("#### 👣 CLB nhiều chân trái nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if 'Foot' in df.columns:
-                        foot_club_df = df[df['Foot'].astype(str).str.strip().str.upper().isin(['LEFT', 'L'])].copy()
-                        if not foot_club_df.empty:
-                            # Chỉ tính các CLB có >= 10 cầu thủ
-                            total_by_club = df.groupby('Club').size()
-                            valid_clubs = total_by_club[total_by_club >= 10].index
-                            foot_club_df_filtered = foot_club_df[foot_club_df['Club'].isin(valid_clubs)]
-                            
-                            if not foot_club_df_filtered.empty:
-                                left_foot_club = foot_club_df_filtered['Club'].value_counts().head(10).reset_index()
-                                left_foot_club.columns = ['CLB', 'Số chân trái']
-                                left_foot_club['Tổng cầu thủ'] = left_foot_club['CLB'].map(total_by_club)
-                                left_foot_club['Tỉ lệ (%)'] = (left_foot_club['Số chân trái'] / left_foot_club['Tổng cầu thủ'] * 100).round(1)
-                                
-                                fig_left_club = px.bar(
-                                    left_foot_club,
-                                    x="CLB",
-                                    y="Tỉ lệ (%)",
-                                    text="Tỉ lệ (%)",
-                                    hover_data=['Số chân trái', 'Tổng cầu thủ']
-                                )
-                                fig_left_club.update_traces(textposition="outside", hovertemplate="<b>%{x}</b><br>Tỉ lệ: %{y:.1f}%<br>Số chân trái: %{customdata[0]}<br>Tổng: %{customdata[1]}<extra></extra>")
-                                fig_left_club.update_layout(
-                                    xaxis=dict(categoryorder="total descending", autorange=True),
-                                    yaxis=dict(autorange=True),
-                                    dragmode="pan",
-                                    height=400
-                                )
-                                fig_left_club = apply_plotly_theme(fig_left_club)
-                                st.plotly_chart(fig_left_club, use_container_width=True, config=config, key="analytics_left_club")
-                            else:
-                                st.info("Không có CLB nào có đủ 10 cầu thủ")
-                        else:
-                            st.info("Chưa có dữ liệu chân trái")
-                    else:
-                        st.info("Chưa có cột Foot")
-                
-                st.markdown("#### 🌍 CLB đa quốc gia nhất (Top 10, tối thiểu 10 cầu thủ)")
-                if 'Nation' in df.columns:
-                    # Chỉ tính các CLB có >= 10 cầu thủ
-                    total_by_club = df.groupby('Club').size()
-                    valid_clubs = total_by_club[total_by_club >= 10].index
-                    df_filtered = df[df['Club'].isin(valid_clubs)]
-                    
-                    if not df_filtered.empty:
-                        nation_diversity = df_filtered.groupby('Club')['Nation'].nunique().sort_values(ascending=False).head(10).reset_index()
-                        nation_diversity.columns = ['CLB', 'Số quốc gia']
-                        
-                        fig_diversity = px.bar(
-                            nation_diversity,
-                            x="CLB",
-                            y="Số quốc gia",
-                            text="Số quốc gia"
-                        )
-                        fig_diversity.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                        fig_diversity.update_layout(
-                            xaxis=dict(categoryorder="total descending", autorange=True),
-                            yaxis=dict(autorange=True),
-                            dragmode="pan",
-                            height=400
-                        )
-                        fig_diversity = apply_plotly_theme(fig_diversity)
-                        st.plotly_chart(fig_diversity, use_container_width=True, config=config, key="analytics_diversity_club")
-                    else:
-                        st.info("Không có CLB nào có đủ 10 cầu thủ")
+                st.info("💡 **Gợi ý:** Rê chuột vào chấm tròn để xem thông tin. Cầu thủ ở góc trên bên phải là những 'Quái vật thể chất'.")
             else:
-                st.info("Chưa có dữ liệu Club")
-        
-        # ===== TAB NATION =====
+                st.warning("Chưa có dữ liệu thể chất.")
+
+        # =================================================================
+        # TAB 3: HEATMAP (CHIỀU SÂU ĐỘI HÌNH)
+        # =================================================================
         with analysis_tabs[2]:
-            if 'Nation' in df.columns:
-                st.markdown("### 🌍 Phân tích theo Quốc gia")
+            st.markdown("### 🔥 Bản đồ nhiệt Chiều sâu Đội hình")
+            
+            c_hm1, c_hm2 = st.columns([1, 2])
+            with c_hm1:
+                target_team = st.selectbox("Chọn đội bóng để soi:", ["(Toàn bộ Database)"] + sorted(target_clubs + target_nations))
+            
+            # Lọc Data
+            hm_df = df.copy()
+            if target_team != "(Toàn bộ Database)":
+                # Tìm trong cả Club và Nation
+                hm_df = hm_df[(hm_df['Club'] == target_team) | (hm_df['Nation'] == target_team)]
+            
+            if not hm_df.empty:
+                # Tạo Bins cho Rating
+                bins = [0, 85, 90, 95, 100, 150]
+                labels = ["< 85", "85 - 90", "90 - 95", "95 - 100", "100+"]
+                hm_df['Rating_Range'] = pd.cut(hm_df['Rating'], bins=bins, labels=labels, right=False)
                 
-                height_nation_df = df[df['Height'].astype(str).str.strip().ne('')].copy() if 'Height' in df.columns else pd.DataFrame()
-                if not height_nation_df.empty:
-                    height_nation_df['Height_num'] = pd.to_numeric(height_nation_df['Height'], errors='coerce')
-                    height_nation_df = height_nation_df.dropna(subset=['Height_num', 'Nation'])
+                # Pivot Table: Đếm số lượng cầu thủ theo Vị trí vs Rating Range
+                pivot_table = hm_df.groupby(['Rating_Range', 'Position'], observed=False).size().unstack(fill_value=0)
                 
-                weight_nation_df = df[df['Weight'].astype(str).str.strip().ne('')].copy() if 'Weight' in df.columns else pd.DataFrame()
-                if not weight_nation_df.empty:
-                    weight_nation_df['Weight_num'] = pd.to_numeric(weight_nation_df['Weight'], errors='coerce')
-                    weight_nation_df = weight_nation_df.dropna(subset=['Weight_num', 'Nation'])
+                # Sắp xếp lại cột theo đúng thứ tự sân bóng
+                ordered_cols = [p for p in ["GK", "CB", "LB", "RB", "DMF", "CMF", "LMF", "RMF", "AMF", "LWF", "RWF", "SS", "CF"] if p in pivot_table.columns]
+                pivot_table = pivot_table[ordered_cols]
                 
-                age_nation_df = df[df['Age'].astype(str).str.strip().ne('')].copy() if 'Age' in df.columns else pd.DataFrame()
-                if not age_nation_df.empty:
-                    age_nation_df['Age_num'] = pd.to_numeric(age_nation_df['Age'], errors='coerce')
-                    age_nation_df = age_nation_df.dropna(subset=['Age_num', 'Nation'])
+                # Đảo ngược index để Rating cao nằm trên
+                pivot_table = pivot_table.iloc[::-1]
                 
-                col1, col2 = st.columns(2)
+                fig_hm = px.imshow(
+                    pivot_table,
+                    text_auto=True,
+                    aspect="auto",
+                    color_continuous_scale="Viridis",
+                    labels=dict(x="Vị trí", y="Rating", color="Số lượng"),
+                    title=f"Phân bố trình độ - {target_team}"
+                )
                 
-                with col1:
-                    st.markdown("#### 📏 Quốc gia cao nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not height_nation_df.empty:
-                        # Chỉ tính các quốc gia có >= 10 cầu thủ
-                        nation_counts = height_nation_df['Nation'].value_counts()
-                        valid_nations = nation_counts[nation_counts >= 10].index
-                        height_nation_df_filtered = height_nation_df[height_nation_df['Nation'].isin(valid_nations)]
-                        
-                        if not height_nation_df_filtered.empty:
-                            avg_height_nation = height_nation_df_filtered.groupby('Nation')['Height_num'].mean().sort_values(ascending=False).head(10).reset_index()
-                            avg_height_nation.columns = ['Quốc gia', 'Chiều cao TB (cm)']
-                            avg_height_nation['Chiều cao TB (cm)'] = avg_height_nation['Chiều cao TB (cm)'].round(1)
-                            
-                            fig_height_nation = px.bar(
-                                avg_height_nation,
-                                x="Quốc gia",
-                                y="Chiều cao TB (cm)",
-                                text="Chiều cao TB (cm)"
-                            )
-                            fig_height_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_height_nation.update_layout(
-                                xaxis=dict(categoryorder="total descending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_height_nation = apply_plotly_theme(fig_height_nation)
-                            st.plotly_chart(fig_height_nation, use_container_width=True, config=config, key="analytics_height_nation")
-                        else:
-                            st.info("Không có quốc gia nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu chiều cao")
-                    
-                    st.markdown("#### ⚖️ Quốc gia nặng nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not weight_nation_df.empty:
-                        # Chỉ tính các quốc gia có >= 10 cầu thủ
-                        nation_counts = weight_nation_df['Nation'].value_counts()
-                        valid_nations = nation_counts[nation_counts >= 10].index
-                        weight_nation_df_filtered = weight_nation_df[weight_nation_df['Nation'].isin(valid_nations)]
-                        
-                        if not weight_nation_df_filtered.empty:
-                            avg_weight_nation = weight_nation_df_filtered.groupby('Nation')['Weight_num'].mean().sort_values(ascending=False).head(10).reset_index()
-                            avg_weight_nation.columns = ['Quốc gia', 'Cân nặng TB (kg)']
-                            avg_weight_nation['Cân nặng TB (kg)'] = avg_weight_nation['Cân nặng TB (kg)'].round(1)
-                            
-                            fig_weight_nation = px.bar(
-                                avg_weight_nation,
-                                x="Quốc gia",
-                                y="Cân nặng TB (kg)",
-                                text="Cân nặng TB (kg)"
-                            )
-                            fig_weight_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_weight_nation.update_layout(
-                                xaxis=dict(categoryorder="total descending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_weight_nation = apply_plotly_theme(fig_weight_nation)
-                            st.plotly_chart(fig_weight_nation, use_container_width=True, config=config, key="analytics_weight_nation")
-                        else:
-                            st.info("Không có quốc gia nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu cân nặng")
+                fig_hm.update_layout(xaxis_side="top")
+                fig_hm = apply_plotly_theme(fig_hm)
+                st.plotly_chart(fig_hm, use_container_width=True, config=config)
                 
-                with col2:
-                    st.markdown("#### 🎂 Quốc gia trẻ nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not age_nation_df.empty:
-                        # Chỉ tính các quốc gia có >= 10 cầu thủ
-                        nation_counts = age_nation_df['Nation'].value_counts()
-                        valid_nations = nation_counts[nation_counts >= 10].index
-                        age_nation_df_filtered = age_nation_df[age_nation_df['Nation'].isin(valid_nations)]
-                        
-                        if not age_nation_df_filtered.empty:
-                            avg_age_nation = age_nation_df_filtered.groupby('Nation')['Age_num'].mean().sort_values(ascending=True).head(10).reset_index()
-                            avg_age_nation.columns = ['Quốc gia', 'Tuổi TB']
-                            avg_age_nation['Tuổi TB'] = avg_age_nation['Tuổi TB'].round(1)
-                            
-                            fig_age_nation = px.bar(
-                                avg_age_nation,
-                                x="Quốc gia",
-                                y="Tuổi TB",
-                                text="Tuổi TB"
-                            )
-                            fig_age_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_age_nation.update_layout(
-                                xaxis=dict(categoryorder="total ascending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_age_nation = apply_plotly_theme(fig_age_nation)
-                            st.plotly_chart(fig_age_nation, use_container_width=True, config=config, key="analytics_age_nation")
-                        else:
-                            st.info("Không có quốc gia nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu tuổi")
-                    
-                    st.markdown("#### 👣 Quốc gia nhiều chân trái nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if 'Foot' in df.columns:
-                        foot_nation_df = df[df['Foot'].astype(str).str.strip().str.upper().isin(['LEFT', 'L'])].copy()
-                        if not foot_nation_df.empty:
-                            # Chỉ tính các quốc gia có >= 10 cầu thủ
-                            total_by_nation = df.groupby('Nation').size()
-                            valid_nations = total_by_nation[total_by_nation >= 10].index
-                            foot_nation_df_filtered = foot_nation_df[foot_nation_df['Nation'].isin(valid_nations)]
-                            
-                            if not foot_nation_df_filtered.empty:
-                                left_foot_nation = foot_nation_df_filtered['Nation'].value_counts().head(10).reset_index()
-                                left_foot_nation.columns = ['Quốc gia', 'Số chân trái']
-                                left_foot_nation['Tổng cầu thủ'] = left_foot_nation['Quốc gia'].map(total_by_nation)
-                                left_foot_nation['Tỉ lệ (%)'] = (left_foot_nation['Số chân trái'] / left_foot_nation['Tổng cầu thủ'] * 100).round(1)
-                                
-                                fig_left_nation = px.bar(
-                                    left_foot_nation,
-                                    x="Quốc gia",
-                                    y="Tỉ lệ (%)",
-                                    text="Tỉ lệ (%)",
-                                    hover_data=['Số chân trái', 'Tổng cầu thủ']
-                                )
-                                fig_left_nation.update_traces(textposition="outside", hovertemplate="<b>%{x}</b><br>Tỉ lệ: %{y:.1f}%<br>Số chân trái: %{customdata[0]}<br>Tổng: %{customdata[1]}<extra></extra>")
-                                fig_left_nation.update_layout(
-                                    xaxis=dict(categoryorder="total descending", autorange=True),
-                                    yaxis=dict(autorange=True),
-                                    dragmode="pan",
-                                    height=400
-                                )
-                                fig_left_nation = apply_plotly_theme(fig_left_nation)
-                                st.plotly_chart(fig_left_nation, use_container_width=True, config=config, key="analytics_left_nation")
-                            else:
-                                st.info("Không có quốc gia nào có đủ 10 cầu thủ")
-                        else:
-                            st.info("Chưa có dữ liệu chân trái")
-                    else:
-                        st.info("Chưa có cột Foot")
-                
-                st.markdown("#### 🌍 Quốc gia xuất khẩu nhiều nhất (Top 10, tối thiểu 10 cầu thủ)")
-                if 'Club' in df.columns:
-                    # Chỉ tính các quốc gia có >= 10 cầu thủ
-                    total_by_nation = df.groupby('Nation').size()
-                    valid_nations = total_by_nation[total_by_nation >= 10].index
-                    df_filtered = df[df['Nation'].isin(valid_nations)]
-                    
-                    if not df_filtered.empty:
-                        nation_club_diversity = df_filtered.groupby('Nation')['Club'].nunique().sort_values(ascending=False).head(10).reset_index()
-                        nation_club_diversity.columns = ['Quốc gia', 'Số CLB']
-                        
-                        fig_export_nation = px.bar(
-                            nation_club_diversity,
-                            x="Quốc gia",
-                            y="Số CLB",
-                            text="Số CLB"
-                        )
-                        fig_export_nation.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                        fig_export_nation.update_layout(
-                            xaxis=dict(categoryorder="total descending", autorange=True),
-                            yaxis=dict(autorange=True),
-                            dragmode="pan",
-                            height=400
-                        )
-                        fig_export_nation = apply_plotly_theme(fig_export_nation)
-                        st.plotly_chart(fig_export_nation, use_container_width=True, config=config, key="analytics_export_nation")
-                    else:
-                        st.info("Không có quốc gia nào có đủ 10 cầu thủ")
+                st.markdown("""
+                **Cách đọc biểu đồ:**
+                *   **Màu vàng/sáng:** Vị trí đó đang **dư thừa** nhân sự -> Cân nhắc bán bớt.
+                *   **Màu tím/tối:** Vị trí đó đang **thiếu** người -> Cần mua thêm (Scout).
+                *   **Cột trống:** Hoàn toàn không có cầu thủ nào ở vị trí đó.
+                """)
             else:
-                st.info("Chưa có dữ liệu Nation")
-        
-        # ===== TAB LEAGUE =====
+                st.warning(f"Không tìm thấy cầu thủ nào cho {target_team}")
+
+        # =================================================================
+        # TAB 4: BOX PLOT (PHÂN BỐ RATING)
+        # =================================================================
         with analysis_tabs[3]:
-            if 'League' in df.columns:
-                st.markdown("### 🏆 Phân tích theo Giải đấu")
+            st.markdown("### 📦 So sánh Phân bố Rating (Độ đồng đều)")
+            
+            mode_box = st.radio("So sánh theo:", ["Giải đấu (League)", "Câu lạc bộ (Club)"], horizontal=True)
+            col_name = "League" if "Giải đấu" in mode_box else "Club"
+            
+            # Lấy Top 10 nhóm có nhiều cầu thủ nhất để vẽ cho đỡ rối
+            top_groups = df[col_name].value_counts().head(12).index.tolist()
+            selected_groups = st.multiselect(f"Chọn {col_name} để so sánh:", sorted(df[col_name].unique()), default=top_groups)
+            
+            if selected_groups:
+                box_df = df[df[col_name].isin(selected_groups)].copy()
                 
-                height_league_df = df[df['Height'].astype(str).str.strip().ne('')].copy() if 'Height' in df.columns else pd.DataFrame()
-                if not height_league_df.empty:
-                    height_league_df['Height_num'] = pd.to_numeric(height_league_df['Height'], errors='coerce')
-                    height_league_df = height_league_df.dropna(subset=['Height_num', 'League'])
+                # Sắp xếp theo Median Rating giảm dần để đẹp mắt
+                median_order = box_df.groupby(col_name)['Rating'].median().sort_values(ascending=False).index.tolist()
                 
-                weight_league_df = df[df['Weight'].astype(str).str.strip().ne('')].copy() if 'Weight' in df.columns else pd.DataFrame()
-                if not weight_league_df.empty:
-                    weight_league_df['Weight_num'] = pd.to_numeric(weight_league_df['Weight'], errors='coerce')
-                    weight_league_df = weight_league_df.dropna(subset=['Weight_num', 'League'])
+                fig_box = px.box(
+                    box_df,
+                    x=col_name,
+                    y="Rating",
+                    color=col_name,
+                    points="all", # Hiện cả chấm điểm outlier
+                    hover_data=["Player", "Position"],
+                    category_orders={col_name: median_order}
+                )
                 
-                age_league_df = df[df['Age'].astype(str).str.strip().ne('')].copy() if 'Age' in df.columns else pd.DataFrame()
-                if not age_league_df.empty:
-                    age_league_df['Age_num'] = pd.to_numeric(age_league_df['Age'], errors='coerce')
-                    age_league_df = age_league_df.dropna(subset=['Age_num', 'League'])
+                fig_box.update_layout(showlegend=False)
+                fig_box = apply_plotly_theme(fig_box)
+                st.plotly_chart(fig_box, use_container_width=True, config=config)
                 
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("#### 📏 Giải đấu cao nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not height_league_df.empty:
-                        # Chỉ tính các giải đấu có >= 10 cầu thủ
-                        league_counts = height_league_df['League'].value_counts()
-                        valid_leagues = league_counts[league_counts >= 10].index
-                        height_league_df_filtered = height_league_df[height_league_df['League'].isin(valid_leagues)]
-                        
-                        if not height_league_df_filtered.empty:
-                            avg_height_league = height_league_df_filtered.groupby('League')['Height_num'].mean().sort_values(ascending=False).head(10).reset_index()
-                            avg_height_league.columns = ['Giải đấu', 'Chiều cao TB (cm)']
-                            avg_height_league['Chiều cao TB (cm)'] = avg_height_league['Chiều cao TB (cm)'].round(1)
-                            
-                            fig_height_league = px.bar(
-                                avg_height_league,
-                                x="Giải đấu",
-                                y="Chiều cao TB (cm)",
-                                text="Chiều cao TB (cm)"
-                            )
-                            fig_height_league.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_height_league.update_layout(
-                                xaxis=dict(categoryorder="total descending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_height_league = apply_plotly_theme(fig_height_league)
-                            st.plotly_chart(fig_height_league, use_container_width=True, config=config, key="analytics_height_league")
-                        else:
-                            st.info("Không có giải đấu nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu chiều cao")
-                    
-                    st.markdown("#### ⚖️ Giải đấu nặng nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not weight_league_df.empty:
-                        # Chỉ tính các giải đấu có >= 10 cầu thủ
-                        league_counts = weight_league_df['League'].value_counts()
-                        valid_leagues = league_counts[league_counts >= 10].index
-                        weight_league_df_filtered = weight_league_df[weight_league_df['League'].isin(valid_leagues)]
-                        
-                        if not weight_league_df_filtered.empty:
-                            avg_weight_league = weight_league_df_filtered.groupby('League')['Weight_num'].mean().sort_values(ascending=False).head(10).reset_index()
-                            avg_weight_league.columns = ['Giải đấu', 'Cân nặng TB (kg)']
-                            avg_weight_league['Cân nặng TB (kg)'] = avg_weight_league['Cân nặng TB (kg)'].round(1)
-                            
-                            fig_weight_league = px.bar(
-                                avg_weight_league,
-                                x="Giải đấu",
-                                y="Cân nặng TB (kg)",
-                                text="Cân nặng TB (kg)"
-                            )
-                            fig_weight_league.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_weight_league.update_layout(
-                                xaxis=dict(categoryorder="total descending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_weight_league = apply_plotly_theme(fig_weight_league)
-                            st.plotly_chart(fig_weight_league, use_container_width=True, config=config, key="analytics_weight_league")
-                        else:
-                            st.info("Không có giải đấu nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu cân nặng")
-                
-                with col2:
-                    st.markdown("#### 🎂 Giải đấu trẻ nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if not age_league_df.empty:
-                        # Chỉ tính các giải đấu có >= 10 cầu thủ
-                        league_counts = age_league_df['League'].value_counts()
-                        valid_leagues = league_counts[league_counts >= 10].index
-                        age_league_df_filtered = age_league_df[age_league_df['League'].isin(valid_leagues)]
-                        
-                        if not age_league_df_filtered.empty:
-                            avg_age_league = age_league_df_filtered.groupby('League')['Age_num'].mean().sort_values(ascending=True).head(10).reset_index()
-                            avg_age_league.columns = ['Giải đấu', 'Tuổi TB']
-                            avg_age_league['Tuổi TB'] = avg_age_league['Tuổi TB'].round(1)
-                            
-                            fig_age_league = px.bar(
-                                avg_age_league,
-                                x="Giải đấu",
-                                y="Tuổi TB",
-                                text="Tuổi TB"
-                            )
-                            fig_age_league.update_traces(textposition="outside", hoverinfo="skip", hovertemplate=None)
-                            fig_age_league.update_layout(
-                                xaxis=dict(categoryorder="total ascending", autorange=True),
-                                yaxis=dict(autorange=True),
-                                dragmode="pan",
-                                height=400
-                            )
-                            fig_age_league = apply_plotly_theme(fig_age_league)
-                            st.plotly_chart(fig_age_league, use_container_width=True, config=config, key="analytics_age_league")
-                        else:
-                            st.info("Không có giải đấu nào có đủ 10 cầu thủ")
-                    else:
-                        st.info("Chưa có dữ liệu tuổi")
-                    
-                    st.markdown("#### 👣 Giải đấu nhiều chân trái nhất (Top 10, tối thiểu 10 cầu thủ)")
-                    if 'Foot' in df.columns:
-                        foot_league_df = df[df['Foot'].astype(str).str.strip().str.upper().isin(['LEFT', 'L'])].copy()
-                        if not foot_league_df.empty:
-                            # Chỉ tính các giải đấu có >= 10 cầu thủ
-                            total_by_league = df.groupby('League').size()
-                            valid_leagues = total_by_league[total_by_league >= 10].index
-                            foot_league_df_filtered = foot_league_df[foot_league_df['League'].isin(valid_leagues)]
-                            
-                            if not foot_league_df_filtered.empty:
-                                left_foot_league = foot_league_df_filtered['League'].value_counts().head(10).reset_index()
-                                left_foot_league.columns = ['Giải đấu', 'Số chân trái']
-                                left_foot_league['Tổng cầu thủ'] = left_foot_league['Giải đấu'].map(total_by_league)
-                                left_foot_league['Tỉ lệ (%)'] = (left_foot_league['Số chân trái'] / left_foot_league['Tổng cầu thủ'] * 100).round(1)
-                                
-                                fig_left_league = px.bar(
-                                    left_foot_league,
-                                    x="Giải đấu",
-                                    y="Tỉ lệ (%)",
-                                    text="Tỉ lệ (%)",
-                                    hover_data=['Số chân trái', 'Tổng cầu thủ']
-                                )
-                                fig_left_league.update_traces(textposition="outside", hovertemplate="<b>%{x}</b><br>Tỉ lệ: %{y:.1f}%<br>Số chân trái: %{customdata[0]}<br>Tổng: %{customdata[1]}<extra></extra>")
-                                fig_left_league.update_layout(
-                                    xaxis=dict(categoryorder="total descending", autorange=True),
-                                    yaxis=dict(autorange=True),
-                                    dragmode="pan",
-                                    height=400
-                                )
-                                fig_left_league = apply_plotly_theme(fig_left_league)
-                                st.plotly_chart(fig_left_league, use_container_width=True, config=config, key="analytics_left_league")
-                            else:
-                                st.info("Không có giải đấu nào có đủ 10 cầu thủ")
-                        else:
-                            st.info("Chưa có dữ liệu chân trái")
-                    else:
-                        st.info("Chưa có cột Foot")
-            else:
-                st.info("Chưa có dữ liệu League")
-        
-        # ===== TAB PLAYERS =====
+                st.info("💡 **Hộp càng ngắn:** Cầu thủ trình độ đồng đều. **Hộp càng dài:** Chênh lệch trình độ lớn (Có gánh team và quả tạ).")
+
+        # =================================================================
+        # TAB 5: TREEMAP (CÁI NHÌN TOÀN CẢNH)
+        # =================================================================
         with analysis_tabs[4]:
-            st.markdown("### 👥 Phân tích theo Cầu thủ")
+            st.markdown("### 🗺️ Bản đồ Cây (Database Overview)")
+            st.caption("Diện tích ô thể hiện tổng Rating của nhóm đó.")
             
-            col1, col2, col3 = st.columns(3)
+            # Data prep: Bỏ các giá trị rỗng để tránh lỗi vẽ
+            tree_df = df.dropna(subset=['League', 'Club', 'Player']).copy()
+            tree_df = tree_df[tree_df['League'] != ""]
+            tree_df = tree_df[tree_df['Club'] != ""]
             
+            # Chỉ lấy cầu thủ Rating > 85 để biểu đồ không quá nặng
+            min_rating_tree = st.slider("Lọc cầu thủ có Rating >=", 80, 100, 90)
+            tree_df_filtered = tree_df[tree_df['Rating'] >= min_rating_tree]
+            
+            if not tree_df_filtered.empty:
+                fig_tree = px.treemap(
+                    tree_df_filtered,
+                    path=[px.Constant("Efootball World"), 'League', 'Club', 'Player'],
+                    values='Rating',
+                    color='Rating',
+                    color_continuous_scale='RdBu',
+                    hover_data=['Position', 'Age']
+                )
+                
+                fig_tree.update_traces(root_color="rgba(0,0,0,0)")
+                fig_tree.update_layout(margin=dict(t=30, l=10, r=10, b=10))
+                
+                # Treemap mặc định nền trắng, cần fix font
+                fig_tree = apply_plotly_theme(fig_tree)
+                st.plotly_chart(fig_tree, use_container_width=True, config=config)
+            else:
+                st.warning("Không có dữ liệu phù hợp với bộ lọc.")
+
+        # =================================================================
+        # TAB 6: THỐNG KÊ CHI TIẾT (CÁC BIỂU ĐỒ CŨ)
+        # =================================================================
+        with analysis_tabs[5]:
+            st.markdown("### 📊 Thống kê Tổng hợp")
+            
+            # (Phần này giữ nguyên code cũ của bạn, tôi chỉ paste lại cho gọn)
+            col1, col2 = st.columns(2)
             with col1:
-                st.markdown("#### 🏔️ Top 10 cao nhất")
-                if 'Height' in df.columns:
-                    height_df = df[df['Height'].astype(str).str.strip().ne('')].copy()
-                    height_df['Height_num'] = pd.to_numeric(height_df['Height'], errors='coerce')
-                    height_df = height_df.dropna(subset=['Height_num'])
-                    if not height_df.empty:
-                        top_height = height_df.nlargest(10, 'Height_num')[['Player', 'Height_num', 'Position', 'Club', 'Rating']].copy()
-                        top_height = top_height.sort_values('Height_num', ascending=True)
-                        
-                        fig_top_height = px.bar(
-                            top_height,
-                            x="Height_num",
-                            y="Player",
-                            orientation='h',
-                            text="Height_num",
-                            hover_data=['Position', 'Club', 'Rating'],
-                            labels={'Height_num': 'Chiều cao (cm)', 'Player': 'Cầu thủ'}
-                        )
-                        fig_top_height.update_traces(textposition="outside", hovertemplate="<b>%{y}</b><br>Chiều cao: %{x} cm<br>Vị trí: %{customdata[0]}<br>Club: %{customdata[1]}<br>Rating: %{customdata[2]}<extra></extra>")
-                        fig_top_height.update_layout(
-                            yaxis=dict(autorange="reversed"),
-                            dragmode="pan",
-                            height=400
-                        )
-                        fig_top_height = apply_plotly_theme(fig_top_height)
-                        st.plotly_chart(fig_top_height, use_container_width=True, config=config, key="analytics_top_height")
-                    else:
-                        st.info("Chưa có dữ liệu")
-                else:
-                    st.info("Chưa có cột Height")
+                # Top Clubs
+                st.subheader("⚽ Top 10 Clubs")
+                club_counts = df['Club'].value_counts().reset_index(name='Số lượng').head(10)
+                club_counts.columns = ['Câu lạc bộ', 'Số lượng']
+                fig_club = px.bar(club_counts, x="Câu lạc bộ", y="Số lượng", text="Số lượng")
+                fig_club = apply_plotly_theme(fig_club)
+                st.plotly_chart(fig_club, use_container_width=True, config=config)
             
             with col2:
-                st.markdown("#### ⚖️ Top 10 nhẹ nhất")
-                if 'Weight' in df.columns:
-                    weight_df = df[df['Weight'].astype(str).str.strip().ne('')].copy()
-                    weight_df['Weight_num'] = pd.to_numeric(weight_df['Weight'], errors='coerce')
-                    weight_df = weight_df.dropna(subset=['Weight_num'])
-                    if not weight_df.empty:
-                        top_weight = weight_df.nsmallest(10, 'Weight_num')[['Player', 'Weight_num', 'Position', 'Club', 'Rating']].copy()
-                        top_weight = top_weight.sort_values('Weight_num', ascending=True)
-                        
-                        fig_top_weight = px.bar(
-                            top_weight,
-                            x="Weight_num",
-                            y="Player",
-                            orientation='h',
-                            text="Weight_num",
-                            hover_data=['Position', 'Club', 'Rating'],
-                            labels={'Weight_num': 'Cân nặng (kg)', 'Player': 'Cầu thủ'}
-                        )
-                        fig_top_weight.update_traces(textposition="outside", hovertemplate="<b>%{y}</b><br>Cân nặng: %{x} kg<br>Vị trí: %{customdata[0]}<br>Club: %{customdata[1]}<br>Rating: %{customdata[2]}<extra></extra>")
-                        fig_top_weight.update_layout(
-                            yaxis=dict(autorange="reversed"),
-                            dragmode="pan",
-                            height=400
-                        )
-                        fig_top_weight = apply_plotly_theme(fig_top_weight)
-                        st.plotly_chart(fig_top_weight, use_container_width=True, config=config, key="analytics_top_weight")
-                    else:
-                        st.info("Chưa có dữ liệu")
-                else:
-                    st.info("Chưa có cột Weight")
+                # Top Nations
+                st.subheader("🌍 Top 10 Nations")
+                nation_counts = df['Nation'].value_counts().reset_index(name='Số lượng').head(10)
+                nation_counts.columns = ['Quốc gia', 'Số lượng']
+                fig_nation = px.bar(nation_counts, x="Quốc gia", y="Số lượng", text="Số lượng")
+                fig_nation = apply_plotly_theme(fig_nation)
+                st.plotly_chart(fig_nation, use_container_width=True, config=config)
             
-            with col3:
-                st.markdown("#### 🎂 Top 10 trẻ nhất")
-                if 'Age' in df.columns:
-                    age_df = df[df['Age'].astype(str).str.strip().ne('')].copy()
-                    age_df['Age_num'] = pd.to_numeric(age_df['Age'], errors='coerce')
-                    age_df = age_df.dropna(subset=['Age_num'])
-                    if not age_df.empty:
-                        top_age = age_df.nsmallest(10, 'Age_num')[['Player', 'Age_num', 'Position', 'Club', 'Rating']].copy()
-                        top_age = top_age.sort_values('Age_num', ascending=True)
-                        
-                        fig_top_age = px.bar(
-                            top_age,
-                            x="Age_num",
-                            y="Player",
-                            orientation='h',
-                            text="Age_num",
-                            hover_data=['Position', 'Club', 'Rating'],
-                            labels={'Age_num': 'Tuổi', 'Player': 'Cầu thủ'}
-                        )
-                        fig_top_age.update_traces(textposition="outside", hovertemplate="<b>%{y}</b><br>Tuổi: %{x}<br>Vị trí: %{customdata[0]}<br>Club: %{customdata[1]}<br>Rating: %{customdata[2]}<extra></extra>")
-                        fig_top_age.update_layout(
-                            yaxis=dict(autorange="reversed"),
-                            dragmode="pan",
-                            height=400
-                        )
-                        fig_top_age = apply_plotly_theme(fig_top_age)
-                        st.plotly_chart(fig_top_age, use_container_width=True, config=config, key="analytics_top_age")
-                    else:
-                        st.info("Chưa có dữ liệu")
-                else:
-                    st.info("Chưa có cột Age")
+            st.divider()
+            
+            # Phân bố vị trí & Loại thẻ
+            c3, c4 = st.columns(2)
+            with c3:
+                st.subheader("📍 Phân bố Vị trí")
+                pos_counts = df['Position'].value_counts().reset_index(name='Số lượng')
+                pos_counts.columns = ['Vị trí', 'Số lượng']
+                fig_pos = px.bar(pos_counts, x="Vị trí", y="Số lượng", text="Số lượng")
+                fig_pos = apply_plotly_theme(fig_pos)
+                st.plotly_chart(fig_pos, use_container_width=True, config=config)
+                
+            with c4:
+                st.subheader("🏷️ Phân bố Loại thẻ")
+                type_counts = df['Player Type'].value_counts().reset_index(name='Số lượng')
+                type_counts.columns = ['Loại', 'Số lượng']
+                fig_type = px.pie(type_counts, names="Loại", values="Số lượng", hole=0.3)
+                fig_type = apply_plotly_theme(fig_type)
+                st.plotly_chart(fig_type, use_container_width=True, config=config)
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
