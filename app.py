@@ -3577,93 +3577,95 @@ def main():
             </style>
             """, unsafe_allow_html=True)
 
-            cols = st.columns(4)
+            # === SỬA ĐỔI TẠI ĐÂY: Render theo từng Row để đúng thứ tự trên Mobile ===
+            # Thay vì tạo cols = st.columns(4) bên ngoài, ta lặp từng nhóm 4 cầu thủ
             
-            for i, (idx, row) in enumerate(display_df.iterrows()):
-                with cols[i % 4]:
-                    # A. LẤY DỮ LIỆU CƠ BẢN
-                    p_pos = str(row['Position']).strip()
-                    p_skills = str(row.get('Skills', ''))
-                    p_added = str(row.get('Added Skills', ''))
-                    added_list = [x for x in p_added.split(',') if x.strip()]
-                    n_added = len(added_list)
-                    remaining_slots = MAX_ADDED_SLOTS - n_added
-                    is_potw = "POTW" in str(row['Player Type']).upper()
-                    
-                    # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
-                    all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
-                    strict_targets = all_missing_ordered[:remaining_slots]
-                    # LOGIC CHỌN KHO ĐỂ CHECK
-                    # Nếu cầu thủ là GK -> Load kho GK để kiểm tra nút bấm
-                    # Nếu là Field -> Dùng kho inventory (field) đang có
-                    is_gk_player = p_pos == 'GK'
-                    
-                    if is_gk_player:
-                        # Load tạm kho GK để check status (có cache nên nhanh)
-                        check_inventory = get_gk_inventory_from_gsheet()
-                    else:
-                        check_inventory = inventory_field # <--- FIXED: Changed from 'inventory' to 'inventory_field'
+            for i in range(0, len(display_df), 4):
+                # Lấy nhóm 4 cầu thủ
+                chunk = display_df.iloc[i : i + 4]
+                # Tạo 4 cột cho hàng này
+                cols = st.columns(4)
+                
+                # Duyệt qua từng cầu thủ trong nhóm
+                for j, (idx, row) in enumerate(chunk.iterrows()):
+                    with cols[j]: # Điền vào cột tương ứng (0, 1, 2, 3)
+                        # A. LẤY DỮ LIỆU CƠ BẢN
+                        p_pos = str(row['Position']).strip()
+                        p_skills = str(row.get('Skills', ''))
+                        p_added = str(row.get('Added Skills', ''))
+                        added_list = [x for x in p_added.split(',') if x.strip()]
+                        n_added = len(added_list)
+                        remaining_slots = MAX_ADDED_SLOTS - n_added
+                        is_potw = "POTW" in str(row['Player Type']).upper()
                         
-                    # 2. CẮT DANH SÁCH & CHECK STOCK
-                    all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
-                    strict_targets = all_missing_ordered[:remaining_slots]
-                    
-                    # Dùng check_inventory tương ứng
-                    trainable_skills = [s for s in strict_targets if check_inventory.get(s, 0) > 0]
-                    
-                    # C. QUYẾT ĐỊNH TRẠNG THÁI NÚT
-                    btn_disabled = True
-                    btn_type = "secondary"
-                    btn_label = "Checking..."
-                    
-                    if is_potw:
-                        btn_label = "🔒 POTW"
-                    elif n_added >= MAX_ADDED_SLOTS:
-                        btn_label = "✅ Full Slots"
-                    elif not strict_targets:
-                        btn_label = "🤷‍♂️ Đủ Skill Top"
-                    elif len(trainable_skills) > 0:
-                        btn_label = f"🏋️ Train ({len(trainable_skills)})"
-                        btn_disabled = False
-                        btn_type = "primary"
-                    else:
-                        missing_top1 = strict_targets[0] if strict_targets else ""
-                        btn_label = f"⚠️ Thiếu: {missing_top1}"
+                        # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
+                        all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
+                        strict_targets = all_missing_ordered[:remaining_slots]
+                        
+                        # LOGIC CHỌN KHO ĐỂ CHECK
+                        is_gk_player = p_pos == 'GK'
+                        if is_gk_player:
+                            check_inventory = get_gk_inventory_from_gsheet()
+                        else:
+                            check_inventory = inventory_field
+                            
+                        # Check Stock
+                        trainable_skills = [s for s in strict_targets if check_inventory.get(s, 0) > 0]
+                        
+                        # C. QUYẾT ĐỊNH TRẠNG THÁI NÚT
                         btn_disabled = True
-
-                    # D. RENDER CARD
-                    slots_html = ""
-                    if is_potw:
-                        slots_html = "<span style='color:#d946ef; font-size:0.8em'>🔒 POTW Locked</span>"
-                    else:
-                        for s in range(MAX_ADDED_SLOTS):
-                            cls = "slot-filled" if s < n_added else "slot-empty"
-                            slots_html += f"<span class='skill-slot-dot {cls}'></span>"
-
-                    # Highlight Viền cho BARCA
-                    is_barca = str(row.get('Club', '')).strip() == "FC Barcelona"
-                    border_style = "border: 2px solid #edbb00;" if is_barca else "" # Viền vàng cho Barca
-
-                    with st.container(border=True):
-                        # Layout Card
-                        c_img, c_info = st.columns([1, 2.5])
-                        with c_img:
-                            pid = str(row.get('Player ID', '')).strip()
-                            img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
-                            st.image(img, use_container_width=True)
+                        btn_type = "secondary"
+                        btn_label = "Checking..."
                         
-                        with c_info:
-                            color = "#fbbf24" if row['Epic_Priority'] == 0 else ("#d946ef" if is_potw else "#fff")
-                            
-                            # Thêm badge BARCA nếu phải
-                            prefix = "🔵🔴 " if is_barca else ""
-                            
-                            st.markdown(f"<div style='font-weight:bold; color:{color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{prefix}{row['Player']}</div>", unsafe_allow_html=True)
-                            st.caption(f"{p_pos} • {row['Rating']}")
-                            st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
+                        if is_potw:
+                            btn_label = "🔒 POTW"
+                        elif n_added >= MAX_ADDED_SLOTS:
+                            btn_label = "✅ Full Slots"
+                        elif not strict_targets:
+                            btn_label = "🤷‍♂️ Đủ Skill Top"
+                        elif len(trainable_skills) > 0:
+                            btn_label = f"🏋️ Train ({len(trainable_skills)})"
+                            btn_disabled = False
+                            btn_type = "primary"
+                        else:
+                            missing_top1 = strict_targets[0] if strict_targets else ""
+                            btn_label = f"⚠️ Thiếu: {missing_top1}"
+                            btn_disabled = True
+
+                        # D. RENDER CARD
+                        slots_html = ""
+                        if is_potw:
+                            slots_html = "<span style='color:#d946ef; font-size:0.8em'>🔒 POTW Locked</span>"
+                        else:
+                            for s in range(MAX_ADDED_SLOTS):
+                                cls = "slot-filled" if s < n_added else "slot-empty"
+                                slots_html += f"<span class='skill-slot-dot {cls}'></span>"
+
+                        # Highlight Viền cho BARCA
+                        is_barca = str(row.get('Club', '')).strip() == "FC Barcelona"
+                        # border_style không dùng trong container st.container(border=True) mặc định được, 
+                        # nên ta chỉ highlight text tên cầu thủ bên dưới
                         
-                        if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
-                            show_training_modal(idx, row, inventory_field) # <--- FIXED: Changed from 'inventory' to 'inventory_field'
+                        with st.container(border=True):
+                            # Layout Card
+                            c_img, c_info = st.columns([1, 2.5])
+                            with c_img:
+                                pid = str(row.get('Player ID', '')).strip()
+                                img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
+                                st.image(img, use_container_width=True)
+                            
+                            with c_info:
+                                color = "#fbbf24" if row['Epic_Priority'] == 0 else ("#d946ef" if is_potw else "#fff")
+                                
+                                # Thêm badge BARCA
+                                prefix = "🔵🔴 " if is_barca else ""
+                                
+                                st.markdown(f"<div style='font-weight:bold; color:{color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{prefix}{row['Player']}</div>", unsafe_allow_html=True)
+                                st.caption(f"{p_pos} • {row['Rating']}")
+                                st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
+                            
+                            if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
+                                show_training_modal(idx, row, inventory_field)
 
     elif current_tab == 'squad':
         st.header("⚽ Quản lý Đội hình")
