@@ -971,6 +971,87 @@ def save_skill_inventory_to_gsheet(inventory):
         st.error(f"❌ Lỗi lưu inventory: {e}")
         return False
 
+# --- GK INVENTORY SYSTEM ---
+GK_SKILLS_PRIORITY_LIST = [
+    "GK Low Punt", "GK High Punt", "GK Long Throw", "GK Penalty Saver", 
+    "Fighting Spirit", "Low Lofted Pass", "One-touch Pass", "Through Passing", 
+    "Weighted Pass", "Outside Curler", "Sole Control", "Heel Trick", "Captaincy"
+]
+
+@st.cache_data(ttl=10)
+def get_gk_inventory_from_gsheet():
+    """Đọc kho skill GK riêng biệt"""
+    try:
+        client = get_gsheet_connection()
+        spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
+        
+        try:
+            sheet = spreadsheet.worksheet("GK_Inventory")
+        except:
+            # Nếu chưa có, tạo mới và KHỞI TẠO list skill mặc định = 0
+            sheet = spreadsheet.add_worksheet(title="GK_Inventory", rows=50, cols=2)
+            # Init data
+            rows = [["Skill Name", "Quantity"]]
+            for skill in GK_SKILLS_PRIORITY_LIST:
+                rows.append([skill, 0])
+            sheet.update(rows)
+            return {k: 0 for k in GK_SKILLS_PRIORITY_LIST}
+        
+        data = sheet.get_all_records()
+        inventory = {k: 0 for k in GK_SKILLS_PRIORITY_LIST} # Default 0
+        
+        for row in data:
+            skill = str(row.get('Skill Name', '')).strip()
+            qty = row.get('Quantity', 0)
+            if skill: inventory[skill] = int(qty)
+            
+        return inventory
+    except Exception as e:
+        st.error(f"❌ Lỗi GK Inventory: {e}")
+        return {}
+
+def save_gk_inventory_to_gsheet(inventory):
+    """Lưu kho GK"""
+    try:
+        client = get_gsheet_connection()
+        spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
+        try:
+            sheet = spreadsheet.worksheet("GK_Inventory")
+        except:
+            sheet = spreadsheet.add_worksheet(title="GK_Inventory", rows=50, cols=2)
+        
+        rows = [["Skill Name", "Quantity"]]
+        for skill, qty in inventory.items():
+            rows.append([skill, int(qty)])
+        
+        sheet.clear()
+        sheet.update(rows)
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"❌ Lỗi lưu GK Inventory: {e}")
+        return False
+
+def update_inventory_count(skill_name, delta, is_gk=False):
+    """Hàm update thông minh: Tự chọn kho dựa vào is_gk"""
+    try:
+        if is_gk:
+            inventory = get_gk_inventory_from_gsheet()
+        else:
+            inventory = get_inventory_from_gsheet()
+            
+        current = inventory.get(skill_name, 0)
+        new_count = max(0, current + delta)
+        inventory[skill_name] = new_count
+        
+        if is_gk:
+            return save_gk_inventory_to_gsheet(inventory)
+        else:
+            return save_skill_inventory_to_gsheet(inventory)
+    except Exception as e:
+        st.error(f"⚠️ Lỗi cập nhật: {e}")
+        return False
+
 def get_inventory():
     """Get inventory (with cache)"""
     return get_inventory_from_gsheet()
@@ -3240,19 +3321,31 @@ def main():
 
         # --- HELPER: Dialog Training (Trái tim của bản nâng cấp) ---
         @st.dialog("🏋️ Training Center")
-        def show_training_modal(idx, row, current_inventory):
-            """Popup chỉ hiển thị đúng những skill nằm trong Priority List của slot còn lại"""
+        def show_training_modal(idx, row, current_inventory): # current_inventory được truyền từ bên ngoài vào
+            """Popup xử lý training thông minh"""
             p_name = row['Player']
-            p_pos = row['Position']
+            p_pos = str(row['Position']).strip()
             
-            # Load dữ liệu skill hiện tại
+            # --- CHECK GK MODE ---
+            is_gk = p_pos == 'GK'
+            
+            # Nếu là GK, ta PHẢI dùng kho GK, bất kể current_inventory truyền vào là gì
+            # (Để an toàn, ta load lại kho GK ở đây nếu cần, hoặc giả định bên ngoài truyền đúng)
+            # Tuy nhiên, để code bên ngoài gọn, ta sẽ load đè nếu là GK
+            if is_gk:
+                training_inventory = get_gk_inventory_from_gsheet()
+                st.info("🧤 Đang sử dụng Kho Skill Thủ Môn")
+            else:
+                training_inventory = current_inventory # Dùng kho thường
+            
+            # ... (Phần hiển thị Header, Skill hiện có giữ nguyên) ...
+            # Copy lại đoạn hiển thị Header từ code cũ vào đây
+            # ...
             base_skills = [s.strip() for s in str(row.get('Skills', '')).split(',') if s.strip()]
             added_skills = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
-            
             used_slots = len(added_skills)
             remaining_slots = MAX_ADDED_SLOTS - used_slots
             
-            # Header cầu thủ
             c1, c2 = st.columns([1, 3])
             with c1:
                 pid = str(row.get('Player ID', '')).strip()
@@ -3261,103 +3354,68 @@ def main():
             with c2:
                 st.subheader(p_name)
                 st.caption(f"{p_pos} | {row['Rating']} | {row['Club']}")
-                # Progress bar cho slot
                 st.progress(used_slots / MAX_ADDED_SLOTS, text=f"Slot: {used_slots}/{MAX_ADDED_SLOTS}")
-
             st.divider()
-
-            # Hiển thị Skill hiện có
             st.markdown("**Skills hiện tại:**")
             skill_badges = ""
             for s in base_skills: skill_badges += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
             for s in added_skills: skill_badges += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
             st.markdown(skill_badges, unsafe_allow_html=True)
-
+            
             if remaining_slots <= 0:
-                st.warning("🔒 Cầu thủ này đã full slot kỹ năng!")
-                if st.button("Đóng"): st.rerun()
+                st.warning("🔒 Đã full slot!")
                 return
-
             st.divider()
             
-            # --- LOGIC STRICT DESIGN ---
-            st.markdown("#### 🎯 Mục tiêu Training (Bắt buộc)")
-            
-            # 1. Lấy toàn bộ danh sách thiếu
+            # --- LOGIC STRICT TARGETS ---
+            # Hàm get_recommended_skills đã được thiết kế để trả về Priority List chuẩn
             all_missing = get_recommended_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), 15)
-            
-            # 2. CẮT DANH SÁCH: Chỉ lấy đúng số skill bằng số slot còn lại
-            # Đây là danh sách "Skill được thiết kế riêng" cho các slot cuối
             target_skills = all_missing[:remaining_slots]
             
             if not target_skills:
-                st.info("Không có skill chỉ định nào cho vị trí này.")
+                st.info("Không có skill chỉ định.")
                 return
 
-            # 3. Chuẩn bị options cho Multiselect
             options_map = {}
             valid_options = []
-            missing_stock_count = 0
-
+            
             for skill in target_skills:
-                stock = current_inventory.get(skill, 0)
-                # Icon trạng thái kho
+                # Dùng training_inventory đã chọn đúng loại
+                stock = training_inventory.get(skill, 0)
                 if stock > 0:
-                    status_icon = "🟢" # Có hàng
-                    label = f"{status_icon} {skill} (Sẵn sàng: {stock})"
+                    label = f"🟢 {skill} (Kho: {stock})"
                 else:
-                    status_icon = "🔴" # Hết hàng
-                    label = f"{status_icon} {skill} (Hết hàng)"
-                    missing_stock_count += 1
-                
+                    label = f"🔴 {skill} (Hết hàng)"
                 valid_options.append(skill)
                 options_map[skill] = label
             
-            # 4. UI Chọn Skill (Chỉ hiện Target Skills)
-            st.info(f"💡 Chỉ hiển thị {len(target_skills)} skills quan trọng nhất tiếp theo.")
-            
+            st.markdown(f"#### 🎯 Mục tiêu ({'GK' if is_gk else 'Field'})")
             selected = st.multiselect(
-                "Danh sách Skill chỉ định:",
-                options=valid_options,
-                format_func=lambda x: options_map.get(x, x),
-                # Mặc định chọn luôn các skill có hàng để tiện bấm
-                default=[s for s in valid_options if current_inventory.get(s, 0) > 0],
-                max_selections=remaining_slots,
-                placeholder="Chọn skill để train..."
+                "Chọn skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
+                default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
+                max_selections=remaining_slots
             )
             
-            # 5. Validate Stock
-            out_of_stock_selection = [s for s in selected if current_inventory.get(s, 0) <= 0]
+            # Validate
+            out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
             
             col_save1, col_save2 = st.columns(2)
             with col_save2:
-                # Nút Lưu
-                if out_of_stock_selection:
-                    st.error(f"⚠️ Không thể train: {', '.join(out_of_stock_selection)} đang hết hàng!")
-                    btn_disabled = True
-                elif len(selected) == 0:
-                    btn_disabled = True
-                else:
-                    btn_disabled = False
-
+                btn_disabled = len(selected) == 0 or len(out_of_stock) > 0
+                if out_of_stock: st.error(f"⚠️ Hết hàng: {', '.join(out_of_stock)}")
+                
                 if st.button("💾 Xác nhận thêm", type="primary", use_container_width=True, disabled=btn_disabled):
-                    with st.spinner("Đang train..."):
-                        # 1. Update Dataframe
-                        new_added = added_skills + selected
-                        df.at[idx, 'Added Skills'] = ", ".join(new_added)
+                    new_added = added_skills + selected
+                    df.at[idx, 'Added Skills'] = ", ".join(new_added)
+                    if save_data_to_gsheet(df):
+                        # GỌI HÀM UPDATE VỚI FLAG is_gk
+                        for s in selected:
+                            update_inventory_count(s, -1, is_gk=is_gk)
                         
-                        # 2. Update Gsheet
-                        if save_data_to_gsheet(df):
-                            # 3. Update Inventory
-                            for s in selected:
-                                update_inventory_count(s, -1)
-                            
-                            st.toast(f"Đã thêm {len(selected)} skills!", icon="🎉")
-                            st.cache_data.clear()
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error("Lỗi khi lưu!")
+                        st.toast("Thành công!", icon="🎉")
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
 
         # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
         with st.container(border=True):
@@ -3517,7 +3575,23 @@ def main():
                     # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
                     all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
                     strict_targets = all_missing_ordered[:remaining_slots]
-                    trainable_skills = [s for s in strict_targets if inventory.get(s, 0) > 0]
+                    # LOGIC CHỌN KHO ĐỂ CHECK
+                    # Nếu cầu thủ là GK -> Load kho GK để kiểm tra nút bấm
+                    # Nếu là Field -> Dùng kho inventory (field) đang có
+                    is_gk_player = p_pos == 'GK'
+                    
+                    if is_gk_player:
+                        # Load tạm kho GK để check status (có cache nên nhanh)
+                        check_inventory = get_gk_inventory_from_gsheet()
+                    else:
+                        check_inventory = inventory # Kho Field lấy ở đầu trang
+                        
+                    # 2. CẮT DANH SÁCH & CHECK STOCK
+                    all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
+                    strict_targets = all_missing_ordered[:remaining_slots]
+                    
+                    # Dùng check_inventory tương ứng
+                    trainable_skills = [s for s in strict_targets if check_inventory.get(s, 0) > 0]
                     
                     # C. QUYẾT ĐỊNH TRẠNG THÁI NÚT
                     btn_disabled = True
@@ -4435,24 +4509,15 @@ def main():
                                     st.error(f"❌ Lỗi khi lưu: {e}")
             
     elif current_tab == 'inventory':
-        st.header("📦 Kho Skills")
+        st.header("📦 Quản lý Kho Skills")
 
-        # --- 1. CSS CUSTOM: CARD & NUMBER INPUT ---
+        # --- 1. CSS CUSTOM ---
         st.markdown("""
         <style>
         .skill-card {
-            background-color: #1e293b;
-            border-radius: 12px;
-            padding: 15px;
-            border: 1px solid rgba(255,255,255,0.05);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            text-align: center;
-            height: 100%;
-            transition: transform 0.2s;
-        }
-        .skill-card:hover {
-            border-color: rgba(255,255,255,0.2);
-            transform: translateY(-2px);
+            background-color: #1e293b; border-radius: 12px; padding: 15px;
+            border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            text-align: center; height: 100%;
         }
         .skill-icon { font-size: 24px; margin-bottom: 5px; }
         .skill-name { 
@@ -4461,131 +4526,102 @@ def main():
             align-items: center; justify-content: center;
         }
         .stNumberInput label { display: none; }
-        .quantity-badge {
-            font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase;
-        }
+        .quantity-badge { font-size: 0.8rem; margin-bottom: 5px; text-transform: uppercase; }
         .has-stock { color: #4ade80; font-weight: bold; }
         .no-stock { color: #ef4444; }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- 2. CHUẨN BỊ DỮ LIỆU & PHÂN LOẠI CHÍNH XÁC ---
-        inventory = get_inventory()
-        all_skills = get_all_known_skills()
-        
-        # Danh sách cứng dựa trên tài liệu bạn cung cấp
-        # Lưu ý: Tên skill phải khớp với database (thường là tiếng Anh chuẩn)
-        STRICT_CATEGORIES = {
-            "🎮 Dribbling (Rê bóng)": [
-                "Sole Control", "Scissors Feint", "Double Touch", "Flip Flap", 
-                "Marseille Turn", "Sombrero", "Chop Turn", "Cut Behind & Turn", 
-                "Scotch Move", "Rabona"
-            ],
-            "⚽ Passing (Chuyền)": [
-                "Weighted Pass", "Pinpoint Crossing", "One-touch Pass", 
-                "Through Passing", "No Look Pass", "Low Lofted Pass", "Long Throw"
-            ],
-            "🎯 Shooting (Dứt điểm)": [
-                "First-time Shot", "Long-Range Shooting", "Long-Range Curler", 
-                "Outside Curler", "Chip Shot Control", "Knuckle Shot", 
-                "Dipping Shot", "Rising Shot", "Acrobatic Finishing"
-            ],
-            "🛡️ Defense (Phòng ngự)": [
-                "Man Marking", "Track Back", "Acrobatic Clearance", "Interception", 
-                "Blocker", "Heading", "Aerial Superiority", "Sliding Tackle"
-            ],
-            "🧤 Goalkeeper (Thủ môn)": [
-                "GK Penalty Saver", "GK Low Punt", "GK High Punt", "GK Long Throw"
-            ],
-            "✨ Other (Khác)": [
-                "Captaincy", "Super Sub", "Fighting Spirit", "Gamesmanship", 
-                "Penalty Specialist", "Heel Trick"
-            ]
-        }
-        
-        # Gom skill vào dict theo nhóm
-        grouped_skills = {k: [] for k in STRICT_CATEGORIES.keys()}
-        grouped_skills["❓ Chưa phân loại"] = [] # Dự phòng cho skill lạ
+        # --- 2. CHỌN KHO (FIELD vs GK) ---
+        inv_type = st.radio("📂 Chọn Kho:", ["🏃 Cầu thủ (Field)", "🧤 Thủ môn (GK)"], horizontal=True)
+        is_gk_mode = "Thủ môn" in inv_type
 
-        # Tạo map đảo ngược để tra cứu nhanh: skill -> category
-        skill_to_cat = {}
-        for cat, skills in STRICT_CATEGORIES.items():
-            for s in skills:
-                # Chuẩn hóa về lowercase để so sánh
-                skill_to_cat[s.lower().replace("-", " ").replace(" ", "")] = cat
-
-        # Phân loại skill thực tế từ database
-        for skill in all_skills:
-            # Chuẩn hóa tên skill từ DB
-            s_norm = skill.lower().replace("-", " ").replace(" ", "")
+        # --- 3. LOAD DATA TƯƠNG ỨNG ---
+        if is_gk_mode:
+            inventory = get_gk_inventory_from_gsheet()
+            # GK chỉ dùng đúng list priority đã định nghĩa, không có category phức tạp
+            target_skills = GK_SKILLS_PRIORITY_LIST
+            # Gom tất cả vào 1 nhóm duy nhất cho gọn
+            grouped_skills = {"🧤 Kỹ năng Thủ Môn": target_skills}
+            st.info("💡 Đây là kho riêng biệt cho Thủ Môn. Skills ở đây không dùng chung với Cầu thủ thường.")
+        else:
+            inventory = get_inventory()
+            all_skills = get_all_known_skills()
+            # Logic phân loại cũ cho Field Players
+            STRICT_CATEGORIES = {
+                "🎮 Dribbling": ["Sole Control", "Scissors Feint", "Double Touch", "Flip Flap", "Marseille Turn", "Sombrero", "Chop Turn", "Cut Behind & Turn", "Scotch Move", "Rabona"],
+                "⚽ Passing": ["Weighted Pass", "Pinpoint Crossing", "One-touch Pass", "Through Passing", "No Look Pass", "Low Lofted Pass", "Long Throw"],
+                "🎯 Shooting": ["First-time Shot", "Long-Range Shooting", "Long-Range Curler", "Outside Curler", "Chip Shot Control", "Knuckle Shot", "Dipping Shot", "Rising Shot", "Acrobatic Finishing"],
+                "🛡️ Defense": ["Man Marking", "Track Back", "Acrobatic Clearance", "Interception", "Blocker", "Heading", "Aerial Superiority", "Sliding Tackle"],
+                "✨ Other": ["Captaincy", "Super Sub", "Fighting Spirit", "Gamesmanship", "Penalty Specialist", "Heel Trick"]
+            }
+            # Gom skill GK ra khỏi list Field (nếu muốn ẩn GK skills ở kho thường)
+            # Tuy nhiên code cũ bạn đang gộp chung, giờ ta chỉ hiển thị những gì không phải GK specific hoặc cứ để full
+            # Để đơn giản và đúng logic cũ: Field Inventory chứa tất cả skill (trừ những cái thuần GK nếu muốn lọc)
             
-            found_cat = None
-            # Thử tìm chính xác
-            if s_norm in skill_to_cat:
-                found_cat = skill_to_cat[s_norm]
-            else:
-                # Nếu không khớp 100%, thử tìm gần đúng (phòng trường hợp DB viết khác chút xíu)
-                for cat, target_skills in STRICT_CATEGORIES.items():
-                    for ts in target_skills:
-                        ts_norm = ts.lower().replace("-", " ").replace(" ", "")
-                        if ts_norm in s_norm or s_norm in ts_norm:
-                            found_cat = cat
-                            break
-                    if found_cat: break
+            grouped_skills = {k: [] for k in STRICT_CATEGORIES.keys()}
+            grouped_skills["❓ Chưa phân loại"] = []
             
-            if found_cat:
-                grouped_skills[found_cat].append(skill)
-            else:
-                grouped_skills["❓ Chưa phân loại"].append(skill)
+            # Helper map
+            skill_to_cat = {}
+            for cat, skills in STRICT_CATEGORIES.items():
+                for s in skills: skill_to_cat[s.lower().replace("-", " ").replace(" ", "")] = cat
+            
+            for skill in all_skills:
+                # Bỏ qua skill thuần GK ở kho Field (để đỡ rối)
+                if skill.startswith("GK "): continue 
+                
+                s_norm = skill.lower().replace("-", " ").replace(" ", "")
+                found = False
+                if s_norm in skill_to_cat:
+                    grouped_skills[skill_to_cat[s_norm]].append(skill)
+                    found = True
+                else:
+                    for cat, targets in STRICT_CATEGORIES.items():
+                        for t in targets:
+                            if t.lower().replace("-", " ").replace(" ", "") in s_norm:
+                                grouped_skills[cat].append(skill)
+                                found = True
+                                break
+                        if found: break
+                if not found: grouped_skills["❓ Chưa phân loại"].append(skill)
+            
+            grouped_skills = {k: v for k, v in grouped_skills.items() if v}
 
-        # Xóa nhóm rỗng nếu không có skill nào
-        grouped_skills = {k: v for k, v in grouped_skills.items() if v}
-
-        # --- 3. SUMMARY DASHBOARD ---
+        # --- 4. SUMMARY ---
         total_items = sum(inventory.values())
         with st.container(border=True):
             c1, c2, c3 = st.columns([2, 1, 1])
             with c1:
-                st.markdown(f"### 🎒 Tổng tồn kho: <span style='color:#4ade80'>{total_items}</span> thẻ", unsafe_allow_html=True)
+                st.markdown(f"### 🎒 Tồn kho ({'GK' if is_gk_mode else 'Field'}): <span style='color:#4ade80'>{total_items}</span> thẻ", unsafe_allow_html=True)
             with c2:
                 if st.button("🔄 Làm mới", use_container_width=True):
                     st.cache_data.clear()
                     st.rerun()
             with c3:
-                with st.popover("⚙️ Tiện ích"):
-                    st.markdown("**Backup dữ liệu**")
-                    json_str = json.dumps(inventory, ensure_ascii=False)
-                    st.download_button("⬇️ Tải JSON", json_str, "skills.json", "application/json")
-                    if st.button("🗑️ Xóa sạch kho", type="primary"):
-                        save_skill_inventory_to_gsheet({})
-                        st.rerun()
+                if st.button("🗑️ Xóa kho này", type="primary"):
+                    if is_gk_mode: save_gk_inventory_to_gsheet({k:0 for k in GK_SKILLS_PRIORITY_LIST})
+                    else: save_skill_inventory_to_gsheet({})
+                    st.rerun()
 
         st.write("") 
 
-        # --- 4. FORM CHỈNH SỬA (MODERN UI) ---
-        with st.form("inventory_master_form"):
-            
+        # --- 5. FORM EDIT ---
+        with st.form("inventory_form"):
             tabs = st.tabs(list(grouped_skills.keys()))
             new_values = {}
 
             for tab_idx, (cat_name, skills_in_cat) in enumerate(grouped_skills.items()):
                 with tabs[tab_idx]:
-                    if not skills_in_cat:
-                        st.info("Không có skill nào trong nhóm này.")
-                        continue
-                    
-                    # Sort Alphabet
                     cols = st.columns(4)
                     for i, skill in enumerate(sorted(skills_in_cat)):
                         current_qty = inventory.get(skill, 0)
                         
-                        # Icon theo Category
-                        icon = "✨"
-                        if "Dribbling" in cat_name: icon = "👟"
+                        icon = "🧤" if is_gk_mode else "✨"
+                        if "Dribbling" in cat_name: icon = "🎮"
                         elif "Passing" in cat_name: icon = "⚽"
                         elif "Shooting" in cat_name: icon = "🎯"
                         elif "Defense" in cat_name: icon = "🛡️"
-                        elif "Goalkeeper" in cat_name: icon = "🧤"
                         
                         stock_class = "has-stock" if current_qty > 0 else "no-stock"
                         stock_text = "Còn hàng" if current_qty > 0 else "Hết hàng"
@@ -4600,27 +4636,21 @@ def main():
                             """, unsafe_allow_html=True)
                             
                             val = st.number_input(
-                                f"{skill}", 
-                                min_value=0, 
-                                max_value=999, 
-                                value=int(current_qty),
-                                step=1,
-                                key=f"inv_{skill}",
+                                f"{skill}", min_value=0, max_value=999, 
+                                value=int(current_qty), step=1, key=f"inv_{skill}", 
                                 label_visibility="collapsed"
                             )
                             new_values[skill] = val
                             st.write("") 
 
             st.divider()
-            
-            # --- 5. ACTION BAR ---
             col_submit, col_info = st.columns([1, 3])
             with col_submit:
                 submitted = st.form_submit_button("💾 CẬP NHẬT KHO", type="primary", use_container_width=True)
             with col_info:
-                st.caption("💡 Điều chỉnh số lượng và bấm **Cập nhật kho** để lưu. App sẽ không reload khi đang chỉnh sửa.")
+                st.caption("💡 Bạn đang chỉnh sửa kho **" + ("THỦ MÔN" if is_gk_mode else "CẦU THỦ") + "**. Hãy kiểm tra kỹ trước khi lưu.")
 
-        # --- 6. XỬ LÝ LƯU ---
+        # --- 6. SAVE LOGIC ---
         if submitted:
             has_changes = False
             final_inventory = {}
@@ -4629,17 +4659,26 @@ def main():
                 if new_qty != old_qty: has_changes = True
                 if new_qty > 0: final_inventory[skill] = int(new_qty)
             
+            # Với GK, giữ nguyên các key bằng 0 để đảm bảo list priority luôn đủ
+            if is_gk_mode:
+                for k in GK_SKILLS_PRIORITY_LIST:
+                    if k not in final_inventory: final_inventory[k] = 0
+
             if has_changes:
-                with st.spinner("Đang đồng bộ Google Sheets..."):
-                    if save_skill_inventory_to_gsheet(final_inventory):
-                        st.toast("✅ Đã lưu kho thành công!", icon="💾")
+                with st.spinner("Đang lưu..."):
+                    success = False
+                    if is_gk_mode: success = save_gk_inventory_to_gsheet(final_inventory)
+                    else: success = save_skill_inventory_to_gsheet(final_inventory)
+                    
+                    if success:
+                        st.toast("✅ Đã lưu thành công!", icon="💾")
                         st.cache_data.clear()
                         time.sleep(1)
                         st.rerun()
                     else:
-                        st.error("❌ Lỗi khi lưu dữ liệu.")
+                        st.error("❌ Lỗi khi lưu.")
             else:
-                st.toast("⚠️ Không có thay đổi nào.", icon="ℹ️")
+                st.toast("⚠️ Không có thay đổi.", icon="ℹ️")
 
 
 if __name__ == "__main__":
