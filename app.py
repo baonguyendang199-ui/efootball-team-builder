@@ -1037,17 +1037,6 @@ POSITION_STYLE_ORDER = {
 # ==========================================
 
 FORMATIONS = {
-    # =================================================================
-    # 🔥 SƠ ĐỒ HIỆN ĐẠI & META (TRENDING NOW)
-    # =================================================================
-    # Man City (Pep) - Kiểm soát tuyệt đối, trung vệ dâng cao
-    "3-2-4-1 (Box Midfield)":       ["GK", "CB", "CB", "CB", "DMF", "DMF", "AMF", "AMF", "LMF", "RMF", "CF"],
-    # Leverkusen (Xabi Alonso) - Tấn công trung lộ cực mạnh
-    "3-4-2-1 (Xabi Ball)":          ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"], 
-    # Real Madrid (Ancelotti) - Biến thể Bellingham đá đỉnh kim cương
-    "4-3-1-2 (Diamond)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
-    # Sơ đồ "Tam tấu" (2 CF + 1 SS) - Rất mạnh để spam ban bật
-    "4-1-2-3 (2 CF, 1 SS)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
 
     # =================================================================
     # 🛡️ 4 HẬU VỆ - TIÊU CHUẨN (STANDARD BACK 4)
@@ -1089,6 +1078,18 @@ FORMATIONS = {
     "5-2-3 (Counter)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "DMF", "LWF", "RWF", "CF"],
     "5-2-3 (Counter)":              ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "RWF", "CF"],
     "5-3-2 (Solid)":                ["GK", "LB", "CB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "CF", "CF"],
+
+    # =================================================================
+    # 🔥 SƠ ĐỒ HIỆN ĐẠI & META (TRENDING NOW)
+    # =================================================================
+    # Man City (Pep) - Kiểm soát tuyệt đối, trung vệ dâng cao
+    "3-2-4-1 (Box Midfield)":       ["GK", "CB", "CB", "CB", "DMF", "DMF", "AMF", "AMF", "LMF", "RMF", "CF"],
+    # Leverkusen (Xabi Alonso) - Tấn công trung lộ cực mạnh
+    "3-4-2-1 (Xabi Ball)":          ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"], 
+    # Real Madrid (Ancelotti) - Biến thể Bellingham đá đỉnh kim cương
+    "4-3-1-2 (Diamond)":            ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
+    # Sơ đồ "Tam tấu" (2 CF + 1 SS) - Rất mạnh để spam ban bật
+    "4-1-2-3 (2 CF, 1 SS)":         ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
 
     # =================================================================
     # 🎄 SƠ ĐỒ ĐẶC BIỆT (SPECIAL TACTICS)
