@@ -4539,7 +4539,7 @@ def main():
                 st.write("") # Spacer
                 
                 # Gọi hàm render mới
-                render_pitch_view(best_squad, sort_mode=sort_mode)
+                render_pitch_view(best_squad, formation_name=found_name, sort_mode=sort_mode)
                
 
         # =========================================================
