@@ -2792,85 +2792,84 @@ def main():
 
         SQUAD_SIZE = 23  # Số cầu thủ mỗi team
 
-        # ===== TÍNH TOP 23 CHO MỖI TEAM =====
-        def get_top_23_players(df, group_by, values):
-            top_players = set()
+        # ===== 1. HÀM TÍNH TOP 23 VÀ TRẢ VỀ THỨ HẠNG (RANK MAP) =====
+        def get_top_23_ranked_map(df, group_by, values):
+            """
+            Trả về dict: {index_cầu_thủ: 'Rank/Total'}
+            Ví dụ: {102: '1/23', 105: '5/11'}
+            """
+            ranked_map = {}
+            
             for value in values:
                 team_df = df[df[group_by].astype(str) == value].copy()
-                if not team_df.empty:
-                    # Với Nation/League: loại trùng tên
-                    if group_by in ['Nation', 'League']:
-                        team_df['TargetClubPriority'] = team_df['Club'].isin(target_clubs).astype(int)
-                        if 'Top23_Count' not in team_df.columns:
-                            team_df['Top23_Count'] = 0
-                        team_df = team_df.sort_values(
-                            ['Player', 'Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
-                            ascending=[True, False, True, False, False]
-                        )
-                        team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
-        
-                    # Bước 1: chọn GK tốt nhất (nếu có)
-                    gk_df = team_df[team_df['Position'] == 'GK']
-                    cb_df = team_df[team_df['Position'] == 'CB']
-                    squad = pd.DataFrame()
-                    remaining_slots = SQUAD_SIZE
-        
-                    # Chọn 1 GK tốt nhất
-                    if not gk_df.empty:
-                        gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
-                        if 'Top23_Count' not in gk_df.columns:
-                            gk_df['Top23_Count'] = 0
-                        best_gk = gk_df.sort_values(
-                            ['Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
-                            ascending=[False, True, False, False]
-                        ).head(1)
-                        squad = pd.concat([squad, best_gk])
-                        remaining_slots -= 1
-        
-                    # Chọn 2 CB tốt nhất
-                    if not cb_df.empty:
-                        cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
-                        if 'Top23_Count' not in cb_df.columns:
-                            cb_df['Top23_Count'] = 0
-                        best_cb = cb_df.sort_values(
-                            ['Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
-                            ascending=[False, True, False, False]
-                        ).head(2)
-                        squad = pd.concat([squad, best_cb])
-                        remaining_slots -= len(best_cb)
-        
-                    # Bước 2: chọn các cầu thủ còn lại
-                    others = team_df.drop(squad.index)
-                    if not others.empty:
-                        others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
-                        if 'Top23_Count' not in others.columns:
-                            others['Top23_Count'] = 0
-                        top_rest = others.sort_values(
-                            ['Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
-                            ascending=[False, True, False, False]
-                        ).head(remaining_slots)
-                        squad = pd.concat([squad, top_rest])
-        
-                    top_players.update(squad.index.tolist())
-            return top_players
-        
-        # Tính top 23 cho từng loại team
-        top_club_players = get_top_23_players(df, 'Club', target_clubs)
-        top_nation_players = get_top_23_players(df, 'Nation', target_nations)
-        top_league_players = get_top_23_players(df, 'League', target_leagues)
+                if team_df.empty:
+                    continue
 
-        # ===== PHÁT HIỆN CẦU THỦ TRÙNG =====
+                # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
+                if group_by in ['Nation', 'League']:
+                    team_df['TargetClubPriority'] = team_df['Club'].isin(target_clubs).astype(int)
+                    if 'Top23_Count' not in team_df.columns:
+                        team_df['Top23_Count'] = 0
+                    team_df = team_df.sort_values(
+                        ['Player', 'Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                        ascending=[True, False, True, False, False]
+                    )
+                    team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
+    
+                # --- LOGIC CHỌN ĐỘI HÌNH ---
+                gk_df = team_df[team_df['Position'] == 'GK']
+                cb_df = team_df[team_df['Position'] == 'CB']
+                squad = pd.DataFrame()
+                remaining_slots = SQUAD_SIZE
+    
+                # 1. Chọn 1 GK tốt nhất
+                if not gk_df.empty:
+                    gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
+                    if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
+                    best_gk = gk_df.sort_values(['Rating', 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(1)
+                    squad = pd.concat([squad, best_gk])
+                    remaining_slots -= 1
+    
+                # 2. Chọn 2 CB tốt nhất
+                if not cb_df.empty:
+                    cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
+                    if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
+                    best_cb = cb_df.sort_values(['Rating', 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(2)
+                    squad = pd.concat([squad, best_cb])
+                    remaining_slots -= len(best_cb)
+    
+                # 3. Chọn các cầu thủ còn lại (theo Rating giảm dần)
+                others = team_df.drop(squad.index, errors='ignore')
+                if not others.empty:
+                    others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
+                    if 'Top23_Count' not in others.columns: others['Top23_Count'] = 0
+                    top_rest = others.sort_values(['Rating', 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(remaining_slots)
+                    squad = pd.concat([squad, top_rest])
+                
+                # --- LƯU RANKING ---
+                # Sắp xếp lại squad theo Rating để đánh số thứ tự (Rank) cho chuẩn logic "Mạnh nhất"
+                final_squad = squad.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+                total_in_squad = len(final_squad)
+                
+                for rank, (idx, row) in enumerate(final_squad.iterrows(), start=1):
+                    ranked_map[idx] = f"{rank}/{total_in_squad}"
+
+            return ranked_map
+        
+        # Tính toán Rank Map cho từng nhóm
+        club_rank_map = get_top_23_ranked_map(df, 'Club', target_clubs)
+        nation_rank_map = get_top_23_ranked_map(df, 'Nation', target_nations)
+        league_rank_map = get_top_23_ranked_map(df, 'League', target_leagues)
+
+        # ===== PHÁT HIỆN CẦU THỦ TRÙNG (GIỮ NGUYÊN) =====
         def detect_duplicates(df):
-            """Phát hiện cầu thủ trùng: CÙNG TÊN + Club + Nation + League"""
             duplicates_info = []
             grouped = df.groupby(['Player', 'Club', 'Nation', 'League'])
-            
             for (player, club, nation, league), group in grouped:
                 if len(group) > 1 and club and nation and league:
                     sorted_group = group.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                     best_card = sorted_group.iloc[0]
                     duplicate_cards = sorted_group.iloc[1:]
-                    
                     for _, dup in duplicate_cards.iterrows():
                         duplicates_info.append({
                             'index': dup.name,
@@ -2887,44 +2886,43 @@ def main():
 
         duplicates = detect_duplicates(df)
 
-        # ===== GỢI Ý BÁN =====
+        # ===== 2. CẬP NHẬT GỢI Ý BÁN (HIỆN RANK) =====
         def suggest_action(row):
             idx = row.name
             club = str(row.get('Club', '')).strip()
             
-            # === THÊM DÒNG NÀY ĐỂ SỬA LỖI ===
-            # Định nghĩa danh sách bảo vệ ngay tại đây nếu chưa tìm thấy biến global
             local_protected_clubs = ["FC Barcelona"] 
             if 'PROTECTED_CLUBS' in globals():
                 local_protected_clubs = globals()['PROTECTED_CLUBS']
-            # ================================
         
             nation = str(row.get('Nation', '')).strip()
             league = str(row.get('League', '')).strip()
             reasons = []
 
-            # 0. Kiểm tra club được bảo vệ (SỬA DÙNG BIẾN MỚI)
+            # 0. Kiểm tra club được bảo vệ
             if club in local_protected_clubs:
                 return ' ✅  GIỮ', f" 🛡 ️ {club} - Không bao giờ bán (Fan club)"
-
-    # ... (các phần dưới giữ nguyên)
             
-            # 1. Kiểm tra thẻ trùng (cùng player + club + nation + league)
+            # 1. Kiểm tra thẻ trùng
             is_duplicate = any(dup['index'] == idx for dup in duplicates)
             if is_duplicate:
                 return '❌ BÁN', "⚠️ Thẻ trùng - Có thẻ tốt hơn (cùng player + club + nation + league)"
             
-            # 2. Kiểm tra thuộc Top 23
-            in_top_club = idx in top_club_players
-            in_top_nation = idx in top_nation_players
-            in_top_league = idx in top_league_players
+            # 2. Kiểm tra thuộc Top 23 (DÙNG RANK MAP ĐỂ HIỂN THỊ CHI TIẾT)
+            in_top_club = idx in club_rank_map
+            in_top_nation = idx in nation_rank_map
+            in_top_league = idx in league_rank_map
             
+            # Format hiển thị: "Club: Manchester B (5/11)"
             if in_top_club:
-                reasons.append(f"Top 23 Club: {club}")
+                rank_str = club_rank_map[idx]
+                reasons.append(f"Club: {club} ({rank_str})")
             if in_top_nation:
-                reasons.append(f"Top 23 Nation: {nation}")
+                rank_str = nation_rank_map[idx]
+                reasons.append(f"Nation: {nation} ({rank_str})")
             if in_top_league:
-                reasons.append(f"Top 23 League: {league}")
+                rank_str = league_rank_map[idx]
+                reasons.append(f"League: {league} ({rank_str})")
             
             # 3. Quyết định
             if reasons:
