@@ -3575,7 +3575,7 @@ def main():
                         # Load tạm kho GK để check status (có cache nên nhanh)
                         check_inventory = get_gk_inventory_from_gsheet()
                     else:
-                        check_inventory = inventory # Kho Field lấy ở đầu trang
+                        check_inventory = inventory_field # <--- FIXED: Changed from 'inventory' to 'inventory_field'
                         
                     # 2. CẮT DANH SÁCH & CHECK STOCK
                     all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
@@ -3636,7 +3636,7 @@ def main():
                             st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
                         
                         if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
-                            show_training_modal(idx, row, inventory)
+                            show_training_modal(idx, row, inventory_field) # <--- FIXED: Changed from 'inventory' to 'inventory_field'
 
     elif current_tab == 'squad':
         st.header("⚽ Quản lý Đội hình")
