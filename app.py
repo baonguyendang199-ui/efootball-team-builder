@@ -1632,7 +1632,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     import re
     import math
 
-    # --- 1. XỬ LÝ SORT MODE (Logic cũ giữ nguyên) ---
+    # --- 1. XỬ LÝ SORT MODE ---
     highlight_type = None
     is_reverse = True 
     if 'height' in sort_mode: highlight_type = 'Height'; is_reverse = 'asc' not in sort_mode
@@ -1647,7 +1647,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     starters = squad_list[:11]
     raw_subs = squad_list[11:]
 
-    # --- 3. SORT DỰ BỊ (Logic cũ giữ nguyên) ---
+    # --- 3. SORT DỰ BỊ ---
     def get_sort_value(p, key):
         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
         except: return 0
@@ -1702,8 +1702,6 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             position_css = ""
             card_class = "card-sub"
         else:
-            # Tinh chỉnh tọa độ nếu thẻ bị che khuất (z-index)
-            # Thẻ ở dưới thấp hơn (top lớn hơn) sẽ có z-index cao hơn để đè lên thẻ trên
             z_idx = int(top) if top else 10
             position_css = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%); z-index: {z_idx};"
             card_class = "card-pitch"
@@ -1730,24 +1728,21 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     # =========================================================================
     html_starters = ""
     
-    # 1. Kiểm tra xem sơ đồ có trong bộ tọa độ cứng không
     coords = FORMATION_COORDS.get(formation_name)
 
     if coords and len(coords) == 11:
-        # ✅ CASE 1: CÓ TỌA ĐỘ CỨNG -> RENDER CHUẨN ĐẸP
+        # ✅ CASE 1: CÓ TỌA ĐỘ CỨNG
         for i, p in enumerate(starters):
             if i < 11:
                 t, l = coords[i]
                 html_starters += create_card_html(p, t, l)
     else:
-        # ⚠️ CASE 2: FALLBACK (CHO SƠ ĐỒ LẠ) -> TỰ TÍNH TOÁN
-        # Logic này dự phòng, chia layer thủ công
+        # ⚠️ CASE 2: FALLBACK
         gk_group = [p for p in starters if p['Position'] == 'GK']
         def_group = [p for p in starters if p['Position'] in ['CB', 'LB', 'RB']]
         def_group.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
         
         mid_group = [p for p in starters if p['Position'] in ['DMF', 'CMF', 'AMF', 'LMF', 'RMF']]
-        # Sort mid để DMF ở dưới, AMF ở trên
         mid_group.sort(key=lambda x: {'DMF': 3, 'CMF': 2, 'LMF': 2, 'RMF': 2, 'AMF': 1}.get(x['Position'], 2), reverse=True)
         
         fwd_group = [p for p in starters if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']]
@@ -1762,19 +1757,15 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
                 res.append((base_top, (i + 1) * width_step))
             return res
 
-        # GK
         for p in gk_group: html_starters += create_card_html(p, 92, 50)
         
-        # DEF (Hàng ngang ở 78%)
         def_locs = calc_coords(def_group, 78)
         for i, p in enumerate(def_group):
             t, l = def_locs[i]
-            # CB thấp hơn chút, LB/RB cao hơn chút
             if p['Position'] == 'CB': t = 82
             else: t = 75
             html_starters += create_card_html(p, t, l)
 
-        # MID (Hàng ngang ở 50%)
         mid_locs = calc_coords(mid_group, 50)
         for i, p in enumerate(mid_group):
             t, l = mid_locs[i]
@@ -1782,7 +1773,6 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             elif p['Position'] == 'AMF': t = 38
             html_starters += create_card_html(p, t, l)
 
-        # FWD (Hàng ngang ở 20%)
         fwd_locs = calc_coords(fwd_group, 20)
         for i, p in enumerate(fwd_group):
             t, l = fwd_locs[i]
@@ -1794,49 +1784,43 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
     rows_desktop = math.ceil(len(subs) / 8)
-    total_height_desktop = 800 + 60 + (rows_desktop * 130)
+    
+    # -----------------------------------------------------------
+    # 🔧 FIX: ĐỊNH NGHĨA BIẾN final_iframe_height
+    # -----------------------------------------------------------
+    final_iframe_height = 800 + 60 + (rows_desktop * 130)
 
-    # CSS (Đã tinh chỉnh kích thước thẻ)
+    # CSS
     css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@700;800&family=Inter:wght@600;700&display=swap');
         :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --pitch-line: rgba(148, 163, 184, 0.15); }
         body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
         .container { display: flex; flex-direction: column; gap: 10px; width: 100%; margin: 0 auto; }
-        /* Sân bóng đẹp hơn */
         .pitch { position: relative; width: 100%; height: 720px; background: radial-gradient(circle at 50% 50%, #172554 0%, #020617 90%); border-radius: 12px; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; perspective: 1000px; }
         .pitch::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px), linear-gradient(90deg, var(--pitch-line) 1px, transparent 1px); background-size: 50px 50px; opacity: 0.4; transform: perspective(600px) rotateX(25deg) scale(1.1); pointer-events: none; }
-        
         .lines { position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; }
         .center-circle { position: absolute; top: 50%; left: 50%; width: 130px; height: 130px; border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); }
         .half-line { position: absolute; top: 50%; left: 0; width: 100%; height: 0; border-top: 2px solid rgba(255,255,255,0.2); }
         .box-top { position: absolute; top: -2px; left: 50%; width: 50%; height: 14%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.2); border-top: none; background: rgba(255,255,255,0.02); }
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 50%; height: 14%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.2); border-bottom: none; background: rgba(255,255,255,0.02); }
-        
-        /* Card Styles */
         .p-card { position: relative; width: 85px; height: 115px; border-radius: 6px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); }
         .p-card:hover { transform: translate(-50%, -60%) scale(1.1) !important; z-index: 100 !important; }
         .card-pitch { position: absolute; }
         .card-sub { position: relative; margin-bottom: 5px; width: 80px; height: 110px; }
         .card-sub:hover { transform: scale(1.05) !important; }
-
         .p-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,1) 100%); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.15); border-bottom: 3px solid var(--accent); border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
         .p-header { position: absolute; top: 3px; left: 3px; right: 3px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
         .p-pos { font-family: 'Exo 2'; font-size: 9px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.6); padding: 1px 4px; border-radius: 3px; }
         .p-rating { font-family: 'Exo 2'; font-size: 16px; font-weight: 800; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
-        
         .p-img-box { position: absolute; bottom: 20px; left: 0; width: 100%; height: 85px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 6px 6px; }
         .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6)); transition: transform 0.2s; }
-        
         .p-name { position: absolute; bottom: 0; left: 0; width: 100%; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; background: rgba(2, 6, 23, 0.95); z-index: 4; border-radius: 0 0 6px 6px; white-space: nowrap; overflow: hidden; border-top: 1px solid rgba(255,255,255,0.1); }
-        
         .empty-slot { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); transform: translate(-50%, -50%); display:flex; justify-content:center; align-items:center; }
         .empty-slot::after { content: '?'; color: rgba(255,255,255,0.2); font-size: 20px; font-weight: bold; }
-        
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; }
         .bench-title { color: #94a3b8; font-weight: 700; font-size: 13px; text-transform: uppercase; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; letter-spacing: 0.5px; }
         .bench-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-        
         @media only screen and (max-width: 600px) { .pitch { height: 600px; } .p-card { width: 65px; height: 90px; } .card-sub { width: 60px; height: 85px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; } .p-img-box { height: 65px; bottom: 18px; } .p-name { height: 18px; font-size: 9px; } }
     </style>
     """
