@@ -3361,68 +3361,108 @@ def main():
 
         # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
         with st.container(border=True):
-            f1, f2, f3 = st.columns([2, 1, 1])
+            # Hàng 1: Search Text & Filter Cơ bản
+            f1, f2, f3 = st.columns([3, 1, 1])
             with f1:
-                search_txt = st.text_input("🔍 Tìm cầu thủ / Skill", placeholder="Nhập tên, vị trí...", label_visibility="collapsed")
+                search_txt = st.text_input(
+                    "🔍 Tìm kiếm toàn diện", 
+                    placeholder="Nhập tên, kỹ năng (vd: Double Touch), CLB, hoặc Quốc gia...", 
+                    label_visibility="collapsed"
+                )
             with f2:
-                # Filter nhanh loại thẻ
-                ft_type = st.selectbox("Loại thẻ", ["Tất cả", "EPIC", "POTW", "Standard"], label_visibility="collapsed")
+                ft_pos = st.multiselect("Vị trí", sorted(df['Position'].unique().tolist()), placeholder="Vị trí", label_visibility="collapsed")
             with f3:
-                # Filter nhanh trạng thái
                 ft_status = st.selectbox("Trạng thái", ["Tất cả", "Cần train", "Đã full"], label_visibility="collapsed")
+            
+            # Hàng 2: Filter Nâng cao (Collapsible)
+            with st.expander("🌪️ Bộ lọc nâng cao (Loại thẻ / Rating)"):
+                ef1, ef2 = st.columns(2)
+                with ef1:
+                    ft_type = st.multiselect("Loại thẻ", ["EPIC", "POTW", "NON-EPIC"], default=[], placeholder="Chọn loại thẻ...")
+                with ef2:
+                    min_r, max_r = int(df['Rating'].min()), int(df['Rating'].max())
+                    rt_range = st.slider("Rating", min_r, max_r, (min_r, max_r))
 
-        # --- 2. XỬ LÝ DỮ LIỆU ---
-        # Lấy inventory một lần
+        # --- 2. XỬ LÝ DỮ LIỆU (SEARCH & SORT) ---
         inventory = get_inventory()
-        
         filtered_df = df.copy()
         
-        # Filter Logic
+        # A. LOGIC TÌM KIẾM TOÀN DIỆN (SEARCH)
         if search_txt:
-            filtered_df = filtered_df[
-                filtered_df['Player'].str.contains(search_txt, case=False) | 
-                filtered_df['Position'].str.contains(search_txt, case=False)
-            ]
-        
-        if ft_type != "Tất cả":
-            if ft_type == "Standard": 
-                filtered_df = filtered_df[filtered_df['Player Type'] == 'NON-EPIC']
-            else:
-                filtered_df = filtered_df[filtered_df['Player Type'] == ft_type]
-                
-        # Tính toán trạng thái skill để lọc
+            query = search_txt.lower()
+            # Tạo cột search gộp để tìm kiếm 1 lần cho nhanh
+            # Tìm trong: Tên, Club, Nation, League, Skills
+            filtered_df['Search_Data'] = (
+                filtered_df['Player'].astype(str) + " " + 
+                filtered_df['Club'].astype(str) + " " + 
+                filtered_df['Nation'].astype(str) + " " + 
+                filtered_df['Skills'].astype(str) + " " +
+                filtered_df['Added Skills'].astype(str)
+            ).str.lower()
+            
+            filtered_df = filtered_df[filtered_df['Search_Data'].str.contains(query)]
+
+        # B. LOGIC FILTER
+        if ft_pos:
+            filtered_df = filtered_df[filtered_df['Position'].isin(ft_pos)]
+            
+        if ft_type:
+            # Map lại tên loại thẻ cho khớp data
+            # "Standard" trong UI -> "NON-EPIC" trong Data
+            mapped_types = [t if t != "Standard" else "NON-EPIC" for t in ft_type]
+            filtered_df = filtered_df[filtered_df['Player Type'].isin(mapped_types)]
+            
+        filtered_df = filtered_df[
+            (filtered_df['Rating'] >= rt_range[0]) & 
+            (filtered_df['Rating'] <= rt_range[1])
+        ]
+
+        # Filter theo trạng thái Train
         def check_train_status(row):
-            if "POTW" in str(row['Player Type']).upper(): return "full" # POTW coi như full
+            if "POTW" in str(row['Player Type']).upper(): return "full"
             added = [x for x in str(row.get('Added Skills', '')).split(',') if x.strip()]
             return "full" if len(added) >= MAX_ADDED_SLOTS else "need"
 
         filtered_df['Train_Status'] = filtered_df.apply(check_train_status, axis=1)
-        
         if ft_status == "Cần train":
             filtered_df = filtered_df[filtered_df['Train_Status'] == 'need']
         elif ft_status == "Đã full":
             filtered_df = filtered_df[filtered_df['Train_Status'] == 'full']
 
-        # Sort: Ưu tiên EPIC & Rating cao lên đầu
-        filtered_df = filtered_df.sort_values(['Epic_Priority', 'Rating'], ascending=[True, False])
+        # --- C. LOGIC SẮP XẾP (BARCELONA FIRST) ---
+        # Tạo cột Flag ưu tiên
+        # 1. Is_Barca: Nếu Club là FC Barcelona -> 1, còn lại -> 0
+        filtered_df['Is_Barca'] = filtered_df['Club'].apply(lambda x: 1 if str(x).strip() == "FC Barcelona" else 0)
+        
+        # Sắp xếp theo thứ tự ưu tiên:
+        # 1. Is_Barca (Giảm dần -> 1 lên trước)
+        # 2. Epic_Priority (Tăng dần -> 0 (Epic) lên trước)
+        # 3. Rating (Giảm dần -> Cao lên trước)
+        filtered_df = filtered_df.sort_values(
+            ['Is_Barca', 'Epic_Priority', 'Rating'], 
+            ascending=[False, True, False]
+        )
 
-        # --- 3. PHÂN TRANG (PAGINATION) ---
+        # --- 3. PHÂN TRANG & HIỂN THỊ ---
         total_items = len(filtered_df)
         num_pages = max(1, (total_items // ITEMS_PER_PAGE) + (1 if total_items % ITEMS_PER_PAGE > 0 else 0))
         
         col_pag1, col_pag2 = st.columns([4, 1])
         with col_pag1:
-            st.caption(f"Tìm thấy **{total_items}** cầu thủ phù hợp.")
+            st.caption(f"Tìm thấy **{total_items}** cầu thủ.")
         with col_pag2:
-            page = st.number_input("Trang", min_value=1, max_value=num_pages, value=1)
+            if num_pages > 1:
+                page = st.number_input("Trang", min_value=1, max_value=num_pages, value=1)
+            else:
+                page = 1
 
         start_idx = (page - 1) * ITEMS_PER_PAGE
         end_idx = start_idx + ITEMS_PER_PAGE
         display_df = filtered_df.iloc[start_idx:end_idx]
 
-        # --- 4. HIỂN THỊ GRID CARD (Gọn gàng hơn) ---
+        # --- 4. HIỂN THỊ GRID CARD (Logic: Strict Priority / Dành slot tuyệt đối) ---
         if display_df.empty:
-            st.info("Không có cầu thủ nào.")
+            st.info("🔍 Không tìm thấy cầu thủ nào phù hợp.")
         else:
             # CSS Visual
             st.markdown("""
@@ -3447,16 +3487,8 @@ def main():
                     is_potw = "POTW" in str(row['Player Type']).upper()
                     
                     # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
-                    # 1. Lấy toàn bộ danh sách skill còn thiếu theo thứ tự ưu tiên
-                    # (Lấy max 15 để xem toàn bộ danh sách chờ)
                     all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
-                    
-                    # 2. CẮT DANH SÁCH: Chỉ quan tâm đến Top N skill tương ứng với N slot còn lại
-                    # Ví dụ: Còn 2 slot -> Chỉ được thêm skill Top 1 hoặc Top 2. 
-                    # Skill Top 3 trở đi bị loại bỏ (để dành slot cho Top 1, 2 sau này).
                     strict_targets = all_missing_ordered[:remaining_slots]
-                    
-                    # 3. Kiểm tra kho: Chỉ tìm những skill nằm trong strict_targets
                     trainable_skills = [s for s in strict_targets if inventory.get(s, 0) > 0]
                     
                     # C. QUYẾT ĐỊNH TRẠNG THÁI NÚT
@@ -3469,15 +3501,12 @@ def main():
                     elif n_added >= MAX_ADDED_SLOTS:
                         btn_label = "✅ Full Slots"
                     elif not strict_targets:
-                        btn_label = "🤷‍♂️ Đủ Skill Top" # Đã có đủ các skill quan trọng nhất
+                        btn_label = "🤷‍♂️ Đủ Skill Top"
                     elif len(trainable_skills) > 0:
-                        # Có hàng trong danh sách Top Priority -> CHO PHÉP
                         btn_label = f"🏋️ Train ({len(trainable_skills)})"
                         btn_disabled = False
                         btn_type = "primary"
                     else:
-                        # Không có skill Top Priority (Dù có skill rác cũng không cho thêm)
-                        # Hiển thị tên skill Top 1 đang thiếu để người dùng biết cần kiếm gì
                         missing_top1 = strict_targets[0] if strict_targets else ""
                         btn_label = f"⚠️ Thiếu: {missing_top1}"
                         btn_disabled = True
@@ -3491,7 +3520,12 @@ def main():
                             cls = "slot-filled" if s < n_added else "slot-empty"
                             slots_html += f"<span class='skill-slot-dot {cls}'></span>"
 
+                    # Highlight Viền cho BARCA
+                    is_barca = str(row.get('Club', '')).strip() == "FC Barcelona"
+                    border_style = "border: 2px solid #edbb00;" if is_barca else "" # Viền vàng cho Barca
+
                     with st.container(border=True):
+                        # Layout Card
                         c_img, c_info = st.columns([1, 2.5])
                         with c_img:
                             pid = str(row.get('Player ID', '')).strip()
@@ -3500,7 +3534,11 @@ def main():
                         
                         with c_info:
                             color = "#fbbf24" if row['Epic_Priority'] == 0 else ("#d946ef" if is_potw else "#fff")
-                            st.markdown(f"<div style='font-weight:bold; color:{color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['Player']}</div>", unsafe_allow_html=True)
+                            
+                            # Thêm badge BARCA nếu phải
+                            prefix = "🔵🔴 " if is_barca else ""
+                            
+                            st.markdown(f"<div style='font-weight:bold; color:{color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{prefix}{row['Player']}</div>", unsafe_allow_html=True)
                             st.caption(f"{p_pos} • {row['Rating']}")
                             st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
                         
