@@ -187,26 +187,45 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%", highlight_metric=None):
     """
-    Tạo HTML Card với Smart Badge - Đã FIX lỗi hiển thị Code Text do thụt dòng.
+    Tạo HTML Card - Đã FIX lỗi hình ảnh bị hỏng (Broken Image).
     """
+    import re # Đảm bảo thư viện regex được import
+    
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
     pos = player_data.get('Position', '?')
     p_type = str(player_data.get('Player Type', 'NON-EPIC')).upper()
     action = str(player_data.get('Action', '')).upper()
     
-    # Xử lý hình ảnh
-    img_url = player_data.get('Player URL', '') 
-    if not img_url or "pesdb" not in str(img_url):
-         pid = str(player_data.get('Player ID', '')).strip()
-         if pid: img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
-         else: img_url = "https://pesdb.net/assets/img/card/f0.png"
-    if 'Image' in player_data and player_data['Image']:
-        img_url = player_data['Image']
+    # --- [FIX] LOGIC XỬ LÝ HÌNH ẢNH MỚI ---
+    # Mặc định là ảnh rỗng
+    img_url = "https://pesdb.net/assets/img/card/f0.png"
+    
+    # 1. Tìm ID cầu thủ
+    pid = str(player_data.get('Player ID', '')).strip()
+    
+    # Nếu không có ID, thử "đào" ID từ Player URL
+    if not pid or pid == "0" or pid == "":
+        purl = str(player_data.get('Player URL', '')).strip()
+        # Tìm chuỗi số dài (thường là ID) trong URL
+        match = re.search(r"id=(\d+)", purl) or re.search(r"(\d{5,})", purl)
+        if match:
+            pid = match.group(1)
+            
+    # 2. Tạo link ảnh chuẩn từ ID
+    if pid and pid.isdigit():
+        img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
+        
+    # 3. Nếu có cột 'Image' riêng (người dùng tự điền link ảnh), ưu tiên dùng nó
+    custom_img = str(player_data.get('Image', '')).strip()
+    if custom_img and custom_img.startswith('http'):
+        img_url = custom_img
+    # ----------------------------------------
 
     # Màu sắc thẻ
     card_class = "std"
     bg_gradient = "linear-gradient(180deg, #172554 0%, #020617 100%)" 
+    badge_bg = "#38bdf8" # Blue default
     
     if "POTW" in p_type or "TRENDING" in p_type:
         card_class = "potw"
@@ -216,8 +235,6 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
         card_class = "epic"
         bg_gradient = "linear-gradient(180deg, #713f12 0%, #451a03 100%)" 
         badge_bg = "#fbbf24"
-    else:
-        badge_bg = "#38bdf8"
 
     club = player_data.get('Club', '')
     
@@ -245,29 +262,12 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
         except:
             pass
             
-    # HTML cho Metric Badge (Viết trên 1 dòng để tránh lỗi indentation)
     metric_html = ""
     if metric_val:
         metric_html = f'<div style="position:absolute; top:-8px; right:-8px; background:{badge_bg}; color:#000; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px; z-index:20; box-shadow:0 2px 5px rgba(0,0,0,0.5); border:1px solid white;">{metric_val}</div>'
 
-    # QUAN TRỌNG: HTML tổng phải viết sát lề trái, không thụt đầu dòng
-    html = f"""<div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">
-    {metric_html}
-    {top_badge_html}
-    <div class="shine"></div>
-    <div class="card-header">
-        <div class="rating-box">{rating}</div>
-        <div class="position-box">{pos}</div>
-    </div>
-    <img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
-    <div class="card-info">
-        <div class="player-name">{p_name}</div>
-        <div class="sub-info">
-            <span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span>
-            <span>{str(player_data.get('Nation', ''))[:3].upper()}</span>
-        </div>
-    </div>
-</div>"""
+    # HTML Card (Viết liền dòng để tránh lỗi indentation hiển thị code)
+    html = f"""<div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">{metric_html}{top_badge_html}<div class="shine"></div><div class="card-header"><div class="rating-box">{rating}</div><div class="position-box">{pos}</div></div><img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'"><div class="card-info"><div class="player-name">{p_name}</div><div class="sub-info"><span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span><span>{str(player_data.get('Nation', ''))[:3].upper()}</span></div></div></div>"""
     return html
 
 @st.dialog("Hồ sơ cầu thủ", width="large")
