@@ -1369,8 +1369,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 return -999999
             
             # --- 2. LUẬT CB (Max 3 dự bị, trừ khi đa năng) ---
-            # CHỈ ÁP DỤNG CHO TALLEST XI (height_desc)
-            if sort_mode == 'height_desc' and pos == 'CB':
+            # CẬP NHẬT: Áp dụng cho cả Tallest (height_desc) VÀ Heaviest (weight_desc)
+            if sort_mode in ['height_desc', 'weight_desc'] and pos == 'CB': 
                 cb_count = bench_pos_counts.get('CB', 0)
                 if cb_count >= 3:
                     # Kiểm tra xem có đá được vị trí khác không (LB, RB, DMF...)
@@ -1379,7 +1379,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                     is_versatile = any(p in sec_str for p in useful_positions)
                     
                     if not is_versatile:
-                        return -999999 # CB thuần túy thứ 4 -> Loại ngay nếu đang tìm đội hình Cao nhất
+                        return -999999 # CB thuần túy thứ 4 -> Loại ngay
             
             # --- 3. LUẬT UNITED NATIONS ---
             if sort_mode == 'united_nations':
