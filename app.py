@@ -3241,7 +3241,7 @@ def main():
         # --- HELPER: Dialog Training (Trái tim của bản nâng cấp) ---
         @st.dialog("🏋️ Training Center")
         def show_training_modal(idx, row, current_inventory):
-            """Popup xử lý thêm skill tập trung, không reload trang nền"""
+            """Popup chỉ hiển thị đúng những skill nằm trong Priority List của slot còn lại"""
             p_name = row['Player']
             p_pos = row['Position']
             
@@ -3280,47 +3280,66 @@ def main():
 
             st.divider()
             
-            # --- LOGIC GỢI Ý & KHO ---
-            st.markdown("#### 💡 Thêm kỹ năng mới")
+            # --- LOGIC STRICT DESIGN ---
+            st.markdown("#### 🎯 Mục tiêu Training (Bắt buộc)")
             
-            # Lấy danh sách gợi ý
-            recs = get_recommended_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), 15)
+            # 1. Lấy toàn bộ danh sách thiếu
+            all_missing = get_recommended_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), 15)
             
-            # Phân loại skill theo kho hàng
-            in_stock_options = []
-            out_of_stock_options = []
+            # 2. CẮT DANH SÁCH: Chỉ lấy đúng số skill bằng số slot còn lại
+            # Đây là danh sách "Skill được thiết kế riêng" cho các slot cuối
+            target_skills = all_missing[:remaining_slots]
             
-            for skill in recs:
+            if not target_skills:
+                st.info("Không có skill chỉ định nào cho vị trí này.")
+                return
+
+            # 3. Chuẩn bị options cho Multiselect
+            options_map = {}
+            valid_options = []
+            missing_stock_count = 0
+
+            for skill in target_skills:
                 stock = current_inventory.get(skill, 0)
-                label = f"{skill} (Kho: {stock})"
+                # Icon trạng thái kho
                 if stock > 0:
-                    in_stock_options.append((skill, label))
+                    status_icon = "🟢" # Có hàng
+                    label = f"{status_icon} {skill} (Sẵn sàng: {stock})"
                 else:
-                    out_of_stock_options.append((skill, label))
+                    status_icon = "🔴" # Hết hàng
+                    label = f"{status_icon} {skill} (Hết hàng)"
+                    missing_stock_count += 1
+                
+                valid_options.append(skill)
+                options_map[skill] = label
             
-            # Gộp lại: Ưu tiên còn hàng lên trước
-            # Format cho multiselect: Chỉ lấy tên skill làm value, label hiển thị số lượng
-            options_map = {k: v for k, v in (in_stock_options + out_of_stock_options)}
-            all_options = [k for k, v in in_stock_options] + [k for k, v in out_of_stock_options]
+            # 4. UI Chọn Skill (Chỉ hiện Target Skills)
+            st.info(f"💡 Chỉ hiển thị {len(target_skills)} skills quan trọng nhất tiếp theo.")
             
-            # UI chọn skill
             selected = st.multiselect(
-                "Chọn skills từ gợi ý hoặc kho:",
-                options=all_options,
+                "Danh sách Skill chỉ định:",
+                options=valid_options,
                 format_func=lambda x: options_map.get(x, x),
+                # Mặc định chọn luôn các skill có hàng để tiện bấm
+                default=[s for s in valid_options if current_inventory.get(s, 0) > 0],
                 max_selections=remaining_slots,
-                placeholder=f"Chọn tối đa {remaining_slots} skills..."
+                placeholder="Chọn skill để train..."
             )
             
-            # Cảnh báo nếu chọn skill hết hàng
-            missing_skills = [s for s in selected if current_inventory.get(s, 0) <= 0]
-            if missing_skills:
-                st.error(f"⚠️ Kho hết hàng: {', '.join(missing_skills)}")
+            # 5. Validate Stock
+            out_of_stock_selection = [s for s in selected if current_inventory.get(s, 0) <= 0]
             
             col_save1, col_save2 = st.columns(2)
             with col_save2:
                 # Nút Lưu
-                btn_disabled = len(selected) == 0 or len(missing_skills) > 0
+                if out_of_stock_selection:
+                    st.error(f"⚠️ Không thể train: {', '.join(out_of_stock_selection)} đang hết hàng!")
+                    btn_disabled = True
+                elif len(selected) == 0:
+                    btn_disabled = True
+                else:
+                    btn_disabled = False
+
                 if st.button("💾 Xác nhận thêm", type="primary", use_container_width=True, disabled=btn_disabled):
                     with st.spinner("Đang train..."):
                         # 1. Update Dataframe
