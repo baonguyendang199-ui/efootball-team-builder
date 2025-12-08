@@ -2613,105 +2613,42 @@ def main():
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@500;700;800&family=Inter:wght@400;600&display=swap');
             
-            /* KPI Card Container */
-            .kpi-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 16px;
-                margin-bottom: 24px;
-            }
-            
-            .kpi-card {
-                background: rgba(30, 41, 59, 0.4);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                backdrop-filter: blur(12px);
-                border-radius: 16px;
-                padding: 20px;
-                position: relative;
-                overflow: hidden;
-                transition: transform 0.2s ease, border-color 0.2s;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            }
-            
-            .kpi-card:hover {
-                transform: translateY(-3px);
-                border-color: rgba(255,255,255,0.2);
-                background: rgba(30, 41, 59, 0.6);
-            }
-            
-            .kpi-card::before {
-                content: '';
-                position: absolute;
-                top: 0; left: 0; width: 100%; height: 4px;
-                background: var(--kpi-color, #3b82f6);
-            }
-
-            .kpi-icon {
-                font-size: 1.5rem;
-                margin-bottom: 8px;
-                opacity: 0.9;
-            }
-
-            .kpi-value {
-                font-family: 'Exo 2', sans-serif;
-                font-size: 2.2rem;
-                font-weight: 800;
-                color: #fff;
-                line-height: 1;
-                margin-bottom: 4px;
-                text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            }
-
-            .kpi-label {
-                font-family: 'Inter', sans-serif;
-                font-size: 0.85rem;
-                color: #94a3b8;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-
-            .chart-container {
-                background: rgba(15, 23, 42, 0.6);
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                border-radius: 16px;
-                padding: 20px;
-                height: 100%;
-            }
-            
-            .section-header {
-                font-family: 'Exo 2', sans-serif;
-                font-size: 1.2rem;
-                font-weight: 700;
-                color: #e2e8f0;
-                margin-bottom: 16px;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
+            .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+            .kpi-card { background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(12px); border-radius: 16px; padding: 20px; position: relative; overflow: hidden; transition: transform 0.2s ease, border-color 0.2s; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+            .kpi-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.2); background: rgba(30, 41, 59, 0.6); }
+            .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--kpi-color, #3b82f6); }
+            .kpi-icon { font-size: 1.5rem; margin-bottom: 8px; opacity: 0.9; }
+            .kpi-value { font-family: 'Exo 2', sans-serif; font-size: 2.2rem; font-weight: 800; color: #fff; line-height: 1; margin-bottom: 4px; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+            .kpi-label { font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+            .section-header { font-family: 'Exo 2', sans-serif; font-size: 1.2rem; font-weight: 700; color: #e2e8f0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
         </style>
         """, unsafe_allow_html=True)
 
         # =========================================================================
-        # 🧮 2. DATA PREPARATION
+        # 🧮 2. DATA PREPARATION (ĐÃ SỬA LỖI BMI)
         # =========================================================================
         if df.empty:
             st.error("Chưa có dữ liệu.")
             return
 
-        # Numeric conversions
-        df['Height_num'] = pd.to_numeric(df['Height'], errors='coerce')
-        df['Weight_num'] = pd.to_numeric(df['Weight'], errors='coerce')
-        df['Age_num'] = pd.to_numeric(df['Age'], errors='coerce')
-        df['Rating_num'] = pd.to_numeric(df['Rating'], errors='coerce')
+        # 1. Numeric conversions
+        df['Height_num'] = pd.to_numeric(df['Height'], errors='coerce').fillna(0)
+        df['Weight_num'] = pd.to_numeric(df['Weight'], errors='coerce').fillna(0)
+        df['Age_num'] = pd.to_numeric(df['Age'], errors='coerce').fillna(0)
+        df['Rating_num'] = pd.to_numeric(df['Rating'], errors='coerce').fillna(0)
         
-        # --- CALCULATIONS ---
+        # 2. [FIX] Calculate BMI_num (Thêm lại đoạn này)
+        df['BMI_num'] = df.apply(lambda x: x['Weight_num'] / ((x['Height_num']/100)**2) if x['Height_num'] > 0 else 0, axis=1)
+        df['BMI_num'] = df['BMI_num'].round(1) # Làm tròn cho đẹp
+
+        # 3. KPI Stats
         total_players = len(df)
         avg_rating = df['Rating_num'].mean()
         epic_cnt = len(df[df['Player Type'] == 'EPIC'])
         potw_cnt = len(df[df['Player Type'] == 'POTW'])
         barca_cnt = len(df[df['Club'] == 'FC Barcelona'])
         
+        # 4. Prepare Chart Data
         rating_dist = df['Rating_num'].value_counts().reset_index()
         rating_dist.columns = ['Rating', 'Count']
         
@@ -2724,12 +2661,18 @@ def main():
         top_nations = df['Nation'].value_counts().head(10).reset_index()
         top_nations.columns = ['Nation', 'Count']
 
-        scatter_df = df.dropna(subset=['Height_num', 'Weight_num', 'Position'])
-        if len(scatter_df) > 500: scatter_df = scatter_df.sample(500)
+        # Scatter Plot Data (Filter valid physical stats)
+        scatter_df = df[
+            (df['Height_num'] > 0) & 
+            (df['Weight_num'] > 0) & 
+            (df['BMI_num'] > 0)
+        ].copy()
+        
+        if len(scatter_df) > 500: 
+            scatter_df = scatter_df.sample(500)
 
         # --- HELPER FUNCTION: ALTAIR THEME ---
         def apply_altair_theme(chart):
-            """Hàm định dạng riêng cho Altair Chart để tránh lỗi AttributeError"""
             return chart.configure(
                 background='transparent',
                 font='Inter, sans-serif'
@@ -2740,15 +2683,9 @@ def main():
                 labelColor='#94A3B8',
                 titleColor='#94A3B8',
                 titleFontWeight=500
-            ).configure_view(
-                strokeWidth=0
-            ).configure_legend(
-                labelColor='#E2E8F0',
-                titleColor='#94A3B8'
-            ).configure_text(
-                color='#E2E8F0',
-                font='Inter, sans-serif'
-            )
+            ).configure_view(strokeWidth=0).configure_legend(
+                labelColor='#E2E8F0', titleColor='#94A3B8'
+            ).configure_text(color='#E2E8F0', font='Inter, sans-serif')
 
         # =========================================================================
         # 🖥️ 3. DASHBOARD LAYOUT
@@ -2757,31 +2694,11 @@ def main():
         # --- ROW 1: KPI CARDS ---
         st.markdown(f"""
         <div class="kpi-grid">
-            <div class="kpi-card" style="--kpi-color: #3b82f6;">
-                <div class="kpi-icon">👥</div>
-                <div class="kpi-value">{total_players}</div>
-                <div class="kpi-label">Tổng cầu thủ</div>
-            </div>
-            <div class="kpi-card" style="--kpi-color: #f59e0b;">
-                <div class="kpi-icon">⭐</div>
-                <div class="kpi-value">{avg_rating:.1f}</div>
-                <div class="kpi-label">Rating Trung Bình</div>
-            </div>
-            <div class="kpi-card" style="--kpi-color: #ef4444;">
-                <div class="kpi-icon">🛡️</div>
-                <div class="kpi-value">{barca_cnt}</div>
-                <div class="kpi-label">Barcelona Squad</div>
-            </div>
-            <div class="kpi-card" style="--kpi-color: #d946ef;">
-                <div class="kpi-icon">⚡</div>
-                <div class="kpi-value">{potw_cnt}</div>
-                <div class="kpi-label">Thẻ POTW</div>
-            </div>
-            <div class="kpi-card" style="--kpi-color: #fbbf24;">
-                <div class="kpi-icon">✨</div>
-                <div class="kpi-value">{epic_cnt}</div>
-                <div class="kpi-label">Thẻ EPIC</div>
-            </div>
+            <div class="kpi-card" style="--kpi-color: #3b82f6;"><div class="kpi-icon">👥</div><div class="kpi-value">{total_players}</div><div class="kpi-label">Tổng cầu thủ</div></div>
+            <div class="kpi-card" style="--kpi-color: #f59e0b;"><div class="kpi-icon">⭐</div><div class="kpi-value">{avg_rating:.1f}</div><div class="kpi-label">Rating Trung Bình</div></div>
+            <div class="kpi-card" style="--kpi-color: #ef4444;"><div class="kpi-icon">🛡️</div><div class="kpi-value">{barca_cnt}</div><div class="kpi-label">Barcelona Squad</div></div>
+            <div class="kpi-card" style="--kpi-color: #d946ef;"><div class="kpi-icon">⚡</div><div class="kpi-value">{potw_cnt}</div><div class="kpi-label">Thẻ POTW</div></div>
+            <div class="kpi-card" style="--kpi-color: #fbbf24;"><div class="kpi-icon">✨</div><div class="kpi-value">{epic_cnt}</div><div class="kpi-label">Thẻ EPIC</div></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -2791,41 +2708,23 @@ def main():
         with c1:
             with st.container(border=True):
                 st.markdown('<div class="section-header">📈 Phân bố Rating</div>', unsafe_allow_html=True)
-                
                 chart_rating = alt.Chart(rating_dist).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
                     x=alt.X('Rating:O', title='OVR Rating', sort='descending'),
                     y=alt.Y('Count:Q', title='Số lượng'),
-                    color=alt.condition(
-                        alt.datum.Rating >= 100,
-                        alt.value('#f59e0b'),
-                        alt.value('#3b82f6')
-                    ),
+                    color=alt.condition(alt.datum.Rating >= 100, alt.value('#f59e0b'), alt.value('#3b82f6')),
                     tooltip=['Rating', 'Count']
                 ).properties(height=250)
-                
-                # SỬA LỖI: Dùng apply_altair_theme thay vì apply_plotly_theme
                 st.altair_chart(apply_altair_theme(chart_rating), use_container_width=True)
 
         with c2:
             with st.container(border=True):
                 st.markdown('<div class="section-header">🏷️ Loại Thẻ</div>', unsafe_allow_html=True)
-                
                 chart_donut = alt.Chart(type_dist).mark_arc(innerRadius=50).encode(
                     theta=alt.Theta(field="Count", type="quantitative"),
-                    color=alt.Color(field="Type", type="nominal", 
-                                  scale=alt.Scale(domain=['EPIC', 'POTW', 'NON-EPIC'], 
-                                                range=['#fbbf24', '#d946ef', '#3b82f6']),
-                                  legend=None),
+                    color=alt.Color(field="Type", type="nominal", scale=alt.Scale(domain=['EPIC', 'POTW', 'NON-EPIC'], range=['#fbbf24', '#d946ef', '#3b82f6']), legend=None),
                     tooltip=['Type', 'Count']
                 ).properties(height=250)
-                
-                text = chart_donut.mark_text(radius=80).encode(
-                    text=alt.Text("Count", format=".0f"),
-                    order=alt.Order("Type"),
-                    color=alt.value('white')  
-                )
-                
-                # SỬA LỖI: Dùng apply_altair_theme
+                text = chart_donut.mark_text(radius=80).encode(text=alt.Text("Count", format=".0f"), order=alt.Order("Type"), color=alt.value('white'))
                 st.altair_chart(apply_altair_theme(chart_donut + text), use_container_width=True)
 
         # --- ROW 3: TOP RANKINGS (TABS) ---
@@ -2840,9 +2739,7 @@ def main():
                     color=alt.Color('Count:Q', scale=alt.Scale(scheme='blues'), legend=None),
                     tooltip=['Club', 'Count']
                 ).properties(height=350)
-                
                 text_club = chart_club.mark_text(align='left', dx=2).encode(text='Count:Q')
-                # SỬA LỖI: Dùng apply_altair_theme
                 st.altair_chart(apply_altair_theme(chart_club + text_club), use_container_width=True)
 
             with t2:
@@ -2852,20 +2749,17 @@ def main():
                     color=alt.Color('Count:Q', scale=alt.Scale(scheme='reds'), legend=None),
                     tooltip=['Nation', 'Count']
                 ).properties(height=350)
-                
                 text_nation = chart_nation.mark_text(align='left', dx=2).encode(text='Count:Q')
-                # SỬA LỖI: Dùng apply_altair_theme
                 st.altair_chart(apply_altair_theme(chart_nation + text_nation), use_container_width=True)
                 
             with t3:
+                # Scatter Plot với Tooltip đầy đủ (bao gồm BMI_num)
                 chart_scatter = alt.Chart(scatter_df).mark_circle(size=60).encode(
                     x=alt.X('Weight_num', title='Cân nặng (kg)', scale=alt.Scale(zero=False)),
                     y=alt.Y('Height_num', title='Chiều cao (cm)', scale=alt.Scale(zero=False)),
                     color=alt.Color('Position', legend=alt.Legend(title="Vị trí")),
                     tooltip=['Player', 'Position', 'Height', 'Weight', 'BMI_num']
                 ).properties(height=350).interactive()
-                
-                # SỬA LỖI: Dùng apply_altair_theme
                 st.altair_chart(apply_altair_theme(chart_scatter), use_container_width=True)
 
     elif current_tab == 'players':
