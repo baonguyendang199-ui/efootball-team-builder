@@ -1114,6 +1114,15 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
+    # Sắp xếp: Rating cao nhất lên đầu, nếu bằng Rating thì ưu tiên Epic (Epic_Priority nhỏ hơn)
+    pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+    
+    # Xóa các dòng trùng tên cầu thủ (chỉ giữ dòng đầu tiên - tức dòng ngon nhất)
+    pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
+    
+    # Reset index để thuật toán bên dưới chạy đúng index
+    pool_df = pool_df.reset_index(drop=True)
+
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
 
