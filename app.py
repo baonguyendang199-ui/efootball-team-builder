@@ -1558,8 +1558,16 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             except: pass
         elif highlight_type == 'Ambidextrous':
             d = p.get('Data', {})
-            def get_wf_num(text): return '4' if 'very high' in str(text).lower() else ('3' if 'high' in str(text).lower() else '2')
-            u, a = get_wf_num(d.get('Weak Foot Usage', '')), get_wf_num(d.get('Weak Foot Accuracy', ''))
+            # --- CẬP NHẬT LOGIC HIỂN THỊ TRÊN THẺ ---
+            def get_wf_num(text): 
+                t = str(text).strip().lower()
+                if any(k in t for k in ['very high', 'regularly', '4']): return '4'
+                if any(k in t for k in ['high', 'occasionally', '3']): return '3'
+                if any(k in t for k in ['medium', 'rarely', '2']): return '2'
+                return '1'
+
+            u = get_wf_num(d.get('Weak Foot Usage', ''))
+            a = get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
         elif highlight_type == 'Nation': val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
 
