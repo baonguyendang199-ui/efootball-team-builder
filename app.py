@@ -4631,7 +4631,7 @@ def main():
                     pos_counts = check_df['Position'].value_counts()
                     missing_msg = []
                     if pos_counts.get('GK', 0) == 0: missing_msg.append("Thiếu GK")
-                    if pos_counts.get('CB', 0) < 2: missing_msg.append("Thiếu CB")
+                    if pos_counts.get('CB', 0) < 2: missing_msg.append("Thiếu CB thuần")
                     if missing_msg:
                         st.toast(f"⚠️ Cảnh báo nhân sự: {', '.join(missing_msg)}", icon="⚠️")
 
