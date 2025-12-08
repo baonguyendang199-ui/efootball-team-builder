@@ -1396,14 +1396,13 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
 def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     """
-    Vẽ sơ đồ sân bóng: SMART DYNAMIC LOGIC.
-    Tự động tính toán vị trí dựa trên Role mà không cần Hardcode tọa độ.
+    Vẽ sơ đồ sân bóng: SMART DYNAMIC LOGIC - Đã cập nhật Badge "Stat Tag" xịn xò.
     """
     import streamlit.components.v1 as components
     import re
     import math
 
-    # --- 1. XỬ LÝ SORT MODE (Giữ nguyên) ---
+    # --- 1. XỬ LÝ SORT MODE ---
     highlight_type = None
     is_reverse = True 
 
@@ -1427,7 +1426,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     starters = squad_list[:11]
     raw_subs = squad_list[11:]
 
-    # --- 3. SORT DỰ BỊ (Giữ nguyên logic cũ) ---
+    # --- 3. SORT DỰ BỊ ---
     def get_sort_value(p, key):
         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
         except: return 0
@@ -1445,7 +1444,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     else: 
         subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
-    # --- 4. HTML GENERATOR (Giữ nguyên) ---
+    # --- 4. HTML GENERATOR (ĐÃ NÂNG CẤP STAT TAG) ---
     def create_card_html(p, top=None, left=None, is_sub=False):
         full_name = p['Player'].strip()
         name_parts = full_name.split()
@@ -1456,16 +1455,23 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
         
-        # Badge Logic
+        # --- LOGIC TÍNH TOÁN STAT TAG ---
         val_display = ""
-        if highlight_type == 'Height': val_display = f"{p.get('Height', '-')}cm"
-        elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '-')}kg"
-        elif highlight_type == 'Age': val_display = f"{p.get('Age', '-')}t"
+        metric_label = ""
+        
+        if highlight_type == 'Height': 
+            val_display = f"{p.get('Height', '-')} cm"
+        elif highlight_type == 'Weight': 
+            val_display = f"{p.get('Weight', '-')} kg"
+        elif highlight_type == 'Age': 
+            val_display = f"{p.get('Age', '-')} tuổi"
         elif highlight_type == 'BMI':
             try:
                 h = float(re.sub(r'[^\d.]', '', str(p.get('Height', '0')))) / 100.0
                 w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
-                if h > 0: val_display = f"{(w/(h**2)):.1f}"
+                if h > 0: 
+                    val_display = f"{(w/(h**2)):.1f}"
+                    metric_label = "BMI"
             except: pass
         elif highlight_type == 'Ambidextrous':
             d = p.get('Data', {})
@@ -1477,11 +1483,19 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
                 return '1'
             u, a = get_wf_num(d.get('Weak Foot Usage', '')), get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
+        elif highlight_type == 'Nation':
+            val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
 
         ptype = str(p['Type']).upper()
-        if "POTW" in ptype or "TRENDING" in ptype: accent, shadow = "#d946ef", "rgba(217, 70, 239, 0.4)"
-        elif "EPIC" in ptype and "NON" not in ptype: accent, shadow = "#fbbf24", "rgba(251, 191, 36, 0.4)"
-        else: accent, shadow = "#38bdf8", "rgba(56, 189, 248, 0.4)"
+        if "POTW" in ptype or "TRENDING" in ptype: 
+            accent, shadow = "#d946ef", "rgba(217, 70, 239, 0.4)"
+            stat_color = "#e879f9"
+        elif "EPIC" in ptype and "NON" not in ptype: 
+            accent, shadow = "#fbbf24", "rgba(251, 191, 36, 0.4)"
+            stat_color = "#fbbf24"
+        else: 
+            accent, shadow = "#38bdf8", "rgba(56, 189, 248, 0.4)"
+            stat_color = "#38bdf8"
 
         if is_sub:
             position_css = ""
@@ -1490,7 +1504,13 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             position_css = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%);"
             card_class = "card-pitch"
 
-        badge_html = f'<div class="stat-badge" style="background:{accent}">{val_display}</div>' if val_display else ""
+        # --- TẠO HTML BADGE MỚI (STAT TAG) ---
+        badge_html = ""
+        if val_display:
+            label_html = f"<span style='color:#94a3b8; margin-right:3px; font-weight:500'>{metric_label}:</span>" if metric_label else ""
+            # Vị trí bottom: 24px để nằm ngay trên thanh tên cầu thủ
+            badge_html = f'<div style="position:absolute; bottom:24px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.95); color:{stat_color}; font-size:9px; font-weight:700; padding:1px 8px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); z-index:20; white-space:nowrap; display:flex; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.5);">{label_html}<span>{val_display}</span></div>'
+
         if p['Player'] == "---": return f'<div class="empty-slot {card_class}" style="{position_css}"></div>'
 
         return f"""
