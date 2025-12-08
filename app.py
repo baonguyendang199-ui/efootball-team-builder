@@ -249,8 +249,9 @@ def render_efootball_card_html(player_data, width="100%"):
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
     """
-    Giao diện Scouting Profile - Đã bổ sung hiển thị Reasons (Lý do Giữ/Bán).
+    Giao diện Scouting Profile - Đã sửa lỗi hiển thị text do thụt đầu dòng.
     """
+    
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
     rating = row.get('Rating', 0)
@@ -298,6 +299,8 @@ def show_player_modal(row):
         for i in range(1, max_score + 1):
             bg = accent_color if i <= score else "rgba(255,255,255,0.1)"
             bars += f'<div style="flex:1; height:4px; background:{bg}; border-radius:2px; margin-right:2px;"></div>'
+        
+        # LƯU Ý: Chuỗi này KHÔNG ĐƯỢC xuống dòng bừa bãi
         return f"""<div style="margin-bottom: 8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
 
     # --- 2. XỬ LÝ DANH SÁCH SKILLS ---
@@ -309,22 +312,22 @@ def show_player_modal(row):
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
     # --- 3. RENDER REASONS BLOCK ---
-    # Màu sắc cho Action
     action_bg = "rgba(34, 197, 94, 0.2)" if "GIỮ" in action else "rgba(239, 68, 68, 0.2)"
     action_border = "#22c55e" if "GIỮ" in action else "#ef4444"
     action_text = "#4ade80" if "GIỮ" in action else "#f87171"
 
+    # QUAN TRỌNG: reasons_html phải sát lề trái
     reasons_html = f"""
-    <div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
-        <div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div>
-        <div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;">
-            <div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>
-            {reasons}
-        </div>
+<div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+    <div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div>
+    <div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;">
+        <div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>
+        {reasons}
     </div>
-    """ if action != "N/A" and action != "" else ""
+</div>
+""" if action != "N/A" and action != "" else ""
 
-    # --- 4. RENDER HTML TỔNG ---
+    # --- 4. RENDER HTML TỔNG (QUAN TRỌNG: VIẾT SÁT LỀ TRÁI) ---
     html_content = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
@@ -394,6 +397,7 @@ def show_player_modal(row):
 </div>
 """
     st.markdown(html_content, unsafe_allow_html=True)
+
     # Footer Actions
     st.write("")
     c1, c2 = st.columns([1, 4])
@@ -402,6 +406,7 @@ def show_player_modal(row):
             st.link_button("🌐 PESDB Link", row.get('Player URL'), use_container_width=True)
     with c2:
         pass
+
 
 def render_app_hero(df: pd.DataFrame):
     """Render the hero banner with live metrics."""
