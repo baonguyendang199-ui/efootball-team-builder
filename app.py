@@ -2068,8 +2068,8 @@ def extract_max_level_rating(player_url: str, card_type: str = None, base_html: 
 def extract_secondary_positions(soup, main_position):
     """
     Trích xuất vị trí phụ từ sơ đồ sân bóng (div class='pitch').
+    CHỈ LẤY POS2 (Vị trí sở trường - Đỏ đậm).
     Loại bỏ vị trí chính khỏi danh sách.
-    FIX: Nếu vị trí chính là GK thì trả về rỗng ngay lập tức.
     """
     # 1. Nếu là GK -> Không cần lấy vị trí phụ
     if str(main_position).strip().upper() == 'GK':
@@ -2089,13 +2089,20 @@ def extract_secondary_positions(soup, main_position):
         # Quét tất cả các div con (đại diện cho các chấm trên sân)
         for div in pitch_div.find_all('div'):
             classes = div.get('class', [])
+            
+            # --- SỬA ĐỔI TẠI ĐÂY ---
+            # Chỉ xử lý nếu trong class có chứa 'pos2'
+            if 'pos2' not in classes:
+                continue
+            # -----------------------
+
             for c in classes:
                 c_upper = c.upper()
                 # Nếu là mã vị trí VÀ không trùng với vị trí chính
                 if c_upper in VALID_POS and c_upper != main_pos_norm:
                     found_pos.add(c_upper)
                     
-        # Trả về chuỗi sắp xếp, ví dụ: "CF, CMF, LWF, RWF, SS"
+        # Trả về chuỗi sắp xếp, ví dụ: "CF, SS"
         return ", ".join(sorted(list(found_pos)))
     except Exception as e:
         return ""
