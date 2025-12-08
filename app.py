@@ -3753,7 +3753,7 @@ def main():
             with col_view:
                 view_mode = st.radio(
                     "Chế độ xem",
-                    ["📋 Bảng", "🎴 Thẻ"],
+                    ["🎴 Thẻ", "📋 Bảng"],
                     horizontal=True,
                     label_visibility="collapsed",
                     key="filter_view_mode"
