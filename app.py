@@ -185,50 +185,88 @@ def inject_modern_ui_theme():
         unsafe_allow_html=True
     )
 
-def render_efootball_card_html(player_data, width="100%"):
+def render_efootball_card_html(player_data, width="100%", highlight_metric=None):
     """
-    Tạo HTML Card (Compact Version - Đã sửa vị trí Badge).
+    Tạo HTML Card với Smart Badge (Hiển thị chỉ số theo ngữ cảnh Sort).
     """
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
     pos = player_data.get('Position', '?')
-    p_type = str(player_data.get('Type', 'NON-EPIC')).upper()
+    p_type = str(player_data.get('Player Type', 'NON-EPIC')).upper()
     action = str(player_data.get('Action', '')).upper()
     
     # Xử lý hình ảnh
-    img_url = player_data.get('Image')
-    if not img_url:
-        pid = str(player_data.get('Player ID', '')).strip()
-        if pid:
-            img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
-        else:
-            img_url = "https://pesdb.net/assets/img/card/f0.png"
+    img_url = player_data.get('Player URL', '') # Lấy URL gốc nếu có
+    # Fallback sang logic ID
+    if not img_url or "pesdb" not in str(img_url):
+         pid = str(player_data.get('Player ID', '')).strip()
+         if pid: img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
+         else: img_url = "https://pesdb.net/assets/img/card/f0.png"
+    # Nếu trong dữ liệu đã có cột Image xử lý sẵn
+    if 'Image' in player_data and player_data['Image']:
+        img_url = player_data['Image']
 
     # Màu sắc thẻ
     card_class = "std"
-    bg_gradient = "linear-gradient(180deg, #172554 0%, #020617 100%)" # Blue-950 to Slate-950
+    bg_gradient = "linear-gradient(180deg, #172554 0%, #020617 100%)" 
     
     if "POTW" in p_type or "TRENDING" in p_type:
         card_class = "potw"
-        bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)" # Purple
+        bg_gradient = "linear-gradient(180deg, #581c87 0%, #2e1065 100%)" 
+        badge_bg = "#d946ef"
     elif "EPIC" in p_type and "NON" not in p_type:
         card_class = "epic"
-        bg_gradient = "linear-gradient(180deg, #713f12 0%, #451a03 100%)" # Amber/Bronze
+        bg_gradient = "linear-gradient(180deg, #713f12 0%, #451a03 100%)" 
+        badge_bg = "#fbbf24"
+    else:
+        badge_bg = "#38bdf8"
 
     club = player_data.get('Club', '')
     
-    # --- SỬA VỊ TRÍ BADGE TẠI ĐÂY ---
-    # Dời xuống top:35px để tránh đè lên Position/Rating
-    # Thêm chút xoay nhẹ (rotate) để trông giống sticker dán lên
-    action_html = ""
+    # --- LOGIC BADGE / ACTION ---
+    # Ưu tiên hiển thị Action (Bán/Giữ) nếu có, nếu không thì hiển thị Metric
+    top_badge_html = ""
+    
     if "BÁN" in action:
-        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
+        top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
     elif "GIỮ" in action:
-        action_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
+        top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
+    
+    # --- LOGIC SMART METRIC BADGE (Góc trên phải - như tab Squad) ---
+    metric_val = ""
+    metric_label = ""
+    
+    if highlight_metric:
+        try:
+            if highlight_metric == 'BMI':
+                h = float(player_data.get('Height', 0)) / 100.0
+                w = float(player_data.get('Weight', 0))
+                if h > 0: metric_val = f"{(w/(h**2)):.1f}"
+            elif highlight_metric == 'Height':
+                metric_val = f"{player_data.get('Height', '-')}cm"
+            elif highlight_metric == 'Weight':
+                metric_val = f"{player_data.get('Weight', '-')}kg"
+            elif highlight_metric == 'Age':
+                metric_val = f"{player_data.get('Age', '-')}t"
+            # Thêm các logic khác nếu cần
+        except:
+            pass
+            
+    # HTML cho Metric Badge (Chỉ hiện khi có giá trị đặc biệt và không trùng Rating)
+    metric_html = ""
+    if metric_val:
+        metric_html = f'''
+        <div style="position:absolute; top:-8px; right:-8px; background:{badge_bg}; color:#000; 
+                    font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px; 
+                    z-index:20; box-shadow:0 2px 5px rgba(0,0,0,0.5); border:1px solid white;">
+            {metric_val}
+        </div>
+        '''
 
     html = f"""
-    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};">
-        {action_html}
+    <div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">
+        {metric_html}
+        {top_badge_html}
         <div class="shine"></div>
         <div class="card-header">
             <div class="rating-box">{rating}</div>
@@ -236,10 +274,10 @@ def render_efootball_card_html(player_data, width="100%"):
         </div>
         <img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
         <div class="card-info">
-            <div class="player-name" title="{p_name}">{p_name}</div>
+            <div class="player-name">{p_name}</div>
             <div class="sub-info">
                 <span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span>
-                <span>{player_data.get('Nation', '')[:3].upper()}</span>
+                <span>{str(player_data.get('Nation', ''))[:3].upper()}</span>
             </div>
         </div>
     </div>
@@ -3722,30 +3760,17 @@ def main():
             with col_sort:
                 c_s1, c_s2 = st.columns([2, 1])
                 with c_s1:
-                    # --- CẬP NHẬT SORTING THEO YÊU CẦU ---
                     sort_options = [
-                        'Rating', 
-                        'BMI',          # Thêm BMI
-                        'Height', 
-                        'Weight', 
-                        'Age', 
-                        'Player Name'
+                        'Rating', 'BMI', 'Height', 'Weight', 'Age', 'Player Name'
                     ]
-                    # Bỏ Date Added, Form, Injury... khỏi đây
-                    
-                    sort_col = st.selectbox(
-                        "Sắp xếp",
-                        sort_options,
-                        index=0, 
-                        label_visibility="collapsed",
-                        key="filter_sort_col"
-                    )
+                    sort_col = st.selectbox("Sắp xếp", sort_options, index=0, label_visibility="collapsed", key="filter_sort_col")
                 with c_s2:
                     sort_order = st.toggle("Tăng dần", False, key="filter_sort_asc")
 
-        # 2. BỘ LỌC NÂNG CAO (ĐÃ BỔ SUNG CÁC TRƯỜNG MỚI)
+        # 2. BỘ LỌC NÂNG CAO (LAYOUT 5 CỘT MỚI)
         with st.expander("🌪️ Bộ lọc nâng cao & Thống kê", expanded=False):
-            f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+            # Thay đổi từ 4 cột sang 5 cột để chia nhỏ phần "Thuộc tính khác"
+            f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
             
             with f_col1:
                 st.markdown("**Cơ bản**")
@@ -3766,7 +3791,6 @@ def main():
 
             with f_col3:
                 st.markdown("**Chỉ số & Thể chất**")
-                # Slider cho Height/Weight/Age
                 h_values = pd.to_numeric(df['Height'], errors='coerce').dropna()
                 h_min, h_max = (int(h_values.min()), int(h_values.max())) if not h_values.empty else (150, 200)
                 height_range = st.slider("Chiều cao (cm)", h_min, h_max, (h_min, h_max), key="filter_height_range")
@@ -3780,21 +3804,22 @@ def main():
                 age_range = st.slider("Tuổi", a_min, a_max, (a_min, a_max), key="filter_age_range")
 
             with f_col4:
-                st.markdown("**Thuộc tính khác**")
+                st.markdown("**Thuộc tính (1)**")
                 type_filter = st.multiselect("Loại thẻ", df['Player Type'].unique(), key="filter_type")
                 
-                # --- THÊM CÁC BỘ LỌC MỚI VÀO ĐÂY ---
                 form_list = sorted([str(x) for x in df['Form'].unique() if str(x).strip()])
                 form_filter = st.multiselect("Phong độ (Form)", form_list, key="filter_form")
                 
                 injury_list = sorted([str(x) for x in df['Injury Resistance'].unique() if str(x).strip()])
                 injury_filter = st.multiselect("Kháng chấn thương", injury_list, key="filter_injury")
-                
+
+            with f_col5:
+                st.markdown("**Thuộc tính (2)**")
                 wf_usage_list = sorted([str(x) for x in df['Weak Foot Usage'].unique() if str(x).strip()])
-                wf_usage_filter = st.multiselect("Dùng chân không thuận", wf_usage_list, key="filter_wf_usage")
+                wf_usage_filter = st.multiselect("Dùng chân ko thuận", wf_usage_list, key="filter_wf_usage")
                 
                 wf_acc_list = sorted([str(x) for x in df['Weak Foot Accuracy'].unique() if str(x).strip()])
-                wf_acc_filter = st.multiselect("Độ chính xác chân không thuận", wf_acc_list, key="filter_wf_acc")
+                wf_acc_filter = st.multiselect("Độ chính xác CKT", wf_acc_list, key="filter_wf_acc")
                 
                 foot_list = ["Tất cả"] + list(df['Foot'].unique()) if 'Foot' in df.columns else []
                 foot_filter = st.selectbox("Chân thuận", foot_list, key="filter_foot")
@@ -3805,7 +3830,7 @@ def main():
                     keys_to_reset = [
                         "filter_search_query", "filter_action", "filter_position", "filter_style",
                         "filter_club", "filter_league", "filter_nation", "filter_type", 
-                        "filter_form", "filter_injury", "filter_wf_usage", "filter_wf_acc", # Reset keys mới
+                        "filter_form", "filter_injury", "filter_wf_usage", "filter_wf_acc",
                         "filter_foot", "filter_skill_query", 
                         "filter_height_range", "filter_weight_range", "filter_age_range"
                     ]
@@ -3816,12 +3841,9 @@ def main():
         # 3. XỬ LÝ LỌC DỮ LIỆU & TÍNH TOÁN BMI
         filtered_df = rec_df.copy()
         
-        # --- Pre-calculate Numeric Columns for Sorting/Filtering ---
         for col in ['Height', 'Weight', 'Age']:
             filtered_df[f'_num_{col}'] = pd.to_numeric(filtered_df[col], errors='coerce').fillna(0)
 
-        # Tính BMI: Weight / (Height/100)^2
-        # Xử lý trường hợp chiều cao = 0 để tránh chia cho 0
         filtered_df['_num_BMI'] = filtered_df.apply(
             lambda x: x['_num_Weight'] / ((x['_num_Height']/100)**2) if x['_num_Height'] > 0 else 0, 
             axis=1
@@ -3845,22 +3867,14 @@ def main():
         if type_filter:
             filtered_df = filtered_df[filtered_df['Player Type'].isin(type_filter)]
         
-        # --- APPLY NEW FILTERS ---
-        if form_filter:
-            filtered_df = filtered_df[filtered_df['Form'].isin(form_filter)]
-        if injury_filter:
-            filtered_df = filtered_df[filtered_df['Injury Resistance'].isin(injury_filter)]
-        if wf_usage_filter:
-            filtered_df = filtered_df[filtered_df['Weak Foot Usage'].isin(wf_usage_filter)]
-        if wf_acc_filter:
-            filtered_df = filtered_df[filtered_df['Weak Foot Accuracy'].isin(wf_acc_filter)]
-            
-        if foot_filter != "Tất cả":
-            filtered_df = filtered_df[filtered_df['Foot'] == foot_filter]
+        if form_filter: filtered_df = filtered_df[filtered_df['Form'].isin(form_filter)]
+        if injury_filter: filtered_df = filtered_df[filtered_df['Injury Resistance'].isin(injury_filter)]
+        if wf_usage_filter: filtered_df = filtered_df[filtered_df['Weak Foot Usage'].isin(wf_usage_filter)]
+        if wf_acc_filter: filtered_df = filtered_df[filtered_df['Weak Foot Accuracy'].isin(wf_acc_filter)]
+        if foot_filter != "Tất cả": filtered_df = filtered_df[filtered_df['Foot'] == foot_filter]
         if skill_query:
             filtered_df = filtered_df[filtered_df['Skills'].astype(str).str.contains(skill_query, case=False, na=False)]
 
-        # Apply Numeric Ranges
         filtered_df = filtered_df[
             (filtered_df['_num_Height'] >= height_range[0]) & (filtered_df['_num_Height'] <= height_range[1]) &
             (filtered_df['_num_Weight'] >= weight_range[0]) & (filtered_df['_num_Weight'] <= weight_range[1]) &
@@ -3868,17 +3882,13 @@ def main():
         ]
         
         # Apply Sorting Logic
-        if sort_col == 'Player Name':
-            filtered_df = filtered_df.sort_values('Player', ascending=sort_order)
-        elif sort_col == 'BMI':
-            filtered_df = filtered_df.sort_values('_num_BMI', ascending=sort_order)
-        elif sort_col in ['Height', 'Weight', 'Age']:
-            filtered_df = filtered_df.sort_values(f'_num_{sort_col}', ascending=sort_order)
+        if sort_col == 'Player Name': filtered_df = filtered_df.sort_values('Player', ascending=sort_order)
+        elif sort_col == 'BMI': filtered_df = filtered_df.sort_values('_num_BMI', ascending=sort_order)
+        elif sort_col in ['Height', 'Weight', 'Age']: filtered_df = filtered_df.sort_values(f'_num_{sort_col}', ascending=sort_order)
         else:
-            if sort_col in filtered_df.columns:
-                filtered_df = filtered_df.sort_values(sort_col, ascending=sort_order)
+            if sort_col in filtered_df.columns: filtered_df = filtered_df.sort_values(sort_col, ascending=sort_order)
 
-        # 4. DASHBOARD MINI (Thống kê nhanh)
+        # 4. DASHBOARD MINI
         st.markdown("---")
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("Cầu thủ tìm thấy", len(filtered_df))
@@ -3890,29 +3900,20 @@ def main():
 
         # 5. HIỂN THỊ DỮ LIỆU
         if view_mode == "📋 Bảng":
-            # --- CHẾ ĐỘ BẢNG NÂNG CAO ---
             table_df = filtered_df.copy()
-            
             def get_img_link(row):
                 pid = str(row.get('Player ID', '')).strip()
                 if pid: return f"https://pesdb.net/assets/img/card/f{pid}.png"
                 return "https://pesdb.net/assets/img/card/f0.png"
-            
             table_df['Avatar'] = table_df.apply(get_img_link, axis=1)
-            
-            # Hiển thị thêm BMI trong bảng cho tiện theo dõi nếu muốn
             table_df['BMI'] = table_df['_num_BMI'].round(2)
-            
             cols_to_show = ['Avatar', 'Player', 'Rating', 'Position', 'BMI', 'Player Type', 'Club', 'Action', 'Skills', 'Reasons']
-            
             st.dataframe(
                 table_df[cols_to_show],
                 column_config={
                     "Avatar": st.column_config.ImageColumn("Ảnh", width="small"),
                     "Player": st.column_config.TextColumn("Tên cầu thủ", width="medium"),
-                    "Rating": st.column_config.ProgressColumn(
-                        "OVR", format="%d", min_value=70, max_value=105, width="small"
-                    ),
+                    "Rating": st.column_config.ProgressColumn("OVR", format="%d", min_value=70, max_value=105, width="small"),
                     "Position": st.column_config.TextColumn("VT", width="small"),
                     "BMI": st.column_config.NumberColumn("BMI", format="%.2f", width="small"),
                     "Player Type": st.column_config.TextColumn("Loại", width="small"),
@@ -3920,11 +3921,8 @@ def main():
                     "Skills": st.column_config.ListColumn("Kỹ năng", width="medium"),
                     "Reasons": st.column_config.TextColumn("Ghi chú", width="large")
                 },
-                use_container_width=True,
-                height=800,
-                hide_index=True
+                use_container_width=True, height=800, hide_index=True
             )
-
         else:
             # --- CHẾ ĐỘ GRID (THẺ) ---
             MAX_ITEMS = 100
@@ -3937,12 +3935,18 @@ def main():
             cols_per_row = 5
             rows = [display_df.iloc[i:i + cols_per_row] for i in range(0, len(display_df), cols_per_row)]
 
+            # Xác định metric cần highlight trên thẻ dựa trên Sort Col
+            highlight_metric = None
+            if sort_col in ['BMI', 'Height', 'Weight', 'Age']:
+                highlight_metric = sort_col
+
             for row in rows:
                 cols = st.columns(cols_per_row)
                 for i, (idx, player) in enumerate(row.iterrows()):
                     with cols[i]:
                         p_data = player.to_dict()
-                        card_html = render_efootball_card_html(p_data)
+                        # TRUYỀN highlight_metric VÀO ĐÂY ĐỂ HIỆN TOOLTIP/BADGE
+                        card_html = render_efootball_card_html(p_data, highlight_metric=highlight_metric)
                         st.markdown(card_html, unsafe_allow_html=True)
                         
                         b1, b2 = st.columns(2)
@@ -3960,23 +3964,19 @@ def main():
         with st.container(border=True):
             st.markdown("#### 📂 Thao tác dữ liệu")
             ac1, ac2, ac3 = st.columns([1, 1, 2])
-            
             with ac1:
                 if len(sell_df) > 0:
                     csv_sell = sell_df.to_csv(index=False).encode('utf-8-sig')
                     st.download_button("⬇️ Tải DS Bán", csv_sell, "sell_list.csv", "text/csv", use_container_width=True)
-            
             with ac2:
                 csv_all = filtered_df.to_csv(index=False).encode('utf-8-sig')
                 st.download_button("⬇️ Tải DS Lọc", csv_all, "filtered_list.csv", "text/csv", use_container_width=True)
-            
             with ac3:
                 with st.expander("🗑️ Xóa cầu thủ (Nguy hiểm)"):
                     st.warning("Chọn cầu thủ để xóa vĩnh viễn khỏi Database")
                     del_options = filtered_df.index.tolist()
                     del_labels = {i: f"{filtered_df.loc[i, 'Player']} ({filtered_df.loc[i, 'Rating']})" for i in del_options}
                     to_delete = st.multiselect("Chọn cầu thủ:", options=del_options, format_func=lambda x: del_labels.get(x, str(x)))
-                    
                     if to_delete:
                         if st.button(f"Xác nhận XÓA {len(to_delete)} cầu thủ", type="primary"):
                             try:
