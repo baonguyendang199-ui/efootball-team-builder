@@ -1088,8 +1088,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     """
     Tự động xây dựng đội hình tối ưu.
     CẬP NHẬT: 
-    1. Logic dự bị 'Draft Pick'.
-    2. Giới hạn max 3 Pure CB trên ghế dự bị (trừ khi đá được LB/RB/DMF...).
+    - Luật Max 3 Pure CB dự bị CHỈ áp dụng cho chế độ Tallest (height_desc).
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
@@ -1248,19 +1247,17 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 return -999999
             
             # --- 2. LUẬT CB (Max 3 dự bị, trừ khi đa năng) ---
-            # Chỉ áp dụng chặt chẽ nếu đang sort theo Height (Cao nhất),
-            # hoặc áp dụng chung để cân bằng đội hình. Ở đây áp dụng chung.
-            if pos == 'CB':
+            # CHỈ ÁP DỤNG CHO TALLEST XI (height_desc)
+            if sort_mode == 'height_desc' and pos == 'CB':
                 cb_count = bench_pos_counts.get('CB', 0)
                 if cb_count >= 3:
                     # Kiểm tra xem có đá được vị trí khác không (LB, RB, DMF...)
                     sec_str = str(row.get('Secondary Positions', '')).upper()
-                    # Danh sách vị trí phụ hữu dụng
                     useful_positions = ['LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF']
                     is_versatile = any(p in sec_str for p in useful_positions)
                     
                     if not is_versatile:
-                        return -999999 # CB thuần túy thứ 4 -> Loại ngay
+                        return -999999 # CB thuần túy thứ 4 -> Loại ngay nếu đang tìm đội hình Cao nhất
             
             # --- 3. LUẬT UNITED NATIONS ---
             if sort_mode == 'united_nations':
@@ -1287,17 +1284,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
         remaining_pool['Draft_Score'] = remaining_pool.apply(calculate_draft_priority, axis=1)
         
-        # Chọn người điểm cao nhất
         candidates = remaining_pool.sort_values(['Draft_Score', 'Rating'], ascending=[False, False])
         best_pick = candidates.iloc[0]
         
-        # Nếu điểm thấp quá mức quy định (bị dính luật cấm) thì break
         if best_pick['Draft_Score'] < -500000:
             break 
             
         bench_picks.append(best_pick)
         
-        # Update counts
         picked_pos = str(best_pick['Position']).strip().upper()
         bench_pos_counts[picked_pos] = bench_pos_counts.get(picked_pos, 0) + 1
         
@@ -1308,7 +1302,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             
         remaining_pool = remaining_pool.drop(best_pick.name)
 
-    # Fill nốt nếu thiếu (trường hợp bị break sớm)
     while len(bench_picks) < 12 and not remaining_pool.empty:
         top = remaining_pool.iloc[0]
         bench_picks.append(top)
