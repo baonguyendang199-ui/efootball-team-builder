@@ -1099,6 +1099,194 @@ FORMATIONS = {
     "4-1-4-1 (Solid Mid)":          ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
 }
 
+# Mapping Tọa độ (Top%, Left%) cho từng vị trí trong sơ đồ
+# Thứ tự tọa độ PHẢI KHỚP TUYỆT ĐỐI với thứ tự vị trí trong biến FORMATIONS
+FORMATION_COORDS = {
+    # =================================================================
+    # 🛡️ 4 HẬU VỆ
+    # =================================================================
+    "4-2-1-3 (Standard)": [
+        (92, 50), # GK
+        (78, 12), (82, 38), (82, 62), (78, 88), # LB, CB, CB, RB
+        (62, 40), (62, 60), # DMF, CMF
+        (42, 50), # AMF
+        (25, 15), (25, 85), # LWF, RWF
+        (15, 50)  # CF
+    ],
+    "4-3-3 (Holding)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (65, 50), # DMF (Anchor)
+        (45, 30), (45, 70), # CMF-CMF
+        (25, 15), (25, 85), # LWF-RWF
+        (15, 50)
+    ],
+    "4-3-3 (Attack)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (65, 50), # DMF
+        (38, 30), (38, 70), # AMF-AMF
+        (22, 12), (22, 88), # LWF-RWF
+        (12, 50)
+    ],
+    "4-3-3 (False 9)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (65, 50), # DMF
+        (45, 30), (45, 70), # CMF-CMF
+        (20, 15), (20, 85), # LWF-RWF (Cao hơn chút)
+        (28, 50)  # SS (Lùi sâu hơn CF)
+    ],
+    "4-2-3-1 (Wide)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (62, 35), (62, 65), # DMF-DMF
+        (42, 50), # AMF
+        (35, 10), (35, 90), # LMF-RMF
+        (15, 50)
+    ],
+    "4-2-3-1 (Control)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (62, 40), (55, 65), # DMF-CMF (Lệch nhau chút)
+        (40, 50), # AMF
+        (25, 20), (25, 80), # LWF-RWF (Bó vào trong hơn Wide)
+        (15, 50)
+    ],
+    "4-2-3-1 (Flat)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (58, 40), (58, 60), # CMF-CMF
+        (40, 50), # AMF
+        (35, 10), (35, 90), # LMF-RMF
+        (15, 50)
+    ],
+    "4-4-2 (Flat)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (45, 10), (45, 90), # LMF-RMF
+        (55, 35), (55, 65), # CMF-CMF
+        (15, 35), (15, 65)  # CF-CF
+    ],
+    "4-2-4 (Pressing)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (55, 35), (55, 65), # CMF-CMF
+        (22, 10), (22, 90), # LWF-RWF (Rất cao)
+        (15, 35), (15, 65)  # CF-CF
+    ],
+    "4-2-2-2 (Magic Box)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (65, 35), (65, 65), # 2 DMF
+        (40, 25), (40, 75), # 2 AMF (Rộng ra biên chút)
+        (15, 35), (15, 65)  # 2 CF
+    ],
+    "4-3-1-2 (Diamond)": [
+        (92, 50),
+        (78, 15), (84, 38), (84, 62), (78, 85),
+        (68, 50), # DMF
+        (50, 30), (50, 70), # CMF-CMF
+        (35, 50), # AMF
+        (15, 35), (15, 65) # CF-CF
+    ],
+    "4-1-2-3 (2 CF, 1 SS)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (65, 50), # DMF
+        (40, 30), (40, 70), # 2 AMF
+        (25, 50), # SS (Giữa)
+        (15, 30), (15, 70) # 2 CF (Dạt cánh)
+    ],
+    "4-3-2-1 (Christmas Tree)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (65, 50), # DMF
+        (55, 30), (55, 70), # 2 CMF
+        (35, 35), (35, 65), # 2 AMF (Bó vào trong sau lưng CF)
+        (15, 50) # CF
+    ],
+    "4-1-4-1 (Solid Mid)": [
+        (92, 50),
+        (78, 12), (82, 38), (82, 62), (78, 88),
+        (68, 50), # DMF
+        (45, 10), (45, 90), # LMF-RMF
+        (50, 35), (50, 65), # 2 CMF
+        (15, 50) # CF
+    ],
+
+    # =================================================================
+    # 🛡️ 3 HẬU VỆ
+    # =================================================================
+    "3-5-2 (Possession)": [
+        (92, 50),
+        (82, 25), (85, 50), (82, 75), # 3 CB
+        (55, 8), (55, 92), # LMF-RMF (Wingback)
+        (65, 50), # DMF
+        (50, 40), (50, 60), # 2 CMF (Gần nhau để kiểm soát)
+        (35, 50), # AMF
+        (15, 35), (15, 65) # 2 CF
+    ],
+    "3-2-4-1 (Box Midfield)": [
+        (92, 50),
+        (82, 25), (85, 50), (82, 75),
+        (65, 35), (65, 65), # 2 DMF
+        (40, 10), (40, 90), # LMF-RMF
+        (35, 35), (35, 65), # 2 AMF
+        (15, 50)
+    ],
+    "3-4-3 (Standard)": [
+        (92, 50),
+        (82, 25), (85, 50), (82, 75),
+        (55, 10), (55, 90), # LMF-RMF
+        (60, 35), (60, 65), # CMF-CMF
+        (25, 20), (25, 80), # LWF-RWF
+        (15, 50)
+    ],
+    "3-4-2-1 (Xabi Ball)": [
+        (92, 50),
+        (82, 25), (85, 50), (82, 75),
+        (55, 8), (55, 92), # Wingbacks
+        (60, 35), (60, 65), # Pivot
+        (30, 30), (30, 70), # 2 AMF
+        (15, 50)
+    ],
+    "3-4-1-2 (Classic)": [
+        (92, 50),
+        (82, 25), (85, 50), (82, 75),
+        (55, 8), (55, 92),
+        (60, 35), (60, 65),
+        (40, 50), # AMF
+        (15, 35), (15, 65)
+    ],
+
+    # =================================================================
+    # 🧱 5 HẬU VỆ
+    # =================================================================
+    "5-4-1 (Low Block)": [
+        (92, 50),
+        (75, 8), (82, 28), (85, 50), (82, 72), (75, 92), # 5 Backs
+        (55, 10), (55, 90), # LMF-RMF
+        (65, 50), # DMF
+        (60, 40), (60, 60), # CMF
+        (15, 50) # Lone CF
+    ],
+    "5-2-3 (Counter)": [
+        (92, 50),
+        (75, 8), (82, 28), (85, 50), (82, 72), (75, 92),
+        (60, 35), (60, 65),
+        (25, 20), (25, 80),
+        (15, 50)
+    ],
+    "5-3-2 (Solid)": [
+        (92, 50),
+        (75, 8), (82, 28), (85, 50), (82, 72), (75, 92),
+        (65, 50), # DMF
+        (55, 30), (55, 70), # 2 CMF
+        (15, 35), (15, 65)
+    ]
+}
+
 # ==========================================
 # CẬP NHẬT LOGIC AUTO BUILD (BƯỚC 1)
 # ==========================================
@@ -1438,28 +1626,19 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
 def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     """
-    Vẽ sơ đồ sân bóng: SMART DYNAMIC LOGIC - Đã cập nhật Badge "Stat Tag" xịn xò.
+    Vẽ sơ đồ sân bóng: SỬ DỤNG TỌA ĐỘ CỐ ĐỊNH (Hardcoded Coordinates) cho đẹp.
     """
     import streamlit.components.v1 as components
     import re
     import math
 
-    # --- 1. XỬ LÝ SORT MODE ---
+    # --- 1. XỬ LÝ SORT MODE (Logic cũ giữ nguyên) ---
     highlight_type = None
     is_reverse = True 
-
-    if 'height' in sort_mode: 
-        highlight_type = 'Height'; 
-        if 'asc' in sort_mode: is_reverse = False
-    elif 'weight' in sort_mode: 
-        highlight_type = 'Weight'; 
-        if 'asc' in sort_mode: is_reverse = False
-    elif 'age' in sort_mode: 
-        highlight_type = 'Age'; 
-        if 'asc' in sort_mode: is_reverse = False
-    elif 'bmi' in sort_mode: 
-        highlight_type = 'BMI'; 
-        if 'asc' in sort_mode: is_reverse = False
+    if 'height' in sort_mode: highlight_type = 'Height'; is_reverse = 'asc' not in sort_mode
+    elif 'weight' in sort_mode: highlight_type = 'Weight'; is_reverse = 'asc' not in sort_mode
+    elif 'age' in sort_mode: highlight_type = 'Age'; is_reverse = 'asc' not in sort_mode
+    elif 'bmi' in sort_mode: highlight_type = 'BMI'; is_reverse = 'asc' not in sort_mode
     elif 'potw' in sort_mode: highlight_type = 'Type'
     elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous'
     elif 'united_nations' in sort_mode: highlight_type = 'Nation'
@@ -1468,7 +1647,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     starters = squad_list[:11]
     raw_subs = squad_list[11:]
 
-    # --- 3. SORT DỰ BỊ ---
+    # --- 3. SORT DỰ BỊ (Logic cũ giữ nguyên) ---
     def get_sort_value(p, key):
         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
         except: return 0
@@ -1481,12 +1660,10 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             h = get_sort_value(p, 'Height') / 100.0; w = get_sort_value(p, 'Weight')
             return w / (h**2) if h > 0 else 0
         subs = sorted(raw_subs, key=get_bmi, reverse=is_reverse)
-    elif highlight_type == 'Ambidextrous':
-        subs = sorted(raw_subs, key=lambda x: x.get('Score', 0), reverse=True)
-    else: 
-        subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
+    elif highlight_type == 'Ambidextrous': subs = sorted(raw_subs, key=lambda x: x.get('Score', 0), reverse=True)
+    else: subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
-    # --- 4. HTML GENERATOR (ĐÃ NÂNG CẤP STAT TAG) ---
+    # --- 4. HTML GENERATOR ---
     def create_card_html(p, top=None, left=None, is_sub=False):
         full_name = p['Player'].strip()
         name_parts = full_name.split()
@@ -1497,60 +1674,43 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
         
-        # --- LOGIC TÍNH TOÁN STAT TAG ---
+        # Logic Stat Tag
         val_display = ""
         metric_label = ""
-        
-        if highlight_type == 'Height': 
-            val_display = f"{p.get('Height', '-')} cm"
-        elif highlight_type == 'Weight': 
-            val_display = f"{p.get('Weight', '-')} kg"
-        elif highlight_type == 'Age': 
-            val_display = f"{p.get('Age', '-')} tuổi"
+        if highlight_type == 'Height': val_display = f"{p.get('Height', '-')} cm"
+        elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '-')} kg"
+        elif highlight_type == 'Age': val_display = f"{p.get('Age', '-')} tuổi"
         elif highlight_type == 'BMI':
             try:
                 h = float(re.sub(r'[^\d.]', '', str(p.get('Height', '0')))) / 100.0
                 w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
-                if h > 0: 
-                    val_display = f"{(w/(h**2)):.1f}"
-                    metric_label = "BMI"
+                if h > 0: val_display = f"{(w/(h**2)):.1f}"; metric_label = "BMI"
             except: pass
         elif highlight_type == 'Ambidextrous':
             d = p.get('Data', {})
-            def get_wf_num(text):
-                t = str(text).strip().lower()
-                if any(k in t for k in ['regularly', 'very high', '4']): return '4'
-                if any(k in t for k in ['occasionally', 'high', '3']): return '3'
-                if any(k in t for k in ['rarely', 'medium', '2']): return '2'
-                return '1'
+            def get_wf_num(text): return '4' if 'very high' in str(text).lower() else ('3' if 'high' in str(text).lower() else '2')
             u, a = get_wf_num(d.get('Weak Foot Usage', '')), get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
-        elif highlight_type == 'Nation':
-            val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
+        elif highlight_type == 'Nation': val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
 
         ptype = str(p['Type']).upper()
-        if "POTW" in ptype or "TRENDING" in ptype: 
-            accent, shadow = "#d946ef", "rgba(217, 70, 239, 0.4)"
-            stat_color = "#e879f9"
-        elif "EPIC" in ptype and "NON" not in ptype: 
-            accent, shadow = "#fbbf24", "rgba(251, 191, 36, 0.4)"
-            stat_color = "#fbbf24"
-        else: 
-            accent, shadow = "#38bdf8", "rgba(56, 189, 248, 0.4)"
-            stat_color = "#38bdf8"
+        if "POTW" in ptype or "TRENDING" in ptype: accent, shadow, stat_color = "#d946ef", "rgba(217, 70, 239, 0.4)", "#e879f9"
+        elif "EPIC" in ptype and "NON" not in ptype: accent, shadow, stat_color = "#fbbf24", "rgba(251, 191, 36, 0.4)", "#fbbf24"
+        else: accent, shadow, stat_color = "#38bdf8", "rgba(56, 189, 248, 0.4)", "#38bdf8"
 
         if is_sub:
             position_css = ""
             card_class = "card-sub"
         else:
-            position_css = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%);"
+            # Tinh chỉnh tọa độ nếu thẻ bị che khuất (z-index)
+            # Thẻ ở dưới thấp hơn (top lớn hơn) sẽ có z-index cao hơn để đè lên thẻ trên
+            z_idx = int(top) if top else 10
+            position_css = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%); z-index: {z_idx};"
             card_class = "card-pitch"
 
-        # --- TẠO HTML BADGE MỚI (STAT TAG) ---
         badge_html = ""
         if val_display:
             label_html = f"<span style='color:#94a3b8; margin-right:3px; font-weight:500'>{metric_label}:</span>" if metric_label else ""
-            # Vị trí bottom: 24px để nằm ngay trên thanh tên cầu thủ
             badge_html = f'<div style="position:absolute; bottom:24px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.95); color:{stat_color}; font-size:9px; font-weight:700; padding:1px 8px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); z-index:20; white-space:nowrap; display:flex; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.5);">{label_html}<span>{val_display}</span></div>'
 
         if p['Player'] == "---": return f'<div class="empty-slot {card_class}" style="{position_css}"></div>'
@@ -1559,147 +1719,128 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         <div class="p-card {card_class}" style="{position_css}; --accent: {accent}; --shadow: {shadow};">
             {badge_html}
             <div class="p-bg"></div>
-            <div class="p-header">
-                <span class="p-pos">{pos}</span>
-                <span class="p-rating" style="color: {accent}">{rating}</span>
-            </div>
+            <div class="p-header"><span class="p-pos">{pos}</span><span class="p-rating" style="color: {accent}">{rating}</span></div>
             <div class="p-img-box"><img src="{img}" loading="lazy" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'"></div>
             <div class="p-name">{display_name}</div>
         </div>
         """
 
     # =========================================================================
-    # 🔥 LOGIC SẮP XẾP VỊ TRÍ THÔNG MINH (THEO TẦNG)
+    # 🔥 LOGIC SẮP XẾP VỊ TRÍ - SỬ DỤNG MAPPING
     # =========================================================================
-    
     html_starters = ""
     
-    # 1. Phân loại cầu thủ vào các nhóm (Layers)
-    gk_group = []
-    def_group = []
-    dmf_group = []
-    mid_group = [] # CMF, AMF
-    wing_group = [] # LWF, RWF, LMF, RMF
-    cf_group = [] # CF, SS
+    # 1. Kiểm tra xem sơ đồ có trong bộ tọa độ cứng không
+    coords = FORMATION_COORDS.get(formation_name)
 
-    for p in starters:
-        pos = p['Position']
-        if pos == 'GK': gk_group.append(p)
-        elif pos in ['CB', 'LB', 'RB']: def_group.append(p)
-        elif pos == 'DMF': dmf_group.append(p)
-        elif pos in ['CMF', 'AMF']: mid_group.append(p)
-        elif pos in ['LWF', 'RWF', 'LMF', 'RMF']: wing_group.append(p)
-        elif pos in ['CF', 'SS']: cf_group.append(p)
-
-    # Hàm hỗ trợ tính toán vị trí Left%
-    def calculate_left_positions(count):
-        if count == 1: return [50]
-        if count == 2: return [30, 70] # Dãn rộng ra xíu
-        if count == 3: return [20, 50, 80]
-        if count == 4: return [15, 38, 62, 85]
-        if count == 5: return [10, 30, 50, 70, 90]
-        return [50] * count
-
-    # --- RENDER TỪNG TẦNG ---
-
-    # 1. GK (Cố định)
-    for p in gk_group: html_starters += create_card_html(p, 92, 50)
-
-    # 2. HẬU VỆ (Sắp xếp: LB -> CB -> RB)
-    # Priority: LB(1) < CB(2) < RB(3). Sort để LB luôn bên trái, RB bên phải
-    def_group.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
-    def_coords = calculate_left_positions(len(def_group))
-    for i, p in enumerate(def_group):
-        # CB đá thấp (78%), LB/RB đá cao hơn chút (72%)
-        top = 78 if p['Position'] == 'CB' else 72
-        html_starters += create_card_html(p, top, def_coords[i])
-
-    # 3. TIỀN VỆ TRỤ (DMF)
-    # Nếu có 2 DMF -> Đá ngang nhau. Nếu 1 DMF -> Đá giữa.
-    dmf_coords = calculate_left_positions(len(dmf_group))
-    for i, p in enumerate(dmf_group):
-        html_starters += create_card_html(p, 60, dmf_coords[i])
-
-    # 4. TIỀN VỆ CÔNG/TRUNG TÂM (CMF/AMF)
-    # Sort: CMF(1) < AMF(2). Nhưng về hiển thị Left/Right thì không quan trọng lắm, chủ yếu là Top
-    # AMF đá cao (35%), CMF đá thấp hơn (48%)
-    # Logic đặc biệt: Nếu trong sơ đồ có DMF, CMF sẽ đá cao ngang AMF hoặc thấp hơn xíu.
-    mid_coords = calculate_left_positions(len(mid_group))
-    for i, p in enumerate(mid_group):
-        top = 35 if p['Position'] == 'AMF' else 48
-        # Nếu không có DMF, CMF phải đá thấp xuống để cover (như 4-4-2 Flat)
-        if len(dmf_group) == 0 and p['Position'] == 'CMF':
-            top = 55 
-        html_starters += create_card_html(p, top, mid_coords[i])
-
-    # 5. CÁNH (Wings) - Chia làm 2 nhóm: Trái (LWF/LMF) và Phải (RWF/RMF)
-    left_wings = [p for p in wing_group if 'L' in p['Position']]
-    right_wings = [p for p in wing_group if 'R' in p['Position']]
-    
-    for p in left_wings:
-        top = 20 if p['Position'] == 'LWF' else 40 # LMF thấp hơn LWF
-        html_starters += create_card_html(p, top, 15) # Luôn bám trái 15%
+    if coords and len(coords) == 11:
+        # ✅ CASE 1: CÓ TỌA ĐỘ CỨNG -> RENDER CHUẨN ĐẸP
+        for i, p in enumerate(starters):
+            if i < 11:
+                t, l = coords[i]
+                html_starters += create_card_html(p, t, l)
+    else:
+        # ⚠️ CASE 2: FALLBACK (CHO SƠ ĐỒ LẠ) -> TỰ TÍNH TOÁN
+        # Logic này dự phòng, chia layer thủ công
+        gk_group = [p for p in starters if p['Position'] == 'GK']
+        def_group = [p for p in starters if p['Position'] in ['CB', 'LB', 'RB']]
+        def_group.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
         
-    for p in right_wings:
-        top = 20 if p['Position'] == 'RWF' else 40 # RMF thấp hơn RWF
-        html_starters += create_card_html(p, top, 85) # Luôn bám phải 85%
+        mid_group = [p for p in starters if p['Position'] in ['DMF', 'CMF', 'AMF', 'LMF', 'RMF']]
+        # Sort mid để DMF ở dưới, AMF ở trên
+        mid_group.sort(key=lambda x: {'DMF': 3, 'CMF': 2, 'LMF': 2, 'RMF': 2, 'AMF': 1}.get(x['Position'], 2), reverse=True)
+        
+        fwd_group = [p for p in starters if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']]
+        fwd_group.sort(key=lambda x: {'LWF': 1, 'SS': 2, 'CF': 2, 'RWF': 3}.get(x['Position'], 2))
 
-    # 6. TIỀN ĐẠO (CF/SS)
-    # SS đá lùi (28%), CF đá cắm (15%)
-    # Sort theo tên để ổn định, hoặc sort CF ra giữa nếu có 3 người
-    cf_group.sort(key=lambda x: {'SS': 2, 'CF': 1}.get(x['Position'], 1))
-    
-    # Xử lý riêng cho 3 tiền đạo (VD: SS, CF, SS) -> SS phải dạt ra
-    cf_coords = calculate_left_positions(len(cf_group))
-    
-    # Nếu chỉ có 1 người -> Luôn giữa
-    # Nếu có 2 người (2 CF) -> 35, 65
-    for i, p in enumerate(cf_group):
-        top = 28 if p['Position'] == 'SS' else 14
-        html_starters += create_card_html(p, top, cf_coords[i])
+        def calc_coords(group, base_top):
+            count = len(group)
+            res = []
+            if count == 0: return []
+            width_step = 100 / (count + 1)
+            for i in range(count):
+                res.append((base_top, (i + 1) * width_step))
+            return res
+
+        # GK
+        for p in gk_group: html_starters += create_card_html(p, 92, 50)
+        
+        # DEF (Hàng ngang ở 78%)
+        def_locs = calc_coords(def_group, 78)
+        for i, p in enumerate(def_group):
+            t, l = def_locs[i]
+            # CB thấp hơn chút, LB/RB cao hơn chút
+            if p['Position'] == 'CB': t = 82
+            else: t = 75
+            html_starters += create_card_html(p, t, l)
+
+        # MID (Hàng ngang ở 50%)
+        mid_locs = calc_coords(mid_group, 50)
+        for i, p in enumerate(mid_group):
+            t, l = mid_locs[i]
+            if p['Position'] == 'DMF': t = 65
+            elif p['Position'] == 'AMF': t = 38
+            html_starters += create_card_html(p, t, l)
+
+        # FWD (Hàng ngang ở 20%)
+        fwd_locs = calc_coords(fwd_group, 20)
+        for i, p in enumerate(fwd_group):
+            t, l = fwd_locs[i]
+            if p['Position'] == 'CF': t = 15
+            elif p['Position'] == 'SS': t = 25
+            html_starters += create_card_html(p, t, l)
 
     # =========================================================================
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
-
     rows_desktop = math.ceil(len(subs) / 8)
     total_height_desktop = 800 + 60 + (rows_desktop * 130)
 
-    # (CSS GIỮ NGUYÊN NHƯ CŨ - KHÔNG THAY ĐỔI)
+    # CSS (Đã tinh chỉnh kích thước thẻ)
     css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@700;800&family=Inter:wght@600;700&display=swap');
-        :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --pitch-line: rgba(148, 163, 184, 0.2); }
+        :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --pitch-line: rgba(148, 163, 184, 0.15); }
         body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
-        .container { display: flex; flex-direction: column; gap: 15px; width: 100%; margin: 0 auto; }
-        .pitch { position: relative; width: 100%; height: 720px; background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; perspective: 800px; }
-        .pitch::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px), linear-gradient(90deg, var(--pitch-line) 1px, transparent 1px); background-size: 40px 40px; opacity: 0.3; transform: perspective(500px) rotateX(20deg) scale(1.1); }
+        .container { display: flex; flex-direction: column; gap: 10px; width: 100%; margin: 0 auto; }
+        /* Sân bóng đẹp hơn */
+        .pitch { position: relative; width: 100%; height: 720px; background: radial-gradient(circle at 50% 50%, #172554 0%, #020617 90%); border-radius: 12px; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; perspective: 1000px; }
+        .pitch::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px), linear-gradient(90deg, var(--pitch-line) 1px, transparent 1px); background-size: 50px 50px; opacity: 0.4; transform: perspective(600px) rotateX(25deg) scale(1.1); pointer-events: none; }
+        
         .lines { position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; }
-        .center-circle { position: absolute; top: 50%; left: 50%; width: 120px; height: 120px; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; transform: translate(-50%, -50%); }
-        .half-line { position: absolute; top: 50%; left: 0; width: 100%; height: 0; border-top: 2px solid rgba(255,255,255,0.15); }
-        .box-top { position: absolute; top: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-top: none; }
-        .box-bot { position: absolute; bottom: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
-        .p-card { position: relative; width: 90px; height: 120px; border-radius: 6px; cursor: pointer; transition: all 0.2s; z-index: 10; }
+        .center-circle { position: absolute; top: 50%; left: 50%; width: 130px; height: 130px; border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); }
+        .half-line { position: absolute; top: 50%; left: 0; width: 100%; height: 0; border-top: 2px solid rgba(255,255,255,0.2); }
+        .box-top { position: absolute; top: -2px; left: 50%; width: 50%; height: 14%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.2); border-top: none; background: rgba(255,255,255,0.02); }
+        .box-bot { position: absolute; bottom: -2px; left: 50%; width: 50%; height: 14%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.2); border-bottom: none; background: rgba(255,255,255,0.02); }
+        
+        /* Card Styles */
+        .p-card { position: relative; width: 85px; height: 115px; border-radius: 6px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .p-card:hover { transform: translate(-50%, -60%) scale(1.1) !important; z-index: 100 !important; }
         .card-pitch { position: absolute; }
-        .card-sub { position: relative; margin-bottom: 5px; }
-        .p-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, rgba(30,41,59,0.8) 0%, rgba(15,23,42,0.95) 100%); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.15); border-bottom: 3px solid var(--accent); border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
-        .p-header { position: absolute; top: 4px; left: 4px; right: 4px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
-        .p-pos { font-family: 'Exo 2'; font-size: 10px; font-weight: 700; color: #cbd5e1; background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 3px; }
-        .p-rating { font-family: 'Exo 2'; font-size: 18px; font-weight: 800; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
-        .p-img-box { position: absolute; bottom: 22px; left: 0; width: 100%; height: 85px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 6px 6px; }
-        .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
-        .p-name { position: absolute; bottom: 0; left: 0; width: 100%; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; background: rgba(2, 6, 23, 0.9); z-index: 4; border-radius: 0 0 6px 6px; white-space: nowrap; overflow: hidden; }
-        .stat-badge { position: absolute; top: -14px; right: -6px; color: #000; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 3px; z-index: 20; box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white; white-space: nowrap; }
-        .empty-slot { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transform: translate(-50%, -50%); }
+        .card-sub { position: relative; margin-bottom: 5px; width: 80px; height: 110px; }
+        .card-sub:hover { transform: scale(1.05) !important; }
+
+        .p-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,1) 100%); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.15); border-bottom: 3px solid var(--accent); border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .p-header { position: absolute; top: 3px; left: 3px; right: 3px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
+        .p-pos { font-family: 'Exo 2'; font-size: 9px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.6); padding: 1px 4px; border-radius: 3px; }
+        .p-rating { font-family: 'Exo 2'; font-size: 16px; font-weight: 800; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        
+        .p-img-box { position: absolute; bottom: 20px; left: 0; width: 100%; height: 85px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 6px 6px; }
+        .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6)); transition: transform 0.2s; }
+        
+        .p-name { position: absolute; bottom: 0; left: 0; width: 100%; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; background: rgba(2, 6, 23, 0.95); z-index: 4; border-radius: 0 0 6px 6px; white-space: nowrap; overflow: hidden; border-top: 1px solid rgba(255,255,255,0.1); }
+        
+        .empty-slot { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); transform: translate(-50%, -50%); display:flex; justify-content:center; align-items:center; }
+        .empty-slot::after { content: '?'; color: rgba(255,255,255,0.2); font-size: 20px; font-weight: bold; }
+        
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; }
-        .bench-title { color: #94a3b8; font-weight: 700; font-size: 14px; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
-        .bench-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-        @media only screen and (max-width: 600px) { .pitch { height: 620px; } .p-card { width: 64px; height: 90px; } .card-sub { width: 64px; height: 90px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; padding: 0 2px; } .p-name { font-size: 9px; height: 18px; } .p-img-box { height: 65px; bottom: 18px; } .stat-badge { font-size: 9px; padding: 1px 3px; top: -12px; right: -4px; left: auto; } .bench { padding: 10px; } .bench-grid { gap: 6px; } }
+        .bench-title { color: #94a3b8; font-weight: 700; font-size: 13px; text-transform: uppercase; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; letter-spacing: 0.5px; }
+        .bench-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        
+        @media only screen and (max-width: 600px) { .pitch { height: 600px; } .p-card { width: 65px; height: 90px; } .card-sub { width: 60px; height: 85px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; } .p-img-box { height: 65px; bottom: 18px; } .p-name { height: 18px; font-size: 9px; } }
     </style>
     """
     
-    final_iframe_height = total_height_desktop 
-
     html_content = f"""
     <!DOCTYPE html>
     <html>
