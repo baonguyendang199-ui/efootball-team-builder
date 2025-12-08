@@ -4435,159 +4435,133 @@ def main():
                                     st.error(f"❌ Lỗi khi lưu: {e}")
             
     elif current_tab == 'inventory':
-        # Thêm CSS cho icons trắng
-        st.markdown("""
-            <style>
-            div.stButton > button[key^="dec_"],
-            div.stButton > button[key^="inc_"] {
-                color: white !important;
-                font-size: 1.2rem !important;
-                font-weight: bold !important;
-            }
-            
-            div.stButton > button[key^="dec_"] p,
-            div.stButton > button[key^="inc_"] p {
-                color: white !important;
-            }
-            
-            /* Optional: Add hover effect */
-            div.stButton > button[key^="inc_"]:hover {
-                background: linear-gradient(135deg, #4ade80, #22c55e) !important;
-            }
-            
-            div.stButton > button[key^="dec_"]:hover {
-                background: linear-gradient(135deg, #ef4444, #dc2626) !important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
+        st.header("📦 Quản lý Kho Skills")
 
-        st.header("📦 Kho Skills")
-        
+        # --- 1. HELPER: PHÂN LOẠI SKILL (UI POLISH) ---
+        def get_skill_visuals(skill_name):
+            s = skill_name.lower()
+            if any(x in s for x in ['shot', 'finishing', 'heading', 'control']):
+                return "🎯 Tấn công", "👟"
+            elif any(x in s for x in ['pass', 'crossing', 'low lofted']):
+                return "⚽ Chuyền bóng", "🎯"
+            elif any(x in s for x in ['dribbling', 'touch', 'turn', 'sole', 'trick']):
+                return "⚡ Rê dắt/Kỹ thuật", "🎨"
+            elif any(x in s for x in ['intercept', 'blocker', 'marking', 'tackle', 'track', 'clearance']):
+                return "🛡️ Phòng ngự", "🚧"
+            elif 'gk' in s:
+                return "🧤 Thủ môn", "🧤"
+            else:
+                return "🧠 Tinh thần/Khác", "✨"
+
+        # --- 2. CHUẨN BỊ DỮ LIỆU ---
         inventory = get_inventory()
         all_known_skills = get_all_known_skills()
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Tổng loại skills", len(all_known_skills))
-        with col2:
-            st.metric("Skills trong kho", len(inventory))
-        with col3:
-            total_count = sum(inventory.values())
-            st.metric("Tổng số lượng", total_count)
+        # Tạo DataFrame cho Editor
+        data_list = []
+        for skill in all_known_skills:
+            qty = inventory.get(skill, 0)
+            cat, icon = get_skill_visuals(skill)
+            data_list.append({
+                "Skill": skill,
+                "Icon": icon,
+                "Category": cat,
+                "Quantity": qty,
+                "Status": "✅ Có hàng" if qty > 0 else "🔻 Hết"
+            })
         
-        st.divider()
+        inv_df = pd.DataFrame(data_list)
         
-        with st.expander("➕ Thêm Skills vào kho", expanded=True):
-            st.caption("Chọn skills và số lượng cần thêm")
-            
-            selected_skills_add = st.multiselect(
-                "Chọn skills cần thêm",
-                options=all_known_skills,
-                default=[],
-                key="quick_add_skills"
-            )
-            
-            if selected_skills_add:
-                add_col1, add_col2 = st.columns([3, 1])
-                with add_col1:
-                    add_quantity = st.number_input(
-                        "Số lượng (mỗi skill)", 
-                        min_value=1, 
-                        max_value=100, 
-                        value=1,
-                        key="add_quantity"
-                    )
-                with add_col2:
-                    st.write("")
-                    st.write("")
-                    if st.button("➕ Thêm vào kho", type="primary", use_container_width=True):
-                        for skill in selected_skills_add:
-                            update_inventory_count(skill, add_quantity)
-                        st.success(f"✅ Đã thêm {len(selected_skills_add)} skills x {add_quantity}")
-                        st.rerun()
-        
-        st.divider()
-        
-        filter_col1, filter_col2 = st.columns([2, 1])
-        with filter_col1:
-            search_filter = st.text_input("🔍 Tìm kiếm skill", placeholder="Nhập tên skill...")
-        with filter_col2:
-            show_mode = st.radio("Hiển thị", ["Tất cả", "Chỉ trong kho", "Chỉ chưa có"], horizontal=True, label_visibility="collapsed")
-        
-        if show_mode == "Chỉ trong kho":
-            display_skills = [s for s in all_known_skills if inventory.get(s, 0) > 0]
-        elif show_mode == "Chỉ chưa có":
-            display_skills = [s for s in all_known_skills if inventory.get(s, 0) == 0]
-        else:
-            display_skills = all_known_skills
-        
-        if search_filter:
-            display_skills = [s for s in display_skills if search_filter.lower() in s.lower()]
-        
-        st.caption(f"Hiển thị {len(display_skills)} skills")
-        
-        if not display_skills:
-            st.info("🔍 Không tìm thấy skills nào")
-        else:
-            st.subheader("Danh sách Skills")
-            
-            for skill in display_skills:
-                current_count = inventory.get(skill, 0)
-                
-                with st.container(border=True):
-                    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                    
-                    with col1:
-                        if current_count > 0:
-                            st.markdown(f"**{skill}** ✅")
+        # Sắp xếp: Có hàng lên trước -> Category -> Tên
+        inv_df = inv_df.sort_values(['Quantity', 'Category', 'Skill'], ascending=[False, True, True])
+
+        # --- 3. DASHBOARD METRICS ---
+        with st.container(border=True):
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Tổng loại Skills", len(all_known_skills))
+            m2.metric("Đang có hàng", len(inventory))
+            m3.metric("Tổng tồn kho", sum(inventory.values()))
+            m4.metric("Loại hết hàng", len(all_known_skills) - len(inventory))
+
+        st.write("") # Spacer
+
+        # --- 4. DATA EDITOR (TRÁI TIM CỦA TAB NÀY) ---
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.subheader("📋 Danh sách & Chỉnh sửa")
+            st.caption("💡 Chỉnh sửa trực tiếp số lượng ở cột 'Quantity', sau đó bấm 'Lưu thay đổi'.")
+        with c2:
+            # Nút Lưu nằm tách biệt để user chỉnh chán chê rồi mới lưu -> Siêu mượt
+            save_placeholder = st.empty()
+
+        # Cấu hình hiển thị bảng
+        edited_df = st.data_editor(
+            inv_df,
+            column_config={
+                "Icon": st.column_config.TextColumn("Icon", width="small", disabled=True),
+                "Skill": st.column_config.TextColumn("Tên Skill", width="medium", disabled=True),
+                "Category": st.column_config.TextColumn("Phân loại", width="medium", disabled=True),
+                "Quantity": st.column_config.NumberColumn(
+                    "Số lượng", 
+                    help="Nhập số lượng mới",
+                    min_value=0,
+                    max_value=999,
+                    step=1,
+                    format="%d",
+                    width="small"
+                ),
+                "Status": st.column_config.TextColumn("Trạng thái", disabled=True, width="small"),
+            },
+            hide_index=True,
+            use_container_width=True,
+            height=600,
+            key="inventory_editor"
+        )
+
+        # --- 5. LOGIC LƯU (BATCH SAVE) ---
+        # So sánh xem user có sửa gì không
+        if not edited_df.equals(inv_df):
+            with save_placeholder:
+                if st.button("💾 Lưu thay đổi", type="primary", use_container_width=True):
+                    try:
+                        # Convert DF back to Dict
+                        new_inventory = {}
+                        for _, row in edited_df.iterrows():
+                            if row['Quantity'] > 0:
+                                new_inventory[row['Skill']] = int(row['Quantity'])
+                        
+                        # Save to GSheet
+                        if save_skill_inventory_to_gsheet(new_inventory):
+                            st.toast("✅ Đã cập nhật kho skills!", icon="💾")
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
                         else:
-                            st.markdown(f"{skill}")
-                    
-                    with col2:
-                        st.metric("Số lượng", current_count)
-                    
-                    with col3:
-                        if st.button("➖", key=f"dec_{skill}", use_container_width=True, disabled=current_count == 0):
-                            update_inventory_count(skill, -1)
-                            st.rerun()
-                    
-                    with col4:
-                        if st.button("➕", key=f"inc_{skill}", use_container_width=True):
-                            update_inventory_count(skill, 1)
-                            st.rerun()
+                            st.error("Lỗi khi lưu vào Google Sheets")
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
         
+        # --- 6. CÔNG CỤ BỔ TRỢ (MODAL IMPORT) ---
         st.divider()
-        with st.expander("⚙️ Thao tác nâng cao"):
-            st.subheader("Nhập/Xuất dữ liệu")
-            
-            if st.button("📥 Xuất kho ra JSON", use_container_width=True):
+        with st.expander("⚙️ Công cụ nâng cao (Reset / Import / Export)"):
+            ec1, ec2 = st.columns(2)
+            with ec1:
+                st.markdown("**📥 Xuất/Nhập JSON**")
                 json_str = json.dumps(inventory, ensure_ascii=False, indent=2)
-                st.download_button(
-                    label="💾 Tải file JSON",
-                    data=json_str,
-                    file_name="skill_inventory.json",
-                    mime="application/json",
-                    use_container_width=True
-                )
-            
-            uploaded_file = st.file_uploader("📤 Nhập kho từ JSON", type=['json'])
-            if uploaded_file:
-                try:
-                    imported_data = json.load(uploaded_file)
-                    if st.button("✅ Xác nhận nhập kho", type="primary"):
-                        save_skill_inventory_to_gsheet(imported_data)
-                        st.success("✅ Đã nhập kho thành công!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Lỗi khi đọc file: {e}")
-            
-            st.divider()
-            
-            st.subheader("⚠️ Xóa kho")
-            if st.button("🗑️ Xóa toàn bộ kho", type="secondary", use_container_width=True):
-                if st.checkbox("Xác nhận xóa toàn bộ kho skills"):
+                st.download_button("⬇️ Tải file Backup (.json)", json_str, "skills.json", "application/json")
+                
+                uploaded = st.file_uploader("⬆️ Restore từ file", type=['json'])
+                if uploaded and st.button("Khôi phục"):
+                    data = json.load(uploaded)
+                    save_skill_inventory_to_gsheet(data)
+                    st.success("Xong!")
+                    st.rerun()
+
+            with ec2:
+                st.markdown("**🗑️ Vùng nguy hiểm**")
+                if st.button("🔥 Reset kho về 0", type="primary"):
                     save_skill_inventory_to_gsheet({})
-                    st.success("✅ Đã xóa toàn bộ kho")
+                    st.warning("Đã xóa sạch kho!")
                     st.rerun()
 
 
