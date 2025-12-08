@@ -3692,13 +3692,7 @@ def main():
         else:
             st.success("✅ Không phát hiện thẻ trùng")
 
-        st.divider()
-
-        # ===== BỘ LỌC NÂNG CAO =====
-        # =========================================================
-        # BẮT ĐẦU GIAO DIỆN MỚI (DÁN TỪ ĐÂY)
-        # =========================================================
-        
+                
         st.divider()
         
         # 1. THANH ĐIỀU KHIỂN CHÍNH (TOP BAR)
