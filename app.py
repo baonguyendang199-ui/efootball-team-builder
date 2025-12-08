@@ -3103,8 +3103,8 @@ def main():
             
             if not hm_df.empty:
                 # Tạo Bins cho Rating
-                bins = [95, 100, 150]
-                labels = ["90 - 95", "95 - 100", "100+"]
+                bins = [0, 85, 90, 95, 100, 150]
+                labels = ["< 85", "85 - 90", "90 - 95", "95 - 100", "100+"]
                 hm_df['Rating_Range'] = pd.cut(hm_df['Rating'], bins=bins, labels=labels, right=False)
                 
                 # Pivot Table: Đếm số lượng cầu thủ theo Vị trí vs Rating Range
