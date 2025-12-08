@@ -249,9 +249,9 @@ def render_efootball_card_html(player_data, width="100%"):
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
     """
-    Giao diện Scouting Profile - Đã sửa lỗi hiển thị text do thụt đầu dòng.
+    Giao diện Scouting Profile - Phiên bản Fix lỗi hiển thị Code Text.
+    Lưu ý: Các dòng HTML bên trong f-string phải viết sát lề trái.
     """
-    
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
     rating = row.get('Rating', 0)
@@ -261,11 +261,9 @@ def show_player_modal(row):
     club = row.get('Club', 'Unknown Club')
     nation = row.get('Nation', 'Unknown Nation')
     
-    # Lấy thông tin Action & Reasons
     action = str(row.get('Action', 'N/A')).upper()
     reasons = str(row.get('Reasons', 'Chưa có phân tích'))
     
-    # Xử lý ảnh
     img_url = row.get('Player URL', '') 
     pid = str(row.get('Player ID', '')).strip()
     if not pid and img_url:
@@ -275,19 +273,18 @@ def show_player_modal(row):
 
     # Theme Config
     if "POTW" in p_type or "TRENDING" in p_type:
-        accent_color = "#D946EF" # Fuchsia
+        accent_color = "#D946EF"
         badge_bg = "linear-gradient(135deg, #701a75 0%, #D946EF 100%)"
         shadow_color = "rgba(217, 70, 239, 0.4)"
     elif "EPIC" in p_type and "NON" not in p_type:
-        accent_color = "#F59E0B" # Amber
+        accent_color = "#F59E0B"
         badge_bg = "linear-gradient(135deg, #78350f 0%, #F59E0B 100%)"
         shadow_color = "rgba(245, 158, 11, 0.4)"
     else:
-        accent_color = "#3B82F6" # Blue
+        accent_color = "#3B82F6"
         badge_bg = "linear-gradient(135deg, #1e3a8a 0%, #3B82F6 100%)"
         shadow_color = "rgba(59, 130, 246, 0.4)"
 
-    # Helper render thanh chỉ số
     def render_stat_bar(label, value_text, max_score=4):
         val = str(value_text).upper()
         score = 1
@@ -300,10 +297,10 @@ def show_player_modal(row):
             bg = accent_color if i <= score else "rgba(255,255,255,0.1)"
             bars += f'<div style="flex:1; height:4px; background:{bg}; border-radius:2px; margin-right:2px;"></div>'
         
-        # LƯU Ý: Chuỗi này KHÔNG ĐƯỢC xuống dòng bừa bãi
+        # HTML này phải viết thành 1 dòng hoặc sát lề
         return f"""<div style="margin-bottom: 8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
 
-    # --- 2. XỬ LÝ DANH SÁCH SKILLS ---
+    # --- 2. XỬ LÝ SKILLS ---
     base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
     added_skills = [s.strip() for s in str(row.get('Added Skills','')).split(',') if s.strip()]
     skills_html = ""
@@ -311,23 +308,17 @@ def show_player_modal(row):
     for s in added_skills: skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
-    # --- 3. RENDER REASONS BLOCK ---
+    # --- 3. REASONS BLOCK ---
     action_bg = "rgba(34, 197, 94, 0.2)" if "GIỮ" in action else "rgba(239, 68, 68, 0.2)"
     action_border = "#22c55e" if "GIỮ" in action else "#ef4444"
     action_text = "#4ade80" if "GIỮ" in action else "#f87171"
 
-    # QUAN TRỌNG: reasons_html phải sát lề trái
-    reasons_html = f"""
-<div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
-    <div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div>
-    <div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;">
-        <div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>
-        {reasons}
-    </div>
-</div>
-""" if action != "N/A" and action != "" else ""
+    reasons_html = ""
+    if action != "N/A" and action != "":
+        # HTML viết sát lề trái
+        reasons_html = f"""<div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;"><div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div><div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;"><div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>{reasons}</div></div>"""
 
-    # --- 4. RENDER HTML TỔNG (QUAN TRỌNG: VIẾT SÁT LỀ TRÁI) ---
+    # --- 4. HTML TỔNG (QUAN TRỌNG: VIẾT SÁT LỀ TRÁI, KHÔNG THỤT ĐẦU DÒNG) ---
     html_content = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
@@ -352,48 +343,48 @@ def show_player_modal(row):
 .pf-skill.added {{ border-left: 3px solid #4ade80; background: rgba(74, 222, 128, 0.1); }}
 </style>
 <div class="profile-container">
-    <div class="pf-hero">
-        <div class="pf-img-wrapper"><img src="{real_img}" class="pf-img"></div>
-        <div class="pf-header-info">
-            <div class="pf-badges" style="margin-bottom:8px;">
-                <span class="pf-badge pf-rating">{rating}</span>
-                <span class="pf-badge">{pos}</span>
-                <span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
-            </div>
-            <div class="pf-name">{p_name}</div>
-            <div style="font-size: 0.9rem; color: #cbd5e1;">{club} <span style="margin:0 5px; color:#64748b">•</span> {nation}</div>
-        </div>
-    </div>
-    {reasons_html}
-    <div class="pf-grid">
-        <div>
-            <div class="pf-section-title">Thông số vật lý</div>
-            <div class="stat-grid" style="margin-bottom: 20px;">
-                <div class="stat-item"><div class="stat-label">Chiều cao</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div>
-                <div class="stat-item"><div class="stat-label">Cân nặng</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div>
-                <div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div>
-                <div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div>
-            </div>
-            <div class="pf-section-title">Kỹ thuật & Phong độ</div>
-            <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
-                {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
-                {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
-                {render_stat_bar("Form / Condition", row.get('Form', '-'))}
-                {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
-            </div>
-        </div>
-        <div>
-            <div class="pf-section-title">Phong cách thi đấu</div>
-            <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div>
-            <div class="pf-section-title">Danh sách kỹ năng</div>
-            <div class="skill-container">{skills_html}</div>
-            <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
-                <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
-                <div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
-                <div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
-            </div>
-        </div>
-    </div>
+<div class="pf-hero">
+<div class="pf-img-wrapper"><img src="{real_img}" class="pf-img"></div>
+<div class="pf-header-info">
+<div class="pf-badges" style="margin-bottom:8px;">
+<span class="pf-badge pf-rating">{rating}</span>
+<span class="pf-badge">{pos}</span>
+<span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
+</div>
+<div class="pf-name">{p_name}</div>
+<div style="font-size: 0.9rem; color: #cbd5e1;">{club} <span style="margin:0 5px; color:#64748b">•</span> {nation}</div>
+</div>
+</div>
+{reasons_html}
+<div class="pf-grid">
+<div>
+<div class="pf-section-title">Thông số vật lý</div>
+<div class="stat-grid" style="margin-bottom: 20px;">
+<div class="stat-item"><div class="stat-label">Chiều cao</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div>
+<div class="stat-item"><div class="stat-label">Cân nặng</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div>
+<div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div>
+<div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div>
+</div>
+<div class="pf-section-title">Kỹ thuật & Phong độ</div>
+<div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
+{render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
+{render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
+{render_stat_bar("Form / Condition", row.get('Form', '-'))}
+{render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
+</div>
+</div>
+<div>
+<div class="pf-section-title">Phong cách thi đấu</div>
+<div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div>
+<div class="pf-section-title">Danh sách kỹ năng</div>
+<div class="skill-container">{skills_html}</div>
+<div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
+<div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
+<div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
+<div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
+</div>
+</div>
+</div>
 </div>
 """
     st.markdown(html_content, unsafe_allow_html=True)
