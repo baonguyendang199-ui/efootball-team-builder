@@ -4435,134 +4435,187 @@ def main():
                                     st.error(f"❌ Lỗi khi lưu: {e}")
             
     elif current_tab == 'inventory':
-        st.header("📦 Quản lý Kho Skills")
+        st.header("📦 Kho Skills")
 
-        # --- 1. HELPER: PHÂN LOẠI SKILL (UI POLISH) ---
-        def get_skill_visuals(skill_name):
-            s = skill_name.lower()
-            if any(x in s for x in ['shot', 'finishing', 'heading', 'control']):
-                return "🎯 Tấn công", "👟"
-            elif any(x in s for x in ['pass', 'crossing', 'low lofted']):
-                return "⚽ Chuyền bóng", "🎯"
-            elif any(x in s for x in ['dribbling', 'touch', 'turn', 'sole', 'trick']):
-                return "⚡ Rê dắt/Kỹ thuật", "🎨"
-            elif any(x in s for x in ['intercept', 'blocker', 'marking', 'tackle', 'track', 'clearance']):
-                return "🛡️ Phòng ngự", "🚧"
-            elif 'gk' in s:
-                return "🧤 Thủ môn", "🧤"
-            else:
-                return "🧠 Tinh thần/Khác", "✨"
+        # --- 1. CSS CUSTOM: CARD & NUMBER INPUT ---
+        st.markdown("""
+        <style>
+        /* Card Style */
+        .skill-card {
+            background-color: #1e293b;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            text-align: center;
+            height: 100%;
+            transition: transform 0.2s;
+        }
+        .skill-card:hover {
+            border-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        .skill-icon { font-size: 24px; margin-bottom: 5px; }
+        .skill-name { 
+            font-weight: 700; color: #f8fafc; font-size: 0.9rem; 
+            margin-bottom: 10px; min-height: 40px; display: flex; 
+            align-items: center; justify-content: center;
+        }
+        /* Ẩn label của number input để giao diện sạch */
+        .stNumberInput label { display: none; }
+        
+        /* Chỉnh màu số lượng */
+        .quantity-badge {
+            font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase;
+        }
+        .has-stock { color: #4ade80; font-weight: bold; }
+        .no-stock { color: #ef4444; }
+        </style>
+        """, unsafe_allow_html=True)
 
         # --- 2. CHUẨN BỊ DỮ LIỆU ---
         inventory = get_inventory()
-        all_known_skills = get_all_known_skills()
+        all_skills = get_all_known_skills()
         
-        # Tạo DataFrame cho Editor
-        data_list = []
-        for skill in all_known_skills:
-            qty = inventory.get(skill, 0)
-            cat, icon = get_skill_visuals(skill)
-            data_list.append({
-                "Skill": skill,
-                "Icon": icon,
-                "Category": cat,
-                "Quantity": qty,
-                "Status": "✅ Có hàng" if qty > 0 else "🔻 Hết"
-            })
+        # Phân loại Skill vào các nhóm để tạo Tab
+        categories = {
+            "🎯 Tấn công": ['Shot', 'Finishing', 'Heading', 'Control', 'Curler', 'Range'],
+            "⚽ Chuyền bóng": ['Pass', 'Crossing', 'Lofted'],
+            "⚡ Kỹ thuật": ['Dribbling', 'Touch', 'Turn', 'Sole', 'Trick', 'Spirit', 'Captaincy', 'Super Sub'],
+            "🛡️ Phòng ngự": ['Intercept', 'Blocker', 'Marking', 'Tackle', 'Track', 'Clearance'],
+            "🧤 Thủ môn": ['GK']
+        }
         
-        inv_df = pd.DataFrame(data_list)
-        
-        # Sắp xếp: Có hàng lên trước -> Category -> Tên
-        inv_df = inv_df.sort_values(['Quantity', 'Category', 'Skill'], ascending=[False, True, True])
+        # Gom skill vào dict theo nhóm
+        grouped_skills = {k: [] for k in categories}
+        grouped_skills["✨ Khác"] = [] # Nhóm fallback
 
-        # --- 3. DASHBOARD METRICS ---
+        for skill in all_skills:
+            assigned = False
+            for cat, keywords in categories.items():
+                if any(k.lower() in skill.lower() for k in keywords):
+                    grouped_skills[cat].append(skill)
+                    assigned = True
+                    break
+            if not assigned:
+                grouped_skills["✨ Khác"].append(skill)
+
+        # --- 3. SUMMARY DASHBOARD ---
+        total_items = sum(inventory.values())
         with st.container(border=True):
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Tổng loại Skills", len(all_known_skills))
-            m2.metric("Đang có hàng", len(inventory))
-            m3.metric("Tổng tồn kho", sum(inventory.values()))
-            m4.metric("Loại hết hàng", len(all_known_skills) - len(inventory))
+            c1, c2, c3 = st.columns([2, 1, 1])
+            with c1:
+                st.markdown(f"### 🎒 Tổng tồn kho: <span style='color:#4ade80'>{total_items}</span> thẻ", unsafe_allow_html=True)
+            with c2:
+                if st.button("🔄 Làm mới", use_container_width=True):
+                    st.cache_data.clear()
+                    st.rerun()
+            with c3:
+                # Nút Import/Export nhỏ gọn
+                with st.popover("⚙️ Tiện ích"):
+                    st.markdown("**Backup dữ liệu**")
+                    json_str = json.dumps(inventory, ensure_ascii=False)
+                    st.download_button("⬇️ Tải JSON", json_str, "skills.json", "application/json")
+                    if st.button("🗑️ Xóa sạch kho", type="primary"):
+                        save_skill_inventory_to_gsheet({})
+                        st.rerun()
 
         st.write("") # Spacer
 
-        # --- 4. DATA EDITOR (TRÁI TIM CỦA TAB NÀY) ---
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            st.subheader("📋 Danh sách & Chỉnh sửa")
-            st.caption("💡 Chỉnh sửa trực tiếp số lượng ở cột 'Quantity', sau đó bấm 'Lưu thay đổi'.")
-        with c2:
-            # Nút Lưu nằm tách biệt để user chỉnh chán chê rồi mới lưu -> Siêu mượt
-            save_placeholder = st.empty()
+        # --- 4. FORM CHỈNH SỬA CHÍNH (FORM BAO TRÙM TẤT CẢ TABS) ---
+        # Form giúp gom tất cả thao tác + - lại, chỉ reload 1 lần khi bấm Lưu
+        with st.form("inventory_master_form"):
+            
+            # Tạo Tabs giao diện
+            tabs = st.tabs(list(grouped_skills.keys()))
+            
+            # Dictionary để hứng giá trị mới từ UI
+            new_values = {}
 
-        # Cấu hình hiển thị bảng
-        edited_df = st.data_editor(
-            inv_df,
-            column_config={
-                "Icon": st.column_config.TextColumn("Icon", width="small", disabled=True),
-                "Skill": st.column_config.TextColumn("Tên Skill", width="medium", disabled=True),
-                "Category": st.column_config.TextColumn("Phân loại", width="medium", disabled=True),
-                "Quantity": st.column_config.NumberColumn(
-                    "Số lượng", 
-                    help="Nhập số lượng mới",
-                    min_value=0,
-                    max_value=999,
-                    step=1,
-                    format="%d",
-                    width="small"
-                ),
-                "Status": st.column_config.TextColumn("Trạng thái", disabled=True, width="small"),
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=600,
-            key="inventory_editor"
-        )
-
-        # --- 5. LOGIC LƯU (BATCH SAVE) ---
-        # So sánh xem user có sửa gì không
-        if not edited_df.equals(inv_df):
-            with save_placeholder:
-                if st.button("💾 Lưu thay đổi", type="primary", use_container_width=True):
-                    try:
-                        # Convert DF back to Dict
-                        new_inventory = {}
-                        for _, row in edited_df.iterrows():
-                            if row['Quantity'] > 0:
-                                new_inventory[row['Skill']] = int(row['Quantity'])
+            # Render từng Tab
+            for tab_idx, (cat_name, skills_in_cat) in enumerate(grouped_skills.items()):
+                with tabs[tab_idx]:
+                    if not skills_in_cat:
+                        st.info("Không có skill nào trong nhóm này.")
+                        continue
+                    
+                    # Grid Layout (4 cột)
+                    cols = st.columns(4)
+                    for i, skill in enumerate(sorted(skills_in_cat)):
+                        current_qty = inventory.get(skill, 0)
                         
-                        # Save to GSheet
-                        if save_skill_inventory_to_gsheet(new_inventory):
-                            st.toast("✅ Đã cập nhật kho skills!", icon="💾")
-                            st.cache_data.clear()
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error("Lỗi khi lưu vào Google Sheets")
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-        
-        # --- 6. CÔNG CỤ BỔ TRỢ (MODAL IMPORT) ---
-        st.divider()
-        with st.expander("⚙️ Công cụ nâng cao (Reset / Import / Export)"):
-            ec1, ec2 = st.columns(2)
-            with ec1:
-                st.markdown("**📥 Xuất/Nhập JSON**")
-                json_str = json.dumps(inventory, ensure_ascii=False, indent=2)
-                st.download_button("⬇️ Tải file Backup (.json)", json_str, "skills.json", "application/json")
-                
-                uploaded = st.file_uploader("⬆️ Restore từ file", type=['json'])
-                if uploaded and st.button("Khôi phục"):
-                    data = json.load(uploaded)
-                    save_skill_inventory_to_gsheet(data)
-                    st.success("Xong!")
-                    st.rerun()
+                        # Xác định Icon & Màu sắc
+                        icon = "⚡"
+                        if "Tấn công" in cat_name: icon = "👟"
+                        elif "Chuyền" in cat_name: icon = "🎯"
+                        elif "Phòng ngự" in cat_name: icon = "🛡️"
+                        elif "Thủ môn" in cat_name: icon = "🧤"
+                        
+                        stock_class = "has-stock" if current_qty > 0 else "no-stock"
+                        stock_text = "Còn hàng" if current_qty > 0 else "Hết hàng"
+                        
+                        # Render Card trong Column
+                        with cols[i % 4]:
+                            # Card Visual
+                            st.markdown(f"""
+                            <div class="skill-card">
+                                <div class="skill-icon">{icon}</div>
+                                <div class="skill-name">{skill}</div>
+                                <div class="quantity-badge {stock_class}">{stock_text}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Input Control (+ / -)
+                            # Key trick: dùng tên skill làm key để lấy lại sau
+                            val = st.number_input(
+                                f"{skill}_input", # Label ẩn
+                                min_value=0, 
+                                max_value=999, 
+                                value=int(current_qty),
+                                step=1,
+                                key=f"inv_input_{skill}",
+                                label_visibility="collapsed"
+                            )
+                            # Lưu giá trị vào dict tạm
+                            new_values[skill] = val
+                            
+                            st.write("") # Margin bottom
 
-            with ec2:
-                st.markdown("**🗑️ Vùng nguy hiểm**")
-                if st.button("🔥 Reset kho về 0", type="primary"):
-                    save_skill_inventory_to_gsheet({})
-                    st.warning("Đã xóa sạch kho!")
-                    st.rerun()
+            st.divider()
+            
+            # --- 5. ACTION BAR (FLOATING BOTTOM) ---
+            # Nút Lưu nằm trong Form => Bấm phát là submit form
+            col_submit, col_info = st.columns([1, 3])
+            with col_submit:
+                submitted = st.form_submit_button("💾 CẬP NHẬT KHO", type="primary", use_container_width=True)
+            with col_info:
+                st.caption("💡 Điều chỉnh số lượng bằng nút **(+) (-)** rồi bấm **Cập nhật kho** để lưu. App sẽ không reload khi bạn đang chỉnh.")
+
+        # --- 6. XỬ LÝ LƯU ---
+        if submitted:
+            # Check xem có thay đổi gì không
+            has_changes = False
+            final_inventory = {}
+            
+            for skill, new_qty in new_values.items():
+                old_qty = inventory.get(skill, 0)
+                if new_qty != old_qty:
+                    has_changes = True
+                
+                if new_qty > 0:
+                    final_inventory[skill] = int(new_qty)
+            
+            if has_changes:
+                with st.spinner("Đang đồng bộ Google Sheets..."):
+                    if save_skill_inventory_to_gsheet(final_inventory):
+                        st.toast("✅ Đã lưu kho thành công!", icon="💾")
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Lỗi khi lưu dữ liệu.")
+            else:
+                st.toast("⚠️ Không có thay đổi nào để lưu.", icon="ℹ️")
 
 
 if __name__ == "__main__":
