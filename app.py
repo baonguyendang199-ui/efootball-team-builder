@@ -3362,17 +3362,24 @@ def main():
         # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
         with st.container(border=True):
             # Hàng 1: Search Text & Filter Cơ bản
-            f1, f2, f3 = st.columns([3, 1, 1])
+            f1, f2, f3 = st.columns([3, 1, 1.2])
             with f1:
                 search_txt = st.text_input(
                     "🔍 Tìm kiếm toàn diện", 
-                    placeholder="Nhập tên, kỹ năng (vd: Double Touch), CLB, hoặc Quốc gia...", 
+                    placeholder="Nhập tên, kỹ năng, CLB, hoặc Quốc gia...", 
                     label_visibility="collapsed"
                 )
             with f2:
                 ft_pos = st.multiselect("Vị trí", sorted(df['Position'].unique().tolist()), placeholder="Vị trí", label_visibility="collapsed")
             with f3:
-                ft_status = st.selectbox("Trạng thái", ["Tất cả", "Cần train", "Đã full"], label_visibility="collapsed")
+                # CẬP NHẬT OPTIONS VÀ DEFAULT INDEX
+                status_opts = ["Có thể train", "Thiếu skills để thêm", "Đã đủ skills", "Tất cả"]
+                ft_status = st.selectbox(
+                    "Trạng thái", 
+                    status_opts, 
+                    index=0, # Mặc định chọn "Có thể train"
+                    label_visibility="collapsed"
+                )
             
             # Hàng 2: Filter Nâng cao (Collapsible)
             with st.expander("🌪️ Bộ lọc nâng cao (Loại thẻ / Rating)"):
@@ -3383,15 +3390,13 @@ def main():
                     min_r, max_r = int(df['Rating'].min()), int(df['Rating'].max())
                     rt_range = st.slider("Rating", min_r, max_r, (min_r, max_r))
 
-        # --- 2. XỬ LÝ DỮ LIỆU (SEARCH & SORT) ---
+        # --- 2. XỬ LÝ DỮ LIỆU (SEARCH & SORT & CATEGORIZE) ---
         inventory = get_inventory()
         filtered_df = df.copy()
         
-        # A. LOGIC TÌM KIẾM TOÀN DIỆN (SEARCH)
+        # A. LOGIC TÌM KIẾM TOÀN DIỆN
         if search_txt:
             query = search_txt.lower()
-            # Tạo cột search gộp để tìm kiếm 1 lần cho nhanh
-            # Tìm trong: Tên, Club, Nation, League, Skills
             filtered_df['Search_Data'] = (
                 filtered_df['Player'].astype(str) + " " + 
                 filtered_df['Club'].astype(str) + " " + 
@@ -3399,16 +3404,13 @@ def main():
                 filtered_df['Skills'].astype(str) + " " +
                 filtered_df['Added Skills'].astype(str)
             ).str.lower()
-            
             filtered_df = filtered_df[filtered_df['Search_Data'].str.contains(query)]
 
-        # B. LOGIC FILTER
+        # B. LOGIC FILTER CƠ BẢN
         if ft_pos:
             filtered_df = filtered_df[filtered_df['Position'].isin(ft_pos)]
             
         if ft_type:
-            # Map lại tên loại thẻ cho khớp data
-            # "Standard" trong UI -> "NON-EPIC" trong Data
             mapped_types = [t if t != "Standard" else "NON-EPIC" for t in ft_type]
             filtered_df = filtered_df[filtered_df['Player Type'].isin(mapped_types)]
             
@@ -3417,17 +3419,43 @@ def main():
             (filtered_df['Rating'] <= rt_range[1])
         ]
 
-        # Filter theo trạng thái Train
-        def check_train_status(row):
-            if "POTW" in str(row['Player Type']).upper(): return "full"
+        # --- C. LOGIC PHÂN LOẠI TRẠNG THÁI (STRICT PRIORITY CHECK) ---
+        # Hàm này sẽ chạy cho từng dòng để xác định trạng thái thực tế
+        def classify_status(row):
+            # 1. Check Full / Locked
+            is_potw = "POTW" in str(row['Player Type']).upper()
             added = [x for x in str(row.get('Added Skills', '')).split(',') if x.strip()]
-            return "full" if len(added) >= MAX_ADDED_SLOTS else "need"
+            if is_potw or len(added) >= MAX_ADDED_SLOTS:
+                return "Đã đủ skills"
 
-        filtered_df['Train_Status'] = filtered_df.apply(check_train_status, axis=1)
-        if ft_status == "Cần train":
-            filtered_df = filtered_df[filtered_df['Train_Status'] == 'need']
-        elif ft_status == "Đã full":
-            filtered_df = filtered_df[filtered_df['Train_Status'] == 'full']
+            # 2. Check Trainable vs Missing
+            p_pos = str(row['Position']).strip()
+            remaining_slots = MAX_ADDED_SLOTS - len(added)
+            
+            # Lấy list gợi ý đầy đủ
+            all_missing = get_recommended_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), 15)
+            
+            # CẮT STRICT TARGETS (Logic dành slot tuyệt đối)
+            strict_targets = all_missing[:remaining_slots]
+            
+            if not strict_targets:
+                return "Đã đủ skills" # Không còn skill nào để gợi ý
+            
+            # Check Inventory cho các skill strict targets
+            # Chỉ cần 1 skill có hàng là "Có thể train"
+            has_stock = any(inventory.get(s, 0) > 0 for s in strict_targets)
+            
+            if has_stock:
+                return "Có thể train"
+            else:
+                return "Thiếu skills để thêm"
+
+        # Áp dụng phân loại
+        filtered_df['Train_Status'] = filtered_df.apply(classify_status, axis=1)
+
+        # Lọc theo Status đã chọn
+        if ft_status != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Train_Status'] == ft_status]
 
         # --- C. LOGIC SẮP XẾP (BARCELONA FIRST) ---
         # Tạo cột Flag ưu tiên
