@@ -1046,6 +1046,7 @@ FORMATIONS = {
     "4-2-3-1 (Flat)":       ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LMF", "RMF", "CF"],
     "4-4-2 (Flat)":         ["GK", "LB", "CB", "CB", "RB", "LMF", "RMF", "CMF", "CMF", "CF", "CF"],
     "4-2-4 (Pressing)":     ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "LWF", "RWF", "CF", "CF"],
+    "4-2-4 (Pressing-Defensive)":     ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "LWF", "RWF", "CF", "CF"],
     "4-2-2-2 (Magic Box)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
     "4-3-1-2 (Diamond)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
     "4-1-2-3 (2 CF, 1 SS)": ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
@@ -1107,6 +1108,10 @@ FORMATION_COORDS = {
     "4-2-4 (Pressing)": [
         (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (55, 35), (55, 65), (25, 10), (25, 90), (15, 35), (15, 65)
     ],
+    "4-2-4 (Pressing-Defensive)": [
+        (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (55, 35), (55, 65), (25, 10), (25, 90), (15, 35), (15, 65)
+    ],
+
     "4-2-2-2 (Magic Box)": [
         (92, 50), (78, 10), (82, 35), (82, 65), (78, 90), (65, 35), (65, 65), (40, 25), (40, 75), (15, 35), (15, 65)
     ],
