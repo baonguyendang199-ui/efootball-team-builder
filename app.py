@@ -1087,7 +1087,7 @@ FORMATIONS = {
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
     Tự động xây dựng đội hình tối ưu.
-    CẬP NHẬT: Logic dự bị thông minh - Ưu tiên cầu thủ hợp sơ đồ khi bằng điểm.
+    CẬP NHẬT: Logic dự bị 'Draft Pick' - Ưu tiên vị trí còn thiếu khi Rating ngang nhau.
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
@@ -1115,7 +1115,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
-    # Sắp xếp: Rating cao nhất lên đầu
+    # Sắp xếp sơ bộ
     pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
     pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
     pool_df = pool_df.reset_index(drop=True)
@@ -1173,10 +1173,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
     pool_df = pool_df.reset_index(drop=True)
 
-    # 4. THUẬT TOÁN HUNGARIAN (CHỌN ĐÁ CHÍNH)
+    # 4. CHỌN ĐÁ CHÍNH (STARTERS) - Dùng thuật toán Hungarian
     required_positions = FORMATIONS.get(formation_name, [])
-    # Tạo set các vị trí cần thiết trong sơ đồ để dùng cho logic dự bị sau này
-    unique_formation_positions = set(required_positions)
+    unique_formation_positions = set(required_positions) # Set các vị trí có trong sơ đồ
     
     num_slots = len(required_positions)
     num_players = len(pool_df)
@@ -1203,7 +1202,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     used_indices = set()
     used_nations = set()
 
-    # Xếp Starters
     for i in range(len(row_ind)):
         p_idx = row_ind[i]; s_idx = col_ind[i]
         if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
@@ -1226,55 +1224,109 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     for i in range(11):
         if final_squad[i] is None: final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
 
-    # 5. CHỌN DỰ BỊ (CẬP NHẬT LOGIC: ƯU TIÊN UTILITY)
+    # 5. CHỌN DỰ BỊ (CƠ CHẾ DRAFTING THÔNG MINH)
+    # Loại bỏ những người đã đá chính
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)].copy()
     remaining_pool = remaining_pool[remaining_pool['Build_Score'] != ERROR_SCORE]
-
-    # --- TÍNH ĐIỂM "HỢP SƠ ĐỒ" (UTILITY) ---
-    def check_formation_fit(row):
-        # Kiểm tra vị trí chính
-        p_main = str(row.get('Position', '')).strip().upper()
-        if p_main in unique_formation_positions:
-            return 1 # Có ích
-        
-        # Kiểm tra vị trí phụ
-        p_sec = str(row.get('Secondary Positions', '')).split(',')
-        for ps in p_sec:
-            if ps.strip().upper() in unique_formation_positions:
-                return 1 # Có ích
-        
-        return 0 # Không đá được vị trí nào trong sơ đồ hiện tại
-
-    remaining_pool['Formation_Fit'] = remaining_pool.apply(check_formation_fit, axis=1)
-
-    # --- SORT LẠI ---
-    # Tiêu chí 1: Build_Score (Điểm chính theo mode chọn: Rating, Height, BMI...)
-    # Tiêu chí 2: Formation_Fit (Ưu tiên người đá được trong sơ đồ)
-    # Tiêu chí 3: Rating (Tie-breaker cuối cùng)
-    remaining_pool = remaining_pool.sort_values(
-        ['Build_Score', 'Formation_Fit', 'Rating'], 
-        ascending=[False, False, False]
-    )
     
-    bench_picks_rows = []
+    # Chuẩn bị danh sách dự bị
+    bench_picks = []
+    
+    # Biến đếm số lượng từng vị trí ĐANG CÓ TRÊN GHẾ DỰ BỊ
+    # (Khởi tạo rỗng, sẽ cập nhật sau mỗi lượt pick)
+    bench_pos_counts = {} 
     gk_on_bench_count = 0
     
-    for idx, row in remaining_pool.iterrows():
-        if len(bench_picks_rows) >= 12: break
+    # Số slot dự bị tối đa
+    MAX_BENCH = 12
+
+    # Lặp để chọn từng người một (Drafting Loop)
+    for _ in range(MAX_BENCH):
+        if remaining_pool.empty:
+            break
+            
+        # Hàm tính điểm ưu tiên cho lượt pick này
+        def calculate_draft_priority(row):
+            # 1. Điểm gốc (Rating, Height, etc.)
+            base_score = row['Build_Score']
+            
+            # 2. Logic GK: Nếu đã có GK dự bị, phạt cực nặng để không chọn nữa
+            pos = str(row.get('Position', '')).strip().upper()
+            if pos == 'GK' and gk_on_bench_count >= 1:
+                return -999999
+                
+            # 3. Logic United Nations: Nếu trùng quốc gia, phạt nặng
+            if sort_mode == 'united_nations':
+                p_nation = str(row.get('Nation', '')).strip()
+                if p_nation and p_nation in used_nations:
+                    return -999999
+            
+            # 4. Điểm Hợp Sơ Đồ (Formation Fit Bonus)
+            # Ưu tiên nhẹ (+0.2) cho người đá được trong sơ đồ hiện tại
+            fit_bonus = 0
+            if pos in unique_formation_positions:
+                fit_bonus = 0.2
+            else:
+                # Check vị trí phụ
+                secs = [s.strip() for s in str(row.get('Secondary Positions', '')).split(',')]
+                for s in secs:
+                    if s.upper() in unique_formation_positions:
+                        fit_bonus = 0.2
+                        break
+            
+            # 5. Điểm Phạt Trùng Vị Trí (Saturation Penalty)
+            # Đây là logic cốt lõi bạn yêu cầu:
+            # Nếu trên ghế dự bị đã có 3 ông CB, count = 3. Penalty = 3 * 0.1 = 0.3
+            # Nếu chưa có CF nào, count = 0. Penalty = 0.
+            # => CF (Rating 99) > CB (Rating 99) vì CB bị trừ 0.3 điểm.
+            current_count_on_bench = bench_pos_counts.get(pos, 0)
+            saturation_penalty = current_count_on_bench * 0.1
+            
+            # Tổng điểm ưu tiên
+            return base_score + fit_bonus - saturation_penalty
+
+        # Tính điểm ưu tiên cho toàn bộ danh sách còn lại
+        # (Lưu ý: Chỉ cần tính cho top đầu để tối ưu, nhưng với 1000 row thì tính hết cũng rất nhanh)
+        remaining_pool['Draft_Score'] = remaining_pool.apply(calculate_draft_priority, axis=1)
         
-        is_gk = str(row.get('Position', '')).strip().upper() == 'GK'
-        # Logic GK: Chỉ tối đa 1 GK dự bị
-        if is_gk and gk_on_bench_count >= 1: continue
+        # Sắp xếp để chọn người cao điểm nhất
+        # Tiêu chí: Draft_Score cao nhất -> Nếu bằng thì Rating cao nhất
+        candidates = remaining_pool.sort_values(['Draft_Score', 'Rating'], ascending=[False, False])
         
+        # Lấy người giỏi nhất
+        best_pick = candidates.iloc[0]
+        
+        # Kiểm tra nếu điểm quá thấp (tức là dính phạt GK/Nation), dừng lại hoặc skip
+        if best_pick['Draft_Score'] < -500000:
+            # Nếu người giỏi nhất mà còn bị phạt thì nghĩa là hết người hợp lệ (cho case United Nations)
+            # Vẫn add vào cho đủ slot nhưng sẽ là rác, hoặc break tùy logic. 
+            # Ở đây ta cứ add vào theo thứ tự rating gốc cho đủ đội hình.
+            break 
+            
+        # Thêm vào danh sách dự bị
+        bench_picks.append(best_pick)
+        
+        # Cập nhật trạng thái cho vòng lặp sau
+        picked_pos = str(best_pick['Position']).strip().upper()
+        bench_pos_counts[picked_pos] = bench_pos_counts.get(picked_pos, 0) + 1
+        
+        if picked_pos == 'GK':
+            gk_on_bench_count += 1
+            
         if sort_mode == 'united_nations':
-            p_nation = str(row.get('Nation', '')).strip(); 
-            if p_nation and p_nation in used_nations: continue
-            used_nations.add(p_nation)
+            used_nations.add(str(best_pick.get('Nation', '')).strip())
             
-        bench_picks_rows.append(row)
-        if is_gk: gk_on_bench_count += 1
-            
-    for row in bench_picks_rows:
+        # Loại người này khỏi pool để không chọn lại
+        remaining_pool = remaining_pool.drop(best_pick.name)
+
+    # Nếu vẫn chưa đủ 12 người (do break sớm), điền nốt bằng rating thuần
+    while len(bench_picks) < 12 and not remaining_pool.empty:
+        top = remaining_pool.iloc[0]
+        bench_picks.append(top)
+        remaining_pool = remaining_pool.iloc[1:]
+
+    # Format dữ liệu trả về
+    for row in bench_picks:
         r_get = row.get if isinstance(row, dict) else row.get
         pid = str(r_get('Player ID', '')).strip()
         purl = str(r_get('Player URL', '')).strip()
