@@ -3231,287 +3231,243 @@ def main():
                                 st.error(f"Lỗi: {e}")
 
     elif current_tab == 'skills':
-        st.header("🎮 Quản lý Skills")
-        MAX_SKILLS = 15
-        MAX_ADDED_SKILLS = 5
+        st.header("🎮 Quản lý Skills & Training")
         
-        with st.expander("🔍 Tìm kiếm nâng cao", expanded=False):
-            search_col1, search_col2, search_col3 = st.columns(3)
-            with search_col1:
-                sm_player_search = st.text_input("Tên cầu thủ", placeholder="Nhập tên...", key="sm_player_search")
-                sm_position = st.multiselect("Vị trí", sorted(df['Position'].unique().tolist()), key="sm_position")
-            with search_col2:
-                sm_player_type = st.multiselect("Loại cầu thủ", ["EPIC", "POTW", "NON-EPIC"], key="sm_player_type")
-            club_options = sorted([x for x in df['Club'].unique() if str(x).strip()])
-            if 'sm_club' not in st.session_state:
-                default_club = ['FC Barcelona'] if 'FC Barcelona' in club_options else []
-            else:
-                default_club = st.session_state.get('sm_club', [])
-            sm_club = st.multiselect("Club", club_options, default=default_club, key="sm_club")
-            with search_col3:
-                sm_nation = st.multiselect("Quốc gia", sorted([x for x in df['Nation'].unique() if str(x).strip()]), key="sm_nation")
-                sm_league = st.multiselect("League", sorted([x for x in df['League'].unique() if str(x).strip()]), key="sm_league")
-            
-            rating_col1, rating_col2, filter_col = st.columns([2, 2, 2])
-            with rating_col1:
-                rating_min = st.number_input("Rating từ", min_value=1, max_value=150, value=1, key="sm_rating_min")
-            with rating_col2:
-                rating_max = st.number_input("Rating đến", min_value=1, max_value=150, value=150, key="sm_rating_max")
-            with filter_col:
-                filter_options = ["Tất cả", "Có gợi ý", "Không thể thêm skills", "Đã đủ skills"]
-                if 'sm_filter' not in st.session_state:
-                    st.session_state['sm_filter'] = "Có gợi ý"
-                sm_filter = st.selectbox("Trạng thái Skills", filter_options, key="sm_filter")
-        
-        quick_col1, quick_col2, quick_col3 = st.columns(3)
-        with quick_col1:
-            if st.button("⭐ EPIC", use_container_width=True, key="quick_epic"):
-                st.session_state['quick_filter'] = 'EPIC'
-                st.rerun()
-        with quick_col2:
-            if st.button("🟣 POTW", use_container_width=True, key="quick_potw"):
-                st.session_state['quick_filter'] = 'POTW'
-                st.rerun()
-        with quick_col3:
-            if st.button("🔄 Reset", use_container_width=True, key="quick_reset"):
-                st.session_state['quick_filter'] = None
-                st.rerun()
-        
-        if 'quick_filter' in st.session_state and st.session_state['quick_filter']:
-            if st.session_state['quick_filter'] == 'EPIC':
-                sm_player_type = ['EPIC']
-            elif st.session_state['quick_filter'] == 'POTW':
-                sm_player_type = ['POTW']
-            else:
-                sm_player_type = st.session_state.get('sm_player_type', [])
-        else:
-            sm_player_type = st.session_state.get('sm_player_type', [])
-        
-        sm_df = df.copy()
-        
-        if sm_player_search:
-            sm_df = sm_df[sm_df['Player'].str.contains(sm_player_search, case=False, na=False)]
-        if sm_position:
-            sm_df = sm_df[sm_df['Position'].isin(sm_position)]
-        if sm_player_type:
-            sm_df = sm_df[sm_df['Player Type'].astype(str).str.upper().isin(sm_player_type)]
-        if sm_club:
-            sm_df = sm_df[sm_df['Club'].isin(sm_club)]
-        if sm_nation:
-            sm_df = sm_df[sm_df['Nation'].isin(sm_nation)]
-        if sm_league:
-            sm_df = sm_df[sm_df['League'].isin(sm_league)]
-        
-        sm_df = sm_df[(sm_df['Rating'] >= rating_min) & (sm_df['Rating'] <= rating_max)]
+        # --- CONFIG ---
+        MAX_SKILLS = 10  # Efootball giới hạn 10 skills (5 gốc + 5 thêm)
+        MAX_ADDED_SLOTS = 5
+        ITEMS_PER_PAGE = 24
 
-        # Tự động sort theo Rating giảm dần
-        sm_df = sm_df.sort_values('Rating', ascending=False)
-        
-        def determine_skill_status(row):
-            position = str(row.get('Position', '')).strip()
-            player_type_value = str(row.get('Player Type', '')).upper()
-            base = str(row.get('Skills', '')).strip()
-            added = str(row.get('Added Skills', '')).strip()
+        # --- HELPER: Dialog Training (Trái tim của bản nâng cấp) ---
+        @st.dialog("🏋️ Training Center")
+        def show_training_modal(idx, row, current_inventory):
+            """Popup xử lý thêm skill tập trung, không reload trang nền"""
+            p_name = row['Player']
+            p_pos = row['Position']
             
-            base_list = [s.strip() for s in base.split(',') if s.strip()] if base else []
-            added_list = [s.strip() for s in added.split(',') if s.strip()] if added else []
+            # Load dữ liệu skill hiện tại
+            base_skills = [s.strip() for s in str(row.get('Skills', '')).split(',') if s.strip()]
+            added_skills = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
             
-            total_count = len(base_list) + len(added_list)
-            remaining_slots = MAX_ADDED_SKILLS - len(added_list)
+            used_slots = len(added_skills)
+            remaining_slots = MAX_ADDED_SLOTS - used_slots
             
-            if player_type_value == 'POTW':
-                return 'locked'
-            if total_count >= MAX_SKILLS or remaining_slots <= 0:
-                return 'full'
-            if position not in POSITION_SKILLS_PRIORITY:
-                return 'no_hint'
+            # Header cầu thủ
+            c1, c2 = st.columns([1, 3])
+            with c1:
+                pid = str(row.get('Player ID', '')).strip()
+                img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
+                st.image(img_url, width=80)
+            with c2:
+                st.subheader(p_name)
+                st.caption(f"{p_pos} | {row['Rating']} | {row['Club']}")
+                # Progress bar cho slot
+                st.progress(used_slots / MAX_ADDED_SLOTS, text=f"Slot: {used_slots}/{MAX_ADDED_SLOTS}")
+
+            st.divider()
+
+            # Hiển thị Skill hiện có
+            st.markdown("**Skills hiện tại:**")
+            skill_badges = ""
+            for s in base_skills: skill_badges += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
+            for s in added_skills: skill_badges += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
+            st.markdown(skill_badges, unsafe_allow_html=True)
+
+            if remaining_slots <= 0:
+                st.warning("🔒 Cầu thủ này đã full slot kỹ năng!")
+                if st.button("Đóng"): st.rerun()
+                return
+
+            st.divider()
             
-            recommendations = get_recommended_skills(position, base, added, MAX_SKILLS)
-            if remaining_slots > 0:
-                recommendations = recommendations[:remaining_slots]
-            else:
-                recommendations = []
+            # --- LOGIC GỢI Ý & KHO ---
+            st.markdown("#### 💡 Thêm kỹ năng mới")
             
-            if recommendations:
-                return 'has_hint'
-            return 'no_hint'
-        
-        sm_df['Skill_Status'] = sm_df.apply(determine_skill_status, axis=1)
-        
-        if sm_filter == "Không thể thêm skills":
-            sm_df = sm_df[sm_df['Skill_Status'] == 'locked']
-        elif sm_filter == "Có gợi ý":
-            sm_df = sm_df[sm_df['Skill_Status'] == 'has_hint']
-        elif sm_filter == "Đã đủ skills":
-            sm_df = sm_df[sm_df['Skill_Status'].isin(['full', 'no_hint'])]
-        
-        summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
-        with summary_col1:
-            st.metric("Tìm thấy", len(sm_df))
-        with summary_col2:
-            epic_count = (sm_df['Player Type'].astype(str).str.upper() == 'EPIC').sum()
-            st.metric("EPIC", epic_count)
-        with summary_col3:
-            potw_count = (sm_df['Player Type'].astype(str).str.upper() == 'POTW').sum()
-            st.metric("POTW", potw_count)
-        with summary_col4:
-            avg_rating = sm_df['Rating'].mean() if len(sm_df) > 0 else 0
-            st.metric("Rating TB", f"{avg_rating:.1f}")
-        
-        st.divider()
-        
-        if sm_df.empty:
-            st.info("🔍 Không tìm thấy cầu thủ nào")
-        else:
-            for idx, row in sm_df.iterrows():
-                player_name = row['Player']
-                position = row['Position']
-                rating = row['Rating']
-                player_type = row['Player Type']
-                
-                base_skills = str(df.loc[idx, 'Skills']).strip()
-                added_skills = str(df.loc[idx, 'Added Skills']).strip()
-                
-                base_skills_list = [s.strip() for s in base_skills.split(',') if s.strip()] if base_skills else []
-                added_skills_list = [s.strip() for s in added_skills.split(',') if s.strip()] if added_skills else []
-                all_skills_list = base_skills_list + added_skills_list
-                
-                base_count = len(base_skills_list)
-                added_count = len(added_skills_list)
-                total_count = len(all_skills_list)
-                remaining_slots = MAX_ADDED_SKILLS - added_count
-                
-                recommended = get_recommended_skills(position, base_skills, added_skills, MAX_SKILLS)
-                recommended = recommended[:remaining_slots]
-                
-                is_epic = str(player_type).upper() == "EPIC"
-                is_potw = str(player_type).upper() == "POTW"
-                
-                if is_epic:
-                    card_color = "🟡"
-                elif is_potw:
-                    card_color = "🟣"
+            # Lấy danh sách gợi ý
+            recs = get_recommended_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), 15)
+            
+            # Phân loại skill theo kho hàng
+            in_stock_options = []
+            out_of_stock_options = []
+            
+            for skill in recs:
+                stock = current_inventory.get(skill, 0)
+                label = f"{skill} (Kho: {stock})"
+                if stock > 0:
+                    in_stock_options.append((skill, label))
                 else:
-                    card_color = "🔵"
-                
-                with st.container(border=True):
-                    h1, h2, h3 = st.columns([3, 1, 1])
-                    with h1:
-                        st.markdown(f"### {card_color} {player_name}")
-                    with h2:
-                        st.markdown(f"**{position}** • {rating}")
-                    with h3:
-                        if is_potw:
-                            st.markdown(f"🔒 **POTW**")
-                        elif remaining_slots > 0:
-                            st.markdown(f"💡 **+{remaining_slots}** slot")
-                        else:
-                            st.markdown(f"✅ **Full**")
-                    
-                    st.markdown(f"**📋 Skills:** ({total_count})")
-                    
-                    if base_skills_list:
-                        st.caption(f"🎮 Gốc ({base_count}):")
-                        base_html = " ".join([f'<span style="background:#e3f2fd;color:#1565c0;padding:4px 10px;border-radius:12px;margin:2px;display:inline-block;font-size:13px;border:1px solid #90caf9;">⭐ {s}</span>' for s in base_skills_list])
-                        st.markdown(base_html, unsafe_allow_html=True)
-                
-                    if added_skills_list:
-                        st.caption(f"➕ Đã thêm ({added_count}):")
-                        added_html = " ".join([f'<span style="background:#d4edda;color:#155724;padding:4px 10px;border-radius:12px;margin:2px;display:inline-block;font-size:13px;border:1px solid #c3e6cb;">✅ {s}</span>' for s in added_skills_list])
-                        st.markdown(added_html, unsafe_allow_html=True)
-                
-                    if not base_skills_list and not added_skills_list:
-                        st.caption(f"_Chưa có skills (0/{MAX_SKILLS})_")
-                    
-                    if is_potw:
-                        st.info("🔒 Cầu thủ POTW không thể thêm skills ngoài skills gốc")
-                    elif total_count >= MAX_SKILLS:
-                        st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
-                    elif recommended:
-                        st.markdown(f"**💡 Gợi ý thêm:** (Còn {remaining_slots} slot)")
+                    out_of_stock_options.append((skill, label))
+            
+            # Gộp lại: Ưu tiên còn hàng lên trước
+            # Format cho multiselect: Chỉ lấy tên skill làm value, label hiển thị số lượng
+            options_map = {k: v for k, v in (in_stock_options + out_of_stock_options)}
+            all_options = [k for k, v in in_stock_options] + [k for k, v in out_of_stock_options]
+            
+            # UI chọn skill
+            selected = st.multiselect(
+                "Chọn skills từ gợi ý hoặc kho:",
+                options=all_options,
+                format_func=lambda x: options_map.get(x, x),
+                max_selections=remaining_slots,
+                placeholder=f"Chọn tối đa {remaining_slots} skills..."
+            )
+            
+            # Cảnh báo nếu chọn skill hết hàng
+            missing_skills = [s for s in selected if current_inventory.get(s, 0) <= 0]
+            if missing_skills:
+                st.error(f"⚠️ Kho hết hàng: {', '.join(missing_skills)}")
+            
+            col_save1, col_save2 = st.columns(2)
+            with col_save2:
+                # Nút Lưu
+                btn_disabled = len(selected) == 0 or len(missing_skills) > 0
+                if st.button("💾 Xác nhận thêm", type="primary", use_container_width=True, disabled=btn_disabled):
+                    with st.spinner("Đang train..."):
+                        # 1. Update Dataframe
+                        new_added = added_skills + selected
+                        df.at[idx, 'Added Skills'] = ", ".join(new_added)
                         
-                        selected_skills = []
-                        num_cols = min(len(recommended), 5)
-                        cols = st.columns(num_cols)
-                        
-                        reset_key = st.session_state.get('checkbox_reset_counter', 0)
-                        
-                        # 🔧 FIX: Load fresh inventory mỗi lần render
-                        current_inventory = get_inventory()
-                        
-                        for i, skill in enumerate(recommended):
-                            with cols[i % num_cols]:
-                                stock_count = current_inventory.get(skill, 0)
-                                stock_display = f"({stock_count})" if stock_count > 0 else "(❌)"
-                                label = f"**#{i+1}** {skill} {stock_display}"
-                                
-                                # Disable checkbox nếu hết hàng
-                                disabled = stock_count <= 0
-                                
-                                if st.checkbox(label, key=f"skill_{idx}_{i}_{reset_key}", 
-                                             disabled=disabled,
-                                             label_visibility="visible"):
-                                    selected_skills.append(skill)
-                        
-                        if selected_skills:
-                            new_total = total_count + len(selected_skills)
+                        # 2. Update Gsheet
+                        if save_data_to_gsheet(df):
+                            # 3. Update Inventory
+                            for s in selected:
+                                update_inventory_count(s, -1)
                             
-                            if new_total > MAX_SKILLS:
-                                st.error(f"⚠️ Không thể thêm {len(selected_skills)} skills! (Vượt giới hạn {MAX_SKILLS})")
-                            else:
-                                # 🔧 FIX: Kiểm tra inventory REALTIME
-                                fresh_inventory = get_inventory()
-                                unavailable_skills = []
-                                for skill in selected_skills:
-                                    if fresh_inventory.get(skill, 0) <= 0:
-                                        unavailable_skills.append(skill)
-                                
-                                if unavailable_skills:
-                                    st.error(f"⚠️ Kho không đủ skills: {', '.join(unavailable_skills)}")
-                                    st.info("💡 Vui lòng kiểm tra tab 'Kho Skills' để thêm skills cần thiết")
-                                else:
-                                    if st.button(f"➕ Thêm {len(selected_skills)} skill → Tổng: {new_total}/{MAX_SKILLS}", 
-                                               key=f"add_{idx}_{reset_key}", 
-                                               type="primary", 
-                                               use_container_width=True):
-                                        
-                                        # 🔧 FIX: Transaction safety
-                                        try:
-                                            with st.spinner("💾 Đang lưu..."):
-                                                # STEP 1: Cập nhật DataFrame
-                                                new_added_skills = added_skills_list + selected_skills
-                                                new_added_skills_str = ', '.join(new_added_skills)
-                                                df.at[idx, 'Added Skills'] = new_added_skills_str
-                                                
-                                                # STEP 2: Lưu vào Google Sheets
-                                                save_success = save_data_to_gsheet(df)
-                                                
-                                                if not save_success:
-                                                    raise Exception("Lỗi khi lưu vào Google Sheets")
-                                                
-                                                # STEP 3: CHỈ trừ inventory SAU KHI lưu thành công
-                                                for skill in selected_skills:
-                                                    update_inventory_count(skill, -1)
-                                                
-                                                # STEP 4: Clear cache
-                                                st.cache_data.clear()
-                                            
-                                            st.toast(f"✅ Đã thêm {len(selected_skills)} skills cho {player_name}!", icon="✅")
-                                            st.session_state.checkbox_reset_counter += 1
-                                            st.session_state.current_tab = 'skills'
-                                            
-                                            import time
-                                            time.sleep(0.5)
-                                            st.rerun()
-                                            
-                                        except Exception as e:
-                                            st.error(f"❌ Lỗi: {e}")
-                                            st.warning("⚠️ Dữ liệu không bị thay đổi - vui lòng thử lại")
-                    else:
-                        if total_count < MAX_SKILLS:
-                            st.info(f"ℹ️ Không có gợi ý thêm cho vị trí {position} (Hiện có {total_count}/{MAX_SKILLS} skills)")
+                            st.toast(f"Đã thêm {len(selected)} skills!", icon="🎉")
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
                         else:
-                            st.success(f"✅ Đã đạt giới hạn tối đa {MAX_SKILLS} skills!")
+                            st.error("Lỗi khi lưu!")
+
+        # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
+        with st.container(border=True):
+            f1, f2, f3 = st.columns([2, 1, 1])
+            with f1:
+                search_txt = st.text_input("🔍 Tìm cầu thủ / Skill", placeholder="Nhập tên, vị trí...", label_visibility="collapsed")
+            with f2:
+                # Filter nhanh loại thẻ
+                ft_type = st.selectbox("Loại thẻ", ["Tất cả", "EPIC", "POTW", "Standard"], label_visibility="collapsed")
+            with f3:
+                # Filter nhanh trạng thái
+                ft_status = st.selectbox("Trạng thái", ["Tất cả", "Cần train", "Đã full"], label_visibility="collapsed")
+
+        # --- 2. XỬ LÝ DỮ LIỆU ---
+        # Lấy inventory một lần
+        inventory = get_inventory()
+        
+        filtered_df = df.copy()
+        
+        # Filter Logic
+        if search_txt:
+            filtered_df = filtered_df[
+                filtered_df['Player'].str.contains(search_txt, case=False) | 
+                filtered_df['Position'].str.contains(search_txt, case=False)
+            ]
+        
+        if ft_type != "Tất cả":
+            if ft_type == "Standard": 
+                filtered_df = filtered_df[filtered_df['Player Type'] == 'NON-EPIC']
+            else:
+                filtered_df = filtered_df[filtered_df['Player Type'] == ft_type]
+                
+        # Tính toán trạng thái skill để lọc
+        def check_train_status(row):
+            if "POTW" in str(row['Player Type']).upper(): return "full" # POTW coi như full
+            added = [x for x in str(row.get('Added Skills', '')).split(',') if x.strip()]
+            return "full" if len(added) >= MAX_ADDED_SLOTS else "need"
+
+        filtered_df['Train_Status'] = filtered_df.apply(check_train_status, axis=1)
+        
+        if ft_status == "Cần train":
+            filtered_df = filtered_df[filtered_df['Train_Status'] == 'need']
+        elif ft_status == "Đã full":
+            filtered_df = filtered_df[filtered_df['Train_Status'] == 'full']
+
+        # Sort: Ưu tiên EPIC & Rating cao lên đầu
+        filtered_df = filtered_df.sort_values(['Epic_Priority', 'Rating'], ascending=[True, False])
+
+        # --- 3. PHÂN TRANG (PAGINATION) ---
+        total_items = len(filtered_df)
+        num_pages = max(1, (total_items // ITEMS_PER_PAGE) + (1 if total_items % ITEMS_PER_PAGE > 0 else 0))
+        
+        col_pag1, col_pag2 = st.columns([4, 1])
+        with col_pag1:
+            st.caption(f"Tìm thấy **{total_items}** cầu thủ phù hợp.")
+        with col_pag2:
+            page = st.number_input("Trang", min_value=1, max_value=num_pages, value=1)
+
+        start_idx = (page - 1) * ITEMS_PER_PAGE
+        end_idx = start_idx + ITEMS_PER_PAGE
+        display_df = filtered_df.iloc[start_idx:end_idx]
+
+        # --- 4. HIỂN THỊ GRID CARD (Gọn gàng hơn) ---
+        if display_df.empty:
+            st.info("Không có cầu thủ nào.")
+        else:
+            # CSS Custom cho nút Training
+            st.markdown("""
+            <style>
+            .train-btn button {
+                background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+                color: white;
+                border: none;
+                width: 100%;
+                font-weight: 600;
+            }
+            .train-btn button:hover {
+                background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+                transform: scale(1.02);
+            }
+            .skill-slot-dot {
+                height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 2px;
+            }
+            .slot-filled { background-color: #4ade80; box-shadow: 0 0 5px #4ade80; }
+            .slot-empty { background-color: #334155; border: 1px solid #475569; }
+            </style>
+            """, unsafe_allow_html=True)
+
+            cols = st.columns(4) # Grid 4 cột
+            
+            for i, (idx, row) in enumerate(display_df.iterrows()):
+                with cols[i % 4]:
+                    # Tính toán slot visual
+                    added = [x for x in str(row.get('Added Skills', '')).split(',') if x.strip()]
+                    n_added = len(added)
+                    is_potw = "POTW" in str(row['Player Type']).upper()
+                    
+                    # HTML Visual Slot Dots
+                    slots_html = ""
+                    if is_potw:
+                        slots_html = "<span style='color:#d946ef; font-size:0.8em'>🔒 POTW Locked</span>"
+                    else:
+                        for s in range(MAX_ADDED_SLOTS):
+                            cls = "slot-filled" if s < n_added else "slot-empty"
+                            slots_html += f"<span class='skill-slot-dot {cls}'></span>"
+
+                    # Card Container
+                    with st.container(border=True):
+                        # Layout Card
+                        c_img, c_info = st.columns([1, 2.5])
+                        with c_img:
+                            pid = str(row.get('Player ID', '')).strip()
+                            img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
+                            st.image(img, use_container_width=True)
+                        
+                        with c_info:
+                            # Tên & Rating
+                            color = "#fbbf24" if row['Epic_Priority'] == 0 else ("#d946ef" if is_potw else "#fff")
+                            st.markdown(f"<div style='font-weight:bold; color:{color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['Player']}</div>", unsafe_allow_html=True)
+                            st.caption(f"{row['Position']} • {row['Rating']}")
+                            st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
+                        
+                        # Nút Action
+                        disabled_btn = is_potw or n_added >= MAX_ADDED_SLOTS
+                        btn_label = "🔒 Locked" if is_potw else ("✅ Full" if n_added >= MAX_ADDED_SLOTS else "🏋️ Train")
+                        
+                        # Dùng div wrapper để style nút (nếu muốn) hoặc dùng type='primary'
+                        if st.button(btn_label, key=f"tr_{idx}", disabled=disabled_btn, use_container_width=True, type="secondary" if disabled_btn else "primary"):
+                            show_training_modal(idx, row, inventory)
 
     elif current_tab == 'squad':
         st.header("⚽ Quản lý Đội hình")
