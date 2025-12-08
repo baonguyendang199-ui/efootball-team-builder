@@ -2547,7 +2547,7 @@ def main():
         render_app_hero(df)
 
     if current_tab == 'overview':
-        # --- 1. CSS CHO DASHBOARD ---
+        # --- 1. CSS CHO DASHBOARD (Giữ nguyên) ---
         st.markdown("""
         <style>
             /* Dashboard Card Style */
@@ -2630,7 +2630,7 @@ def main():
             region_series = region_series[region_series.ne("")]
             region_count = int(region_series.nunique())
 
-        # --- 3. HERO STATS BANNER (HTML TÙY CHỈNH) ---
+        # --- 3. HERO STATS BANNER ---
         st.markdown(f"""
         <div class="stat-banner">
             <div class="stat-box">
@@ -2680,8 +2680,10 @@ def main():
         with c1:
             with st.container(border=True):
                 st.markdown('<div class="dash-title">⚽ Top Clubs</div>', unsafe_allow_html=True)
+                # FIX: Đặt tên cột tường minh
                 club_counts = df['Club'].value_counts().reset_index(name='Count').head(10)
-                club_counts.columns = ['Club', 'Count']
+                club_counts.columns = ['Club', 'Count'] 
+                
                 fig = px.bar(club_counts, x='Count', y='Club', orientation='h', text='Count',
                              color='Count', color_continuous_scale='Bluyl')
                 fig.update_layout(coloraxis_showscale=False, yaxis={'categoryorder':'total ascending'})
@@ -2690,8 +2692,10 @@ def main():
         with c2:
             with st.container(border=True):
                 st.markdown('<div class="dash-title">🌍 Top Nations</div>', unsafe_allow_html=True)
+                # FIX: Đặt tên cột tường minh
                 nation_counts = df['Nation'].value_counts().reset_index(name='Count').head(10)
                 nation_counts.columns = ['Nation', 'Count']
+                
                 fig = px.bar(nation_counts, x='Nation', y='Count', text='Count',
                              color_discrete_sequence=['#22D3EE'])
                 st.plotly_chart(style_fig(fig), use_container_width=True, config={'displayModeBar': False})
@@ -2702,8 +2706,11 @@ def main():
         with c3:
             with st.container(border=True):
                 st.markdown('<div class="dash-title">🏷️ Loại thẻ</div>', unsafe_allow_html=True)
+                # FIX: Đặt tên cột tường minh để tránh lỗi 'index'
                 type_counts = df['Player Type'].value_counts().reset_index(name='Count')
-                fig = px.pie(type_counts, names='index', values='Count', hole=0.6,
+                type_counts.columns = ['Type', 'Count']
+                
+                fig = px.pie(type_counts, names='Type', values='Count', hole=0.6,
                              color_discrete_sequence=COLOR_SEQ)
                 fig.update_traces(textposition='outside', textinfo='percent+label')
                 fig.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
@@ -2712,8 +2719,11 @@ def main():
         with c4:
             with st.container(border=True):
                 st.markdown('<div class="dash-title">📍 Vị trí</div>', unsafe_allow_html=True)
+                # FIX: Đặt tên cột tường minh
                 pos_counts = df['Position'].value_counts().reset_index(name='Count')
-                fig = px.treemap(pos_counts, path=['index'], values='Count',
+                pos_counts.columns = ['Position', 'Count']
+                
+                fig = px.treemap(pos_counts, path=['Position'], values='Count',
                                  color='Count', color_continuous_scale='Viridis')
                 fig.update_layout(margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(style_fig(fig), use_container_width=True)
@@ -2721,7 +2731,6 @@ def main():
         with c5:
             with st.container(border=True):
                 st.markdown('<div class="dash-title">🔥 Skills cần thiết</div>', unsafe_allow_html=True)
-                # (Logic tính skill giữ nguyên từ code gốc)
                 MAX_SKILLS_OV = 15
                 MAX_ADDED_SKILLS_OV = 5
                 skill_need_counts = {}
@@ -2768,8 +2777,11 @@ def main():
             with st.container(border=True):
                 st.markdown('<div class="dash-title">👣 Chân thuận</div>', unsafe_allow_html=True)
                 if 'Foot' in df.columns:
+                    # FIX: Đặt tên cột tường minh
                     foot_counts = df['Foot'].value_counts().reset_index(name='Count')
-                    fig = px.pie(foot_counts, names='index', values='Count', hole=0.4,
+                    foot_counts.columns = ['Foot', 'Count']
+                    
+                    fig = px.pie(foot_counts, names='Foot', values='Count', hole=0.4,
                                  color_discrete_sequence=['#3B82F6', '#EF4444'])
                     fig.update_traces(textposition='inside', textinfo='percent+label')
                     fig.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
