@@ -1368,16 +1368,16 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
             
     return best_formation_name, best_squad
 
-def render_pitch_view(squad_list, sort_mode='rating_desc'):
+def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     """
-    Vẽ sơ đồ sân bóng: RESPONSIVE MOBILE FINAL VERSION.
-    Đã FIX: Sort dự bị cho Ambidextrous (2 chân như 1) và hiển thị chỉ số chân trên thẻ.
+    Vẽ sơ đồ sân bóng: SMART DYNAMIC LOGIC.
+    Tự động tính toán vị trí dựa trên Role mà không cần Hardcode tọa độ.
     """
     import streamlit.components.v1 as components
     import re
     import math
 
-    # --- 1. XỬ LÝ SORT MODE & METRIC ---
+    # --- 1. XỬ LÝ SORT MODE (Giữ nguyên) ---
     highlight_type = None
     is_reverse = True 
 
@@ -1394,18 +1394,18 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
         highlight_type = 'BMI'; 
         if 'asc' in sort_mode: is_reverse = False
     elif 'potw' in sort_mode: highlight_type = 'Type'
-    elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous' # Chế độ 2 chân
+    elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous'
     elif 'united_nations' in sort_mode: highlight_type = 'Nation'
 
-    # --- 2. PHÂN LOẠI DATA ---
-    starters = [p for p in squad_list if p.get('Is_Starter', False)]
-    raw_subs = [p for p in squad_list if not p.get('Is_Starter', False)]
+    # --- 2. TÁCH ĐÁ CHÍNH & DỰ BỊ ---
+    starters = squad_list[:11]
+    raw_subs = squad_list[11:]
 
+    # --- 3. SORT DỰ BỊ (Giữ nguyên logic cũ) ---
     def get_sort_value(p, key):
         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
         except: return 0
 
-    # === LOGIC SORT DỰ BỊ (ĐÃ SỬA) ===
     if highlight_type == 'Height': subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Height'), reverse=is_reverse)
     elif highlight_type == 'Weight': subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Weight'), reverse=is_reverse)
     elif highlight_type == 'Age': subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Age'), reverse=is_reverse)
@@ -1414,29 +1414,23 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             h = get_sort_value(p, 'Height') / 100.0; w = get_sort_value(p, 'Weight')
             return w / (h**2) if h > 0 else 0
         subs = sorted(raw_subs, key=get_bmi, reverse=is_reverse)
-    
-    # FIX: Sắp xếp theo Score đã tính (đã cộng điểm bonus cho chân thuận)
     elif highlight_type == 'Ambidextrous':
         subs = sorted(raw_subs, key=lambda x: x.get('Score', 0), reverse=True)
-        
-    else: subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
+    else: 
+        subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
-    # --- 3. HÀM TẠO CARD HTML ---
+    # --- 4. HTML GENERATOR (Giữ nguyên) ---
     def create_card_html(p, top=None, left=None, is_sub=False):
         full_name = p['Player'].strip()
         name_parts = full_name.split()
-        if len(name_parts) > 1:
-            display_name = name_parts[-1].upper()
-        else:
-            display_name = full_name.upper()
-        
+        display_name = name_parts[-1].upper() if len(name_parts) > 1 else full_name.upper()
         if len(display_name) > 9: display_name = display_name[:8] + "."
 
         rating = p['Rating']
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
         
-        # Badge Value (Hiển thị chỉ số trên đầu thẻ)
+        # Badge Logic
         val_display = ""
         if highlight_type == 'Height': val_display = f"{p.get('Height', '-')}cm"
         elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '-')}kg"
@@ -1447,8 +1441,6 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
                 w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
                 if h > 0: val_display = f"{(w/(h**2)):.1f}"
             except: pass
-        
-        # FIX: Hiển thị chỉ số chân (Usage | Acc)
         elif highlight_type == 'Ambidextrous':
             d = p.get('Data', {})
             def get_wf_num(text):
@@ -1457,21 +1449,13 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
                 if any(k in t for k in ['occasionally', 'high', '3']): return '3'
                 if any(k in t for k in ['rarely', 'medium', '2']): return '2'
                 return '1'
-
-            u = get_wf_num(d.get('Weak Foot Usage', ''))
-            a = get_wf_num(d.get('Weak Foot Accuracy', ''))
-            
-            # Hiển thị icon: 🦶 Usage | 🎯 Accuracy
+            u, a = get_wf_num(d.get('Weak Foot Usage', '')), get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
-        
-        # Color Logic
+
         ptype = str(p['Type']).upper()
-        if "POTW" in ptype or "TRENDING" in ptype:
-            accent_color = "#d946ef"; shadow_color = "rgba(217, 70, 239, 0.4)"
-        elif "EPIC" in ptype and "NON" not in ptype:
-            accent_color = "#fbbf24"; shadow_color = "rgba(251, 191, 36, 0.4)"
-        else:
-            accent_color = "#38bdf8"; shadow_color = "rgba(56, 189, 248, 0.4)"
+        if "POTW" in ptype or "TRENDING" in ptype: accent, shadow = "#d946ef", "rgba(217, 70, 239, 0.4)"
+        elif "EPIC" in ptype and "NON" not in ptype: accent, shadow = "#fbbf24", "rgba(251, 191, 36, 0.4)"
+        else: accent, shadow = "#38bdf8", "rgba(56, 189, 248, 0.4)"
 
         if is_sub:
             position_css = ""
@@ -1480,185 +1464,149 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
             position_css = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%);"
             card_class = "card-pitch"
 
-        badge_html = f'<div class="stat-badge" style="background:{accent_color}">{val_display}</div>' if val_display else ""
-        
-        if p['Player'] == "---":
-            return f'<div class="empty-slot {card_class}" style="{position_css}"></div>'
+        badge_html = f'<div class="stat-badge" style="background:{accent}">{val_display}</div>' if val_display else ""
+        if p['Player'] == "---": return f'<div class="empty-slot {card_class}" style="{position_css}"></div>'
 
         return f"""
-        <div class="p-card {card_class}" style="{position_css}; --accent: {accent_color}; --shadow: {shadow_color};">
+        <div class="p-card {card_class}" style="{position_css}; --accent: {accent}; --shadow: {shadow};">
             {badge_html}
             <div class="p-bg"></div>
             <div class="p-header">
                 <span class="p-pos">{pos}</span>
-                <span class="p-rating" style="color: {accent_color}">{rating}</span>
+                <span class="p-rating" style="color: {accent}">{rating}</span>
             </div>
-            <div class="p-img-box">
-                <img src="{img}" loading="lazy" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'">
-            </div>
+            <div class="p-img-box"><img src="{img}" loading="lazy" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'"></div>
             <div class="p-name">{display_name}</div>
         </div>
         """
 
-    # --- 4. MAPPING VỊ TRÍ ---
-    gk_list = [p for p in starters if p['Position'] == 'GK']
-    def_list = [p for p in starters if p['Position'] in ['CB', 'LB', 'RB']]
-    pivot_list = [p for p in starters if p['Position'] in ['DMF', 'CMF']] 
-    att_mid_list = [p for p in starters if p['Position'] == 'AMF'] 
-    wide_mid_list = [p for p in starters if p['Position'] in ['LMF', 'RMF']] 
-    fwd_list = [p for p in starters if p['Position'] in ['LWF', 'RWF', 'SS', 'CF']] 
-
+    # =========================================================================
+    # 🔥 LOGIC SẮP XẾP VỊ TRÍ THÔNG MINH (THEO TẦNG)
+    # =========================================================================
+    
     html_starters = ""
+    
+    # 1. Phân loại cầu thủ vào các nhóm (Layers)
+    gk_group = []
+    def_group = []
+    dmf_group = []
+    mid_group = [] # CMF, AMF
+    wing_group = [] # LWF, RWF, LMF, RMF
+    cf_group = [] # CF, SS
 
-    # 4.1 GK
-    for p in gk_list: html_starters += create_card_html(p, 90, 50)
+    for p in starters:
+        pos = p['Position']
+        if pos == 'GK': gk_group.append(p)
+        elif pos in ['CB', 'LB', 'RB']: def_group.append(p)
+        elif pos == 'DMF': dmf_group.append(p)
+        elif pos in ['CMF', 'AMF']: mid_group.append(p)
+        elif pos in ['LWF', 'RWF', 'LMF', 'RMF']: wing_group.append(p)
+        elif pos in ['CF', 'SS']: cf_group.append(p)
 
-    # 4.2 HẬU VỆ
-    def_list.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
-    def_count = len(def_list)
-    if def_count == 3: coords = [25, 50, 75]
-    elif def_count == 4: coords = [15, 38, 62, 85]
-    elif def_count == 5: coords = [10, 30, 50, 70, 90]
-    else: coords = [50]
-    for i, p in enumerate(def_list):
-        left_pos = coords[i] if i < len(coords) else 50
-        top_pos = 68 if p['Position'] in ['LB', 'RB'] else 70
-        html_starters += create_card_html(p, top_pos, left_pos)
+    # Hàm hỗ trợ tính toán vị trí Left%
+    def calculate_left_positions(count):
+        if count == 1: return [50]
+        if count == 2: return [30, 70] # Dãn rộng ra xíu
+        if count == 3: return [20, 50, 80]
+        if count == 4: return [15, 38, 62, 85]
+        if count == 5: return [10, 30, 50, 70, 90]
+        return [50] * count
 
-    # 4.3 PIVOT
-    pivot_count = len(pivot_list)
-    pivot_list.sort(key=lambda x: {'DMF': 1, 'CMF': 2}.get(x['Position'], 2))
-    if pivot_count == 1: coords = [50]
-    elif pivot_count == 2: coords = [35, 65]
-    elif pivot_count == 3: coords = [28, 50, 72]
-    else: coords = [20, 40, 60, 80]
-    for i, p in enumerate(pivot_list):
-        left_pos = coords[i] if i < len(coords) else 50
-        top_pos = 54 if p['Position'] == 'DMF' else 50
-        if def_count == 3 and pivot_count == 2 and p['Position'] == 'DMF': top_pos = 52
-        html_starters += create_card_html(p, top_pos, left_pos)
+    # --- RENDER TỪNG TẦNG ---
 
-    # 4.4 WIDE MID
-    for p in wide_mid_list:
-        left_pos = 12 if p['Position'] == 'LMF' else 88
-        html_starters += create_card_html(p, 40, left_pos)
+    # 1. GK (Cố định)
+    for p in gk_group: html_starters += create_card_html(p, 92, 50)
 
-    # 4.5 AMF
-    amf_count = len(att_mid_list)
-    if amf_count == 1: coords = [50]
-    elif amf_count == 2: coords = [35, 65] 
-    else: coords = [25, 50, 75]
-    for i, p in enumerate(att_mid_list):
-        left_pos = coords[i] if i < len(coords) else 50
-        html_starters += create_card_html(p, 32, left_pos)
+    # 2. HẬU VỆ (Sắp xếp: LB -> CB -> RB)
+    # Priority: LB(1) < CB(2) < RB(3). Sort để LB luôn bên trái, RB bên phải
+    def_group.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
+    def_coords = calculate_left_positions(len(def_group))
+    for i, p in enumerate(def_group):
+        # CB đá thấp (78%), LB/RB đá cao hơn chút (72%)
+        top = 78 if p['Position'] == 'CB' else 72
+        html_starters += create_card_html(p, top, def_coords[i])
 
-    # 4.6 FWD
-    wings = [p for p in fwd_list if p['Position'] in ['LWF', 'RWF']]
-    centers = [p for p in fwd_list if p['Position'] in ['SS', 'CF']]
-    for p in wings:
-        l = 15 if p['Position'] == 'LWF' else 85
-        html_starters += create_card_html(p, 20, l)
-    c_count = len(centers)
-    if c_count == 1: coords = [50]
-    elif c_count == 2: coords = [35, 65]
-    elif c_count == 3: coords = [25, 50, 75]
-    else: coords = [50]
-    for i, p in enumerate(centers):
-        left_pos = coords[i] if i < len(coords) else 50
-        t = 14 if p['Position'] == 'CF' else 22 
-        html_starters += create_card_html(p, t, left_pos)
+    # 3. TIỀN VỆ TRỤ (DMF)
+    # Nếu có 2 DMF -> Đá ngang nhau. Nếu 1 DMF -> Đá giữa.
+    dmf_coords = calculate_left_positions(len(dmf_group))
+    for i, p in enumerate(dmf_group):
+        html_starters += create_card_html(p, 60, dmf_coords[i])
+
+    # 4. TIỀN VỆ CÔNG/TRUNG TÂM (CMF/AMF)
+    # Sort: CMF(1) < AMF(2). Nhưng về hiển thị Left/Right thì không quan trọng lắm, chủ yếu là Top
+    # AMF đá cao (35%), CMF đá thấp hơn (48%)
+    # Logic đặc biệt: Nếu trong sơ đồ có DMF, CMF sẽ đá cao ngang AMF hoặc thấp hơn xíu.
+    mid_coords = calculate_left_positions(len(mid_group))
+    for i, p in enumerate(mid_group):
+        top = 35 if p['Position'] == 'AMF' else 48
+        # Nếu không có DMF, CMF phải đá thấp xuống để cover (như 4-4-2 Flat)
+        if len(dmf_group) == 0 and p['Position'] == 'CMF':
+            top = 55 
+        html_starters += create_card_html(p, top, mid_coords[i])
+
+    # 5. CÁNH (Wings) - Chia làm 2 nhóm: Trái (LWF/LMF) và Phải (RWF/RMF)
+    left_wings = [p for p in wing_group if 'L' in p['Position']]
+    right_wings = [p for p in wing_group if 'R' in p['Position']]
+    
+    for p in left_wings:
+        top = 20 if p['Position'] == 'LWF' else 40 # LMF thấp hơn LWF
+        html_starters += create_card_html(p, top, 15) # Luôn bám trái 15%
+        
+    for p in right_wings:
+        top = 20 if p['Position'] == 'RWF' else 40 # RMF thấp hơn RWF
+        html_starters += create_card_html(p, top, 85) # Luôn bám phải 85%
+
+    # 6. TIỀN ĐẠO (CF/SS)
+    # SS đá lùi (28%), CF đá cắm (15%)
+    # Sort theo tên để ổn định, hoặc sort CF ra giữa nếu có 3 người
+    cf_group.sort(key=lambda x: {'SS': 2, 'CF': 1}.get(x['Position'], 1))
+    
+    # Xử lý riêng cho 3 tiền đạo (VD: SS, CF, SS) -> SS phải dạt ra
+    cf_coords = calculate_left_positions(len(cf_group))
+    
+    # Nếu chỉ có 1 người -> Luôn giữa
+    # Nếu có 2 người (2 CF) -> 35, 65
+    for i, p in enumerate(cf_group):
+        top = 28 if p['Position'] == 'SS' else 14
+        html_starters += create_card_html(p, top, cf_coords[i])
+
+    # =========================================================================
 
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
 
-    rows_mobile = math.ceil(len(subs) / 4)
     rows_desktop = math.ceil(len(subs) / 8)
     total_height_desktop = 800 + 60 + (rows_desktop * 130)
 
-    # CSS RESPONSIVE
+    # (CSS GIỮ NGUYÊN NHƯ CŨ - KHÔNG THAY ĐỔI)
     css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@700;800&family=Inter:wght@600;700&display=swap');
-        
         :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --pitch-line: rgba(148, 163, 184, 0.2); }
         body { margin: 0; background: transparent; font-family: 'Inter', sans-serif; overflow: hidden; }
         .container { display: flex; flex-direction: column; gap: 15px; width: 100%; margin: 0 auto; }
-
-        .pitch {
-            position: relative; width: 100%; height: 720px; 
-            background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%);
-            border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; perspective: 800px;
-        }
-        .pitch::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px),
-            linear-gradient(90deg, var(--pitch-line) 1px, transparent 1px);
-            background-size: 40px 40px; opacity: 0.3; transform: perspective(500px) rotateX(20deg) scale(1.1);
-        }
+        .pitch { position: relative; width: 100%; height: 720px; background: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; perspective: 800px; }
+        .pitch::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px), linear-gradient(90deg, var(--pitch-line) 1px, transparent 1px); background-size: 40px 40px; opacity: 0.3; transform: perspective(500px) rotateX(20deg) scale(1.1); }
         .lines { position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; }
         .center-circle { position: absolute; top: 50%; left: 50%; width: 120px; height: 120px; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; transform: translate(-50%, -50%); }
         .half-line { position: absolute; top: 50%; left: 0; width: 100%; height: 0; border-top: 2px solid rgba(255,255,255,0.15); }
         .box-top { position: absolute; top: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-top: none; }
         .box-bot { position: absolute; bottom: -2px; left: 50%; width: 60%; height: 12%; transform: translateX(-50%); border: 2px solid rgba(255,255,255,0.15); border-bottom: none; }
-
-        .p-card {
-            position: relative; width: 90px; height: 120px;
-            border-radius: 6px; cursor: pointer; transition: all 0.2s; z-index: 10;
-        }
+        .p-card { position: relative; width: 90px; height: 120px; border-radius: 6px; cursor: pointer; transition: all 0.2s; z-index: 10; }
         .card-pitch { position: absolute; }
         .card-sub { position: relative; margin-bottom: 5px; }
-
-        .p-bg {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(180deg, rgba(30,41,59,0.8) 0%, rgba(15,23,42,0.95) 100%);
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255,255,255,0.15); border-bottom: 3px solid var(--accent);
-            border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-        }
-
+        .p-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, rgba(30,41,59,0.8) 0%, rgba(15,23,42,0.95) 100%); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.15); border-bottom: 3px solid var(--accent); border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
         .p-header { position: absolute; top: 4px; left: 4px; right: 4px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
         .p-pos { font-family: 'Exo 2'; font-size: 10px; font-weight: 700; color: #cbd5e1; background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 3px; }
         .p-rating { font-family: 'Exo 2'; font-size: 18px; font-weight: 800; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
-
         .p-img-box { position: absolute; bottom: 22px; left: 0; width: 100%; height: 85px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 6px 6px; }
         .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
-
-        .p-name {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 22px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 11px; font-weight: 600; color: #fff; 
-            background: rgba(2, 6, 23, 0.9); z-index: 4; border-radius: 0 0 6px 6px;
-            white-space: nowrap; overflow: hidden;
-        }
-
-        .stat-badge { 
-            position: absolute; 
-            top: -14px; 
-            left: -6px; 
-            color: #000; font-size: 10px; font-weight: 800; 
-            padding: 1px 5px; border-radius: 3px; z-index: 20; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white;
-            white-space: nowrap;
-        }
-        
+        .p-name { position: absolute; bottom: 0; left: 0; width: 100%; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; background: rgba(2, 6, 23, 0.9); z-index: 4; border-radius: 0 0 6px 6px; white-space: nowrap; overflow: hidden; }
+        .stat-badge { position: absolute; top: -14px; left: -6px; color: #000; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 3px; z-index: 20; box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white; white-space: nowrap; }
         .empty-slot { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transform: translate(-50%, -50%); }
-
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; }
         .bench-title { color: #94a3b8; font-weight: 700; font-size: 14px; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
         .bench-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-
-        @media only screen and (max-width: 600px) {
-            .pitch { height: 620px; }
-            .p-card { width: 64px; height: 90px; }
-            .card-sub { width: 64px; height: 90px; }
-            .p-rating { font-size: 14px; }
-            .p-pos { font-size: 8px; padding: 0 2px; }
-            .p-name { font-size: 9px; height: 18px; }
-            .p-img-box { height: 65px; bottom: 18px; }
-            .stat-badge { font-size: 9px; padding: 1px 3px; top: -12px; left: -4px; }
-            .bench { padding: 10px; }
-            .bench-grid { gap: 6px; }
-        }
+        @media only screen and (max-width: 600px) { .pitch { height: 620px; } .p-card { width: 64px; height: 90px; } .card-sub { width: 64px; height: 90px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; padding: 0 2px; } .p-name { font-size: 9px; height: 18px; } .p-img-box { height: 65px; bottom: 18px; } .stat-badge { font-size: 9px; padding: 1px 3px; top: -12px; left: -4px; } .bench { padding: 10px; } .bench-grid { gap: 6px; } }
     </style>
     """
     
@@ -1667,27 +1615,14 @@ def render_pitch_view(squad_list, sort_mode='rating_desc'):
     html_content = f"""
     <!DOCTYPE html>
     <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        {css}
-    </head>
+    <head><meta name="viewport" content="width=device-width, initial-scale=1.0">{css}</head>
     <body>
         <div class="container">
             <div class="pitch">
-                <div class="lines">
-                    <div class="center-circle"></div>
-                    <div class="half-line"></div>
-                    <div class="box-top"></div>
-                    <div class="box-bot"></div>
-                </div>
+                <div class="lines"><div class="center-circle"></div><div class="half-line"></div><div class="box-top"></div><div class="box-bot"></div></div>
                 {html_starters}
             </div>
-            <div class="bench">
-                <div class="bench-title">Dự bị ({len(subs)})</div>
-                <div class="bench-grid">
-                    {html_subs}
-                </div>
-            </div>
+            <div class="bench"><div class="bench-title">Dự bị ({len(subs)})</div><div class="bench-grid">{html_subs}</div></div>
         </div>
     </body>
     </html>
