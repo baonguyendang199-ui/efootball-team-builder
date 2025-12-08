@@ -3405,20 +3405,9 @@ def main():
         if display_df.empty:
             st.info("Không có cầu thủ nào.")
         else:
-            # CSS Custom cho nút Training
+            # CSS Custom cho visual slot
             st.markdown("""
             <style>
-            .train-btn button {
-                background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-                color: white;
-                border: none;
-                width: 100%;
-                font-weight: 600;
-            }
-            .train-btn button:hover {
-                background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
-                transform: scale(1.02);
-            }
             .skill-slot-dot {
                 height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 2px;
             }
@@ -3431,12 +3420,23 @@ def main():
             
             for i, (idx, row) in enumerate(display_df.iterrows()):
                 with cols[i % 4]:
-                    # Tính toán slot visual
-                    added = [x for x in str(row.get('Added Skills', '')).split(',') if x.strip()]
-                    n_added = len(added)
+                    # --- 1. TÍNH TOÁN DỮ LIỆU ---
+                    p_pos = str(row['Position']).strip()
+                    p_skills = str(row.get('Skills', ''))
+                    p_added = str(row.get('Added Skills', ''))
+                    added_list = [x for x in p_added.split(',') if x.strip()]
+                    n_added = len(added_list)
                     is_potw = "POTW" in str(row['Player Type']).upper()
                     
-                    # HTML Visual Slot Dots
+                    # Lấy danh sách skill gợi ý cho vị trí này
+                    # Lưu ý: MAX_SKILLS = 15 (Tổng slot tối đa của game là 10, nhưng hàm gợi ý cần số max để tính toán)
+                    recs = get_recommended_skills(p_pos, p_skills, p_added, 15)
+                    
+                    # KIỂM TRA QUAN TRỌNG: Có skill gợi ý nào đang có trong kho (số lượng > 0) không?
+                    available_recs = [s for s in recs if inventory.get(s, 0) > 0]
+                    has_stock_for_training = len(available_recs) > 0
+
+                    # --- 2. HTML VISUAL SLOT ---
                     slots_html = ""
                     if is_potw:
                         slots_html = "<span style='color:#d946ef; font-size:0.8em'>🔒 POTW Locked</span>"
@@ -3445,7 +3445,7 @@ def main():
                             cls = "slot-filled" if s < n_added else "slot-empty"
                             slots_html += f"<span class='skill-slot-dot {cls}'></span>"
 
-                    # Card Container
+                    # --- 3. GIAO DIỆN THẺ ---
                     with st.container(border=True):
                         # Layout Card
                         c_img, c_info = st.columns([1, 2.5])
@@ -3455,18 +3455,31 @@ def main():
                             st.image(img, use_container_width=True)
                         
                         with c_info:
-                            # Tên & Rating
                             color = "#fbbf24" if row['Epic_Priority'] == 0 else ("#d946ef" if is_potw else "#fff")
                             st.markdown(f"<div style='font-weight:bold; color:{color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['Player']}</div>", unsafe_allow_html=True)
                             st.caption(f"{row['Position']} • {row['Rating']}")
                             st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
                         
-                        # Nút Action
-                        disabled_btn = is_potw or n_added >= MAX_ADDED_SLOTS
-                        btn_label = "🔒 Locked" if is_potw else ("✅ Full" if n_added >= MAX_ADDED_SLOTS else "🏋️ Train")
+                        # --- 4. LOGIC BUTTON TRAIN (SỬA ĐỔI) ---
+                        btn_disabled = True
+                        btn_type = "secondary"
+                        btn_label = "Checking..."
                         
-                        # Dùng div wrapper để style nút (nếu muốn) hoặc dùng type='primary'
-                        if st.button(btn_label, key=f"tr_{idx}", disabled=disabled_btn, use_container_width=True, type="secondary" if disabled_btn else "primary"):
+                        if is_potw:
+                            btn_label = "🔒 Locked"
+                        elif n_added >= MAX_ADDED_SLOTS:
+                            btn_label = "✅ Full Slots"
+                        elif not has_stock_for_training:
+                            # Còn slot nhưng KHÔNG có skill phù hợp trong kho
+                            btn_label = "⚠️ Thiếu Skill"
+                        else:
+                            # Còn slot VÀ có skill trong kho
+                            btn_label = "🏋️ Train"
+                            btn_disabled = False
+                            btn_type = "primary"
+                        
+                        # Render Button
+                        if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
                             show_training_modal(idx, row, inventory)
 
     elif current_tab == 'squad':
