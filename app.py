@@ -1191,8 +1191,11 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         if score == ERROR_SCORE: continue
 
         for s_idx, req_pos in enumerate(required_positions):
+            # Chỉ kiểm tra đúng vị trí (chính hoặc phụ) có trong thẻ hay không
             can_play = req_pos in full_pos_list
-            if 'bmi' in sort_mode or 'height' in sort_mode or 'weight' in sort_mode:
+            
+            # Xóa bỏ hoàn toàn đoạn if 'bmi' in sort_mode... ở đây
+            
             if can_play: cost_matrix[p_idx, s_idx] = -score
 
     try: row_ind, col_ind = linear_sum_assignment(cost_matrix)
