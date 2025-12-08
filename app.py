@@ -3405,7 +3405,7 @@ def main():
         if display_df.empty:
             st.info("Không có cầu thủ nào.")
         else:
-            # CSS: Visual Slot Dots
+            # CSS Visual
             st.markdown("""
             <style>
             .skill-slot-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 2px; }
@@ -3414,50 +3414,56 @@ def main():
             </style>
             """, unsafe_allow_html=True)
 
-            cols = st.columns(4) # Grid 4 cột
+            cols = st.columns(4)
             
             for i, (idx, row) in enumerate(display_df.iterrows()):
                 with cols[i % 4]:
-                    # --- A. CHUẨN BỊ DỮ LIỆU ---
+                    # A. LẤY DỮ LIỆU CƠ BẢN
                     p_pos = str(row['Position']).strip()
                     p_skills = str(row.get('Skills', ''))
                     p_added = str(row.get('Added Skills', ''))
                     added_list = [x for x in p_added.split(',') if x.strip()]
                     n_added = len(added_list)
+                    remaining_slots = MAX_ADDED_SLOTS - n_added
                     is_potw = "POTW" in str(row['Player Type']).upper()
                     
-                    # --- B. LOGIC PRIORITY LIST & INVENTORY (TRÁI TIM CỦA YÊU CẦU) ---
-                    # 1. Lấy danh sách skill ƯU TIÊN còn thiếu (Dựa trên POSITION_SKILLS_PRIORITY)
-                    needed_skills = get_recommended_skills(
-                        p_pos, p_skills, p_added, max_total_skills=15
-                    )
+                    # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
+                    # 1. Lấy toàn bộ danh sách skill còn thiếu theo thứ tự ưu tiên
+                    # (Lấy max 15 để xem toàn bộ danh sách chờ)
+                    all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
                     
-                    # 2. Kiểm tra xem TRONG KHO có skill nào trùng với danh sách cần thiết không
-                    # Chỉ lấy những skill có số lượng > 0 trong inventory
-                    trainable_skills = [s for s in needed_skills if inventory.get(s, 0) > 0]
+                    # 2. CẮT DANH SÁCH: Chỉ quan tâm đến Top N skill tương ứng với N slot còn lại
+                    # Ví dụ: Còn 2 slot -> Chỉ được thêm skill Top 1 hoặc Top 2. 
+                    # Skill Top 3 trở đi bị loại bỏ (để dành slot cho Top 1, 2 sau này).
+                    strict_targets = all_missing_ordered[:remaining_slots]
                     
-                    # --- C. QUYẾT ĐỊNH TRẠNG THÁI NÚT ---
+                    # 3. Kiểm tra kho: Chỉ tìm những skill nằm trong strict_targets
+                    trainable_skills = [s for s in strict_targets if inventory.get(s, 0) > 0]
+                    
+                    # C. QUYẾT ĐỊNH TRẠNG THÁI NÚT
                     btn_disabled = True
                     btn_type = "secondary"
                     btn_label = "Checking..."
                     
                     if is_potw:
-                        btn_label = "🔒 Locked"
+                        btn_label = "🔒 POTW"
                     elif n_added >= MAX_ADDED_SLOTS:
                         btn_label = "✅ Full Slots"
-                    elif len(needed_skills) == 0:
-                        btn_label = "🤷‍♂️ No Suggestion" # Vị trí này ko có trong priority list hoặc đã đủ skill xịn
+                    elif not strict_targets:
+                        btn_label = "🤷‍♂️ Đủ Skill Top" # Đã có đủ các skill quan trọng nhất
                     elif len(trainable_skills) > 0:
-                        # LOGIC CHÍNH: Có skill trong kho trùng với priority list -> CHO PHÉP
-                        btn_label = f"🏋️ Train ({len(trainable_skills)})" # Hiển thị có bao nhiêu skill khả dụng
+                        # Có hàng trong danh sách Top Priority -> CHO PHÉP
+                        btn_label = f"🏋️ Train ({len(trainable_skills)})"
                         btn_disabled = False
                         btn_type = "primary"
                     else:
-                        # Có skill cần thiết (needed > 0) nhưng kho không có (trainable = 0) -> CHẶN
-                        btn_label = "⚠️ Kho thiếu skill"
-                    
-                    # --- D. RENDER GIAO DIỆN ---
-                    # Visual slots
+                        # Không có skill Top Priority (Dù có skill rác cũng không cho thêm)
+                        # Hiển thị tên skill Top 1 đang thiếu để người dùng biết cần kiếm gì
+                        missing_top1 = strict_targets[0] if strict_targets else ""
+                        btn_label = f"⚠️ Thiếu: {missing_top1}"
+                        btn_disabled = True
+
+                    # D. RENDER CARD
                     slots_html = ""
                     if is_potw:
                         slots_html = "<span style='color:#d946ef; font-size:0.8em'>🔒 POTW Locked</span>"
@@ -3479,7 +3485,6 @@ def main():
                             st.caption(f"{p_pos} • {row['Rating']}")
                             st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
                         
-                        # Nút bấm
                         if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
                             show_training_modal(idx, row, inventory)
 
