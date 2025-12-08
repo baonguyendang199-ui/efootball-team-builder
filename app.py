@@ -1056,6 +1056,8 @@ FORMATIONS = {
     # 3 Hậu vệ
     "3-5-2 (Possession)":   ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "AMF", "CF", "CF"],
     "3-4-3 (Standard)":     ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
+    "3-4-3 (Defensive)":     ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "DMF", "LWF", "RWF", "CF"],
+    "3-4-3 (Pressing)":     ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "LWF", "RWF", "CF"],
     "3-4-1-2 (Classic)":    ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "CF", "CF"],
     "3-2-4-1 (Box Mid)":    ["GK", "CB", "CB", "CB", "DMF", "DMF", "AMF", "AMF", "LMF", "RMF", "CF"],
     "3-4-2-1 (Xabi Ball)":  ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "AMF", "CF"],
@@ -1137,6 +1139,12 @@ FORMATION_COORDS = {
         (15, 35), (15, 65)                      # CFs
     ],
     "3-4-3 (Standard)": [
+        (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (25, 20), (25, 80), (15, 50)
+    ],
+    "3-4-3 (Pressing)": [
+        (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (25, 20), (25, 80), (15, 50)
+    ],
+    "3-4-3 (Defensive)": [
         (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (25, 20), (25, 80), (15, 50)
     ],
     "3-4-1-2 (Classic)": [
