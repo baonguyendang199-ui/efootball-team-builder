@@ -1065,8 +1065,8 @@ FORMATIONS = {
     # 🛡️ 3 HẬU VỆ - TẤN CÔNG BIÊN (BACK 3 ATTACK)
     # =================================================================
     # Conte/Tuchel style
-    "3-4-3 (Standard)":             ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
     "3-5-2 (Possession)":           ["GK", "CB", "CB", "CB", "LMF", "RMF", "DMF", "CMF", "AMF", "CF", "CF"],
+    "3-4-3 (Standard)":             ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "LWF", "RWF", "CF"],
     "3-4-1-2 (Classic)":            ["GK", "CB", "CB", "CB", "LMF", "RMF", "CMF", "CMF", "AMF", "CF", "CF"],
 
     # =================================================================
