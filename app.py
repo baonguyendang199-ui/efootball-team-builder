@@ -2606,78 +2606,60 @@ def main():
         render_app_hero(df)
 
     if current_tab == 'overview':
-        # --- 1. CSS CHO DASHBOARD (Giữ nguyên) ---
+        # --- 1. CSS CHO DASHBOARD ---
         st.markdown("""
         <style>
-            /* Dashboard Card Style */
             .dash-card {
-                background: rgba(30, 41, 59, 0.7);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 16px;
-                padding: 20px;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                margin-bottom: 20px;
-                height: 100%;
-                transition: transform 0.2s;
-            }
-            .dash-card:hover {
-                border-color: rgba(255, 255, 255, 0.2);
-                transform: translateY(-2px);
+                background: rgba(30, 41, 59, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 12px;
+                padding: 16px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                margin-bottom: 16px;
             }
             .dash-title {
                 font-family: 'Space Grotesk', sans-serif;
-                font-size: 1.1rem;
+                font-size: 1.0rem;
                 font-weight: 700;
                 color: #e2e8f0;
-                margin-bottom: 15px;
-                display: flex;
-                align-items: center;
-                gap: 8px;
+                margin-bottom: 12px;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
+                border-left: 3px solid #7C3AED;
+                padding-left: 8px;
             }
             /* Hero Stat Banner */
             .stat-banner {
                 display: grid;
                 grid-template-columns: repeat(5, 1fr);
-                gap: 15px;
-                margin-bottom: 30px;
+                gap: 12px;
+                margin-bottom: 24px;
             }
             .stat-box {
                 background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
                 border: 1px solid rgba(255,255,255,0.08);
                 border-radius: 12px;
-                padding: 15px;
+                padding: 12px;
                 text-align: center;
-                position: relative;
-                overflow: hidden;
-            }
-            .stat-box::before {
-                content: '';
-                position: absolute;
-                top: 0; left: 0; width: 100%; height: 4px;
-                background: linear-gradient(90deg, #7c3aed, #22d3ee);
             }
             .stat-value {
                 font-family: 'Exo 2', sans-serif;
-                font-size: 2rem;
+                font-size: 1.8rem;
                 font-weight: 800;
                 color: #fff;
-                line-height: 1.2;
             }
             .stat-label {
-                font-size: 0.8rem;
+                font-size: 0.75rem;
                 color: #94a3b8;
                 text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-top: 5px;
+                letter-spacing: 0.5px;
             }
         </style>
         """, unsafe_allow_html=True)
 
-        st.header("📊 Dashboard Phân Tích")
+        st.header("📊 Dashboard Phân Tích Chuyên Sâu")
 
-        # --- 2. TÍNH TOÁN DATA CHO METRICS ---
+        # --- 2. TÍNH TOÁN DATA ---
         total_players = len(df)
         avg_rating = df['Rating'].mean() if not df.empty else 0
         epic_count = int((df['Player Type'].astype(str).str.upper() == 'EPIC').sum())
@@ -2700,11 +2682,11 @@ def main():
                 <div class="stat-value">{avg_rating:.1f}</div>
                 <div class="stat-label">Rating TB</div>
             </div>
-            <div class="stat-box" style="border-bottom: 3px solid #fbbf24;">
+            <div class="stat-box" style="border-bottom: 2px solid #fbbf24;">
                 <div class="stat-value" style="color:#fbbf24">{epic_count}</div>
                 <div class="stat-label">Thẻ EPIC</div>
             </div>
-            <div class="stat-box" style="border-bottom: 3px solid #d946ef;">
+            <div class="stat-box" style="border-bottom: 2px solid #d946ef;">
                 <div class="stat-value" style="color:#d946ef">{potw_count}</div>
                 <div class="stat-label">Thẻ POTW</div>
             </div>
@@ -2716,135 +2698,161 @@ def main():
         """, unsafe_allow_html=True)
 
         import plotly.express as px
+        import plotly.graph_objects as go
 
-        # Cấu hình màu sắc chung
-        COLOR_SEQ = ["#7C3AED", "#22D3EE", "#F472B6", "#FBBF24", "#34D399", "#60A5FA"]
-        PLOT_BG = 'rgba(0,0,0,0)'
-        
         def style_fig(fig):
             fig.update_layout(
-                paper_bgcolor=PLOT_BG,
-                plot_bgcolor=PLOT_BG,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
                 font=dict(family="Inter", color="#e2e8f0"),
-                margin=dict(l=20, r=20, t=30, b=20),
-                showlegend=False
+                margin=dict(l=10, r=10, t=30, b=10),
             )
-            fig.update_xaxes(showgrid=False)
+            fig.update_xaxes(showgrid=False, gridcolor='rgba(255,255,255,0.05)')
             fig.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.05)')
             return fig
 
-        # --- 4. HÀNG 1: THỐNG KÊ ĐỘI BÓNG (2 CỘT LỚN) ---
-        c1, c2 = st.columns([1, 1], gap="medium")
+        # =========================================================
+        # HÀNG 1: TỔNG QUAN SỨC MẠNH & CẤU TRÚC ĐỘI HÌNH
+        # =========================================================
+        c1, c2 = st.columns([1.5, 1])
 
         with c1:
             with st.container(border=True):
-                st.markdown('<div class="dash-title">⚽ Top Clubs</div>', unsafe_allow_html=True)
-                # FIX: Đặt tên cột tường minh
+                st.markdown('<div class="dash-title">🧬 Cấu trúc đội hình (Vị trí & Playstyle)</div>', unsafe_allow_html=True)
+                # Biểu đồ Sunburst: Position -> Playstyle
+                if 'Position' in df.columns and 'Position Style' in df.columns:
+                    sunburst_df = df.groupby(['Position', 'Position Style']).size().reset_index(name='Count')
+                    # Lọc bỏ các playstyle rỗng
+                    sunburst_df = sunburst_df[sunburst_df['Position Style'] != '']
+                    
+                    fig = px.sunburst(
+                        sunburst_df, 
+                        path=['Position', 'Position Style'], 
+                        values='Count',
+                        color='Position',
+                        color_discrete_sequence=px.colors.qualitative.Pastel
+                    )
+                    fig.update_traces(textinfo="label+value")
+                    st.plotly_chart(style_fig(fig), use_container_width=True)
+                else:
+                    st.info("Thiếu dữ liệu Position Style")
+
+        with c2:
+            with st.container(border=True):
+                st.markdown('<div class="dash-title">📈 Phân bố Rating (Sức mạnh)</div>', unsafe_allow_html=True)
+                # Histogram Rating
+                fig = px.histogram(
+                    df, x="Rating", nbins=15, 
+                    color_discrete_sequence=['#7C3AED'],
+                    text_auto=True
+                )
+                fig.update_layout(bargap=0.1, yaxis_title="Số lượng", xaxis_title="Overall Rating")
+                st.plotly_chart(style_fig(fig), use_container_width=True)
+
+        # =========================================================
+        # HÀNG 2: PHÂN TÍCH META (FORM, WEAK FOOT & WONDERKIDS)
+        # =========================================================
+        c3, c4 = st.columns([1, 1.5])
+
+        with c3:
+            with st.container(border=True):
+                st.markdown('<div class="dash-title">💎 Ma trận Tinh hoa (Form vs Weak Foot)</div>', unsafe_allow_html=True)
+                st.caption("Giao điểm giữa Phong độ & Chân không thuận (Càng đậm càng xịn)")
+                
+                if 'Form' in df.columns and 'Weak Foot Accuracy' in df.columns:
+                    # Tạo bảng pivot
+                    heatmap_data = df.groupby(['Form', 'Weak Foot Accuracy']).size().reset_index(name='Count')
+                    # Pivot table cho heatmap
+                    pivot_table = heatmap_data.pivot(index='Form', columns='Weak Foot Accuracy', values='Count').fillna(0)
+                    
+                    fig = px.imshow(
+                        pivot_table, 
+                        text_auto=True, 
+                        aspect="auto",
+                        color_continuous_scale='Viridis',
+                        labels=dict(x="Độ chính xác chân nghịch", y="Phong độ", color="Số lượng")
+                    )
+                    fig.update_layout(coloraxis_showscale=False)
+                    st.plotly_chart(style_fig(fig), use_container_width=True)
+
+        with c4:
+            with st.container(border=True):
+                st.markdown('<div class="dash-title">👶 Tìm kiếm Wonderkids & Lão tướng</div>', unsafe_allow_html=True)
+                
+                if 'Age' in df.columns and 'Rating' in df.columns:
+                    # Xử lý dữ liệu Age và Rating về số
+                    scatter_df = df.copy()
+                    scatter_df['Age'] = pd.to_numeric(scatter_df['Age'], errors='coerce')
+                    scatter_df = scatter_df.dropna(subset=['Age', 'Rating'])
+                    
+                    fig = px.scatter(
+                        scatter_df, 
+                        x="Age", 
+                        y="Rating", 
+                        color="Position",
+                        size="Rating", 
+                        hover_data=['Player', 'Club'],
+                        color_discrete_sequence=px.colors.qualitative.Bold,
+                        size_max=15
+                    )
+                    
+                    # Vẽ đường trung bình
+                    fig.add_hline(y=avg_rating, line_dash="dot", line_color="rgba(255,255,255,0.3)", annotation_text="Rating TB")
+                    fig.update_layout(xaxis_title="Tuổi", yaxis_title="Overall Rating")
+                    st.plotly_chart(style_fig(fig), use_container_width=True)
+
+        # =========================================================
+        # HÀNG 3: THÔNG TIN CÂU LẠC BỘ & QUỐC GIA (Giữ lại vì cần thiết)
+        # =========================================================
+        c5, c6 = st.columns(2)
+        
+        with c5:
+            with st.container(border=True):
+                st.markdown('<div class="dash-title">⚽ Top 10 Câu lạc bộ</div>', unsafe_allow_html=True)
                 club_counts = df['Club'].value_counts().reset_index(name='Count').head(10)
-                club_counts.columns = ['Club', 'Count'] 
+                club_counts.columns = ['Club', 'Count']
                 
                 fig = px.bar(club_counts, x='Count', y='Club', orientation='h', text='Count',
                              color='Count', color_continuous_scale='Bluyl')
                 fig.update_layout(coloraxis_showscale=False, yaxis={'categoryorder':'total ascending'})
                 st.plotly_chart(style_fig(fig), use_container_width=True, config={'displayModeBar': False})
 
-        with c2:
+        with c6:
             with st.container(border=True):
-                st.markdown('<div class="dash-title">🌍 Top Nations</div>', unsafe_allow_html=True)
-                # FIX: Đặt tên cột tường minh
+                st.markdown('<div class="dash-title">🌍 Top 10 Quốc gia</div>', unsafe_allow_html=True)
                 nation_counts = df['Nation'].value_counts().reset_index(name='Count').head(10)
                 nation_counts.columns = ['Nation', 'Count']
                 
                 fig = px.bar(nation_counts, x='Nation', y='Count', text='Count',
-                             color_discrete_sequence=['#22D3EE'])
+                             color_discrete_sequence=['#F472B6'])
                 st.plotly_chart(style_fig(fig), use_container_width=True, config={'displayModeBar': False})
 
-        # --- 5. HÀNG 2: PHÂN BỐ & SKILLS (3 CỘT) ---
-        c3, c4, c5 = st.columns([1, 1, 1], gap="medium")
-
-        with c3:
-            with st.container(border=True):
-                st.markdown('<div class="dash-title">🏷️ Loại thẻ</div>', unsafe_allow_html=True)
-                # FIX: Đặt tên cột tường minh để tránh lỗi 'index'
-                type_counts = df['Player Type'].value_counts().reset_index(name='Count')
-                type_counts.columns = ['Type', 'Count']
+        # =========================================================
+        # HÀNG 4: THỂ CHẤT (TANK VS AGILE)
+        # =========================================================
+        with st.container(border=True):
+             st.markdown('<div class="dash-title">💪 Phân tích Thể chất (Cao & Nặng)</div>', unsafe_allow_html=True)
+             st.caption("Trục tung: Chiều cao - Trục hoành: Cân nặng. Bong bóng to = Rating cao.")
+             
+             if 'Height' in df.columns and 'Weight' in df.columns:
+                phy_df = df.copy()
+                phy_df['Height'] = pd.to_numeric(phy_df['Height'], errors='coerce')
+                phy_df['Weight'] = pd.to_numeric(phy_df['Weight'], errors='coerce')
+                phy_df = phy_df.dropna(subset=['Height', 'Weight'])
                 
-                fig = px.pie(type_counts, names='Type', values='Count', hole=0.6,
-                             color_discrete_sequence=COLOR_SEQ)
-                fig.update_traces(textposition='outside', textinfo='percent+label')
-                fig.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
+                fig = px.scatter(
+                    phy_df, 
+                    x='Weight', y='Height', 
+                    color='Position',
+                    size='Rating',
+                    hover_name='Player',
+                    hover_data=['Club'],
+                    title="", 
+                    labels={'Weight': 'Cân nặng (kg)', 'Height': 'Chiều cao (cm)'},
+                    color_discrete_sequence=px.colors.qualitative.Set3
+                )
+                fig.update_traces(marker=dict(line=dict(width=1, color='rgba(255,255,255,0.2)')))
                 st.plotly_chart(style_fig(fig), use_container_width=True)
-
-        with c4:
-            with st.container(border=True):
-                st.markdown('<div class="dash-title">📍 Vị trí</div>', unsafe_allow_html=True)
-                # FIX: Đặt tên cột tường minh
-                pos_counts = df['Position'].value_counts().reset_index(name='Count')
-                pos_counts.columns = ['Position', 'Count']
-                
-                fig = px.treemap(pos_counts, path=['Position'], values='Count',
-                                 color='Count', color_continuous_scale='Viridis')
-                fig.update_layout(margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(style_fig(fig), use_container_width=True)
-
-        with c5:
-            with st.container(border=True):
-                st.markdown('<div class="dash-title">🔥 Skills cần thiết</div>', unsafe_allow_html=True)
-                MAX_SKILLS_OV = 15
-                MAX_ADDED_SKILLS_OV = 5
-                skill_need_counts = {}
-                for _, row in df.iterrows():
-                    position = str(row.get('Position', '')).strip()
-                    player_type_val = str(row.get('Player Type', '')).upper()
-                    if player_type_val == 'POTW' or position not in POSITION_SKILLS_PRIORITY: continue
-                    base = str(row.get('Skills', '')).strip()
-                    added = str(row.get('Added Skills', '')).strip()
-                    remaining_slots = MAX_ADDED_SKILLS_OV - len([s for s in added.split(',') if s.strip()])
-                    total_count = len([s for s in base.split(',') if s.strip()]) + (MAX_ADDED_SKILLS_OV - remaining_slots)
-                    if total_count >= MAX_SKILLS_OV or remaining_slots <= 0: continue
-                    recs = get_recommended_skills(position, base, added, MAX_SKILLS_OV)[:remaining_slots]
-                    for skill in recs: skill_need_counts[skill] = skill_need_counts.get(skill, 0) + 1
-                
-                if skill_need_counts:
-                    skills_df = pd.DataFrame(list(skill_need_counts.items()), columns=['Skill', 'Count'])
-                    skills_df = skills_df.sort_values('Count', ascending=False).head(5)
-                    fig = px.bar(skills_df, x='Count', y='Skill', orientation='h', text='Count',
-                                 color_discrete_sequence=['#F472B6'])
-                    fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                    st.plotly_chart(style_fig(fig), use_container_width=True, config={'displayModeBar': False})
-                else:
-                    st.info("Đội hình đã tối ưu skills!")
-
-        # --- 6. HÀNG 3: THỂ CHẤT & CHÂN THUẬN (2 CỘT) ---
-        c6, c7 = st.columns([2, 1], gap="medium")
-
-        with c6:
-             with st.container(border=True):
-                st.markdown('<div class="dash-title">📊 Thể chất theo vị trí (Cao & Nặng)</div>', unsafe_allow_html=True)
-                if 'Height' in df.columns and 'Weight' in df.columns:
-                    phy_df = df.copy()
-                    phy_df['Height'] = pd.to_numeric(phy_df['Height'], errors='coerce')
-                    phy_df['Weight'] = pd.to_numeric(phy_df['Weight'], errors='coerce')
-                    phy_agg = phy_df.groupby('Position')[['Height', 'Weight']].mean().reset_index()
-                    
-                    fig = px.scatter(phy_agg, x='Weight', y='Height', text='Position', size='Height',
-                                     color='Position', title="", labels={'Weight': 'Cân nặng TB (kg)', 'Height': 'Chiều cao TB (cm)'})
-                    fig.update_traces(textposition='top center', marker=dict(line=dict(width=2, color='White')))
-                    st.plotly_chart(style_fig(fig), use_container_width=True)
-
-        with c7:
-            with st.container(border=True):
-                st.markdown('<div class="dash-title">👣 Chân thuận</div>', unsafe_allow_html=True)
-                if 'Foot' in df.columns:
-                    # FIX: Đặt tên cột tường minh
-                    foot_counts = df['Foot'].value_counts().reset_index(name='Count')
-                    foot_counts.columns = ['Foot', 'Count']
-                    
-                    fig = px.pie(foot_counts, names='Foot', values='Count', hole=0.4,
-                                 color_discrete_sequence=['#3B82F6', '#EF4444'])
-                    fig.update_traces(textposition='inside', textinfo='percent+label')
-                    fig.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
-                    st.plotly_chart(style_fig(fig), use_container_width=True)
 
     elif current_tab == 'players':
         st.header("👥 Cầu thủ")
