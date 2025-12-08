@@ -3462,13 +3462,13 @@ def main():
         # 1. Is_Barca: Nếu Club là FC Barcelona -> 1, còn lại -> 0
         filtered_df['Is_Barca'] = filtered_df['Club'].apply(lambda x: 1 if str(x).strip() == "FC Barcelona" else 0)
         
-        # Sắp xếp theo thứ tự ưu tiên:
-        # 1. Is_Barca (Giảm dần -> 1 lên trước)
-        # 2. Epic_Priority (Tăng dần -> 0 (Epic) lên trước)
-        # 3. Rating (Giảm dần -> Cao lên trước)
+        # 2. Sắp xếp theo thứ tự ưu tiên:
+        # - Ưu tiên 1: Là Barca (Is_Barca = 1) -> Lên đầu
+        # - Ưu tiên 2: Rating (Giảm dần) -> Chỉ số cao lên trước
+        # - Ưu tiên 3: Epic_Priority (0 là Epic, 1 là Non-Epic) -> Nếu cùng Rating, Epic lên trước
         filtered_df = filtered_df.sort_values(
-            ['Is_Barca', 'Epic_Priority', 'Rating'], 
-            ascending=[False, True, False]
+            ['Is_Barca', 'Rating', 'Epic_Priority'], 
+            ascending=[False, False, True]
         )
 
         # --- 3. PHÂN TRANG & HIỂN THỊ ---
