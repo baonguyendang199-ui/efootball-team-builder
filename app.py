@@ -1114,8 +1114,7 @@ FORMATIONS = {
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
     Tự động xây dựng đội hình tối ưu.
-    CẬP NHẬT: 
-    - Luật Max 3 Pure CB dự bị CHỈ áp dụng cho chế độ Tallest (height_desc).
+    CẬP NHẬT: Thêm điểm ưu tiên (epsilon) cho Vị trí sở trường để thuật toán Hungarian ưu tiên xếp đúng chỗ.
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
@@ -1221,9 +1220,13 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             # Chỉ kiểm tra đúng vị trí (chính hoặc phụ) có trong thẻ hay không
             can_play = req_pos in full_pos_list
             
-            # Xóa bỏ hoàn toàn đoạn if 'bmi' in sort_mode... ở đây
-            
-            if can_play: cost_matrix[p_idx, s_idx] = -score
+            if can_play: 
+                # --- UPDATE MỚI: MAIN POSITION BONUS ---
+                # Nếu vị trí yêu cầu trùng với vị trí chính của cầu thủ
+                # Cộng thêm 1 điểm nhỏ (epsilon) để ưu tiên chọn Main Position khi điểm Score bằng nhau
+                main_pos_bonus = 0.0001 if req_pos == p_main_pos else 0
+                
+                cost_matrix[p_idx, s_idx] = -(score + main_pos_bonus)
 
     try: row_ind, col_ind = linear_sum_assignment(cost_matrix)
     except: return []
@@ -1354,10 +1357,13 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Tìm sơ đồ tối ưu dựa trên tổng điểm 'Optimization_Score' đã được tính trong auto_build_squad.
-    Cách này đảm bảo tính nhất quán tuyệt đối giữa việc xếp cầu thủ và chọn sơ đồ.
+    Tìm sơ đồ tối ưu dựa trên 2 tiêu chí theo thứ tự ưu tiên:
+    1. Tổng điểm Score (Cao nhất là tốt nhất).
+    2. Độ chuẩn vị trí (Position Fidelity): Nếu Score ngang bằng, 
+       chọn sơ đồ có nhiều cầu thủ đá đúng Vị trí Sở trường (Main Position) hơn.
     """
     best_score = -float('inf')
+    best_main_pos_count = -1 # Tiêu chí phụ: Số cầu thủ đá đúng sở trường
     best_squad = []
     best_formation_name = ""
 
@@ -1375,9 +1381,9 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
         # Nếu thiếu người đá chính -> Phạt nặng
         if len(valid_starters) < 11:
             current_total_score = -1e15 # Số âm cực lớn
+            current_main_pos_count = 0
         else:
-            # QUAN TRỌNG: Cộng tổng điểm 'Score' mà hàm auto_build_squad đã tính
-            # Điểm này đã bao gồm Logic BMI, Height, Weight, Rating tie-breaker v.v...
+            # QUAN TRỌNG: Cộng tổng điểm 'Score'
             current_total_score = sum(p.get('Score', 0) for p in valid_starters)
             
             # Bonus đặc biệt cho Rating mode (Ưu tiên DMF)
@@ -1386,12 +1392,31 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
                 needs_dmf = "DMF" in FORMATIONS[form_name]
                 if has_dmf: current_total_score += 50000 
                 elif needs_dmf: current_total_score -= 20000
+            
+            # --- TÍNH TOÁN POSITION FIDELITY (Số cầu thủ đá đúng Main Position) ---
+            current_main_pos_count = 0
+            for p in valid_starters:
+                assigned_pos = str(p.get('Position', '')).strip().upper()
+                real_pos = str(p.get('Real_Position', '')).strip().upper()
+                if assigned_pos == real_pos:
+                    current_main_pos_count += 1
 
-        # So sánh và cập nhật
-        if current_total_score > best_score:
+        # --- LOGIC SO SÁNH NÂNG CAO ---
+        # 1. Nếu điểm số mới VƯỢT TRỘI (lớn hơn rõ rệt, tránh lỗi số thực float)
+        if current_total_score > best_score + 0.01:
             best_score = current_total_score
+            best_main_pos_count = current_main_pos_count
             best_squad = squad
             best_formation_name = form_name
+            
+        # 2. Nếu điểm số NGANG BẰNG (chênh lệch rất nhỏ) -> Dùng Tie-breaker: Position Fidelity
+        elif abs(current_total_score - best_score) <= 0.01:
+            # Nếu đội hình này có nhiều cầu thủ đá đúng sở trường hơn -> Chọn nó
+            if current_main_pos_count > best_main_pos_count:
+                best_score = current_total_score # Cập nhật lại cho chắc
+                best_main_pos_count = current_main_pos_count
+                best_squad = squad
+                best_formation_name = form_name
             
     return best_formation_name, best_squad
 
