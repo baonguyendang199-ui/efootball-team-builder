@@ -187,9 +187,9 @@ def inject_modern_ui_theme():
 
 def render_efootball_card_html(player_data, width="100%", highlight_metric=None):
     """
-    Tạo HTML Card - Đã nâng cấp giao diện hiển thị chỉ số (Stat Tag) đẹp hơn.
+    Tạo HTML Card - Đã FIX lỗi hình ảnh bị hỏng (Broken Image).
     """
-    import re
+    import re # Đảm bảo thư viện regex được import
     
     p_name = player_data.get('Player', 'Unknown')
     rating = player_data.get('Rating', 0)
@@ -197,20 +197,32 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
     p_type = str(player_data.get('Player Type', 'NON-EPIC')).upper()
     action = str(player_data.get('Action', '')).upper()
     
-    # --- XỬ LÝ ẢNH ---
+    # --- [FIX] LOGIC XỬ LÝ HÌNH ẢNH MỚI ---
+    # Mặc định là ảnh rỗng
     img_url = "https://pesdb.net/assets/img/card/f0.png"
+    
+    # 1. Tìm ID cầu thủ
     pid = str(player_data.get('Player ID', '')).strip()
+    
+    # Nếu không có ID, thử "đào" ID từ Player URL
     if not pid or pid == "0" or pid == "":
         purl = str(player_data.get('Player URL', '')).strip()
+        # Tìm chuỗi số dài (thường là ID) trong URL
         match = re.search(r"id=(\d+)", purl) or re.search(r"(\d{5,})", purl)
-        if match: pid = match.group(1)
+        if match:
+            pid = match.group(1)
+            
+    # 2. Tạo link ảnh chuẩn từ ID
     if pid and pid.isdigit():
         img_url = f"https://pesdb.net/assets/img/card/f{pid}.png"
+        
+    # 3. Nếu có cột 'Image' riêng (người dùng tự điền link ảnh), ưu tiên dùng nó
     custom_img = str(player_data.get('Image', '')).strip()
     if custom_img and custom_img.startswith('http'):
         img_url = custom_img
+    # ----------------------------------------
 
-    # --- MÀU SẮC ---
+    # Màu sắc thẻ
     card_class = "std"
     bg_gradient = "linear-gradient(180deg, #172554 0%, #020617 100%)" 
     stat_color = "#38bdf8" # Cyan
@@ -226,14 +238,14 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
 
     club = player_data.get('Club', '')
     
-    # --- LOGIC ACTION BADGE (GIỮ/BÁN) - Giữ nguyên vị trí ---
+    # --- LOGIC ACTION BADGE (GIỮ/BÁN) ---
     top_badge_html = ""
     if "BÁN" in action:
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
     elif "GIỮ" in action:
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
     
-    # --- LOGIC METRIC DISPLAY (STAT TAG) - Thiết kế mới ---
+    # --- LOGIC METRIC DISPLAY (STAT TAG) ---
     metric_val = ""
     metric_label = ""
     
@@ -283,7 +295,7 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
         </div>
         '''
 
-    # HTML Card (Viết liền dòng)
+    # HTML Card (Viết liền dòng để tránh lỗi indentation hiển thị code)
     html = f"""<div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">{metric_html}{top_badge_html}<div class="shine"></div><div class="card-header"><div class="rating-box">{rating}</div><div class="position-box">{pos}</div></div><img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'"><div class="card-info"><div class="player-name">{p_name}</div><div class="sub-info"><span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span><span>{str(player_data.get('Nation', ''))[:3].upper()}</span></div></div></div>"""
     return html
 
