@@ -249,9 +249,8 @@ def render_efootball_card_html(player_data, width="100%"):
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
     """
-    Giao diện Scouting Profile - Đã sửa lỗi hiển thị HTML text.
+    Giao diện Scouting Profile - Cập nhật hiển thị Lý do Bán/Giữ
     """
-    
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
     rating = row.get('Rating', 0)
@@ -261,6 +260,10 @@ def show_player_modal(row):
     club = row.get('Club', 'Unknown Club')
     nation = row.get('Nation', 'Unknown Nation')
     
+    # Lấy thông tin Action/Reasons (nếu có từ bộ lọc)
+    action = row.get('Action', '')
+    reasons = row.get('Reasons', '')
+
     # Xử lý ảnh
     img_url = row.get('Player URL', '') 
     pid = str(row.get('Player ID', '')).strip()
@@ -271,22 +274,18 @@ def show_player_modal(row):
 
     # Theme Config
     if "POTW" in p_type or "TRENDING" in p_type:
-        # Ưu tiên tím trước
         accent_color = "#D946EF" # Fuchsia
         badge_bg = "linear-gradient(135deg, #701a75 0%, #D946EF 100%)"
         shadow_color = "rgba(217, 70, 239, 0.4)"
     elif "EPIC" in p_type and "NON" not in p_type:
-        # Chỉ vàng nếu là Epic và KHÔNG phải NON-EPIC
         accent_color = "#F59E0B" # Amber
         badge_bg = "linear-gradient(135deg, #78350f 0%, #F59E0B 100%)"
         shadow_color = "rgba(245, 158, 11, 0.4)"
     else:
-        # Mặc định xanh (Non-Epic rơi vào đây)
         accent_color = "#3B82F6" # Blue
         badge_bg = "linear-gradient(135deg, #1e3a8a 0%, #3B82F6 100%)"
         shadow_color = "rgba(59, 130, 246, 0.4)"
 
-    # Helper render thanh chỉ số (LƯU Ý: Phải viết sát lề để không bị lỗi indent)
     def render_stat_bar(label, value_text, max_score=4):
         val = str(value_text).upper()
         score = 1
@@ -298,35 +297,37 @@ def show_player_modal(row):
         for i in range(1, max_score + 1):
             bg = accent_color if i <= score else "rgba(255,255,255,0.1)"
             bars += f'<div style="flex:1; height:4px; background:{bg}; border-radius:2px; margin-right:2px;"></div>'
-            
-        # QUAN TRỌNG: Dòng dưới không được thụt đầu dòng quá sâu
         return f"""<div style="margin-bottom: 8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
 
-    # --- 2. XỬ LÝ DANH SÁCH SKILLS ---
+    # Skills
     base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
     added_skills = [s.strip() for s in str(row.get('Added Skills','')).split(',') if s.strip()]
-    
-    skills_html = ""
-    for s in base_skills:
-        skills_html += f'<span class="pf-skill">{s}</span>'
-    for s in added_skills:
-        skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
-    if not skills_html:
-        skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
+    skills_html = "".join([f'<span class="pf-skill">{s}</span>' for s in base_skills])
+    skills_html += "".join([f'<span class="pf-skill added" title="Added Skill">+{s}</span>' for s in added_skills]) or '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
-    # --- 3. RENDER HTML (QUAN TRỌNG: Viết sát lề trái tuyệt đối) ---
+    # Action HTML (Hiển thị Lý do)
+    action_block = ""
+    if action:
+        bg_act = "#22c55e" if "GIỮ" in action else "#ef4444"
+        action_block = f"""
+        <div style="margin-top:15px; padding:12px; background:rgba(255,255,255,0.05); border-radius:8px; border-left:4px solid {bg_act}; display:flex; align-items:center; gap:10px;">
+            <div style="background:{bg_act}; color:white; font-weight:bold; padding:4px 8px; border-radius:4px; font-size:0.9rem;">{action}</div>
+            <div style="color:#e2e8f0; font-size:0.9rem;">{reasons}</div>
+        </div>
+        """
+
     html_content = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
-.profile-container {{ font-family: 'Space Grotesk', sans-serif; background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 1) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 0 40px rgba(0,0,0,0.5); color: white; margin-bottom: 10px; }}
+.profile-container {{ font-family: 'Space Grotesk', sans-serif; background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 1) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; color: white; margin-bottom: 10px; }}
 .pf-hero {{ position: relative; height: 140px; background: radial-gradient(circle at top right, {shadow_color}, transparent 60%); display: flex; align-items: flex-end; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }}
-.pf-img-wrapper {{ width: 110px; height: 110px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); backdrop-filter: blur(4px); }}
+.pf-img-wrapper {{ width: 110px; height: 110px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 20px; backdrop-filter: blur(4px); }}
 .pf-img {{ width: 100%; height: 100%; object-fit: contain; transform: scale(1.1); }}
 .pf-header-info {{ flex-grow: 1; }}
-.pf-name {{ font-size: 2rem; font-weight: 700; line-height: 1.1; margin-bottom: 5px; text-transform: uppercase; letter-spacing: -0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
+.pf-name {{ font-size: 2rem; font-weight: 700; line-height: 1.1; margin-bottom: 5px; text-transform: uppercase; }}
 .pf-badges {{ display: flex; gap: 8px; align-items: center; }}
-.pf-badge {{ font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: 600; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); }}
-.pf-rating {{ background: {badge_bg}; color: white; border: none; box-shadow: 0 0 10px {shadow_color}; }}
+.pf-badge {{ font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: 600; background: rgba(255,255,255,0.1); }}
+.pf-rating {{ background: {badge_bg}; color: white; }}
 .pf-grid {{ display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; padding: 20px; }}
 .pf-section-title {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }}
 .stat-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }}
@@ -334,8 +335,7 @@ def show_player_modal(row):
 .stat-label {{ font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }}
 .stat-val {{ font-size: 1.1rem; font-weight: 600; color: white; }}
 .skill-container {{ display: flex; flex-wrap: wrap; gap: 6px; }}
-.pf-skill {{ font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; transition: all 0.2s; }}
-.pf-skill:hover {{ background: {accent_color}33; border-color: {accent_color}; color: white; }}
+.pf-skill {{ font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; }}
 .pf-skill.added {{ border-left: 3px solid #4ade80; background: rgba(74, 222, 128, 0.1); }}
 </style>
 <div class="profile-container">
@@ -367,6 +367,7 @@ def show_player_modal(row):
                 {render_stat_bar("Form / Condition", row.get('Form', '-'))}
                 {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
             </div>
+            {action_block}
         </div>
         <div>
             <div class="pf-section-title">Phong cách thi đấu</div>
@@ -383,15 +384,10 @@ def show_player_modal(row):
 </div>
 """
     st.markdown(html_content, unsafe_allow_html=True)
-
-    # Footer Actions
+    
     st.write("")
-    c1, c2 = st.columns([1, 4])
-    with c1:
-        if row.get('Player URL'):
-            st.link_button("🌐 PESDB Link", row.get('Player URL'), use_container_width=True)
-    with c2:
-        pass
+    if row.get('Player URL'):
+        st.link_button("🌐 Xem trên PESDB", row.get('Player URL'), use_container_width=True)
 
 def render_app_hero(df: pd.DataFrame):
     """Render the hero banner with live metrics."""
@@ -3692,236 +3688,194 @@ def main():
         else:
             st.success("✅ Không phát hiện thẻ trùng")              
         
-        # 1. THANH ĐIỀU KHIỂN CHÍNH (TOP BAR)
-        # Tạo khung chứa thanh tìm kiếm và nút bấm cho gọn
+        # 1. TOP BAR: TÌM KIẾM - SORT - VIEW
         with st.container(border=True):
-            col_search, col_view, col_sort = st.columns([3, 1.5, 2])
+            col_search, col_sort, col_view = st.columns([3, 2, 1.5])
             
             with col_search:
-                # Ô tìm kiếm chính
-                search_query = st.text_input(
-                    "🔍 Tìm kiếm",
-                    placeholder="Nhập tên, CLB, Skills...",
-                    label_visibility="collapsed",
-                    key="filter_search_query"
-                )
+                search_query = st.text_input("🔍 Tìm kiếm", placeholder="Tên cầu thủ, Club, Skill...", label_visibility="collapsed", key="filter_search")
+            
+            with col_sort:
+                # Thêm nhiều lựa chọn sort hơn
+                sort_options = {
+                    'Rating (Cao -> Thấp)': ('Rating', False),
+                    'Rating (Thấp -> Cao)': ('Rating', True),
+                    'Height (Cao -> Thấp)': ('Height', False),
+                    'Weight (Nặng -> Nhẹ)': ('Weight', False),
+                    'Age (Trẻ -> Già)': ('Age', True),
+                    'Age (Già -> Trẻ)': ('Age', False),
+                    'BMI (Lớn -> Bé)': ('BMI', False),
+                    'Form (Tốt -> Xấu)': ('Form', False),
+                    'Position (A-Z)': ('Position', True),
+                    'Club (A-Z)': ('Club', True)
+                }
+                sort_selection = st.selectbox("Sắp xếp", list(sort_options.keys()), label_visibility="collapsed", key="filter_sort")
             
             with col_view:
-                # Nút chọn chế độ xem: Bảng hoặc Thẻ
-                view_mode = st.radio(
-                    "Chế độ xem",
-                    ["📋 Bảng", "🎴 Thẻ"],
-                    horizontal=True,
-                    label_visibility="collapsed",
-                    key="filter_view_mode"
-                )
+                view_mode = st.radio("Chế độ", ["📋 Bảng", "🎴 Thẻ"], horizontal=True, label_visibility="collapsed", key="filter_view")
+
+        # 2. BỘ LỌC NÂNG CAO
+        with st.expander("🌪️ Bộ lọc nâng cao (Full Options)", expanded=False):
+            f1, f2, f3, f4 = st.columns(4)
+            
+            with f1:
+                st.markdown("##### 👤 Cơ bản")
+                f_action = st.selectbox("Hành động", ["Tất cả", "✅ GIỮ", "❌ BÁN"], key="f_act")
+                f_pos = st.multiselect("Vị trí", sorted(df['Position'].unique()), key="f_pos")
+                f_style = st.multiselect("Playstyle", sorted([str(x) for x in df['Position Style'].unique() if x]), key="f_style")
                 
-            with col_sort:
-                # Chọn cách sắp xếp
-                c_s1, c_s2 = st.columns([2, 1])
-                with c_s1:
-                    sort_col = st.selectbox(
-                        "Sắp xếp",
-                        ['Rating', 'Date Added', 'Height', 'Weight', 'Age'], 
-                        index=0, 
-                        label_visibility="collapsed",
-                        key="filter_sort_col"
-                    )
-                with c_s2:
-                    sort_order = st.toggle("Tăng dần", False, key="filter_sort_asc")
+            with f2:
+                st.markdown("##### 🌍 Đội bóng & KV")
+                f_club = st.multiselect("CLB", sorted([str(x) for x in df['Club'].unique() if x]), key="f_club")
+                f_nation = st.multiselect("Quốc gia", sorted([str(x) for x in df['Nation'].unique() if x]), key="f_nat")
+                f_league = st.multiselect("Giải đấu", sorted([str(x) for x in df['League'].unique() if x]), key="f_lea")
+                f_region = st.selectbox("Khu vực", ["Tất cả"] + sorted([str(x) for x in df['Region'].unique() if x]), key="f_reg")
 
-        # 2. BỘ LỌC NÂNG CAO (Ẩn trong nút xổ xuống)
-        with st.expander("🌪️ Bộ lọc nâng cao & Thống kê", expanded=False):
-            f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-            
-            with f_col1:
-                st.markdown("**Cơ bản**")
-                action_filter = st.selectbox("Hành động", ["Tất cả", "✅ GIỮ", "❌ BÁN"], key="filter_action")
-                # Lấy danh sách vị trí từ dữ liệu
-                pos_list = sorted(df['Position'].unique().tolist())
-                position_filter = st.multiselect("Vị trí", pos_list, key="filter_position")
-            
-            with f_col2:
-                st.markdown("**Đội bóng**")
-                club_list = sorted([str(x) for x in df['Club'].unique() if x])
-                club_filter = st.multiselect("CLB", club_list, key="filter_club")
-                league_list = ["Tất cả"] + sorted([str(x) for x in df['League'].unique() if x])
-                league_filter = st.selectbox("Giải đấu", league_list, key="filter_league")
+            with f3:
+                st.markdown("##### 📊 Chỉ số")
+                f_type = st.multiselect("Loại thẻ", df['Player Type'].unique(), key="f_type")
+                f_foot = st.selectbox("Chân thuận", ["Tất cả"] + list(df['Foot'].unique()) if 'Foot' in df.columns else [], key="f_foot")
+                f_wf_acc = st.selectbox("WF Accuracy", ["Tất cả"] + sorted([str(x) for x in df['Weak Foot Accuracy'].unique() if x]), key="f_wfa")
+                
+                # Sliders
+                h_min, h_max = 150, 210
+                f_h_range = st.slider("Chiều cao (cm)", h_min, h_max, (h_min, h_max), key="f_h")
 
-            with f_col3:
-                st.markdown("**Đặc tính**")
-                type_filter = st.multiselect("Loại thẻ", df['Player Type'].unique(), key="filter_type")
-                rmin, rmax = int(df['Rating'].min()), int(df['Rating'].max())
-                rating_range = st.slider("Rating", rmin, rmax, (rmin, rmax), key="filter_rating_range")
-
-            with f_col4:
-                st.markdown("**Khác**")
-                skill_query = st.text_input("Tìm Skill", placeholder="vd: Blocker", key="filter_skill_query")
-                foot_list = ["Tất cả"] + list(df['Foot'].unique()) if 'Foot' in df.columns else []
-                foot_filter = st.selectbox("Chân thuận", foot_list, key="filter_foot")
+            with f4:
+                st.markdown("##### 🛡️ Khác")
+                f_skill_txt = st.text_input("Tìm Skill cụ thể", placeholder="vd: Blocker", key="f_sk_txt")
+                f_form = st.selectbox("Form", ["Tất cả"] + sorted([str(x) for x in df['Form'].unique() if x]), key="f_form")
+                f_injury = st.selectbox("Injury Res", ["Tất cả"] + sorted([str(x) for x in df['Injury Resistance'].unique() if x]), key="f_inj")
                 
                 if st.button("🔄 Reset Filters", use_container_width=True):
-                    # Xóa các key trong session_state để reset
-                    keys_to_reset = ["filter_search_query", "filter_action", "filter_position", "filter_club", "filter_league", "filter_type", "filter_skill_query"]
-                    for k in keys_to_reset:
-                        if k in st.session_state: del st.session_state[k]
                     st.rerun()
 
-        # 3. XỬ LÝ LỌC DỮ LIỆU (Logic)
-        # rec_df là bảng dữ liệu đã được tính toán ở phần code cũ (bạn đã giữ lại)
-        filtered_df = rec_df.copy() 
+        # --- APPLY FILTERS ---
+        filtered_df = rec_df.copy() # Sử dụng rec_df từ logic cũ
         
-        # Áp dụng các điều kiện lọc
         if search_query:
             filtered_df = filtered_df[filtered_df['Player'].str.contains(search_query, case=False, na=False)]
-        if action_filter != "Tất cả":
-            filtered_df = filtered_df[filtered_df['Action'] == action_filter]
-        if position_filter:
-            filtered_df = filtered_df[filtered_df['Position'].isin(position_filter)]
-        if club_filter:
-            filtered_df = filtered_df[filtered_df['Club'].isin(club_filter)]
-        if league_filter != "Tất cả":
-            filtered_df = filtered_df[filtered_df['League'] == league_filter]
-        if type_filter:
-            filtered_df = filtered_df[filtered_df['Player Type'].isin(type_filter)]
-        if skill_query:
-            filtered_df = filtered_df[filtered_df['Skills'].astype(str).str.contains(skill_query, case=False, na=False)]
         
-        # Áp dụng Rating range
-        filtered_df = filtered_df[(filtered_df['Rating'] >= rating_range[0]) & (filtered_df['Rating'] <= rating_range[1])]
+        # Apply Advanced Filters
+        if f_action != "Tất cả": filtered_df = filtered_df[filtered_df['Action'] == f_action]
+        if f_pos: filtered_df = filtered_df[filtered_df['Position'].isin(f_pos)]
+        if f_style: filtered_df = filtered_df[filtered_df['Position Style'].isin(f_style)]
+        if f_club: filtered_df = filtered_df[filtered_df['Club'].isin(f_club)]
+        if f_nation: filtered_df = filtered_df[filtered_df['Nation'].isin(f_nation)]
+        if f_league: filtered_df = filtered_df[filtered_df['League'].isin(f_league)]
+        if f_region != "Tất cả": filtered_df = filtered_df[filtered_df['Region'] == f_region]
+        if f_type: filtered_df = filtered_df[filtered_df['Player Type'].isin(f_type)]
+        if f_foot != "Tất cả": filtered_df = filtered_df[filtered_df['Foot'] == f_foot]
+        if f_wf_acc != "Tất cả": filtered_df = filtered_df[filtered_df['Weak Foot Accuracy'] == f_wf_acc]
+        if f_form != "Tất cả": filtered_df = filtered_df[filtered_df['Form'] == f_form]
+        if f_injury != "Tất cả": filtered_df = filtered_df[filtered_df['Injury Resistance'] == f_injury]
+        if f_skill_txt: filtered_df = filtered_df[filtered_df['Skills'].astype(str).str.contains(f_skill_txt, case=False, na=False)]
 
-        # Sắp xếp
-        if sort_col in filtered_df.columns:
-            # Xử lý đặc biệt nếu sort cột số mà dữ liệu đang là chữ
-            if sort_col in ['Height', 'Weight', 'Age']:
-                tmp_col = f"_sort_{sort_col}"
-                filtered_df[tmp_col] = pd.to_numeric(filtered_df[sort_col], errors='coerce')
-                filtered_df = filtered_df.sort_values(by=tmp_col, ascending=sort_order)
-            else:
-                filtered_df = filtered_df.sort_values(by=sort_col, ascending=sort_order)
+        # Apply Slider (Height) - Cần xử lý dữ liệu số
+        if 'Height' in filtered_df.columns:
+            # Tạo cột tạm để lọc
+            filtered_df['_temp_h'] = pd.to_numeric(filtered_df['Height'], errors='coerce')
+            filtered_df = filtered_df[(filtered_df['_temp_h'] >= f_h_range[0]) & (filtered_df['_temp_h'] <= f_h_range[1])]
 
-        # 4. DASHBOARD MINI (Thống kê nhanh)
+        # Apply Sort
+        sort_key, sort_asc = sort_options[sort_selection]
+        
+        # Xử lý sort cột số (vì dữ liệu gốc có thể là string)
+        if sort_key in ['Height', 'Weight', 'Age', 'Form']:
+             filtered_df['_sort_val'] = pd.to_numeric(filtered_df[sort_key], errors='coerce')
+             filtered_df = filtered_df.sort_values('_sort_val', ascending=sort_asc)
+        elif sort_key == 'BMI':
+             h = pd.to_numeric(filtered_df['Height'], errors='coerce') / 100
+             w = pd.to_numeric(filtered_df['Weight'], errors='coerce')
+             filtered_df['_bmi'] = w / (h**2)
+             filtered_df = filtered_df.sort_values('_bmi', ascending=sort_asc)
+        else:
+             filtered_df = filtered_df.sort_values(sort_key, ascending=sort_asc)
+
+        # 3. STATS BAR
         st.markdown("---")
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Cầu thủ tìm thấy", len(filtered_df))
-        m2.metric("Rating TB", f"{filtered_df['Rating'].mean():.1f}")
-        m3.metric("Số lượng EPIC", len(filtered_df[filtered_df['Player Type'] == 'EPIC']))
-        m4.metric("Số lượng POTW", len(filtered_df[filtered_df['Player Type'] == 'POTW']))
-        m5.metric("Đề xuất BÁN", len(filtered_df[filtered_df['Action'] == '❌ BÁN']))
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Tìm thấy", len(filtered_df))
+        c2.metric("Rating TB", f"{filtered_df['Rating'].mean():.1f}")
+        c3.metric("Số EPIC", len(filtered_df[filtered_df['Player Type'] == 'EPIC']))
+        c4.metric("Cần Bán", len(filtered_df[filtered_df['Action'] == '❌ BÁN']))
         st.markdown("---")
 
-        # 5. HIỂN THỊ DỮ LIỆU
+        # 4. DISPLAY
         if view_mode == "📋 Bảng":
-            # --- CHẾ ĐỘ BẢNG NÂNG CAO ---
+            # Tạo bản sao hiển thị
+            show_df = filtered_df.copy()
             
-            # Tạo bản sao để hiển thị
-            table_df = filtered_df.copy()
-            
-            # Hàm tạo link ảnh avatar
-            def get_img_link(row):
+            # Helper tạo link ảnh
+            def get_img(row):
                 pid = str(row.get('Player ID', '')).strip()
                 if pid: return f"https://pesdb.net/assets/img/card/f{pid}.png"
                 return "https://pesdb.net/assets/img/card/f0.png"
-            
-            table_df['Avatar'] = table_df.apply(get_img_link, axis=1)
-            
-            # Chọn cột để hiển thị
-            cols_to_show = ['Avatar', 'Player', 'Rating', 'Position', 'Player Type', 'Club', 'Action', 'Skills', 'Reasons']
-            
-            # Hiển thị bảng với cấu hình đẹp
+            show_df['Avatar'] = show_df.apply(get_img, axis=1)
+
             st.dataframe(
-                table_df[cols_to_show],
+                show_df,
                 column_config={
-                    "Avatar": st.column_config.ImageColumn("Ảnh", width="small"),
-                    "Player": st.column_config.TextColumn("Tên cầu thủ", width="medium"),
-                    "Rating": st.column_config.ProgressColumn(
-                        "OVR", format="%d", min_value=70, max_value=105, width="small"
-                    ),
-                    "Position": st.column_config.TextColumn("VT", width="small"),
-                    "Player Type": st.column_config.TextColumn("Loại", width="small"),
+                    "Avatar": st.column_config.ImageColumn("Avatar", width="small"),
+                    "Player": st.column_config.TextColumn("Cầu thủ", width="medium"),
+                    "Rating": st.column_config.ProgressColumn("Rating", format="%d", min_value=70, max_value=105, width="small"),
+                    "Position": st.column_config.TextColumn("Pos", width="small"),
                     "Action": st.column_config.TextColumn("Status", width="small"),
-                    "Skills": st.column_config.ListColumn("Kỹ năng", width="medium"),
-                    "Reasons": st.column_config.TextColumn("Ghi chú", width="large")
+                    "Reasons": st.column_config.TextColumn("Lý do (Chi tiết)", width="large"),
+                    "Skills": st.column_config.ListColumn("Skills", width="medium")
                 },
+                column_order=['Avatar', 'Player', 'Rating', 'Position', 'Player Type', 'Action', 'Reasons', 'Skills', 'Club'],
+                hide_index=True,
                 use_container_width=True,
-                height=800,
-                hide_index=True
+                height=800
             )
-
         else:
-            # --- CHẾ ĐỘ GRID (THẺ) ---
-            
-            # Giới hạn hiển thị để không bị lag nếu quá nhiều
-            MAX_ITEMS = 100
-            if len(filtered_df) > MAX_ITEMS:
-                st.warning(f"⚠️ Đang hiển thị {MAX_ITEMS} cầu thủ đầu tiên. Hãy dùng bộ lọc để tìm cụ thể hơn.")
-                display_df = filtered_df.head(MAX_ITEMS)
+            # GRID VIEW
+            MAX_SHOW = 100
+            if len(filtered_df) > MAX_SHOW:
+                st.caption(f"⚠️ Hiển thị {MAX_SHOW} cầu thủ đầu tiên...")
+                df_grid = filtered_df.head(MAX_SHOW)
             else:
-                display_df = filtered_df
-
-            # Chia lưới (5 cột)
-            cols_per_row = 5
-            rows = [display_df.iloc[i:i + cols_per_row] for i in range(0, len(display_df), cols_per_row)]
-
+                df_grid = filtered_df
+            
+            cols_num = 5
+            rows = [df_grid.iloc[i:i+cols_num] for i in range(0, len(df_grid), cols_num)]
+            
             for row in rows:
-                cols = st.columns(cols_per_row)
-                for i, (idx, player) in enumerate(row.iterrows()):
+                cols = st.columns(cols_num)
+                for i, (idx, p) in enumerate(row.iterrows()):
                     with cols[i]:
-                        # Hiển thị Thẻ cầu thủ
-                        p_data = player.to_dict()
-                        card_html = render_efootball_card_html(p_data)
-                        st.markdown(card_html, unsafe_allow_html=True)
+                        # Render Card
+                        st.markdown(render_efootball_card_html(p.to_dict()), unsafe_allow_html=True)
                         
-                        # Nút chức năng dưới thẻ
+                        # Buttons row
                         b1, b2 = st.columns(2)
                         with b1:
-                            if st.button("🔍", key=f"btn_view_{idx}", use_container_width=True, help="Xem chi tiết"):
-                                show_player_modal(player)
+                            if st.button("🔍", key=f"v_{idx}", use_container_width=True, help="Xem chi tiết & Lý do"):
+                                show_player_modal(p)
                         with b2:
-                            # Nút chuyển nhanh sang quản lý skill
-                            if st.button("🛠️", key=f"btn_skill_{idx}", use_container_width=True, help="Sửa Skill"):
+                            # NÚT SỬA SKILL ĐÃ FIX
+                            if st.button("🛠️", key=f"s_{idx}", use_container_width=True, help="Thêm Skill"):
                                 st.session_state.current_tab = 'skills'
-                                st.session_state.sm_player_search = player['Player']
-                                st.rerun()
+                                st.session_state.sm_player_search = p['Player']
+                                st.rerun() # Force reload để chuyển tab ngay lập tức
 
-        # 6. THANH CÔNG CỤ CUỐI TRANG (Download/Xóa)
+        # 5. FOOTER ACTIONS
         st.divider()
         with st.container(border=True):
-            st.markdown("#### 📂 Thao tác dữ liệu")
-            ac1, ac2, ac3 = st.columns([1, 1, 2])
-            
-            with ac1:
-                # Nút tải danh sách cần bán
+            fc1, fc2, fc3 = st.columns([1, 1, 2])
+            with fc1:
                 if len(sell_df) > 0:
-                    csv_sell = sell_df.to_csv(index=False).encode('utf-8-sig')
-                    st.download_button("⬇️ Tải DS Bán", csv_sell, "sell_list.csv", "text/csv", use_container_width=True)
-            
-            with ac2:
-                # Nút tải danh sách đang lọc
-                csv_all = filtered_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("⬇️ Tải DS Lọc", csv_all, "filtered_list.csv", "text/csv", use_container_width=True)
-            
-            with ac3:
-                # Tính năng xóa (Giữ nguyên logic nhưng giấu gọn trong nút)
-                with st.expander("🗑️ Xóa cầu thủ (Nguy hiểm)"):
-                    st.warning("Chọn cầu thủ để xóa vĩnh viễn khỏi Database")
-                    
-                    # Logic chọn để xóa
-                    del_options = filtered_df.index.tolist()
-                    del_labels = {i: f"{filtered_df.loc[i, 'Player']} ({filtered_df.loc[i, 'Rating']})" for i in del_options}
-                    
-                    to_delete = st.multiselect("Chọn cầu thủ:", options=del_options, format_func=lambda x: del_labels.get(x, str(x)))
-                    
-                    if to_delete:
-                        if st.button(f"Xác nhận XÓA {len(to_delete)} cầu thủ", type="primary"):
-                            try:
-                                new_df = df.drop(index=to_delete, errors='ignore')
-                                if save_data_to_gsheet(new_df):
-                                    st.success("Đã xóa thành công!")
-                                    st.cache_data.clear()
-                                    st.rerun()
-                            except Exception as e:
-                                st.error(f"Lỗi: {e}")
+                    st.download_button("⬇️ Tải DS Bán", sell_df.to_csv(index=False).encode('utf-8-sig'), "sell.csv", "text/csv", use_container_width=True)
+            with fc2:
+                st.download_button("⬇️ Tải DS Lọc", filtered_df.to_csv(index=False).encode('utf-8-sig'), "filtered.csv", "text/csv", use_container_width=True)
+            with fc3:
+                 with st.expander("🗑️ Xóa cầu thủ"):
+                    to_del = st.multiselect("Chọn để xóa:", filtered_df.index, format_func=lambda x: f"{filtered_df.loc[x,'Player']}")
+                    if to_del and st.button(f"Xác nhận xóa {len(to_del)} cầu thủ"):
+                         if save_data_to_gsheet(df.drop(to_del)):
+                             st.success("Đã xóa!"); st.rerun()
+
 
     elif current_tab == 'skills':
         st.header("🎮 Quản lý Skills")
