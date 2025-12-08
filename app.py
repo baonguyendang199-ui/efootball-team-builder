@@ -3699,12 +3699,10 @@ def main():
             st.success("✅ Không phát hiện thẻ trùng")              
         
         # 1. THANH ĐIỀU KHIỂN CHÍNH (TOP BAR)
-        # Tạo khung chứa thanh tìm kiếm và nút bấm cho gọn
         with st.container(border=True):
             col_search, col_view, col_sort = st.columns([3, 1.5, 2])
             
             with col_search:
-                # Ô tìm kiếm chính
                 search_query = st.text_input(
                     "🔍 Tìm kiếm",
                     placeholder="Nhập tên, CLB, Skills...",
@@ -3713,7 +3711,6 @@ def main():
                 )
             
             with col_view:
-                # Nút chọn chế độ xem: Bảng hoặc Thẻ
                 view_mode = st.radio(
                     "Chế độ xem",
                     ["📋 Bảng", "🎴 Thẻ"],
@@ -3723,12 +3720,17 @@ def main():
                 )
                 
             with col_sort:
-                # Chọn cách sắp xếp
                 c_s1, c_s2 = st.columns([2, 1])
                 with c_s1:
+                    # --- NÂNG CẤP SORTING ---
+                    sort_options = [
+                        'Rating', 'Date Added', 'Height', 'Weight', 'Age', 
+                        'Player Name', 'Form', 'Injury Resistance', 
+                        'Weak Foot Usage', 'Weak Foot Accuracy'
+                    ]
                     sort_col = st.selectbox(
                         "Sắp xếp",
-                        ['Rating', 'Date Added', 'Height', 'Weight', 'Age'], 
+                        sort_options,
                         index=0, 
                         label_visibility="collapsed",
                         key="filter_sort_col"
@@ -3736,16 +3738,17 @@ def main():
                 with c_s2:
                     sort_order = st.toggle("Tăng dần", False, key="filter_sort_asc")
 
-        # 2. BỘ LỌC NÂNG CAO (Ẩn trong nút xổ xuống)
+        # 2. BỘ LỌC NÂNG CAO (ĐẦY ĐỦ HƠN)
         with st.expander("🌪️ Bộ lọc nâng cao & Thống kê", expanded=False):
             f_col1, f_col2, f_col3, f_col4 = st.columns(4)
             
             with f_col1:
                 st.markdown("**Cơ bản**")
                 action_filter = st.selectbox("Hành động", ["Tất cả", "✅ GIỮ", "❌ BÁN"], key="filter_action")
-                # Lấy danh sách vị trí từ dữ liệu
                 pos_list = sorted(df['Position'].unique().tolist())
                 position_filter = st.multiselect("Vị trí", pos_list, key="filter_position")
+                style_list = sorted([str(x) for x in df['Position Style'].unique() if x])
+                style_filter = st.multiselect("Playstyle", style_list, key="filter_style")
             
             with f_col2:
                 st.markdown("**Đội bóng**")
@@ -3753,58 +3756,90 @@ def main():
                 club_filter = st.multiselect("CLB", club_list, key="filter_club")
                 league_list = ["Tất cả"] + sorted([str(x) for x in df['League'].unique() if x])
                 league_filter = st.selectbox("Giải đấu", league_list, key="filter_league")
+                nation_list = sorted([str(x) for x in df['Nation'].unique() if x])
+                nation_filter = st.multiselect("Quốc gia", nation_list, key="filter_nation")
 
             with f_col3:
-                st.markdown("**Đặc tính**")
-                type_filter = st.multiselect("Loại thẻ", df['Player Type'].unique(), key="filter_type")
-                rmin, rmax = int(df['Rating'].min()), int(df['Rating'].max())
-                rating_range = st.slider("Rating", rmin, rmax, (rmin, rmax), key="filter_rating_range")
+                st.markdown("**Chỉ số & Thể chất**")
+                # Slider cho Height/Weight/Age
+                h_min, h_max = int(pd.to_numeric(df['Height'], errors='coerce').min()), int(pd.to_numeric(df['Height'], errors='coerce').max())
+                height_range = st.slider("Chiều cao (cm)", h_min, h_max, (h_min, h_max), key="filter_height_range")
+                
+                w_min, w_max = int(pd.to_numeric(df['Weight'], errors='coerce').min()), int(pd.to_numeric(df['Weight'], errors='coerce').max())
+                weight_range = st.slider("Cân nặng (kg)", w_min, w_max, (w_min, w_max), key="filter_weight_range")
+
+                age_min, age_max = int(pd.to_numeric(df['Age'], errors='coerce').min()), int(pd.to_numeric(df['Age'], errors='coerce').max())
+                age_range = st.slider("Tuổi", age_min, age_max, (age_min, age_max), key="filter_age_range")
 
             with f_col4:
-                st.markdown("**Khác**")
-                skill_query = st.text_input("Tìm Skill", placeholder="vd: Blocker", key="filter_skill_query")
+                st.markdown("**Thuộc tính khác**")
+                type_filter = st.multiselect("Loại thẻ", df['Player Type'].unique(), key="filter_type")
+                
+                form_list = sorted([str(x) for x in df['Form'].unique() if x])
+                form_filter = st.multiselect("Phong độ (Form)", form_list, key="filter_form")
+                
                 foot_list = ["Tất cả"] + list(df['Foot'].unique()) if 'Foot' in df.columns else []
                 foot_filter = st.selectbox("Chân thuận", foot_list, key="filter_foot")
                 
+                skill_query = st.text_input("Tìm Skill", placeholder="vd: Blocker", key="filter_skill_query")
+                
                 if st.button("🔄 Reset Filters", use_container_width=True):
-                    # Xóa các key trong session_state để reset
-                    keys_to_reset = ["filter_search_query", "filter_action", "filter_position", "filter_club", "filter_league", "filter_type", "filter_skill_query"]
+                    keys_to_reset = [
+                        "filter_search_query", "filter_action", "filter_position", "filter_style",
+                        "filter_club", "filter_league", "filter_nation", "filter_type", 
+                        "filter_form", "filter_foot", "filter_skill_query", 
+                        "filter_height_range", "filter_weight_range", "filter_age_range"
+                    ]
                     for k in keys_to_reset:
                         if k in st.session_state: del st.session_state[k]
                     st.rerun()
 
-        # 3. XỬ LÝ LỌC DỮ LIỆU (Logic)
-        # rec_df là bảng dữ liệu đã được tính toán ở phần code cũ (bạn đã giữ lại)
-        filtered_df = rec_df.copy() 
+        # 3. XỬ LÝ LỌC DỮ LIỆU (Logic đã cập nhật)
+        filtered_df = rec_df.copy()
         
-        # Áp dụng các điều kiện lọc
+        # --- Pre-calculate Numeric Columns for Sorting/Filtering ---
+        for col in ['Height', 'Weight', 'Age']:
+            filtered_df[f'_num_{col}'] = pd.to_numeric(filtered_df[col], errors='coerce').fillna(0)
+
+        # Apply Filters
         if search_query:
             filtered_df = filtered_df[filtered_df['Player'].str.contains(search_query, case=False, na=False)]
         if action_filter != "Tất cả":
             filtered_df = filtered_df[filtered_df['Action'] == action_filter]
         if position_filter:
             filtered_df = filtered_df[filtered_df['Position'].isin(position_filter)]
+        if style_filter:
+            filtered_df = filtered_df[filtered_df['Position Style'].isin(style_filter)]
         if club_filter:
             filtered_df = filtered_df[filtered_df['Club'].isin(club_filter)]
         if league_filter != "Tất cả":
             filtered_df = filtered_df[filtered_df['League'] == league_filter]
+        if nation_filter:
+            filtered_df = filtered_df[filtered_df['Nation'].isin(nation_filter)]
         if type_filter:
             filtered_df = filtered_df[filtered_df['Player Type'].isin(type_filter)]
+        if form_filter:
+            filtered_df = filtered_df[filtered_df['Form'].isin(form_filter)]
+        if foot_filter != "Tất cả":
+            filtered_df = filtered_df[filtered_df['Foot'] == foot_filter]
         if skill_query:
             filtered_df = filtered_df[filtered_df['Skills'].astype(str).str.contains(skill_query, case=False, na=False)]
-        
-        # Áp dụng Rating range
-        filtered_df = filtered_df[(filtered_df['Rating'] >= rating_range[0]) & (filtered_df['Rating'] <= rating_range[1])]
 
-        # Sắp xếp
-        if sort_col in filtered_df.columns:
-            # Xử lý đặc biệt nếu sort cột số mà dữ liệu đang là chữ
-            if sort_col in ['Height', 'Weight', 'Age']:
-                tmp_col = f"_sort_{sort_col}"
-                filtered_df[tmp_col] = pd.to_numeric(filtered_df[sort_col], errors='coerce')
-                filtered_df = filtered_df.sort_values(by=tmp_col, ascending=sort_order)
-            else:
-                filtered_df = filtered_df.sort_values(by=sort_col, ascending=sort_order)
+        # Apply Numeric Ranges
+        filtered_df = filtered_df[
+            (filtered_df['_num_Height'] >= height_range[0]) & (filtered_df['_num_Height'] <= height_range[1]) &
+            (filtered_df['_num_Weight'] >= weight_range[0]) & (filtered_df['_num_Weight'] <= weight_range[1]) &
+            (filtered_df['_num_Age'] >= age_range[0]) & (filtered_df['_num_Age'] <= age_range[1])
+        ]
+        
+        # Apply Sorting Logic
+        if sort_col == 'Player Name':
+            filtered_df = filtered_df.sort_values('Player', ascending=sort_order)
+        elif sort_col in ['Height', 'Weight', 'Age']:
+            filtered_df = filtered_df.sort_values(f'_num_{sort_col}', ascending=sort_order)
+        else:
+            if sort_col in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(sort_col, ascending=sort_order)
 
         # 4. DASHBOARD MINI (Thống kê nhanh)
         st.markdown("---")
