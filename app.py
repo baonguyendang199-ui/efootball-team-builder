@@ -1185,7 +1185,9 @@ FORMATION_COORDS = {
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
     Tự động xây dựng đội hình tối ưu.
-    CẬP NHẬT: Thêm điểm ưu tiên (epsilon) cho Vị trí sở trường để thuật toán Hungarian ưu tiên xếp đúng chỗ.
+    CẬP NHẬT: 
+    1. Luật Anti-Spam CB áp dụng cho cả Height và Weight.
+    2. Luật Strict Fit: Dự bị bắt buộc phải đá được 1 trong các vị trí của sơ đồ.
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
@@ -1220,29 +1222,13 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     # --- LOGIC MỚI CHO UNITED NATIONS ---
     if sort_mode == 'united_nations':
-        # 1. Sắp xếp toàn bộ theo Rating giảm dần
         pool_df = pool_df.sort_values('Rating', ascending=False)
-        
-        # 2. Tách nhóm GK và Non-GK
         gks = pool_df[pool_df['Position'] == 'GK']
         others = pool_df[pool_df['Position'] != 'GK']
-        
-        # 3. Lấy Top 3 GK xuất sắc nhất từ 3 quốc gia khác nhau
-        # (Tại sao Top 3? Để đảm bảo sơ đồ có GK xịn, tránh trường hợp chọn Tiền đạo xịn hết xong phải bắt GK 70 rating)
         top_gks = gks.drop_duplicates(subset=['Nation'], keep='first').head(3)
-        
-        # Danh sách các quốc gia đã có GK (Ví dụ: Spain, Germany, Italy)
         gk_nations = set(top_gks['Nation'].unique())
-        
-        # 4. Lấy cầu thủ các vị trí khác
-        # QUAN TRỌNG: Loại bỏ những cầu thủ thuộc quốc gia đã có GK
-        # (Ví dụ: Đã chọn Casillas thì loại Iniesta khỏi danh sách candidates)
         others_filtered = others[~others['Nation'].isin(gk_nations)]
-        
-        # Giữ lại cầu thủ tốt nhất của các quốc gia còn lại
         others_unique = others_filtered.drop_duplicates(subset=['Nation'], keep='first')
-        
-        # 5. Gộp lại thành hồ sơ ứng viên
         pool_df = pd.concat([top_gks, others_unique]).reset_index(drop=True)
 
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
@@ -1270,7 +1256,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 t = str(text).strip().lower()
                 if any(k in t for k in ['regularly', 'very high', '4']): return 4
                 if any(k in t for k in ['occasionally', 'high', '3']): return 3
-                if any(k in t for k in ['rarely', 'medium', '2']): return 2
+                if any(k in t for k in ['medium', 'rarely', '2']): return 2
                 return 1
             u_val = get_wf_val(row.get('Weak Foot Usage', ''))
             a_val = get_wf_val(row.get('Weak Foot Accuracy', ''))
@@ -1292,6 +1278,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     # 4. CHỌN ĐÁ CHÍNH (STARTERS)
     required_positions = FORMATIONS.get(formation_name, [])
+    
+    # [QUAN TRỌNG] Tạo set các vị trí có trong sơ đồ (Ví dụ: {GK, CB, LB, RB, DMF, CMF, AMF, CF})
+    # Dùng để lọc cầu thủ dự bị "lạc loài"
     unique_formation_positions = set(required_positions)
     
     num_slots = len(required_positions)
@@ -1307,15 +1296,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         if score == ERROR_SCORE: continue
 
         for s_idx, req_pos in enumerate(required_positions):
-            # Chỉ kiểm tra đúng vị trí (chính hoặc phụ) có trong thẻ hay không
             can_play = req_pos in full_pos_list
-            
             if can_play: 
-                # --- UPDATE MỚI: MAIN POSITION BONUS ---
-                # Nếu vị trí yêu cầu trùng với vị trí chính của cầu thủ
-                # Cộng thêm 1 điểm nhỏ (epsilon) để ưu tiên chọn Main Position khi điểm Score bằng nhau
                 main_pos_bonus = 0.0001 if req_pos == p_main_pos else 0
-                
                 cost_matrix[p_idx, s_idx] = -(score + main_pos_bonus)
 
     try: row_ind, col_ind = linear_sum_assignment(cost_matrix)
@@ -1347,7 +1330,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     for i in range(11):
         if final_squad[i] is None: final_squad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
 
-    # 5. CHỌN DỰ BỊ (DRAFTING)
+    # 5. CHỌN DỰ BỊ (DRAFTING) - CẬP NHẬT LOGIC STRICT
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)].copy()
     remaining_pool = remaining_pool[remaining_pool['Build_Score'] != ERROR_SCORE]
     
@@ -1364,41 +1347,44 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             base_score = row['Build_Score']
             pos = str(row.get('Position', '')).strip().upper()
             
-            # --- 1. LUẬT GK (Max 1 dự bị) ---
+            # --- [LOGIC MỚI 1] STRICT FORMATION FIT ---
+            # Cầu thủ bắt buộc phải đá được ít nhất 1 vị trí có trong sơ đồ
+            # Ví dụ: Sơ đồ 5-3-2 không có LWF/RWF. Cầu thủ chỉ đá được LWF -> Loại
+            secs = [s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()]
+            all_playable_pos = set([pos] + secs)
+            
+            # Kiểm tra giao thoa: Nếu không có vị trí nào trùng với sơ đồ -> LOẠI
+            if not all_playable_pos.intersection(unique_formation_positions):
+                return -999999
+
+            # --- [LOGIC MỚI 2] ANTI-SPAM CB (Height & Weight) ---
             if pos == 'GK' and gk_on_bench_count >= 1:
                 return -999999
             
-            # --- 2. LUẬT CB (Max 3 dự bị, trừ khi đa năng) ---
-            # CẬP NHẬT: Áp dụng cho cả Tallest (height_desc) VÀ Heaviest (weight_desc)
-            if sort_mode in ['height_desc', 'weight_desc'] and pos == 'CB': 
+            # Áp dụng cho cả Height và Weight
+            if sort_mode in ['height_desc', 'weight_desc'] and pos == 'CB':
                 cb_count = bench_pos_counts.get('CB', 0)
                 if cb_count >= 3:
-                    # Kiểm tra xem có đá được vị trí khác không (LB, RB, DMF...)
-                    sec_str = str(row.get('Secondary Positions', '')).upper()
+                    # Kiểm tra sự đa năng
                     useful_positions = ['LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF']
-                    is_versatile = any(p in sec_str for p in useful_positions)
+                    is_versatile = any(p in str(row.get('Secondary Positions', '')).upper() for p in useful_positions)
                     
                     if not is_versatile:
-                        return -999999 # CB thuần túy thứ 4 -> Loại ngay
+                        return -999999 
             
-            # --- 3. LUẬT UNITED NATIONS ---
+            # --- LUẬT UNITED NATIONS ---
             if sort_mode == 'united_nations':
                 p_nation = str(row.get('Nation', '')).strip()
                 if p_nation and p_nation in used_nations:
                     return -999999
             
-            # --- 4. BONUS HỢP SƠ ĐỒ ---
+            # --- BONUS ---
+            # Vẫn giữ bonus nhỏ để ưu tiên người hợp vị trí chính hơn nếu chỉ số bằng nhau
             fit_bonus = 0
             if pos in unique_formation_positions:
                 fit_bonus = 0.2
-            else:
-                secs = [s.strip() for s in str(row.get('Secondary Positions', '')).split(',')]
-                for s in secs:
-                    if s.upper() in unique_formation_positions:
-                        fit_bonus = 0.2
-                        break
             
-            # --- 5. ĐIỂM BÃO HÒA (Để ưu tiên vị trí chưa có) ---
+            # Điểm bão hòa để phân bổ đều các vị trí dự bị
             current_count_on_bench = bench_pos_counts.get(pos, 0)
             saturation_penalty = current_count_on_bench * 0.1
             
@@ -1406,12 +1392,15 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
         remaining_pool['Draft_Score'] = remaining_pool.apply(calculate_draft_priority, axis=1)
         
-        candidates = remaining_pool.sort_values(['Draft_Score', 'Rating'], ascending=[False, False])
+        # Chỉ lấy những người có điểm hợp lệ (không bị loại bởi các bộ lọc trên)
+        candidates = remaining_pool[remaining_pool['Draft_Score'] > -500000]
+        
+        if candidates.empty:
+            break
+            
+        candidates = candidates.sort_values(['Draft_Score', 'Rating'], ascending=[False, False])
         best_pick = candidates.iloc[0]
         
-        if best_pick['Draft_Score'] < -500000:
-            break 
-            
         bench_picks.append(best_pick)
         
         picked_pos = str(best_pick['Position']).strip().upper()
@@ -1424,6 +1413,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             
         remaining_pool = remaining_pool.drop(best_pick.name)
 
+    # Nếu vẫn chưa đủ 12 người (do lọc quá kỹ), fill nốt bằng những người còn lại tốt nhất
+    # (Trường hợp dự phòng để không bị lỗi array)
     while len(bench_picks) < 12 and not remaining_pool.empty:
         top = remaining_pool.iloc[0]
         bench_picks.append(top)
