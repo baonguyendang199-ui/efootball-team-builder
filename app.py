@@ -3690,10 +3690,7 @@ def main():
                 dup_df = pd.DataFrame(dup_data)
                 st.dataframe(dup_df, use_container_width=True, hide_index=True)
         else:
-            st.success("✅ Không phát hiện thẻ trùng")
-
-                
-        st.divider()
+            st.success("✅ Không phát hiện thẻ trùng")              
         
         # 1. THANH ĐIỀU KHIỂN CHÍNH (TOP BAR)
         # Tạo khung chứa thanh tìm kiếm và nút bấm cho gọn
