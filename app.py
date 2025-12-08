@@ -1056,28 +1056,6 @@ def get_inventory():
     """Get inventory (with cache)"""
     return get_inventory_from_gsheet()
 
-def update_inventory_count(skill_name, delta):
-    """Update skill count trực tiếp trên Google Sheets"""
-    try:
-        inventory = get_inventory()
-        current = inventory.get(skill_name, 0)
-        new_count = max(0, current + delta)
-        
-        if new_count == 0 and skill_name in inventory:
-            del inventory[skill_name]
-        else:
-            inventory[skill_name] = new_count
-        
-        # Lưu lại Google Sheets
-        if save_skill_inventory_to_gsheet(inventory):
-            return new_count
-        else:
-            raise Exception("Không thể lưu inventory")
-            
-    except Exception as e:
-        st.error(f"⚠️ Lỗi cập nhật {skill_name}: {e}")
-        return -1
-
 # --- CONFIG ---
 MAX_SQUAD_SIZE = 23
 
