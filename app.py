@@ -3132,9 +3132,7 @@ def main():
                 
                 st.markdown("""
                 **Cách đọc biểu đồ:**
-                *   **Màu vàng/sáng:** Vị trí đó đang **dư thừa** nhân sự -> Cân nhắc bán bớt.
-                *   **Màu tím/tối:** Vị trí đó đang **thiếu** người -> Cần mua thêm (Scout).
-                *   **Cột trống:** Hoàn toàn không có cầu thủ nào ở vị trí đó.
+                *   **Màu càng sáng:** Càng có **nhiều** cầu thủ 
                 """)
             else:
                 st.warning(f"Không tìm thấy cầu thủ nào cho {target_team}")
