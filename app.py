@@ -1396,14 +1396,13 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
 
 def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     """
-    Vẽ sơ đồ sân bóng: SMART DYNAMIC LOGIC.
-    Tự động tính toán vị trí dựa trên Role mà không cần Hardcode tọa độ.
+    Vẽ sơ đồ sân bóng: SMART DYNAMIC LOGIC - Đã cập nhật Badge "Stat Tag" xịn xò.
     """
     import streamlit.components.v1 as components
     import re
     import math
 
-    # --- 1. XỬ LÝ SORT MODE (Giữ nguyên) ---
+    # --- 1. XỬ LÝ SORT MODE ---
     highlight_type = None
     is_reverse = True 
 
@@ -1427,7 +1426,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     starters = squad_list[:11]
     raw_subs = squad_list[11:]
 
-    # --- 3. SORT DỰ BỊ (Giữ nguyên logic cũ) ---
+    # --- 3. SORT DỰ BỊ ---
     def get_sort_value(p, key):
         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
         except: return 0
@@ -1445,7 +1444,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     else: 
         subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
-    # --- 4. HTML GENERATOR (Giữ nguyên) ---
+    # --- 4. HTML GENERATOR (ĐÃ NÂNG CẤP STAT TAG) ---
     def create_card_html(p, top=None, left=None, is_sub=False):
         full_name = p['Player'].strip()
         name_parts = full_name.split()
@@ -1456,16 +1455,23 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
         
-        # Badge Logic
+        # --- LOGIC TÍNH TOÁN STAT TAG ---
         val_display = ""
-        if highlight_type == 'Height': val_display = f"{p.get('Height', '-')}cm"
-        elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '-')}kg"
-        elif highlight_type == 'Age': val_display = f"{p.get('Age', '-')}t"
+        metric_label = ""
+        
+        if highlight_type == 'Height': 
+            val_display = f"{p.get('Height', '-')} cm"
+        elif highlight_type == 'Weight': 
+            val_display = f"{p.get('Weight', '-')} kg"
+        elif highlight_type == 'Age': 
+            val_display = f"{p.get('Age', '-')} tuổi"
         elif highlight_type == 'BMI':
             try:
                 h = float(re.sub(r'[^\d.]', '', str(p.get('Height', '0')))) / 100.0
                 w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
-                if h > 0: val_display = f"{(w/(h**2)):.1f}"
+                if h > 0: 
+                    val_display = f"{(w/(h**2)):.1f}"
+                    metric_label = "BMI"
             except: pass
         elif highlight_type == 'Ambidextrous':
             d = p.get('Data', {})
@@ -1477,11 +1483,19 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
                 return '1'
             u, a = get_wf_num(d.get('Weak Foot Usage', '')), get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
+        elif highlight_type == 'Nation':
+            val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
 
         ptype = str(p['Type']).upper()
-        if "POTW" in ptype or "TRENDING" in ptype: accent, shadow = "#d946ef", "rgba(217, 70, 239, 0.4)"
-        elif "EPIC" in ptype and "NON" not in ptype: accent, shadow = "#fbbf24", "rgba(251, 191, 36, 0.4)"
-        else: accent, shadow = "#38bdf8", "rgba(56, 189, 248, 0.4)"
+        if "POTW" in ptype or "TRENDING" in ptype: 
+            accent, shadow = "#d946ef", "rgba(217, 70, 239, 0.4)"
+            stat_color = "#e879f9"
+        elif "EPIC" in ptype and "NON" not in ptype: 
+            accent, shadow = "#fbbf24", "rgba(251, 191, 36, 0.4)"
+            stat_color = "#fbbf24"
+        else: 
+            accent, shadow = "#38bdf8", "rgba(56, 189, 248, 0.4)"
+            stat_color = "#38bdf8"
 
         if is_sub:
             position_css = ""
@@ -1490,7 +1504,13 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             position_css = f"top: {top}%; left: {left}%; transform: translate(-50%, -50%);"
             card_class = "card-pitch"
 
-        badge_html = f'<div class="stat-badge" style="background:{accent}">{val_display}</div>' if val_display else ""
+        # --- TẠO HTML BADGE MỚI (STAT TAG) ---
+        badge_html = ""
+        if val_display:
+            label_html = f"<span style='color:#94a3b8; margin-right:3px; font-weight:500'>{metric_label}:</span>" if metric_label else ""
+            # Vị trí bottom: 24px để nằm ngay trên thanh tên cầu thủ
+            badge_html = f'<div style="position:absolute; bottom:24px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.95); color:{stat_color}; font-size:9px; font-weight:700; padding:1px 8px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); z-index:20; white-space:nowrap; display:flex; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.5);">{label_html}<span>{val_display}</span></div>'
+
         if p['Player'] == "---": return f'<div class="empty-slot {card_class}" style="{position_css}"></div>'
 
         return f"""
@@ -1506,20 +1526,10 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         </div>
         """
 
-    # =========================================================================
-    # 🔥 LOGIC SẮP XẾP VỊ TRÍ THÔNG MINH (THEO TẦNG)
-    # =========================================================================
+    # ... (Phần logic Layer xếp đội hình và Render giữ nguyên) ...
+    # Copy đoạn dưới y chang logic cũ:
     
-    html_starters = ""
-    
-    # 1. Phân loại cầu thủ vào các nhóm (Layers)
-    gk_group = []
-    def_group = []
-    dmf_group = []
-    mid_group = [] # CMF, AMF
-    wing_group = [] # LWF, RWF, LMF, RMF
-    cf_group = [] # CF, SS
-
+    gk_group = []; def_group = []; dmf_group = []; mid_group = []; wing_group = []; cf_group = []
     for p in starters:
         pos = p['Position']
         if pos == 'GK': gk_group.append(p)
@@ -1529,81 +1539,52 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         elif pos in ['LWF', 'RWF', 'LMF', 'RMF']: wing_group.append(p)
         elif pos in ['CF', 'SS']: cf_group.append(p)
 
-    # Hàm hỗ trợ tính toán vị trí Left%
     def calculate_left_positions(count):
         if count == 1: return [50]
-        if count == 2: return [30, 70] # Dãn rộng ra xíu
+        if count == 2: return [30, 70]
         if count == 3: return [20, 50, 80]
         if count == 4: return [15, 38, 62, 85]
         if count == 5: return [10, 30, 50, 70, 90]
         return [50] * count
 
-    # --- RENDER TỪNG TẦNG ---
-
-    # 1. GK (Cố định)
+    # 1. GK
     for p in gk_group: html_starters += create_card_html(p, 92, 50)
-
-    # 2. HẬU VỆ (Sắp xếp: LB -> CB -> RB)
-    # Priority: LB(1) < CB(2) < RB(3). Sort để LB luôn bên trái, RB bên phải
+    # 2. DEF
     def_group.sort(key=lambda x: {'LB': 1, 'CB': 2, 'RB': 3}.get(x['Position'], 2))
     def_coords = calculate_left_positions(len(def_group))
     for i, p in enumerate(def_group):
-        # CB đá thấp (78%), LB/RB đá cao hơn chút (72%)
         top = 78 if p['Position'] == 'CB' else 72
         html_starters += create_card_html(p, top, def_coords[i])
-
-    # 3. TIỀN VỆ TRỤ (DMF)
-    # Nếu có 2 DMF -> Đá ngang nhau. Nếu 1 DMF -> Đá giữa.
+    # 3. DMF
     dmf_coords = calculate_left_positions(len(dmf_group))
     for i, p in enumerate(dmf_group):
         html_starters += create_card_html(p, 60, dmf_coords[i])
-
-    # 4. TIỀN VỆ CÔNG/TRUNG TÂM (CMF/AMF)
-    # Sort: CMF(1) < AMF(2). Nhưng về hiển thị Left/Right thì không quan trọng lắm, chủ yếu là Top
-    # AMF đá cao (35%), CMF đá thấp hơn (48%)
-    # Logic đặc biệt: Nếu trong sơ đồ có DMF, CMF sẽ đá cao ngang AMF hoặc thấp hơn xíu.
+    # 4. MID
     mid_coords = calculate_left_positions(len(mid_group))
     for i, p in enumerate(mid_group):
         top = 35 if p['Position'] == 'AMF' else 48
-        # Nếu không có DMF, CMF phải đá thấp xuống để cover (như 4-4-2 Flat)
-        if len(dmf_group) == 0 and p['Position'] == 'CMF':
-            top = 55 
+        if len(dmf_group) == 0 and p['Position'] == 'CMF': top = 55 
         html_starters += create_card_html(p, top, mid_coords[i])
-
-    # 5. CÁNH (Wings) - Chia làm 2 nhóm: Trái (LWF/LMF) và Phải (RWF/RMF)
+    # 5. WING
     left_wings = [p for p in wing_group if 'L' in p['Position']]
     right_wings = [p for p in wing_group if 'R' in p['Position']]
-    
     for p in left_wings:
-        top = 20 if p['Position'] == 'LWF' else 40 # LMF thấp hơn LWF
-        html_starters += create_card_html(p, top, 15) # Luôn bám trái 15%
-        
+        top = 20 if p['Position'] == 'LWF' else 40
+        html_starters += create_card_html(p, top, 15)
     for p in right_wings:
-        top = 20 if p['Position'] == 'RWF' else 40 # RMF thấp hơn RWF
-        html_starters += create_card_html(p, top, 85) # Luôn bám phải 85%
-
-    # 6. TIỀN ĐẠO (CF/SS)
-    # SS đá lùi (28%), CF đá cắm (15%)
-    # Sort theo tên để ổn định, hoặc sort CF ra giữa nếu có 3 người
+        top = 20 if p['Position'] == 'RWF' else 40
+        html_starters += create_card_html(p, top, 85)
+    # 6. CF
     cf_group.sort(key=lambda x: {'SS': 2, 'CF': 1}.get(x['Position'], 1))
-    
-    # Xử lý riêng cho 3 tiền đạo (VD: SS, CF, SS) -> SS phải dạt ra
     cf_coords = calculate_left_positions(len(cf_group))
-    
-    # Nếu chỉ có 1 người -> Luôn giữa
-    # Nếu có 2 người (2 CF) -> 35, 65
     for i, p in enumerate(cf_group):
         top = 28 if p['Position'] == 'SS' else 14
         html_starters += create_card_html(p, top, cf_coords[i])
 
-    # =========================================================================
-
     html_subs = "".join([create_card_html(p, is_sub=True) for p in subs])
-
     rows_desktop = math.ceil(len(subs) / 8)
     total_height_desktop = 800 + 60 + (rows_desktop * 130)
 
-    # (CSS GIỮ NGUYÊN NHƯ CŨ - KHÔNG THAY ĐỔI)
     css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@700;800&family=Inter:wght@600;700&display=swap');
@@ -1627,12 +1608,11 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         .p-img-box { position: absolute; bottom: 22px; left: 0; width: 100%; height: 85px; z-index: 2; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 0 0 6px 6px; }
         .p-img-box img { width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5)); }
         .p-name { position: absolute; bottom: 0; left: 0; width: 100%; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; background: rgba(2, 6, 23, 0.9); z-index: 4; border-radius: 0 0 6px 6px; white-space: nowrap; overflow: hidden; }
-        .stat-badge { position: absolute; top: -14px; right: -6px; color: #000; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 3px; z-index: 20; box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid white; white-space: nowrap; }
         .empty-slot { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transform: translate(-50%, -50%); }
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; }
         .bench-title { color: #94a3b8; font-weight: 700; font-size: 14px; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
         .bench-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-        @media only screen and (max-width: 600px) { .pitch { height: 620px; } .p-card { width: 64px; height: 90px; } .card-sub { width: 64px; height: 90px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; padding: 0 2px; } .p-name { font-size: 9px; height: 18px; } .p-img-box { height: 65px; bottom: 18px; } .stat-badge { font-size: 9px; padding: 1px 3px; top: -12px; right: -4px; left: auto; } .bench { padding: 10px; } .bench-grid { gap: 6px; } }
+        @media only screen and (max-width: 600px) { .pitch { height: 620px; } .p-card { width: 64px; height: 90px; } .card-sub { width: 64px; height: 90px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; padding: 0 2px; } .p-name { font-size: 9px; height: 18px; } .p-img-box { height: 65px; bottom: 18px; } .bench { padding: 10px; } .bench-grid { gap: 6px; } }
     </style>
     """
     
