@@ -1606,7 +1606,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         .bench { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; }
         .bench-title { color: #94a3b8; font-weight: 700; font-size: 14px; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
         .bench-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-        @media only screen and (max-width: 600px) { .pitch { height: 620px; } .p-card { width: 64px; height: 90px; } .card-sub { width: 64px; height: 90px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; padding: 0 2px; } .p-name { font-size: 9px; height: 18px; } .p-img-box { height: 65px; bottom: 18px; } .stat-badge { font-size: 9px; padding: 1px 3px; top: -12px; left: -4px; } .bench { padding: 10px; } .bench-grid { gap: 6px; } }
+        @media only screen and (max-width: 600px) { .pitch { height: 620px; } .p-card { width: 64px; height: 90px; } .card-sub { width: 64px; height: 90px; } .p-rating { font-size: 14px; } .p-pos { font-size: 8px; padding: 0 2px; } .p-name { font-size: 9px; height: 18px; } .p-img-box { height: 65px; bottom: 18px; } .stat-badge { font-size: 9px; padding: 1px 3px; top: -12px; right: -4px; left: auto; } .bench { padding: 10px; } .bench-grid { gap: 6px; } }
     </style>
     """
     
