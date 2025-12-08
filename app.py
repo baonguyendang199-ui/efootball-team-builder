@@ -3951,15 +3951,10 @@ def main():
                         card_html = render_efootball_card_html(p_data, highlight_metric=highlight_metric)
                         st.markdown(card_html, unsafe_allow_html=True)
                         
-                        b1, b2 = st.columns(2)
+                        b1 = st.columns(1)
                         with b1:
                             if st.button("🔍", key=f"btn_view_{idx}", use_container_width=True, help="Xem chi tiết"):
                                 show_player_modal(player)
-                        with b2:
-                            if st.button("🛠️", key=f"btn_skill_{idx}", use_container_width=True, help="Sửa Skill"):
-                                st.session_state.current_tab = 'skills'
-                                st.session_state.sm_player_search = player['Player']
-                                st.rerun()
 
         # 6. THANH CÔNG CỤ CUỐI TRANG
         st.divider()
