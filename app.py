@@ -4374,7 +4374,6 @@ def main():
                                             st.cache_data.clear()
                                             st.balloons()
                                             
-                                            import time
                                             time.sleep(1.5)
                                             st.rerun()
                                         else:
@@ -4422,7 +4421,6 @@ def main():
                                             st.cache_data.clear()
                                             st.balloons()
                                             
-                                            import time
                                             time.sleep(1.5)
                                             st.rerun()
                                         else:
@@ -4469,7 +4467,6 @@ def main():
                                         st.cache_data.clear()
                                         st.balloons()
                                         
-                                        import time
                                         time.sleep(1)
                                         st.rerun()
                                     else:
