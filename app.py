@@ -269,7 +269,8 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
     """
-    Giao diện Scouting Profile - Đã sửa lỗi hiển thị Text/Code Block.
+    Giao diện Scouting Profile - Phiên bản Fix lỗi hiển thị Code Text.
+    Lưu ý: Các dòng HTML bên trong f-string phải viết sát lề trái.
     """
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
@@ -283,7 +284,6 @@ def show_player_modal(row):
     action = str(row.get('Action', 'N/A')).upper()
     reasons = str(row.get('Reasons', 'Chưa có phân tích'))
     
-    # Lấy ảnh cầu thủ
     img_url = row.get('Player URL', '') 
     pid = str(row.get('Player ID', '')).strip()
     if not pid and img_url:
@@ -291,7 +291,7 @@ def show_player_modal(row):
         pid = m.group(1) if m else ""
     real_img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
 
-    # Cấu hình màu sắc theo loại thẻ
+    # Theme Config
     if "POTW" in p_type or "TRENDING" in p_type:
         accent_color = "#D946EF"
         badge_bg = "linear-gradient(135deg, #701a75 0%, #D946EF 100%)"
@@ -305,7 +305,6 @@ def show_player_modal(row):
         badge_bg = "linear-gradient(135deg, #1e3a8a 0%, #3B82F6 100%)"
         shadow_color = "rgba(59, 130, 246, 0.4)"
 
-    # --- HELPER FUNCTIONS ---
     def render_stat_bar(label, value_text, max_score=4):
         val = str(value_text).upper()
         score = 1
@@ -317,19 +316,11 @@ def show_player_modal(row):
         for i in range(1, max_score + 1):
             bg = accent_color if i <= score else "rgba(255,255,255,0.1)"
             bars += f'<div style="flex:1; height:4px; background:{bg}; border-radius:2px; margin-right:2px;"></div>'
-        # QUAN TRỌNG: Viết liền 1 dòng để tránh lỗi code block
-        return f"""<div style="margin-bottom:8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
+        
+        # HTML này phải viết thành 1 dòng hoặc sát lề
+        return f"""<div style="margin-bottom: 8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
 
-    def get_stat_color(val):
-        try:
-            v = int(val)
-            if v >= 90: return "#22d3ee" 
-            if v >= 80: return "#4ade80" 
-            if v >= 70: return "#facc15" 
-            return "#94a3b8" 
-        except: return "#94a3b8"
-
-    # --- 2. XỬ LÝ HTML CHO SKILLS ---
+    # --- 2. XỬ LÝ SKILLS ---
     base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
     added_skills = [s.strip() for s in str(row.get('Added Skills','')).split(',') if s.strip()]
     skills_html = ""
@@ -337,43 +328,18 @@ def show_player_modal(row):
     for s in added_skills: skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
-    # --- 3. TẠO HTML CHO BẢNG CHỈ SỐ (STATS) ---
-    stat_groups = {
-        "Tấn công & Sút": ["Offensive Awareness", "Finishing", "Kicking Power", "Curl", "Set Piece Taking"],
-        "Kiểm soát & Chuyền": ["Ball Control", "Dribbling", "Tight Possession", "Low Pass", "Lofted Pass"],
-        "Thể chất & Tốc độ": ["Speed", "Acceleration", "Balance", "Physical Contact", "Jumping", "Stamina"],
-        "Phòng ngự": ["Defensive Awareness", "Tackling", "Aggression", "Defensive Engagement", "Heading"],
-        "Thủ môn": ["GK Awareness", "GK Catching", "GK Parrying", "GK Reflexes", "GK Reach"]
-    }
-    
-    if pos not in ['GK']: del stat_groups["Thủ môn"]
+    # --- 3. REASONS BLOCK ---
+    action_bg = "rgba(34, 197, 94, 0.2)" if "GIỮ" in action else "rgba(239, 68, 68, 0.2)"
+    action_border = "#22c55e" if "GIỮ" in action else "#ef4444"
+    action_text = "#4ade80" if "GIỮ" in action else "#f87171"
 
-    stats_grid_html = ""
-    for group_name, stats_list in stat_groups.items():
-        rows_html = ""
-        for key in stats_list:
-            val = row.get(key, '-')
-            if val == '' or val is None: val = '-'
-            color = get_stat_color(val)
-            # SỬA LỖI: Đẩy thẻ div sát lề trái, không thụt dòng
-            rows_html += f"""<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; padding:2px 0; border-bottom:1px dashed rgba(255,255,255,0.05);"><span style="font-size:0.75rem; color:#cbd5e1;">{key}</span><span style="font-size:0.9rem; font-weight:700; color:{color};">{val}</span></div>"""
-        
-        # SỬA LỖI: Đẩy thẻ div sát lề trái
-        stats_grid_html += f"""<div class="stat-group-box"><div class="stat-group-title">{group_name}</div>{rows_html}</div>"""
-
-    # --- 4. HTML TỔNG HỢP ---
     reasons_html = ""
-    if action and action != "N/A":
-        act_bg = "rgba(34, 197, 94, 0.2)" if "GIỮ" in action else "rgba(239, 68, 68, 0.2)"
-        act_bd = "#22c55e" if "GIỮ" in action else "#ef4444"
-        act_tx = "#4ade80" if "GIỮ" in action else "#f87171"
-        
-        # SỬA LỖI: Viết liền mạch hoặc dùng textwrap.dedent (ở đây chọn cách viết gọn)
-        reasons_html = f"""<div style="margin: 0 20px 10px 20px; padding: 12px; background: {act_bg}; border: 1px solid {act_bd}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;"><div style="font-weight: 800; font-size: 1.1rem; color: {act_tx}; white-space: nowrap;">{action}</div><div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;"><div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>{reasons}</div></div>"""
+    if action != "N/A" and action != "":
+        # HTML viết sát lề trái
+        reasons_html = f"""<div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;"><div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div><div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;"><div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>{reasons}</div></div>"""
 
-    # --- 5. RENDER FINAL HTML (SỬA LỖI INDENTATION) ---
-    # Lưu ý: Các thẻ <style> và HTML chính phải bắt đầu ngay đầu dòng, không được có khoảng trắng phía trước
-    full_html = f"""
+    # --- 4. HTML TỔNG (QUAN TRỌNG: VIẾT SÁT LỀ TRÁI, KHÔNG THỤT ĐẦU DÒNG) ---
+    html_content = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
 .profile-container {{ font-family: 'Space Grotesk', sans-serif; background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 1) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 0 40px rgba(0,0,0,0.5); color: white; margin-bottom: 10px; }}
@@ -385,7 +351,7 @@ def show_player_modal(row):
 .pf-badges {{ display: flex; gap: 8px; align-items: center; }}
 .pf-badge {{ font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: 600; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); }}
 .pf-rating {{ background: {badge_bg}; color: white; border: none; box-shadow: 0 0 10px {shadow_color}; }}
-.pf-grid {{ display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }}
+.pf-grid {{ display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; padding: 20px; }}
 .pf-section-title {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }}
 .stat-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }}
 .stat-item {{ background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px; }}
@@ -395,13 +361,53 @@ def show_player_modal(row):
 .pf-skill {{ font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; transition: all 0.2s; }}
 .pf-skill:hover {{ background: {accent_color}33; border-color: {accent_color}; color: white; }}
 .pf-skill.added {{ border-left: 3px solid #4ade80; background: rgba(74, 222, 128, 0.1); }}
-.detailed-stats-container {{ padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; background: rgba(0,0,0,0.2); }}
-.stat-group-box {{ background: rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.05); }}
-.stat-group-title {{ font-size: 0.8rem; font-weight: 700; color: {accent_color}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 4px; }}
 </style>
-<div class="profile-container"><div class="pf-hero"><div class="pf-img-wrapper"><img src="{real_img}" class="pf-img"></div><div class="pf-header-info"><div class="pf-badges" style="margin-bottom:8px;"><span class="pf-badge pf-rating">{rating}</span><span class="pf-badge">{pos}</span><span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span></div><div class="pf-name">{p_name}</div><div style="font-size: 0.9rem; color: #cbd5e1;">{club} <span style="margin:0 5px; color:#64748b">•</span> {nation}</div></div></div>{reasons_html}<div class="pf-grid"><div><div class="pf-section-title">Thông số vật lý</div><div class="stat-grid" style="margin-bottom: 20px;"><div class="stat-item"><div class="stat-label">Chiều cao</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div><div class="stat-item"><div class="stat-label">Cân nặng</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div><div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div><div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div></div><div class="pf-section-title">Phong độ & Thể trạng</div><div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">{render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}{render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}{render_stat_bar("Form / Condition", row.get('Form', '-'))}{render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}</div></div><div><div class="pf-section-title">Phong cách thi đấu</div><div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div><div class="pf-section-title">Danh sách kỹ năng</div><div class="skill-container">{skills_html}</div><div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};"><div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div><div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div><div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div></div></div></div><div class="pf-section-title" style="margin: 20px 20px 0 20px; border-bottom:none;">Chi tiết chỉ số (In-game Stats)</div><div class="detailed-stats-container">{stats_grid_html}</div></div>
+<div class="profile-container">
+<div class="pf-hero">
+<div class="pf-img-wrapper"><img src="{real_img}" class="pf-img"></div>
+<div class="pf-header-info">
+<div class="pf-badges" style="margin-bottom:8px;">
+<span class="pf-badge pf-rating">{rating}</span>
+<span class="pf-badge">{pos}</span>
+<span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
+</div>
+<div class="pf-name">{p_name}</div>
+<div style="font-size: 0.9rem; color: #cbd5e1;">{club} <span style="margin:0 5px; color:#64748b">•</span> {nation}</div>
+</div>
+</div>
+{reasons_html}
+<div class="pf-grid">
+<div>
+<div class="pf-section-title">Thông số vật lý</div>
+<div class="stat-grid" style="margin-bottom: 20px;">
+<div class="stat-item"><div class="stat-label">Chiều cao</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div>
+<div class="stat-item"><div class="stat-label">Cân nặng</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div>
+<div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div>
+<div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div>
+</div>
+<div class="pf-section-title">Kỹ thuật & Phong độ</div>
+<div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
+{render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
+{render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
+{render_stat_bar("Form / Condition", row.get('Form', '-'))}
+{render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
+</div>
+</div>
+<div>
+<div class="pf-section-title">Phong cách thi đấu</div>
+<div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div>
+<div class="pf-section-title">Danh sách kỹ năng</div>
+<div class="skill-container">{skills_html}</div>
+<div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
+<div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
+<div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
+<div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
+</div>
+</div>
+</div>
+</div>
 """
-    st.markdown(full_html, unsafe_allow_html=True)
+    st.markdown(html_content, unsafe_allow_html=True)
 
     # Footer Actions
     st.write("")
@@ -411,6 +417,7 @@ def show_player_modal(row):
             st.link_button("🌐 PESDB Link", row.get('Player URL'), use_container_width=True)
     with c2:
         pass
+
 
 def render_app_hero(df: pd.DataFrame):
     """Render the hero banner with live metrics."""
@@ -590,7 +597,7 @@ def load_data_from_gsheet():
         return pd.DataFrame()
 
 def save_data_to_gsheet(df):
-    """Lưu dữ liệu lên Google Sheets - Đã FIX lỗi Numpy Types"""
+    """Lưu dữ liệu lên Google Sheets"""
     try:
         # Check if dataframe is empty
         if df.empty:
@@ -600,19 +607,15 @@ def save_data_to_gsheet(df):
         client = get_gsheet_connection()
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
         
-        # Remove Epic_Priority column before saving (cột này chỉ dùng để sort nội bộ)
-        df_save = df.drop(columns=['Epic_Priority', 'Build_Score', 'Draft_Score', 'Top23_Count', '_num_Height', '_num_Weight', '_num_Age', '_num_BMI'], errors='ignore').copy()
+        # Remove Epic_Priority column before saving
+        df_save = df.drop(columns=['Epic_Priority'], errors='ignore').copy()
         
-        # --- FIX QUAN TRỌNG: XỬ LÝ DỮ LIỆU TRƯỚC KHI GỬI ---
-        # 1. Fill NaN bằng chuỗi rỗng
-        df_save = df_save.fillna('')
+        # CRITICAL: Replace NaN/inf values with empty string or 0
+        # This prevents JSON error when saving to Google Sheets
+        df_save = df_save.fillna('')  # Fill NaN with empty string
         
-        # 2. Xử lý số vô cực (Infinite)
+        # Replace inf values if any
         df_save = df_save.replace([float('inf'), float('-inf')], '')
-        
-        # 3. CHUYỂN ĐỔI TẤT CẢ SANG STRING ĐỂ TRÁNH LỖI JSON SERIALIZATION (Lỗi phổ biến nhất)
-        # Google Sheets API rất kén chọn các kiểu dữ liệu numpy (int64, float64)
-        df_save = df_save.astype(str)
         
         # Check again after cleaning
         if df_save.empty:
@@ -621,13 +624,11 @@ def save_data_to_gsheet(df):
         
         # Clear and update
         sheet.clear()
-        # Update cả Header (Columns) và Values
         sheet.update([df_save.columns.values.tolist()] + df_save.values.tolist())
         return True
     except Exception as e:
         st.error(f"❌ Lỗi khi lưu dữ liệu: {e}")
-        # In chi tiết lỗi ra console để debug nếu cần
-        print(f"Details Error Save: {e}")
+        # Don't clear sheet if there's an error!
         return False
 
 # --- SKILLS PRIORITY SYSTEM ---
@@ -2203,37 +2204,50 @@ def extract_full_player_info(player_url: str) -> dict:
     """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB
     
     Returns:
-        dict: Bao gồm thông tin cơ bản, Stats (Level 1), Max Level, Skills...
+        dict: {
+            'Player': str,
+            'Rating': int,  # Từ Max Level
+            'Position': str,
+            'Nation': str,
+            'Club': str,
+            'League': str,
+            'Skills': str,
+            'Region': str,
+            'Height': str,
+            'Weight': str,
+            'Age': str,
+            'Foot': str,
+            'Weak Foot Usage': str,
+            'Weak Foot Accuracy': str,
+            'Form': str,
+            'Injury Resistance': str,
+            'Player_Type': str,  # POTW/EPIC/NON-EPIC
+        }
     """
-    # 1. Định nghĩa bộ khung dữ liệu mặc định (tránh lỗi KeyError)
     default_info = {
         'Player': '',
-        'Rating': 0,        # Sẽ tính toán sau
-        'Max Level': '1',   # Mặc định là 1 nếu không tìm thấy
+        'Rating': 0,
         'Position': '',
-        'Secondary Positions': [],
         'Nation': '',
         'Club': '',
         'League': '',
+        'Skills': '',
         'Region': '',
         'Height': '',
         'Weight': '',
         'Age': '',
         'Foot': '',
-        'Form': '',
-        'Injury Resistance': '',
         'Weak Foot Usage': '',
         'Weak Foot Accuracy': '',
-        'Skills': [],
+        'Form': '',
+        'Injury Resistance': '',
         'Player_Type': 'NON-EPIC',
-        # Các chỉ số ingame (Stats) sẽ được add thêm vào dict này
     }
     
     try:
         if not player_url or not str(player_url).startswith('http'):
             return default_info
         
-        # 2. Lấy HTML từ URL (Mặc định lấy Level 1)
         html = fetch_ehub_raw_html(player_url)
         if not html:
             return default_info
@@ -2241,72 +2255,65 @@ def extract_full_player_info(player_url: str) -> dict:
         soup = BeautifulSoup(html, 'html.parser')
         info = default_info.copy()
         
-        # 3. Danh sách các Chỉ số (Stats) cần lấy
-        # Code sẽ tự động quét các trường này trong bảng HTML
-        target_stats = [
-            "Offensive Awareness", "Ball Control", "Dribbling", "Tight Possession",
-            "Low Pass", "Lofted Pass", "Finishing", "Heading", "Set Piece Taking", 
-            "Curl", "Defensive Awareness", "Tackling", "Aggression", "Defensive Engagement",
-            "GK Awareness", "GK Catching", "GK Parrying", "GK Reflexes", "GK Reach",
-            "Speed", "Acceleration", "Kicking Power", "Jumping", "Physical Contact", 
-            "Balance", "Stamina"
-        ]
-
-        # 4. Quét toàn bộ các dòng trong bảng (Table Rows)
+        # Mapping từ PESDB labels sang tên fields
+        field_mapping = {
+            'Player Name': 'Player',
+            'Team Name': 'Club',
+            'League': 'League',
+            'Nationality': 'Nation',
+            'Region': 'Region',
+            'Height': 'Height',
+            'Weight': 'Weight',
+            'Age': 'Age',
+            'Foot': 'Foot',
+            'Weak Foot Usage': 'Weak Foot Usage',
+            'Weak Foot Accuracy': 'Weak Foot Accuracy',
+            'Form': 'Form',
+            'Injury Resistance': 'Injury Resistance',
+        }
+        
+        # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
         rows = soup.find_all('tr')
         for row in rows:
             th = row.find('th')
             td = row.find('td')
-            
             if th and td:
-                # Làm sạch key (bỏ dấu :) và value
                 key = th.get_text(strip=True).replace(':', '')
-                val = td.get_text(strip=True)
+                value = td.get_text(strip=True)
                 
-                # --- A. LẤY THÔNG TIN CƠ BẢN ---
-                if key == 'Player Name': info['Player'] = val
-                elif key == 'Team Name': info['Club'] = val
-                elif key == 'League': info['League'] = val
-                elif key == 'Nationality': info['Nation'] = val
-                elif key == 'Region': info['Region'] = val
-                elif key == 'Height': info['Height'] = val.replace('cm', '').strip()
-                elif key == 'Weight': info['Weight'] = val.replace('kg', '').strip()
-                elif key == 'Age': info['Age'] = val
-                elif key == 'Foot': info['Foot'] = val
-                elif key == 'Form': info['Form'] = val
-                elif key == 'Injury Resistance': info['Injury Resistance'] = val
-                elif key == 'Weak Foot Usage': info['Weak Foot Usage'] = val
-                elif key == 'Weak Foot Accuracy': info['Weak Foot Accuracy'] = val
+                # Map sang field name
+                if key in field_mapping:
+                    field_name = field_mapping[key]
+                    info[field_name] = value
                 
-                # --- B. LẤY MAXIMUM LEVEL (Yêu cầu mới) ---
-                elif key == 'Maximum Level':
-                    info['Max Level'] = val
-                
-                # --- C. LẤY CHỈ SỐ (STATS - LEVEL 1) ---
-                elif key in target_stats:
-                    info[key] = val
-                
-                # --- D. XỬ LÝ RIÊNG CHO POSITION (VỊ TRÍ CHÍNH) ---
-                elif key == 'Position':
+                # ... (Phần trên giữ nguyên) ...
+
+                # Xử lý Position đặc biệt
+                if key == 'Position':
                     pos_div = td.find('div', title=True)
                     if pos_div:
                         info['Position'] = pos_div.get_text(strip=True)
-                    else:
-                        info['Position'] = val
-
-        # 5. Lấy các thông tin nâng cao (qua hàm phụ trợ)
         
-        # Lấy vị trí phụ (Secondary Positions)
+        # === THÊM ĐOẠN NÀY VÀO ===
+        # Lấy vị trí phụ từ sơ đồ sân bóng
         info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
+        # =========================
 
-        # Lấy danh sách Skills
+        # Lấy Skills
         info['Skills'] = extract_player_skills(player_url)
         
-        # Xác định loại thẻ (Player Type)
-        raw_card_type = extract_card_type_from_html(soup)
-        info['Player_Type'] = normalize_player_type(raw_card_type)
+        # Lấy Player Type
+        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
         
-        # Tính Rating tổng quát (Logic cũ: POTW +4, Thẻ thường lấy Max Rating)
+        # ... (Phần dưới giữ nguyên) ...
+        
+        # Lấy Skills
+        info['Skills'] = extract_player_skills(player_url)
+        
+        # Lấy Player Type từ loại thẻ
+        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
+        
+        # Lấy Rating (POTW dùng level gốc +4, thẻ khác ưu tiên Max Level)
         info['Rating'] = extract_max_level_rating(
             player_url,
             card_type=info.get('Player_Type'),
@@ -2316,8 +2323,7 @@ def extract_full_player_info(player_url: str) -> dict:
         return info
         
     except Exception as e:
-        # Ghi log lỗi nếu cần thiết (dùng st.error hoặc print)
-        # st.error(f"❌ Lỗi khi trích xuất thông tin: {e}")
+        st.error(f"❌ Lỗi khi trích xuất thông tin: {e}")
         return default_info
 
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
@@ -2339,57 +2345,38 @@ def initialize_session_state():
 
 def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Đồng bộ dữ liệu PESDB (Smart Sync) - ĐÃ SỬA LỖI UPDATE STATS & MAX LEVEL.
+    Đồng bộ dữ liệu PESDB (Smart Sync).
+    CHỈ QUÉT những cầu thủ còn thiếu thông tin (Vị trí phụ, Skills, Chiều cao...).
+    Bỏ qua những người đã có đủ dữ liệu để tiết kiệm thời gian.
     """
     if df.empty or 'Player URL' not in df.columns:
         st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL.")
         return df
 
-    # Danh sách đầy đủ các cột cần update
-    GAMEPLAY_STATS = [
-        'Offensive Awareness', 'Ball Control', 'Dribbling', 'Tight Possession',
-        'Low Pass', 'Lofted Pass', 'Finishing', 'Heading', 'Set Piece Taking',
-        'Curl', 'Defensive Awareness', 'Tackling', 'Aggression', 'Defensive Engagement',
-        'GK Awareness', 'GK Catching', 'GK Parrying', 'GK Reflexes', 'GK Reach',
-        'Speed', 'Acceleration', 'Kicking Power', 'Jumping', 'Physical Contact',
-        'Balance', 'Stamina', 'Max Level'
-    ]
-
-    # Đảm bảo các cột này tồn tại trong DF
-    for col in GAMEPLAY_STATS + ['Secondary Positions']:
-        if col not in df.columns:
-            df[col] = ""
+    # Đảm bảo cột tồn tại
+    if 'Secondary Positions' not in df.columns:
+        df['Secondary Positions'] = ""
 
     # --- BỘ LỌC THÔNG MINH ---
     # 1. Có URL hợp lệ
     has_url = df['Player URL'].astype(str).str.startswith('http')
     
-    # 2. Kiểm tra các trường còn thiếu (Logic kiểm tra kỹ hơn)
-    # Kiểm tra thiếu vị trí phụ
+    # 2. Kiểm tra các trường còn thiếu (Trống hoặc NaN)
     missing_sec_pos = df['Secondary Positions'].astype(str).str.strip() == ''
+    missing_skills = df['Skills'].astype(str).str.strip() == ''
+    missing_height = df['Height'].astype(str).str.strip() == ''
     
-    # Kiểm tra thiếu Stats (Đại diện bằng Speed)
-    # Coi là thiếu nếu: Rỗng, hoặc bằng 0, hoặc bằng '1' (thường là dữ liệu rác/mặc định)
-    speed_check = df['Speed'].astype(str).str.strip()
-    missing_stats = (speed_check == '') | (speed_check == '0') | (speed_check == '1')
-    
-    # Kiểm tra thiếu Max Level (Nếu Max Level = 0 hoặc 1 với thẻ Non-Epic thì coi là chưa quét)
-    # Lưu ý: POTW Max Level luôn là 1 nên bỏ qua logic này với POTW
-    max_lvl_check = df['Max Level'].astype(str).str.strip()
-    is_not_potw = ~df['Player Type'].astype(str).str.contains('POTW', case=False, na=False)
-    missing_max_lvl = ((max_lvl_check == '') | (max_lvl_check == '1')) & is_not_potw
-    
-    # 3. Lọc danh sách cần quét
-    needs_extraction = df[has_url & (missing_sec_pos | missing_stats | missing_max_lvl)]
+    # 3. Lọc ra danh sách cần cập nhật: Có URL VÀ (Thiếu Vị trí phụ HOẶC Thiếu Skills HOẶC Thiếu Chiều cao)
+    needs_extraction = df[has_url & (missing_sec_pos | missing_skills | missing_height)]
 
     total_to_process = len(needs_extraction)
     total_players = len(df)
 
     if total_to_process == 0:
-        st.success(f"✅ Dữ liệu đã đầy đủ! (Đã kiểm tra {total_players} cầu thủ).")
+        st.success(f"✅ Dữ liệu đã đầy đủ! (Đã kiểm tra {total_players} cầu thủ). Không cần quét thêm.")
         return df
 
-    st.info(f"🔍 Phát hiện **{total_to_process}** cầu thủ thiếu Stats/Max Level. Bắt đầu cập nhật...")
+    st.info(f"🔍 Phát hiện **{total_to_process}** cầu thủ thiếu dữ liệu (Vị trí phụ/Skills...). Bắt đầu cập nhật...")
     
     st.session_state['auto_extracting'] = True
     updated = False
@@ -2397,12 +2384,15 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     progress_bar = st.progress(0, text=f"🚀 Đang chuẩn bị...")
     status_box = st.empty()
 
+    # Biến đếm
     count = 0
-    # Duyệt qua các dòng cần update
+
+    # Chỉ duyệt qua những dòng cần cập nhật
     for i, row in needs_extraction.iterrows():
         count += 1
         player_name = str(row.get('Player', '') or '').strip()
         
+        # Cập nhật thanh tiến trình
         percent = int((count / total_to_process) * 100)
         status_box.info(f"📡 [{count}/{total_to_process}] Đang cập nhật: **{player_name}**")
         progress_bar.progress(percent, text=f"Đang xử lý {percent}%")
@@ -2411,39 +2401,29 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             info = extract_full_player_info(row['Player URL'])
             
             if info and info.get('Player'):
-                # 1. Update Vị trí phụ
+                # Ghi đè dữ liệu mới
                 df.at[i, 'Secondary Positions'] = info.get('Secondary Positions', '')
                 
-                # 2. Update Thông tin cơ bản (Nếu đang thiếu)
-                basic_cols = ['Region', 'Height', 'Weight', 'Age', 'Foot', 
-                              'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 
-                              'Injury Resistance', 'Skills']
-                for col in basic_cols:
+                # Cập nhật các cột khác nếu đang thiếu
+                for col in [
+                    'Region', 'Height', 'Weight', 'Age', 'Foot',
+                    'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance', 'Skills'
+                ]:
                     current_val = str(df.at[i, col]).strip()
                     if not current_val or current_val == 'nan':
                         df.at[i, col] = info.get(col, '')
-
-                # 3. UPDATE STATS & MAX LEVEL (QUAN TRỌNG NHẤT)
-                for stat in GAMEPLAY_STATS:
-                    new_val = info.get(stat, '')
-                    # Chỉ ghi đè nếu lấy được dữ liệu mới
-                    if new_val:
-                        df.at[i, stat] = str(new_val)
                 
                 updated = True
                 
         except Exception as e:
-            print(f"Lỗi {player_name}: {e}")
+            print(f"Lỗi {player_name}: {e}") # Log nhẹ, không làm phiền UI
             continue
-        
-        # Sleep nhẹ để tránh ban IP
-        time.sleep(0.1)
 
     if updated:
         progress_bar.progress(1.0, text="✅ Đang lưu vào Google Sheets...")
         save_data_to_gsheet(df)
         st.cache_data.clear()
-        status_box.success(f"✅ Đã cập nhật xong chỉ số cho {total_to_process} cầu thủ!")
+        status_box.success(f"✅ Đã cập nhật xong {total_to_process} cầu thủ!")
         time.sleep(2)
         status_box.empty()
         progress_bar.empty()
@@ -2451,30 +2431,15 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     st.session_state['auto_extracting'] = False
     return df
 
+
 # --- MAIN APP ---
 def main():
     initialize_session_state()
     inject_modern_ui_theme()
 
-    required_stats_cols = [
-        'Max Level',
-        'Offensive Awareness', 'Ball Control', 'Dribbling', 'Tight Possession',
-        'Low Pass', 'Lofted Pass', 'Finishing', 'Heading', 'Set Piece Taking',
-        'Curl', 'Defensive Awareness', 'Tackling', 'Aggression', 'Defensive Engagement',
-        'GK Awareness', 'GK Catching', 'GK Parrying', 'GK Reflexes', 'GK Reach',
-        'Speed', 'Acceleration', 'Kicking Power', 'Jumping', 'Physical Contact',
-        'Balance', 'Stamina',
-        'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance'
-    ]
-
-    if 'df' in st.session_state and st.session_state.df is not None:
-        for col in required_stats_cols:
-            if col not in st.session_state.df.columns:
-                st.session_state.df[col] = ""
-
     with st.sidebar:
         st.header("⚙️ Điều khiển")
-        
+    
         # 1. Nút tải lại dữ liệu (Giữ nguyên)
         if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
             st.cache_data.clear()
@@ -2484,142 +2449,40 @@ def main():
 
         st.divider()
 
-        # 2. NÚT ĐỒNG BỘ MỚI (UPDATE STATS & MAX LEVEL) - ĐÃ TỐI ƯU
-        # ---------------------------------------------------------
+        # 2. NÚT ĐỒNG BỘ MỚI (CÓ THANH TIẾN TRÌNH & TẢI BACKUP)
         st.markdown("### 📡 Cập nhật dữ liệu")
-        st.caption("Quét PESDB để lấy Chỉ số (Stats) & Max Level")
-        
-        # Thêm tùy chọn chỉ quét người thiếu
-        scan_mode = st.radio(
-            "Chế độ quét:",
-            ["⚡ Chỉ quét cầu thủ thiếu chỉ số", "🐢 Quét lại toàn bộ (Lâu)"],
-            index=0
-        )
+        st.caption("Quét PESDB để lấy Vị trí phụ & Skill")
         
         # Nút kích hoạt
-        if st.button("🔁 Bắt đầu Quét", use_container_width=True, type="primary"):
+        if st.button("🔁 Quét & Cập nhật PESDB", use_container_width=True, type="primary"):
             st.session_state.run_pesdb_sync = True
             st.rerun()
             
         # Logic xử lý khi đang chạy đồng bộ
         if st.session_state.get('run_pesdb_sync', False):
-            # Load dữ liệu hiện tại
-            if 'df' not in st.session_state or st.session_state.df is None:
-                df_sync = load_data_from_gsheet()
-            else:
-                df_sync = st.session_state.df.copy()
+            # Load dữ liệu tạm để xử lý (tránh lỗi nếu df chưa được load ở main)
+            df_sync = load_data_from_gsheet()
             
-            # Đảm bảo các cột Stats tồn tại
-            for col in required_stats_cols:
-                if col not in df_sync.columns:
-                    df_sync[col] = ""
-
-            # --- BƯỚC 1: LỌC DANH SÁCH CẦN QUÉT ---
-            if scan_mode == "⚡ Chỉ quét cầu thủ thiếu chỉ số":
-                # Điều kiện 1: Có URL PESDB
-                has_url = df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)
+            with st.spinner("⏳ Đang kết nối máy chủ PESDB... Vui lòng không tắt tab."):
+                # Chạy hàm quét (đã nâng cấp ở Bước 1)
+                updated_df = sync_pesdb_missing_fields(df_sync)
                 
-                # Điều kiện 2: Thiếu Stats (Speed rỗng hoặc 0)
-                if 'Speed' in df_sync.columns:
-                    s_check = df_sync['Speed'].astype(str).str.strip()
-                    missing_gameplay_stats = (s_check == '') | (s_check == '0') | (s_check == 'nan')
-                else:
-                    missing_gameplay_stats = True
+                # Tạo file CSV backup
+                csv = updated_df.to_csv(index=False).encode('utf-8-sig')
                 
-                # Điều kiện 3: Thiếu Max Level (Rỗng hoặc = 1 với thẻ không phải POTW)
-                if 'Max Level' in df_sync.columns:
-                    m_check = df_sync['Max Level'].astype(str).str.strip()
-                    # POTW luôn là lv 1 nên ko tính là thiếu. Non-EPIC mà lv 1 là thiếu.
-                    is_standard = ~df_sync['Player Type'].astype(str).str.upper().str.contains('POTW', na=False)
-                    missing_max_lvl = ((m_check == '') | (m_check == '1') | (m_check == '0')) & is_standard
-                else:
-                    missing_max_lvl = True
-
-                # Lấy ra các dòng thỏa mãn: Có URL VÀ (Thiếu Stats HOẶC Thiếu Max Level)
-                rows_to_scan = df_sync[has_url & (missing_gameplay_stats | missing_max_lvl)]
-            else:
-                # Chế độ quét toàn bộ
-                rows_to_scan = df_sync[df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)]
-
-            total_targets = len(rows_to_scan)
+                st.success("✅ Cập nhật hoàn tất!")
+                
+                # Hiện nút tải về ngay lập tức
+                st.download_button(
+                    label="📥 Tải Backup (Excel/CSV)",
+                    data=csv,
+                    file_name=f"efootball_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    key="download_after_sync"
+                )
             
-            if total_targets == 0:
-                st.success("🎉 Dữ liệu đã đầy đủ! (Stats & Max Level đều ok).")
-                st.session_state.run_pesdb_sync = False
-            else:
-                # ... (Phần code BƯỚC 2: BẮT ĐẦU QUÉT giữ nguyên như cũ) ...
-                # ... Chỉ cần đảm bảo trong vòng lặp cập nhật df_sync.at[idx, col] là được ...
-                # --- BƯỚC 2: BẮT ĐẦU QUÉT ---
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                status_box = st.info(f"🎯 Tìm thấy **{total_targets}** cầu thủ cần cập nhật...")
-                
-                updated_count = 0
-                errors_count = 0
-                
-                try:
-                    # Duyệt qua danh sách ĐÃ LỌC
-                    for i, (idx, row) in enumerate(rows_to_scan.iterrows()):
-                        player_name = row.get('Player', 'Unknown')
-                        percent = (i + 1) / total_targets
-                        
-                        status_text.text(f"📡 [{i+1}/{total_targets}] Đang xử lý: {player_name}")
-                        progress_bar.progress(percent)
-                        
-                        p_url = row.get('Player URL')
-                        
-                        try:
-                            # Gọi hàm extract
-                            fetched_info = extract_full_player_info(str(p_url))
-                            
-                            if fetched_info:
-                                # Cập nhật vào DataFrame GỐC (df_sync) dùng index (idx)
-                                for col in required_stats_cols:
-                                    val = fetched_info.get(col, "")
-                                    # Chỉ update nếu giá trị lấy về không rỗng
-                                    if val is not None and str(val) != "":
-                                        df_sync.at[idx, col] = str(val)
-                                
-                                # Đánh dấu đã quét (để lần sau không quét lại nếu chưa kịp lưu)
-                                # (Optional)
-                                updated_count += 1
-                            else:
-                                errors_count += 1
-
-                        except Exception as e:
-                            print(f"Lỗi quét {player_name}: {e}")
-                            errors_count += 1
-                        
-                        # Sleep nhẹ để tránh bị ban IP
-                        time.sleep(0.15)
-
-                    # --- BƯỚC 3: LƯU ---
-                    status_text.text("💾 Đang lưu dữ liệu vào Google Sheets...")
-                    status_box.info(f"Đã quét xong. Thành công: {updated_count}. Lỗi/Trống: {errors_count}. Đang lưu...")
-                    
-                    if save_data_to_gsheet(df_sync):
-                        st.success(f"✅ Đã cập nhật xong {updated_count} cầu thủ!")
-                        st.session_state.df = df_sync
-                        st.cache_data.clear()
-                    else:
-                        st.error("❌ Lỗi khi lưu Google Sheets. Hãy tải file Backup!")
-
-                except Exception as e:
-                    st.error(f"Đã xảy ra lỗi không mong muốn: {e}")
-                
-                finally:
-                    # Luôn tạo file backup dù có lỗi hay không
-                    csv = df_sync.to_csv(index=False).encode('utf-8-sig')
-                    st.download_button(
-                        label="📥 Tải Backup (CSV)",
-                        data=csv,
-                        file_name=f"efootball_update_{datetime.now().strftime('%H%M')}.csv",
-                        mime="text/csv"
-                    )
-                    
-                    st.session_state.run_pesdb_sync = False
-                    if st.button("🔄 Tải lại trang"):
-                        st.rerun()
+            # Tắt trạng thái chạy để không lặp lại vòng lặp
+            st.session_state.run_pesdb_sync = False
     
         st.divider()
     
