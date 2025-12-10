@@ -269,10 +269,9 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
     """
-    Giao diện Scouting Profile - Phiên bản Fix lỗi hiển thị Code Text.
-    Lưu ý: Các dòng HTML bên trong f-string phải viết sát lề trái.
+    Giao diện Scouting Profile - Đã thêm Chi tiết Chỉ số (Stats).
     """
-    # --- 1. CHUẨN BỊ DỮ LIỆU ---
+    # --- 1. CHUẨN BỊ DỮ LIỆU CƠ BẢN ---
     p_name = row.get('Player', 'Unknown')
     rating = row.get('Rating', 0)
     pos = row.get('Position', '?')
@@ -305,6 +304,7 @@ def show_player_modal(row):
         badge_bg = "linear-gradient(135deg, #1e3a8a 0%, #3B82F6 100%)"
         shadow_color = "rgba(59, 130, 246, 0.4)"
 
+    # Helper: Thanh trạng thái (Form/Injury)
     def render_stat_bar(label, value_text, max_score=4):
         val = str(value_text).upper()
         score = 1
@@ -317,8 +317,17 @@ def show_player_modal(row):
             bg = accent_color if i <= score else "rgba(255,255,255,0.1)"
             bars += f'<div style="flex:1; height:4px; background:{bg}; border-radius:2px; margin-right:2px;"></div>'
         
-        # HTML này phải viết thành 1 dòng hoặc sát lề
         return f"""<div style="margin-bottom: 8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
+
+    # Helper: Màu sắc cho chỉ số
+    def get_stat_color(val):
+        try:
+            v = int(val)
+            if v >= 90: return "#22d3ee" # Cyan (Rất cao)
+            if v >= 80: return "#4ade80" # Green (Cao)
+            if v >= 70: return "#facc15" # Yellow (Khá)
+            return "#94a3b8" # Gray (TB)
+        except: return "#94a3b8"
 
     # --- 2. XỬ LÝ SKILLS ---
     base_skills = [s.strip() for s in str(row.get('Skills','')).split(',') if s.strip()]
@@ -328,17 +337,50 @@ def show_player_modal(row):
     for s in added_skills: skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
-    # --- 3. REASONS BLOCK ---
+    # --- 3. XỬ LÝ CHỈ SỐ CHI TIẾT (STATS) ---
+    # Định nghĩa các nhóm chỉ số
+    stat_groups = {
+        "Tấn công & Sút": ["Offensive Awareness", "Finishing", "Kicking Power", "Curl", "Set Piece Taking"],
+        "Kiểm soát & Chuyền": ["Ball Control", "Dribbling", "Tight Possession", "Low Pass", "Lofted Pass"],
+        "Thể chất & Tốc độ": ["Speed", "Acceleration", "Balance", "Physical Contact", "Jump", "Stamina"],
+        "Phòng ngự": ["Defensive Awareness", "Tackling", "Aggression", "Defensive Engagement", "Heading"],
+        "Thủ môn": ["GK Awareness", "GK Catching", "GK Parrying", "GK Reflexes", "GK Reach"]
+    }
+
+    # Nếu không phải thủ môn, ẩn chỉ số GK (để đỡ rối)
+    if pos not in ['GK']:
+        del stat_groups["Thủ môn"]
+
+    stats_grid_html = ""
+    for group_name, stats_list in stat_groups.items():
+        group_items_html = ""
+        for key in stats_list:
+            val = row.get(key, '-')
+            if val == '' or val is None: val = '-'
+            color = get_stat_color(val)
+            group_items_html += f"""
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; padding:2px 0; border-bottom:1px dashed rgba(255,255,255,0.05);">
+                <span style="font-size:0.75rem; color:#cbd5e1;">{key}</span>
+                <span style="font-size:0.9rem; font-weight:700; color:{color};">{val}</span>
+            </div>
+            """
+        stats_grid_html += f"""
+        <div class="stat-group-box">
+            <div class="stat-group-title">{group_name}</div>
+            {group_items_html}
+        </div>
+        """
+
+    # --- 4. REASONS BLOCK ---
     action_bg = "rgba(34, 197, 94, 0.2)" if "GIỮ" in action else "rgba(239, 68, 68, 0.2)"
     action_border = "#22c55e" if "GIỮ" in action else "#ef4444"
     action_text = "#4ade80" if "GIỮ" in action else "#f87171"
 
     reasons_html = ""
     if action != "N/A" and action != "":
-        # HTML viết sát lề trái
         reasons_html = f"""<div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;"><div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div><div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;"><div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>{reasons}</div></div>"""
 
-    # --- 4. HTML TỔNG (QUAN TRỌNG: VIẾT SÁT LỀ TRÁI, KHÔNG THỤT ĐẦU DÒNG) ---
+    # --- 5. HTML TỔNG ---
     html_content = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
@@ -351,7 +393,7 @@ def show_player_modal(row):
 .pf-badges {{ display: flex; gap: 8px; align-items: center; }}
 .pf-badge {{ font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: 600; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); }}
 .pf-rating {{ background: {badge_bg}; color: white; border: none; box-shadow: 0 0 10px {shadow_color}; }}
-.pf-grid {{ display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; padding: 20px; }}
+.pf-grid {{ display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }}
 .pf-section-title {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }}
 .stat-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }}
 .stat-item {{ background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px; }}
@@ -361,6 +403,9 @@ def show_player_modal(row):
 .pf-skill {{ font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; transition: all 0.2s; }}
 .pf-skill:hover {{ background: {accent_color}33; border-color: {accent_color}; color: white; }}
 .pf-skill.added {{ border-left: 3px solid #4ade80; background: rgba(74, 222, 128, 0.1); }}
+.detailed-stats-container {{ padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; background: rgba(0,0,0,0.2); }}
+.stat-group-box {{ background: rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.05); }}
+.stat-group-title {{ font-size: 0.8rem; font-weight: 700; color: {accent_color}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 4px; }}
 </style>
 <div class="profile-container">
 <div class="pf-hero">
@@ -385,7 +430,7 @@ def show_player_modal(row):
 <div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div>
 <div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div>
 </div>
-<div class="pf-section-title">Kỹ thuật & Phong độ</div>
+<div class="pf-section-title">Phong độ & Thể trạng</div>
 <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
 {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
 {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
@@ -405,6 +450,10 @@ def show_player_modal(row):
 </div>
 </div>
 </div>
+<div class="pf-section-title" style="margin: 20px 20px 0 20px; border-bottom:none;">Chi tiết chỉ số (In-game Stats)</div>
+<div class="detailed-stats-container">
+{stats_grid_html}
+</div>
 </div>
 """
     st.markdown(html_content, unsafe_allow_html=True)
@@ -417,7 +466,6 @@ def show_player_modal(row):
             st.link_button("🌐 PESDB Link", row.get('Player URL'), use_container_width=True)
     with c2:
         pass
-
 
 def render_app_hero(df: pd.DataFrame):
     """Render the hero banner with live metrics."""
@@ -2432,9 +2480,25 @@ def main():
     initialize_session_state()
     inject_modern_ui_theme()
 
+    required_stats_cols = [
+        'Max Level',
+        'Offensive Awareness', 'Ball Control', 'Dribbling', 'Tight Possession',
+        'Low Pass', 'Lofted Pass', 'Finishing', 'Heading', 'Set Piece Taking',
+        'Curl', 'Defensive Awareness', 'Tackling', 'Aggression', 'Defensive Engagement',
+        'GK Awareness', 'GK Catching', 'GK Parrying', 'GK Reflexes', 'GK Reach',
+        'Speed', 'Acceleration', 'Kicking Power', 'Jumping', 'Physical Contact',
+        'Balance', 'Stamina',
+        'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance'
+    ]
+
+    if 'df' in st.session_state and st.session_state.df is not None:
+        for col in required_stats_cols:
+            if col not in st.session_state.df.columns:
+                st.session_state.df[col] = ""
+
     with st.sidebar:
         st.header("⚙️ Điều khiển")
-    
+        
         # 1. Nút tải lại dữ liệu (Giữ nguyên)
         if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
             st.cache_data.clear()
@@ -2444,9 +2508,9 @@ def main():
 
         st.divider()
 
-        # 2. NÚT ĐỒNG BỘ MỚI (CÓ THANH TIẾN TRÌNH & TẢI BACKUP)
+        # 2. NÚT ĐỒNG BỘ MỚI (UPDATE STATS & MAX LEVEL)
         st.markdown("### 📡 Cập nhật dữ liệu")
-        st.caption("Quét PESDB để lấy Vị trí phụ & Skill")
+        st.caption("Quét PESDB để lấy Chỉ số (Stats) & Max Level")
         
         # Nút kích hoạt
         if st.button("🔁 Quét & Cập nhật PESDB", use_container_width=True, type="primary"):
@@ -2455,28 +2519,65 @@ def main():
             
         # Logic xử lý khi đang chạy đồng bộ
         if st.session_state.get('run_pesdb_sync', False):
-            # Load dữ liệu tạm để xử lý (tránh lỗi nếu df chưa được load ở main)
-            df_sync = load_data_from_gsheet()
+            # Load dữ liệu hiện tại
+            if 'df' not in st.session_state or st.session_state.df is None:
+                df_sync = load_data_from_gsheet()
+            else:
+                df_sync = st.session_state.df.copy()
             
-            with st.spinner("⏳ Đang kết nối máy chủ PESDB... Vui lòng không tắt tab."):
-                # Chạy hàm quét (đã nâng cấp ở Bước 1)
-                updated_df = sync_pesdb_missing_fields(df_sync)
+            # --- BẮT ĐẦU QUÉT ---
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            with st.spinner("⏳ Đang kết nối PESDB... Vui lòng không tắt tab."):
+                total_players = len(df_sync)
+                updated_count = 0
+                
+                # Duyệt qua từng dòng trong DataFrame
+                for idx, row in df_sync.iterrows():
+                    status_text.text(f"Đang xử lý: {row.get('Player', 'Unknown')} ({idx+1}/{total_players})")
+                    progress_bar.progress((idx + 1) / total_players)
+                    
+                    p_url = row.get('Player URL')
+                    
+                    # Chỉ quét nếu có URL hợp lệ
+                    if pd.notna(p_url) and "pesdb.net" in str(p_url):
+                        try:
+                            # Gọi hàm extract mới (đã viết ở bước trước)
+                            fetched_info = extract_full_player_info(str(p_url))
+                            
+                            # Cập nhật các cột Stats + Max Level vào DataFrame
+                            for col in required_stats_cols:
+                                if col in fetched_info and fetched_info[col]:
+                                    df_sync.at[idx, col] = fetched_info[col]
+                            
+                            updated_count += 1
+                        except Exception as e:
+                            print(f"Lỗi quét {row.get('Player')}: {e}")
+                    
+                    # Ngủ 1 xíu để tránh bị chặn IP
+                    time.sleep(0.5)
+
+                # --- LƯU LẠI VÀO GOOGLE SHEET (Nếu dùng Gsheet) ---
+                # Hoặc chỉ cập nhật vào session_state để người dùng tự lưu
+                st.session_state.df = df_sync
                 
                 # Tạo file CSV backup
-                csv = updated_df.to_csv(index=False).encode('utf-8-sig')
+                csv = df_sync.to_csv(index=False).encode('utf-8-sig')
                 
-                st.success("✅ Cập nhật hoàn tất!")
+                status_text.text("✅ Đã hoàn tất!")
+                st.success(f"Đã cập nhật chỉ số cho {updated_count} cầu thủ!")
                 
                 # Hiện nút tải về ngay lập tức
                 st.download_button(
                     label="📥 Tải Backup (Excel/CSV)",
                     data=csv,
-                    file_name=f"efootball_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    file_name=f"efootball_stats_updated_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
                     key="download_after_sync"
                 )
             
-            # Tắt trạng thái chạy để không lặp lại vòng lặp
+            # Tắt trạng thái chạy
             st.session_state.run_pesdb_sync = False
     
         st.divider()
