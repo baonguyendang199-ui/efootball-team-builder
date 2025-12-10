@@ -341,7 +341,7 @@ def show_player_modal(row):
     stat_groups = {
         "Tấn công & Sút": ["Offensive Awareness", "Finishing", "Kicking Power", "Curl", "Set Piece Taking"],
         "Kiểm soát & Chuyền": ["Ball Control", "Dribbling", "Tight Possession", "Low Pass", "Lofted Pass"],
-        "Thể chất & Tốc độ": ["Speed", "Acceleration", "Balance", "Physical Contact", "Jump", "Stamina"],
+        "Thể chất & Tốc độ": ["Speed", "Acceleration", "Balance", "Physical Contact", "Jumping", "Stamina"],
         "Phòng ngự": ["Defensive Awareness", "Tackling", "Aggression", "Defensive Engagement", "Heading"],
         "Thủ môn": ["GK Awareness", "GK Catching", "GK Parrying", "GK Reflexes", "GK Reach"]
     }
