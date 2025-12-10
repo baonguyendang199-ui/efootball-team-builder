@@ -2459,12 +2459,20 @@ def main():
 
         st.divider()
 
-        # 2. NÚT ĐỒNG BỘ MỚI (UPDATE STATS & MAX LEVEL)
+        # 2. NÚT ĐỒNG BỘ MỚI (UPDATE STATS & MAX LEVEL) - ĐÃ TỐI ƯU
+        # ---------------------------------------------------------
         st.markdown("### 📡 Cập nhật dữ liệu")
         st.caption("Quét PESDB để lấy Chỉ số (Stats) & Max Level")
         
+        # Thêm tùy chọn chỉ quét người thiếu
+        scan_mode = st.radio(
+            "Chế độ quét:",
+            ["⚡ Chỉ quét cầu thủ thiếu chỉ số", "🐢 Quét lại toàn bộ (Lâu)"],
+            index=0
+        )
+        
         # Nút kích hoạt
-        if st.button("🔁 Quét & Cập nhật PESDB", use_container_width=True, type="primary"):
+        if st.button("🔁 Bắt đầu Quét", use_container_width=True, type="primary"):
             st.session_state.run_pesdb_sync = True
             st.rerun()
             
@@ -2476,79 +2484,112 @@ def main():
             else:
                 df_sync = st.session_state.df.copy()
             
-            # --- ĐẢM BẢO CÁC CỘT STATS ĐÃ TỒN TẠI ---
-            # Nếu chưa có thì tạo cột trống để tránh lỗi KeyError khi gán dữ liệu
+            # Đảm bảo các cột Stats tồn tại
             for col in required_stats_cols:
                 if col not in df_sync.columns:
                     df_sync[col] = ""
 
-            # --- BẮT ĐẦU QUÉT ---
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+            # --- BƯỚC 1: LỌC DANH SÁCH CẦN QUÉT ---
+            # Chúng ta dùng cột "Speed" để kiểm tra xem đã có stats chưa.
+            # Nếu Speed trống hoặc bằng 0 -> Cần quét.
             
-            with st.spinner("⏳ Đang kết nối PESDB... Vui lòng không tắt tab."):
-                total_players = len(df_sync)
-                updated_count = 0
+            if scan_mode == "⚡ Chỉ quét cầu thủ thiếu chỉ số":
+                # Điều kiện: Có URL PESDB VÀ (Speed trống HOẶC Speed = 0 HOẶC Speed = NaN)
+                has_url = df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)
                 
-                # Duyệt qua từng dòng trong DataFrame
-                for idx, row in df_sync.iterrows():
-                    player_name = row.get('Player', 'Unknown')
-                    status_text.text(f"📡 Đang xử lý: {player_name} ({idx+1}/{total_players})")
-                    progress_bar.progress((idx + 1) / total_players)
-                    
-                    p_url = row.get('Player URL')
-                    
-                    # Chỉ quét nếu có URL hợp lệ
-                    if pd.notna(p_url) and "pesdb.net" in str(p_url):
+                # Kiểm tra cột Speed (đại diện cho Stats)
+                if 'Speed' in df_sync.columns:
+                    missing_stats = (
+                        (df_sync['Speed'].astype(str).str.strip() == '') | 
+                        (df_sync['Speed'].astype(str) == '0') |
+                        (df_sync['Speed'].isna())
+                    )
+                else:
+                    missing_stats = True # Nếu chưa có cột Speed thì coi như thiếu hết
+
+                # Lấy ra các dòng thỏa mãn
+                rows_to_scan = df_sync[has_url & missing_stats]
+            else:
+                # Chế độ quét toàn bộ: Lấy tất cả dòng có URL
+                rows_to_scan = df_sync[df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)]
+
+            total_targets = len(rows_to_scan)
+            
+            if total_targets == 0:
+                st.success("🎉 Dữ liệu đã đầy đủ! Không có cầu thủ nào thiếu chỉ số.")
+                st.session_state.run_pesdb_sync = False
+            else:
+                # --- BƯỚC 2: BẮT ĐẦU QUÉT ---
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                status_box = st.info(f"🎯 Tìm thấy **{total_targets}** cầu thủ cần cập nhật...")
+                
+                updated_count = 0
+                errors_count = 0
+                
+                try:
+                    # Duyệt qua danh sách ĐÃ LỌC
+                    for i, (idx, row) in enumerate(rows_to_scan.iterrows()):
+                        player_name = row.get('Player', 'Unknown')
+                        percent = (i + 1) / total_targets
+                        
+                        status_text.text(f"📡 [{i+1}/{total_targets}] Đang xử lý: {player_name}")
+                        progress_bar.progress(percent)
+                        
+                        p_url = row.get('Player URL')
+                        
                         try:
-                            # Gọi hàm extract mới
+                            # Gọi hàm extract
                             fetched_info = extract_full_player_info(str(p_url))
                             
-                            # Cập nhật các cột Stats + Max Level vào DataFrame
                             if fetched_info:
+                                # Cập nhật vào DataFrame GỐC (df_sync) dùng index (idx)
                                 for col in required_stats_cols:
-                                    # Chỉ update nếu PESDB trả về dữ liệu cho cột đó
                                     val = fetched_info.get(col, "")
-                                    if val:
-                                        df_sync.at[idx, col] = str(val) # Ép kiểu string ngay khi gán
+                                    # Chỉ update nếu giá trị lấy về không rỗng
+                                    if val is not None and str(val) != "":
+                                        df_sync.at[idx, col] = str(val)
                                 
+                                # Đánh dấu đã quét (để lần sau không quét lại nếu chưa kịp lưu)
+                                # (Optional)
                                 updated_count += 1
+                            else:
+                                errors_count += 1
+
                         except Exception as e:
                             print(f"Lỗi quét {player_name}: {e}")
-                    
-                    # Ngủ 0.2s để tránh bị chặn IP (nhanh hơn 0.5s cũ)
-                    time.sleep(0.2)
+                            errors_count += 1
+                        
+                        # Sleep nhẹ để tránh bị ban IP
+                        time.sleep(0.15)
 
-                # --- LƯU LẠI VÀO GOOGLE SHEET ---
-                status_text.text("💾 Đang lưu dữ liệu vào Google Sheets... (Có thể mất vài giây)")
+                    # --- BƯỚC 3: LƯU ---
+                    status_text.text("💾 Đang lưu dữ liệu vào Google Sheets...")
+                    status_box.info(f"Đã quét xong. Thành công: {updated_count}. Lỗi/Trống: {errors_count}. Đang lưu...")
+                    
+                    if save_data_to_gsheet(df_sync):
+                        st.success(f"✅ Đã cập nhật xong {updated_count} cầu thủ!")
+                        st.session_state.df = df_sync
+                        st.cache_data.clear()
+                    else:
+                        st.error("❌ Lỗi khi lưu Google Sheets. Hãy tải file Backup!")
+
+                except Exception as e:
+                    st.error(f"Đã xảy ra lỗi không mong muốn: {e}")
                 
-                if save_data_to_gsheet(df_sync):
-                    st.success(f"✅ Đã lưu thành công! (Cập nhật {updated_count} cầu thủ)")
-                    st.session_state.df = df_sync # Cập nhật ngay vào session hiện tại
-                    st.cache_data.clear()  # Xóa cache để lần load sau lấy data mới
-                else:
-                    st.error("❌ Lỗi khi lưu vào Google Sheets. Vui lòng thử lại hoặc kiểm tra quyền truy cập.")
-                
-                # Tạo file CSV backup (luôn tạo để phòng hờ)
-                csv = df_sync.to_csv(index=False).encode('utf-8-sig')
-                
-                status_text.empty() 
-                progress_bar.empty()
-                
-                # Hiện nút tải về
-                st.download_button(
-                    label="📥 Tải Backup (Excel/CSV)",
-                    data=csv,
-                    file_name=f"efootball_stats_updated_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    key="download_after_sync_fixed"
-                )
-            
-            # Tắt trạng thái chạy
-            st.session_state.run_pesdb_sync = False
-            # Thêm nút Rerun thủ công nếu cần
-            if st.button("🔄 Tải lại trang để áp dụng"):
-                st.rerun()
+                finally:
+                    # Luôn tạo file backup dù có lỗi hay không
+                    csv = df_sync.to_csv(index=False).encode('utf-8-sig')
+                    st.download_button(
+                        label="📥 Tải Backup (CSV)",
+                        data=csv,
+                        file_name=f"efootball_update_{datetime.now().strftime('%H%M')}.csv",
+                        mime="text/csv"
+                    )
+                    
+                    st.session_state.run_pesdb_sync = False
+                    if st.button("🔄 Tải lại trang"):
+                        st.rerun()
     
         st.divider()
     
