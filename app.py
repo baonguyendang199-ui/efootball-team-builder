@@ -2204,50 +2204,37 @@ def extract_full_player_info(player_url: str) -> dict:
     """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB
     
     Returns:
-        dict: {
-            'Player': str,
-            'Rating': int,  # Từ Max Level
-            'Position': str,
-            'Nation': str,
-            'Club': str,
-            'League': str,
-            'Skills': str,
-            'Region': str,
-            'Height': str,
-            'Weight': str,
-            'Age': str,
-            'Foot': str,
-            'Weak Foot Usage': str,
-            'Weak Foot Accuracy': str,
-            'Form': str,
-            'Injury Resistance': str,
-            'Player_Type': str,  # POTW/EPIC/NON-EPIC
-        }
+        dict: Bao gồm thông tin cơ bản, Stats (Level 1), Max Level, Skills...
     """
+    # 1. Định nghĩa bộ khung dữ liệu mặc định (tránh lỗi KeyError)
     default_info = {
         'Player': '',
-        'Rating': 0,
+        'Rating': 0,        # Sẽ tính toán sau
+        'Max Level': '1',   # Mặc định là 1 nếu không tìm thấy
         'Position': '',
+        'Secondary Positions': [],
         'Nation': '',
         'Club': '',
         'League': '',
-        'Skills': '',
         'Region': '',
         'Height': '',
         'Weight': '',
         'Age': '',
         'Foot': '',
-        'Weak Foot Usage': '',
-        'Weak Foot Accuracy': '',
         'Form': '',
         'Injury Resistance': '',
+        'Weak Foot Usage': '',
+        'Weak Foot Accuracy': '',
+        'Skills': [],
         'Player_Type': 'NON-EPIC',
+        # Các chỉ số ingame (Stats) sẽ được add thêm vào dict này
     }
     
     try:
         if not player_url or not str(player_url).startswith('http'):
             return default_info
         
+        # 2. Lấy HTML từ URL (Mặc định lấy Level 1)
         html = fetch_ehub_raw_html(player_url)
         if not html:
             return default_info
@@ -2255,65 +2242,72 @@ def extract_full_player_info(player_url: str) -> dict:
         soup = BeautifulSoup(html, 'html.parser')
         info = default_info.copy()
         
-        # Mapping từ PESDB labels sang tên fields
-        field_mapping = {
-            'Player Name': 'Player',
-            'Team Name': 'Club',
-            'League': 'League',
-            'Nationality': 'Nation',
-            'Region': 'Region',
-            'Height': 'Height',
-            'Weight': 'Weight',
-            'Age': 'Age',
-            'Foot': 'Foot',
-            'Weak Foot Usage': 'Weak Foot Usage',
-            'Weak Foot Accuracy': 'Weak Foot Accuracy',
-            'Form': 'Form',
-            'Injury Resistance': 'Injury Resistance',
-        }
-        
-        # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
+        # 3. Danh sách các Chỉ số (Stats) cần lấy
+        # Code sẽ tự động quét các trường này trong bảng HTML
+        target_stats = [
+            "Offensive Awareness", "Ball Control", "Dribbling", "Tight Possession",
+            "Low Pass", "Lofted Pass", "Finishing", "Heading", "Set Piece Taking", 
+            "Curl", "Defensive Awareness", "Tackling", "Aggression", "Defensive Engagement",
+            "GK Awareness", "GK Catching", "GK Parrying", "GK Reflexes", "GK Reach",
+            "Speed", "Acceleration", "Kicking Power", "Jumping", "Physical Contact", 
+            "Balance", "Stamina"
+        ]
+
+        # 4. Quét toàn bộ các dòng trong bảng (Table Rows)
         rows = soup.find_all('tr')
         for row in rows:
             th = row.find('th')
             td = row.find('td')
+            
             if th and td:
+                # Làm sạch key (bỏ dấu :) và value
                 key = th.get_text(strip=True).replace(':', '')
-                value = td.get_text(strip=True)
+                val = td.get_text(strip=True)
                 
-                # Map sang field name
-                if key in field_mapping:
-                    field_name = field_mapping[key]
-                    info[field_name] = value
+                # --- A. LẤY THÔNG TIN CƠ BẢN ---
+                if key == 'Player Name': info['Player'] = val
+                elif key == 'Team Name': info['Club'] = val
+                elif key == 'League': info['League'] = val
+                elif key == 'Nationality': info['Nation'] = val
+                elif key == 'Region': info['Region'] = val
+                elif key == 'Height': info['Height'] = val.replace('cm', '').strip()
+                elif key == 'Weight': info['Weight'] = val.replace('kg', '').strip()
+                elif key == 'Age': info['Age'] = val
+                elif key == 'Foot': info['Foot'] = val
+                elif key == 'Form': info['Form'] = val
+                elif key == 'Injury Resistance': info['Injury Resistance'] = val
+                elif key == 'Weak Foot Usage': info['Weak Foot Usage'] = val
+                elif key == 'Weak Foot Accuracy': info['Weak Foot Accuracy'] = val
                 
-                # ... (Phần trên giữ nguyên) ...
-
-                # Xử lý Position đặc biệt
-                if key == 'Position':
+                # --- B. LẤY MAXIMUM LEVEL (Yêu cầu mới) ---
+                elif key == 'Maximum Level':
+                    info['Max Level'] = val
+                
+                # --- C. LẤY CHỈ SỐ (STATS - LEVEL 1) ---
+                elif key in target_stats:
+                    info[key] = val
+                
+                # --- D. XỬ LÝ RIÊNG CHO POSITION (VỊ TRÍ CHÍNH) ---
+                elif key == 'Position':
                     pos_div = td.find('div', title=True)
                     if pos_div:
                         info['Position'] = pos_div.get_text(strip=True)
-        
-        # === THÊM ĐOẠN NÀY VÀO ===
-        # Lấy vị trí phụ từ sơ đồ sân bóng
-        info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
-        # =========================
+                    else:
+                        info['Position'] = val
 
-        # Lấy Skills
+        # 5. Lấy các thông tin nâng cao (qua hàm phụ trợ)
+        
+        # Lấy vị trí phụ (Secondary Positions)
+        info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
+
+        # Lấy danh sách Skills
         info['Skills'] = extract_player_skills(player_url)
         
-        # Lấy Player Type
-        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
+        # Xác định loại thẻ (Player Type)
+        raw_card_type = extract_card_type_from_html(soup)
+        info['Player_Type'] = normalize_player_type(raw_card_type)
         
-        # ... (Phần dưới giữ nguyên) ...
-        
-        # Lấy Skills
-        info['Skills'] = extract_player_skills(player_url)
-        
-        # Lấy Player Type từ loại thẻ
-        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
-        
-        # Lấy Rating (POTW dùng level gốc +4, thẻ khác ưu tiên Max Level)
+        # Tính Rating tổng quát (Logic cũ: POTW +4, Thẻ thường lấy Max Rating)
         info['Rating'] = extract_max_level_rating(
             player_url,
             card_type=info.get('Player_Type'),
@@ -2323,7 +2317,8 @@ def extract_full_player_info(player_url: str) -> dict:
         return info
         
     except Exception as e:
-        st.error(f"❌ Lỗi khi trích xuất thông tin: {e}")
+        # Ghi log lỗi nếu cần thiết (dùng st.error hoặc print)
+        # st.error(f"❌ Lỗi khi trích xuất thông tin: {e}")
         return default_info
 
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
