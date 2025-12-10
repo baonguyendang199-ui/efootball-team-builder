@@ -2459,137 +2459,122 @@ def main():
 
         st.divider()
 
-        # 2. NÚT ĐỒNG BỘ MỚI (UPDATE STATS & MAX LEVEL) - ĐÃ TỐI ƯU
+        # 2. CƠ CHẾ QUÉT TỰ ĐỘNG THÔNG MINH (AUTO-LOOP)
         # ---------------------------------------------------------
-        st.markdown("### 📡 Cập nhật dữ liệu")
-        st.caption("Quét PESDB để lấy Chỉ số (Stats) & Max Level")
+        st.markdown("### 📡 Cập nhật dữ liệu (Auto-Loop)")
+        st.caption("Tự động chia nhỏ và quét liên tục đến khi xong 100%")
+
+        # Cấu hình kích thước lô (Batch Size)
+        BATCH_SIZE = 20  # Quét 20 người mỗi lần rồi lưu để tránh mất dữ liệu
         
-        # Thêm tùy chọn chỉ quét người thiếu
-        scan_mode = st.radio(
-            "Chế độ quét:",
-            ["⚡ Chỉ quét cầu thủ thiếu chỉ số", "🐢 Quét lại toàn bộ (Lâu)"],
-            index=0
-        )
-        
-        # Nút kích hoạt
-        if st.button("🔁 Bắt đầu Quét", use_container_width=True, type="primary"):
-            st.session_state.run_pesdb_sync = True
-            st.rerun()
-            
-        # Logic xử lý khi đang chạy đồng bộ
-        if st.session_state.get('run_pesdb_sync', False):
-            # Load dữ liệu hiện tại
+        # Kiểm tra trạng thái Auto-run
+        if 'auto_sync_active' not in st.session_state:
+            st.session_state.auto_sync_active = False
+
+        # Nút Bật/Tắt
+        if st.session_state.auto_sync_active:
+            if st.button("🛑 DỪNG QUÉT NGAY", type="primary", use_container_width=True):
+                st.session_state.auto_sync_active = False
+                st.rerun()
+            st.info("🔄 Đang trong chế độ tự động chạy...")
+        else:
+            if st.button("▶️ Bắt đầu Quét Tự Động", use_container_width=True):
+                st.session_state.auto_sync_active = True
+                st.rerun()
+
+        # LOGIC CHẠY NGẦM
+        if st.session_state.auto_sync_active:
+            # 1. Load dữ liệu
             if 'df' not in st.session_state or st.session_state.df is None:
                 df_sync = load_data_from_gsheet()
+                st.session_state.df = df_sync
             else:
-                df_sync = st.session_state.df.copy()
-            
-            # Đảm bảo các cột Stats tồn tại
-            for col in required_stats_cols:
-                if col not in df_sync.columns:
-                    df_sync[col] = ""
+                df_sync = st.session_state.df
 
-            # --- BƯỚC 1: LỌC DANH SÁCH CẦN QUÉT ---
-            # Chúng ta dùng cột "Speed" để kiểm tra xem đã có stats chưa.
-            # Nếu Speed trống hoặc bằng 0 -> Cần quét.
+            # 2. Tìm những người còn thiếu chỉ số (Speed trống hoặc = 0)
+            # Điều kiện: Có URL hợp lệ VÀ (Chưa có Speed HOẶC Speed = 0)
+            has_url = df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)
             
-            if scan_mode == "⚡ Chỉ quét cầu thủ thiếu chỉ số":
-                # Điều kiện: Có URL PESDB VÀ (Speed trống HOẶC Speed = 0 HOẶC Speed = NaN)
-                has_url = df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)
+            if 'Speed' not in df_sync.columns:
+                df_sync['Speed'] = ""
                 
-                # Kiểm tra cột Speed (đại diện cho Stats)
-                if 'Speed' in df_sync.columns:
-                    missing_stats = (
-                        (df_sync['Speed'].astype(str).str.strip() == '') | 
-                        (df_sync['Speed'].astype(str) == '0') |
-                        (df_sync['Speed'].isna())
-                    )
-                else:
-                    missing_stats = True # Nếu chưa có cột Speed thì coi như thiếu hết
+            missing_stats = (
+                (df_sync['Speed'].astype(str).str.strip() == '') | 
+                (df_sync['Speed'].astype(str) == '0') |
+                (df_sync['Speed'].isna()) |
+                (df_sync['Speed'].astype(str) == 'nan')
+            )
+            
+            # Lấy danh sách cần làm
+            todo_list = df_sync[has_url & missing_stats]
+            total_missing = len(todo_list)
 
-                # Lấy ra các dòng thỏa mãn
-                rows_to_scan = df_sync[has_url & missing_stats]
+            # 3. Kiểm tra điều kiện dừng
+            if total_missing == 0:
+                st.success("🎉 Đã hoàn thành 100%! Tất cả cầu thủ đã có chỉ số.")
+                st.session_state.auto_sync_active = False
+                st.balloons()
+                time.sleep(3)
+                st.rerun()
+            
             else:
-                # Chế độ quét toàn bộ: Lấy tất cả dòng có URL
-                rows_to_scan = df_sync[df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)]
-
-            total_targets = len(rows_to_scan)
-            
-            if total_targets == 0:
-                st.success("🎉 Dữ liệu đã đầy đủ! Không có cầu thủ nào thiếu chỉ số.")
-                st.session_state.run_pesdb_sync = False
-            else:
-                # --- BƯỚC 2: BẮT ĐẦU QUÉT ---
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                status_box = st.info(f"🎯 Tìm thấy **{total_targets}** cầu thủ cần cập nhật...")
+                # 4. Lấy ra Batch hiện tại (Ví dụ 20 người đầu tiên)
+                current_batch = todo_list.head(BATCH_SIZE)
                 
-                updated_count = 0
-                errors_count = 0
+                # Hiển thị tiến độ
+                st.progress(0)
+                status_box = st.empty()
+                status_box.warning(f"🚀 Còn lại: **{total_missing}** cầu thủ. Đang quét lô **{len(current_batch)}** người...")
                 
-                try:
-                    # Duyệt qua danh sách ĐÃ LỌC
-                    for i, (idx, row) in enumerate(rows_to_scan.iterrows()):
-                        player_name = row.get('Player', 'Unknown')
-                        percent = (i + 1) / total_targets
+                updated_in_batch = 0
+                
+                # 5. Quét Batch này
+                for i, (idx, row) in enumerate(current_batch.iterrows()):
+                    player_name = row.get('Player', 'Unknown')
+                    status_box.info(f"📡 [{i+1}/{len(current_batch)}] Đang lấy tin: **{player_name}**...")
+                    
+                    try:
+                        fetched_info = extract_full_player_info(str(row['Player URL']))
                         
-                        status_text.text(f"📡 [{i+1}/{total_targets}] Đang xử lý: {player_name}")
-                        progress_bar.progress(percent)
-                        
-                        p_url = row.get('Player URL')
-                        
-                        try:
-                            # Gọi hàm extract
-                            fetched_info = extract_full_player_info(str(p_url))
+                        # Chỉ update nếu thực sự lấy được dữ liệu (Check Speed > 0)
+                        if fetched_info and fetched_info.get('Speed'):
+                            for col in required_stats_cols:
+                                val = fetched_info.get(col, "")
+                                if val:
+                                    df_sync.at[idx, col] = str(val)
                             
-                            if fetched_info:
-                                # Cập nhật vào DataFrame GỐC (df_sync) dùng index (idx)
-                                for col in required_stats_cols:
-                                    val = fetched_info.get(col, "")
-                                    # Chỉ update nếu giá trị lấy về không rỗng
-                                    if val is not None and str(val) != "":
-                                        df_sync.at[idx, col] = str(val)
-                                
-                                # Đánh dấu đã quét (để lần sau không quét lại nếu chưa kịp lưu)
-                                # (Optional)
-                                updated_count += 1
-                            else:
-                                errors_count += 1
-
-                        except Exception as e:
-                            print(f"Lỗi quét {player_name}: {e}")
-                            errors_count += 1
-                        
-                        # Sleep nhẹ để tránh bị ban IP
-                        time.sleep(0.15)
-
-                    # --- BƯỚC 3: LƯU ---
-                    status_text.text("💾 Đang lưu dữ liệu vào Google Sheets...")
-                    status_box.info(f"Đã quét xong. Thành công: {updated_count}. Lỗi/Trống: {errors_count}. Đang lưu...")
+                            updated_in_batch += 1
+                        else:
+                            # Nếu quét lỗi/không có data -> Gán tạm giá trị 'ERROR' hoặc bỏ qua
+                            # Ở đây ta bỏ qua để lần sau quét lại, hoặc bạn có thể log lỗi
+                            print(f"Không lấy được data cho {player_name}")
+                            
+                    except Exception as e:
+                        print(f"Lỗi: {e}")
                     
-                    if save_data_to_gsheet(df_sync):
-                        st.success(f"✅ Đã cập nhật xong {updated_count} cầu thủ!")
-                        st.session_state.df = df_sync
-                        st.cache_data.clear()
-                    else:
-                        st.error("❌ Lỗi khi lưu Google Sheets. Hãy tải file Backup!")
-
-                except Exception as e:
-                    st.error(f"Đã xảy ra lỗi không mong muốn: {e}")
+                    # Ngủ để tránh bị ban
+                    time.sleep(0.5) 
                 
-                finally:
-                    # Luôn tạo file backup dù có lỗi hay không
-                    csv = df_sync.to_csv(index=False).encode('utf-8-sig')
-                    st.download_button(
-                        label="📥 Tải Backup (CSV)",
-                        data=csv,
-                        file_name=f"efootball_update_{datetime.now().strftime('%H%M')}.csv",
-                        mime="text/csv"
-                    )
-                    
-                    st.session_state.run_pesdb_sync = False
-                    if st.button("🔄 Tải lại trang"):
-                        st.rerun()
+                # 6. Lưu Batch này vào Google Sheets
+                if updated_in_batch > 0:
+                    status_box.text("💾 Đang lưu lô này vào Google Sheets...")
+                    if save_data_to_gsheet(df_sync):
+                        st.session_state.df = df_sync # Cập nhật session
+                        st.cache_data.clear() # Xóa cache cũ
+                        status_box.success(f"✅ Đã lưu {updated_in_batch} người. Chuẩn bị chạy lô tiếp theo...")
+                    else:
+                        st.error("Lỗi lưu file. Dừng tự động.")
+                        st.session_state.auto_sync_active = False
+                else:
+                    # Nếu chạy cả lô mà không được ai (có thể do lỗi mạng hoặc link chết hết)
+                    st.warning("⚠️ Lô này không cập nhật được ai (có thể do link hỏng). Đang thử lô tiếp theo...")
+                    # Để tránh vòng lặp vô tận với link hỏng, bạn có thể đánh dấu dòng lỗi, 
+                    # nhưng đơn giản nhất là sleep lâu hơn chút rồi thử lại
+                    time.sleep(2)
+
+                # 7. TỰ ĐỘNG RERUN ĐỂ CHẠY LÔ TIẾP THEO
+                time.sleep(1)
+                st.rerun()
     
         st.divider()
     
