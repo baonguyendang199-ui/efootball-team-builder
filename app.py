@@ -2339,38 +2339,57 @@ def initialize_session_state():
 
 def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Đồng bộ dữ liệu PESDB (Smart Sync).
-    CHỈ QUÉT những cầu thủ còn thiếu thông tin (Vị trí phụ, Skills, Chiều cao...).
-    Bỏ qua những người đã có đủ dữ liệu để tiết kiệm thời gian.
+    Đồng bộ dữ liệu PESDB (Smart Sync) - ĐÃ SỬA LỖI UPDATE STATS & MAX LEVEL.
     """
     if df.empty or 'Player URL' not in df.columns:
         st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL.")
         return df
 
-    # Đảm bảo cột tồn tại
-    if 'Secondary Positions' not in df.columns:
-        df['Secondary Positions'] = ""
+    # Danh sách đầy đủ các cột cần update
+    GAMEPLAY_STATS = [
+        'Offensive Awareness', 'Ball Control', 'Dribbling', 'Tight Possession',
+        'Low Pass', 'Lofted Pass', 'Finishing', 'Heading', 'Set Piece Taking',
+        'Curl', 'Defensive Awareness', 'Tackling', 'Aggression', 'Defensive Engagement',
+        'GK Awareness', 'GK Catching', 'GK Parrying', 'GK Reflexes', 'GK Reach',
+        'Speed', 'Acceleration', 'Kicking Power', 'Jumping', 'Physical Contact',
+        'Balance', 'Stamina', 'Max Level'
+    ]
+
+    # Đảm bảo các cột này tồn tại trong DF
+    for col in GAMEPLAY_STATS + ['Secondary Positions']:
+        if col not in df.columns:
+            df[col] = ""
 
     # --- BỘ LỌC THÔNG MINH ---
     # 1. Có URL hợp lệ
     has_url = df['Player URL'].astype(str).str.startswith('http')
     
-    # 2. Kiểm tra các trường còn thiếu (Trống hoặc NaN)
+    # 2. Kiểm tra các trường còn thiếu (Logic kiểm tra kỹ hơn)
+    # Kiểm tra thiếu vị trí phụ
     missing_sec_pos = df['Secondary Positions'].astype(str).str.strip() == ''
-    missing_skills = df['Skills'].astype(str).str.strip() == ''
-    missing_height = df['Height'].astype(str).str.strip() == ''
     
-    # 3. Lọc ra danh sách cần cập nhật: Có URL VÀ (Thiếu Vị trí phụ HOẶC Thiếu Skills HOẶC Thiếu Chiều cao)
-    needs_extraction = df[has_url & (missing_sec_pos | missing_skills | missing_height)]
+    # Kiểm tra thiếu Stats (Đại diện bằng Speed)
+    # Coi là thiếu nếu: Rỗng, hoặc bằng 0, hoặc bằng '1' (thường là dữ liệu rác/mặc định)
+    speed_check = df['Speed'].astype(str).str.strip()
+    missing_stats = (speed_check == '') | (speed_check == '0') | (speed_check == '1')
+    
+    # Kiểm tra thiếu Max Level (Nếu Max Level = 0 hoặc 1 với thẻ Non-Epic thì coi là chưa quét)
+    # Lưu ý: POTW Max Level luôn là 1 nên bỏ qua logic này với POTW
+    max_lvl_check = df['Max Level'].astype(str).str.strip()
+    is_not_potw = ~df['Player Type'].astype(str).str.contains('POTW', case=False, na=False)
+    missing_max_lvl = ((max_lvl_check == '') | (max_lvl_check == '1')) & is_not_potw
+    
+    # 3. Lọc danh sách cần quét
+    needs_extraction = df[has_url & (missing_sec_pos | missing_stats | missing_max_lvl)]
 
     total_to_process = len(needs_extraction)
     total_players = len(df)
 
     if total_to_process == 0:
-        st.success(f"✅ Dữ liệu đã đầy đủ! (Đã kiểm tra {total_players} cầu thủ). Không cần quét thêm.")
+        st.success(f"✅ Dữ liệu đã đầy đủ! (Đã kiểm tra {total_players} cầu thủ).")
         return df
 
-    st.info(f"🔍 Phát hiện **{total_to_process}** cầu thủ thiếu dữ liệu (Vị trí phụ/Skills...). Bắt đầu cập nhật...")
+    st.info(f"🔍 Phát hiện **{total_to_process}** cầu thủ thiếu Stats/Max Level. Bắt đầu cập nhật...")
     
     st.session_state['auto_extracting'] = True
     updated = False
@@ -2378,15 +2397,12 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     progress_bar = st.progress(0, text=f"🚀 Đang chuẩn bị...")
     status_box = st.empty()
 
-    # Biến đếm
     count = 0
-
-    # Chỉ duyệt qua những dòng cần cập nhật
+    # Duyệt qua các dòng cần update
     for i, row in needs_extraction.iterrows():
         count += 1
         player_name = str(row.get('Player', '') or '').strip()
         
-        # Cập nhật thanh tiến trình
         percent = int((count / total_to_process) * 100)
         status_box.info(f"📡 [{count}/{total_to_process}] Đang cập nhật: **{player_name}**")
         progress_bar.progress(percent, text=f"Đang xử lý {percent}%")
@@ -2395,36 +2411,45 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             info = extract_full_player_info(row['Player URL'])
             
             if info and info.get('Player'):
-                # Ghi đè dữ liệu mới
+                # 1. Update Vị trí phụ
                 df.at[i, 'Secondary Positions'] = info.get('Secondary Positions', '')
                 
-                # Cập nhật các cột khác nếu đang thiếu
-                for col in [
-                    'Region', 'Height', 'Weight', 'Age', 'Foot',
-                    'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance', 'Skills'
-                ]:
+                # 2. Update Thông tin cơ bản (Nếu đang thiếu)
+                basic_cols = ['Region', 'Height', 'Weight', 'Age', 'Foot', 
+                              'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 
+                              'Injury Resistance', 'Skills']
+                for col in basic_cols:
                     current_val = str(df.at[i, col]).strip()
                     if not current_val or current_val == 'nan':
                         df.at[i, col] = info.get(col, '')
+
+                # 3. UPDATE STATS & MAX LEVEL (QUAN TRỌNG NHẤT)
+                for stat in GAMEPLAY_STATS:
+                    new_val = info.get(stat, '')
+                    # Chỉ ghi đè nếu lấy được dữ liệu mới
+                    if new_val:
+                        df.at[i, stat] = str(new_val)
                 
                 updated = True
                 
         except Exception as e:
-            print(f"Lỗi {player_name}: {e}") # Log nhẹ, không làm phiền UI
+            print(f"Lỗi {player_name}: {e}")
             continue
+        
+        # Sleep nhẹ để tránh ban IP
+        time.sleep(0.1)
 
     if updated:
         progress_bar.progress(1.0, text="✅ Đang lưu vào Google Sheets...")
         save_data_to_gsheet(df)
         st.cache_data.clear()
-        status_box.success(f"✅ Đã cập nhật xong {total_to_process} cầu thủ!")
+        status_box.success(f"✅ Đã cập nhật xong chỉ số cho {total_to_process} cầu thủ!")
         time.sleep(2)
         status_box.empty()
         progress_bar.empty()
     
     st.session_state['auto_extracting'] = False
     return df
-
 
 # --- MAIN APP ---
 def main():
@@ -2491,25 +2516,27 @@ def main():
 
             # --- BƯỚC 1: LỌC DANH SÁCH CẦN QUÉT ---
             if scan_mode == "⚡ Chỉ quét cầu thủ thiếu chỉ số":
-                # Điều kiện: Có URL PESDB
+                # Điều kiện 1: Có URL PESDB
                 has_url = df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)
                 
-                # Kiểm tra cột Speed (đại diện cho Stats)
+                # Điều kiện 2: Thiếu Stats (Speed rỗng hoặc 0)
                 if 'Speed' in df_sync.columns:
-                    # [FIX] Logic kiểm tra chặt chẽ hơn cho các giá trị rỗng/nan/none
-                    s_check = df_sync['Speed'].astype(str).str.strip().str.lower()
-                    missing_stats = (
-                        (s_check == '') | 
-                        (s_check == '0') | 
-                        (s_check == '0.0') |
-                        (s_check.isin(['nan', 'none', 'null'])) |
-                        (df_sync['Speed'].isna())
-                    )
+                    s_check = df_sync['Speed'].astype(str).str.strip()
+                    missing_gameplay_stats = (s_check == '') | (s_check == '0') | (s_check == 'nan')
                 else:
-                    missing_stats = True 
+                    missing_gameplay_stats = True
+                
+                # Điều kiện 3: Thiếu Max Level (Rỗng hoặc = 1 với thẻ không phải POTW)
+                if 'Max Level' in df_sync.columns:
+                    m_check = df_sync['Max Level'].astype(str).str.strip()
+                    # POTW luôn là lv 1 nên ko tính là thiếu. Non-EPIC mà lv 1 là thiếu.
+                    is_standard = ~df_sync['Player Type'].astype(str).str.upper().str.contains('POTW', na=False)
+                    missing_max_lvl = ((m_check == '') | (m_check == '1') | (m_check == '0')) & is_standard
+                else:
+                    missing_max_lvl = True
 
-                # Lấy ra các dòng thỏa mãn
-                rows_to_scan = df_sync[has_url & missing_stats]
+                # Lấy ra các dòng thỏa mãn: Có URL VÀ (Thiếu Stats HOẶC Thiếu Max Level)
+                rows_to_scan = df_sync[has_url & (missing_gameplay_stats | missing_max_lvl)]
             else:
                 # Chế độ quét toàn bộ
                 rows_to_scan = df_sync[df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)]
@@ -2517,9 +2544,11 @@ def main():
             total_targets = len(rows_to_scan)
             
             if total_targets == 0:
-                st.success("🎉 Dữ liệu đã đầy đủ! Không có cầu thủ nào thiếu chỉ số.")
+                st.success("🎉 Dữ liệu đã đầy đủ! (Stats & Max Level đều ok).")
                 st.session_state.run_pesdb_sync = False
             else:
+                # ... (Phần code BƯỚC 2: BẮT ĐẦU QUÉT giữ nguyên như cũ) ...
+                # ... Chỉ cần đảm bảo trong vòng lặp cập nhật df_sync.at[idx, col] là được ...
                 # --- BƯỚC 2: BẮT ĐẦU QUÉT ---
                 progress_bar = st.progress(0)
                 status_text = st.empty()
