@@ -2490,27 +2490,28 @@ def main():
                     df_sync[col] = ""
 
             # --- BƯỚC 1: LỌC DANH SÁCH CẦN QUÉT ---
-            # Chúng ta dùng cột "Speed" để kiểm tra xem đã có stats chưa.
-            # Nếu Speed trống hoặc bằng 0 -> Cần quét.
-            
             if scan_mode == "⚡ Chỉ quét cầu thủ thiếu chỉ số":
-                # Điều kiện: Có URL PESDB VÀ (Speed trống HOẶC Speed = 0 HOẶC Speed = NaN)
+                # Điều kiện: Có URL PESDB
                 has_url = df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)
                 
                 # Kiểm tra cột Speed (đại diện cho Stats)
                 if 'Speed' in df_sync.columns:
+                    # [FIX] Logic kiểm tra chặt chẽ hơn cho các giá trị rỗng/nan/none
+                    s_check = df_sync['Speed'].astype(str).str.strip().str.lower()
                     missing_stats = (
-                        (df_sync['Speed'].astype(str).str.strip() == '') | 
-                        (df_sync['Speed'].astype(str) == '0') |
+                        (s_check == '') | 
+                        (s_check == '0') | 
+                        (s_check == '0.0') |
+                        (s_check.isin(['nan', 'none', 'null'])) |
                         (df_sync['Speed'].isna())
                     )
                 else:
-                    missing_stats = True # Nếu chưa có cột Speed thì coi như thiếu hết
+                    missing_stats = True 
 
                 # Lấy ra các dòng thỏa mãn
                 rows_to_scan = df_sync[has_url & missing_stats]
             else:
-                # Chế độ quét toàn bộ: Lấy tất cả dòng có URL
+                # Chế độ quét toàn bộ
                 rows_to_scan = df_sync[df_sync['Player URL'].astype(str).str.contains("pesdb.net", na=False)]
 
             total_targets = len(rows_to_scan)
