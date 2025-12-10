@@ -590,7 +590,7 @@ def load_data_from_gsheet():
         return pd.DataFrame()
 
 def save_data_to_gsheet(df):
-    """Lưu dữ liệu lên Google Sheets"""
+    """Lưu dữ liệu lên Google Sheets - Đã FIX lỗi Numpy Types"""
     try:
         # Check if dataframe is empty
         if df.empty:
@@ -600,15 +600,19 @@ def save_data_to_gsheet(df):
         client = get_gsheet_connection()
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
         
-        # Remove Epic_Priority column before saving
-        df_save = df.drop(columns=['Epic_Priority'], errors='ignore').copy()
+        # Remove Epic_Priority column before saving (cột này chỉ dùng để sort nội bộ)
+        df_save = df.drop(columns=['Epic_Priority', 'Build_Score', 'Draft_Score', 'Top23_Count', '_num_Height', '_num_Weight', '_num_Age', '_num_BMI'], errors='ignore').copy()
         
-        # CRITICAL: Replace NaN/inf values with empty string or 0
-        # This prevents JSON error when saving to Google Sheets
-        df_save = df_save.fillna('')  # Fill NaN with empty string
+        # --- FIX QUAN TRỌNG: XỬ LÝ DỮ LIỆU TRƯỚC KHI GỬI ---
+        # 1. Fill NaN bằng chuỗi rỗng
+        df_save = df_save.fillna('')
         
-        # Replace inf values if any
+        # 2. Xử lý số vô cực (Infinite)
         df_save = df_save.replace([float('inf'), float('-inf')], '')
+        
+        # 3. CHUYỂN ĐỔI TẤT CẢ SANG STRING ĐỂ TRÁNH LỖI JSON SERIALIZATION (Lỗi phổ biến nhất)
+        # Google Sheets API rất kén chọn các kiểu dữ liệu numpy (int64, float64)
+        df_save = df_save.astype(str)
         
         # Check again after cleaning
         if df_save.empty:
@@ -617,11 +621,13 @@ def save_data_to_gsheet(df):
         
         # Clear and update
         sheet.clear()
+        # Update cả Header (Columns) và Values
         sheet.update([df_save.columns.values.tolist()] + df_save.values.tolist())
         return True
     except Exception as e:
         st.error(f"❌ Lỗi khi lưu dữ liệu: {e}")
-        # Don't clear sheet if there's an error!
+        # In chi tiết lỗi ra console để debug nếu cần
+        print(f"Details Error Save: {e}")
         return False
 
 # --- SKILLS PRIORITY SYSTEM ---
@@ -2470,6 +2476,12 @@ def main():
             else:
                 df_sync = st.session_state.df.copy()
             
+            # --- ĐẢM BẢO CÁC CỘT STATS ĐÃ TỒN TẠI ---
+            # Nếu chưa có thì tạo cột trống để tránh lỗi KeyError khi gán dữ liệu
+            for col in required_stats_cols:
+                if col not in df_sync.columns:
+                    df_sync[col] = ""
+
             # --- BẮT ĐẦU QUÉT ---
             progress_bar = st.progress(0)
             status_text = st.empty()
@@ -2480,7 +2492,8 @@ def main():
                 
                 # Duyệt qua từng dòng trong DataFrame
                 for idx, row in df_sync.iterrows():
-                    status_text.text(f"Đang xử lý: {row.get('Player', 'Unknown')} ({idx+1}/{total_players})")
+                    player_name = row.get('Player', 'Unknown')
+                    status_text.text(f"📡 Đang xử lý: {player_name} ({idx+1}/{total_players})")
                     progress_bar.progress((idx + 1) / total_players)
                     
                     p_url = row.get('Player URL')
@@ -2492,43 +2505,50 @@ def main():
                             fetched_info = extract_full_player_info(str(p_url))
                             
                             # Cập nhật các cột Stats + Max Level vào DataFrame
-                            for col in required_stats_cols:
-                                if col in fetched_info and fetched_info[col]:
-                                    df_sync.at[idx, col] = fetched_info[col]
-                            
-                            updated_count += 1
+                            if fetched_info:
+                                for col in required_stats_cols:
+                                    # Chỉ update nếu PESDB trả về dữ liệu cho cột đó
+                                    val = fetched_info.get(col, "")
+                                    if val:
+                                        df_sync.at[idx, col] = str(val) # Ép kiểu string ngay khi gán
+                                
+                                updated_count += 1
                         except Exception as e:
-                            print(f"Lỗi quét {row.get('Player')}: {e}")
+                            print(f"Lỗi quét {player_name}: {e}")
                     
-                    # Ngủ 1 xíu để tránh bị chặn IP
-                    time.sleep(0.5)
+                    # Ngủ 0.2s để tránh bị chặn IP (nhanh hơn 0.5s cũ)
+                    time.sleep(0.2)
 
-                # --- LƯU LẠI VÀO GOOGLE SHEET (ĐÃ SỬA: THÊM HÀM LƯU) ---
-                status_text.text("💾 Đang lưu dữ liệu vào Google Sheets...")
+                # --- LƯU LẠI VÀO GOOGLE SHEET ---
+                status_text.text("💾 Đang lưu dữ liệu vào Google Sheets... (Có thể mất vài giây)")
                 
                 if save_data_to_gsheet(df_sync):
-                    st.success(f"✅ Đã lưu thành công vào Google Sheets! (Cập nhật {updated_count} cầu thủ)")
-                    st.cache_data.clear()  # Xóa cache để reload dữ liệu mới
-                    st.session_state.df = df_sync # Cập nhật session state
+                    st.success(f"✅ Đã lưu thành công! (Cập nhật {updated_count} cầu thủ)")
+                    st.session_state.df = df_sync # Cập nhật ngay vào session hiện tại
+                    st.cache_data.clear()  # Xóa cache để lần load sau lấy data mới
                 else:
-                    st.error("❌ Lỗi khi lưu vào Google Sheets. Vui lòng tải file Backup bên dưới!")
+                    st.error("❌ Lỗi khi lưu vào Google Sheets. Vui lòng thử lại hoặc kiểm tra quyền truy cập.")
                 
-                # Tạo file CSV backup
+                # Tạo file CSV backup (luôn tạo để phòng hờ)
                 csv = df_sync.to_csv(index=False).encode('utf-8-sig')
                 
-                status_text.empty() # Xóa dòng trạng thái
+                status_text.empty() 
+                progress_bar.empty()
                 
-                # Hiện nút tải về ngay lập tức
+                # Hiện nút tải về
                 st.download_button(
                     label="📥 Tải Backup (Excel/CSV)",
                     data=csv,
                     file_name=f"efootball_stats_updated_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
-                    key="download_after_sync"
+                    key="download_after_sync_fixed"
                 )
             
             # Tắt trạng thái chạy
             st.session_state.run_pesdb_sync = False
+            # Thêm nút Rerun thủ công nếu cần
+            if st.button("🔄 Tải lại trang để áp dụng"):
+                st.rerun()
     
         st.divider()
     
