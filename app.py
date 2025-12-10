@@ -2488,7 +2488,7 @@ def main():
                     # Chỉ quét nếu có URL hợp lệ
                     if pd.notna(p_url) and "pesdb.net" in str(p_url):
                         try:
-                            # Gọi hàm extract mới (đã viết ở bước trước)
+                            # Gọi hàm extract mới
                             fetched_info = extract_full_player_info(str(p_url))
                             
                             # Cập nhật các cột Stats + Max Level vào DataFrame
@@ -2503,15 +2503,20 @@ def main():
                     # Ngủ 1 xíu để tránh bị chặn IP
                     time.sleep(0.5)
 
-                # --- LƯU LẠI VÀO GOOGLE SHEET (Nếu dùng Gsheet) ---
-                # Hoặc chỉ cập nhật vào session_state để người dùng tự lưu
-                st.session_state.df = df_sync
+                # --- LƯU LẠI VÀO GOOGLE SHEET (ĐÃ SỬA: THÊM HÀM LƯU) ---
+                status_text.text("💾 Đang lưu dữ liệu vào Google Sheets...")
+                
+                if save_data_to_gsheet(df_sync):
+                    st.success(f"✅ Đã lưu thành công vào Google Sheets! (Cập nhật {updated_count} cầu thủ)")
+                    st.cache_data.clear()  # Xóa cache để reload dữ liệu mới
+                    st.session_state.df = df_sync # Cập nhật session state
+                else:
+                    st.error("❌ Lỗi khi lưu vào Google Sheets. Vui lòng tải file Backup bên dưới!")
                 
                 # Tạo file CSV backup
                 csv = df_sync.to_csv(index=False).encode('utf-8-sig')
                 
-                status_text.text("✅ Đã hoàn tất!")
-                st.success(f"Đã cập nhật chỉ số cho {updated_count} cầu thủ!")
+                status_text.empty() # Xóa dòng trạng thái
                 
                 # Hiện nút tải về ngay lập tức
                 st.download_button(
