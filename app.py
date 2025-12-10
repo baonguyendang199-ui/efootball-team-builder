@@ -2345,92 +2345,109 @@ def initialize_session_state():
 
 def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Đồng bộ dữ liệu PESDB (Smart Sync).
-    CHỈ QUÉT những cầu thủ còn thiếu thông tin (Vị trí phụ, Skills, Chiều cao...).
-    Bỏ qua những người đã có đủ dữ liệu để tiết kiệm thời gian.
+    Đồng bộ dữ liệu PESDB (Smart Sync) - Có hỗ trợ Nút Dừng & Resume.
+    Sử dụng cơ chế Session State để xử lý từng cầu thủ và làm mới giao diện.
     """
-    if df.empty or 'Player URL' not in df.columns:
-        st.info("ℹ️ Không có dữ liệu hoặc thiếu cột Player URL.")
-        return df
+    # 1. KHỞI TẠO TRẠNG THÁI (Chạy lần đầu)
+    if 'sync_state' not in st.session_state:
+        # Đảm bảo cột tồn tại
+        if 'Secondary Positions' not in df.columns:
+            df['Secondary Positions'] = ""
 
-    # Đảm bảo cột tồn tại
-    if 'Secondary Positions' not in df.columns:
-        df['Secondary Positions'] = ""
-
-    # --- BỘ LỌC THÔNG MINH ---
-    # 1. Có URL hợp lệ
-    has_url = df['Player URL'].astype(str).str.startswith('http')
-    
-    # 2. Kiểm tra các trường còn thiếu (Trống hoặc NaN)
-    missing_sec_pos = df['Secondary Positions'].astype(str).str.strip() == ''
-    missing_skills = df['Skills'].astype(str).str.strip() == ''
-    missing_height = df['Height'].astype(str).str.strip() == ''
-    
-    # 3. Lọc ra danh sách cần cập nhật: Có URL VÀ (Thiếu Vị trí phụ HOẶC Thiếu Skills HOẶC Thiếu Chiều cao)
-    needs_extraction = df[has_url & (missing_sec_pos | missing_skills | missing_height)]
-
-    total_to_process = len(needs_extraction)
-    total_players = len(df)
-
-    if total_to_process == 0:
-        st.success(f"✅ Dữ liệu đã đầy đủ! (Đã kiểm tra {total_players} cầu thủ). Không cần quét thêm.")
-        return df
-
-    st.info(f"🔍 Phát hiện **{total_to_process}** cầu thủ thiếu dữ liệu (Vị trí phụ/Skills...). Bắt đầu cập nhật...")
-    
-    st.session_state['auto_extracting'] = True
-    updated = False
-
-    progress_bar = st.progress(0, text=f"🚀 Đang chuẩn bị...")
-    status_box = st.empty()
-
-    # Biến đếm
-    count = 0
-
-    # Chỉ duyệt qua những dòng cần cập nhật
-    for i, row in needs_extraction.iterrows():
-        count += 1
-        player_name = str(row.get('Player', '') or '').strip()
+        # Lọc danh sách cần cập nhật
+        has_url = df['Player URL'].astype(str).str.startswith('http')
+        missing_sec_pos = df['Secondary Positions'].astype(str).str.strip() == ''
+        missing_skills = df['Skills'].astype(str).str.strip() == ''
+        missing_height = df['Height'].astype(str).str.strip() == ''
         
-        # Cập nhật thanh tiến trình
-        percent = int((count / total_to_process) * 100)
-        status_box.info(f"📡 [{count}/{total_to_process}] Đang cập nhật: **{player_name}**")
-        progress_bar.progress(percent, text=f"Đang xử lý {percent}%")
+        needs_extraction = df[has_url & (missing_sec_pos | missing_skills | missing_height)]
+        
+        if needs_extraction.empty:
+            st.success("✅ Dữ liệu đã đầy đủ! Không cần quét thêm.")
+            st.session_state.run_pesdb_sync = False # Tắt cờ chạy
+            return df
+
+        # Lưu trạng thái vào Session
+        st.session_state.sync_state = {
+            'indices': needs_extraction.index.tolist(), # Danh sách index cần làm
+            'total': len(needs_extraction),             # Tổng số
+            'current_idx_ptr': 0,                       # Con trỏ hiện tại
+            'df_snapshot': df.copy(),                   # Bản sao DF để sửa đổi
+            'updated_count': 0
+        }
+        st.rerun() # Refresh để bắt đầu giao diện xử lý
+
+    # 2. GIAO DIỆN XỬ LÝ (Chạy trong các lần Rerun)
+    state = st.session_state.sync_state
+    current_ptr = state['current_idx_ptr']
+    total = state['total']
+    
+    # Hiển thị Progress Bar & Status
+    progress = min(1.0, current_ptr / total)
+    st.progress(progress, text=f"🚀 Đang cập nhật: {current_ptr}/{total} cầu thủ")
+    
+    # --- NÚT DỪNG CẬP NHẬT ---
+    # Vì dùng st.rerun(), nút này sẽ luôn phản hồi được ngay lập tức
+    if st.button("🛑 Dừng cập nhật ngay (Lưu kết quả hiện tại)", type="primary"):
+        # Lưu những gì đã làm được
+        if state['updated_count'] > 0:
+            save_data_to_gsheet(state['df_snapshot'])
+            st.toast(f"⚠️ Đã dừng! Đã lưu {state['updated_count']} cầu thủ.", icon="💾")
+        else:
+            st.toast("⚠️ Đã dừng! Chưa có dữ liệu mới nào.", icon="🛑")
+            
+        final_df = state['df_snapshot']
+        del st.session_state.sync_state # Xóa trạng thái
+        st.session_state.run_pesdb_sync = False # Tắt cờ chạy của Main App
+        time.sleep(1)
+        st.rerun()
+
+    # 3. XỬ LÝ DỮ LIỆU (Batch Size = 1 để UI mượt nhất)
+    if current_ptr < total:
+        idx = state['indices'][current_ptr]
+        row = state['df_snapshot'].loc[idx]
+        player_name = str(row.get('Player', 'Unknown'))
+        
+        # Status Box nhỏ
+        st.info(f"📡 Đang tải dữ liệu cho: **{player_name}**...")
 
         try:
+            # Gọi hàm crawl dữ liệu
             info = extract_full_player_info(row['Player URL'])
             
             if info and info.get('Player'):
-                # Ghi đè dữ liệu mới
-                df.at[i, 'Secondary Positions'] = info.get('Secondary Positions', '')
+                # Cập nhật vào bản sao DF trong Session State
+                state['df_snapshot'].at[idx, 'Secondary Positions'] = info.get('Secondary Positions', '')
                 
-                # Cập nhật các cột khác nếu đang thiếu
-                for col in [
+                # Cập nhật các cột khác nếu thiếu
+                cols_to_check = [
                     'Region', 'Height', 'Weight', 'Age', 'Foot',
                     'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance', 'Skills'
-                ]:
-                    current_val = str(df.at[i, col]).strip()
+                ]
+                for col in cols_to_check:
+                    current_val = str(state['df_snapshot'].at[idx, col]).strip()
                     if not current_val or current_val == 'nan':
-                        df.at[i, col] = info.get(col, '')
+                        state['df_snapshot'].at[idx, col] = info.get(col, '')
                 
-                updated = True
+                state['updated_count'] += 1
                 
         except Exception as e:
-            print(f"Lỗi {player_name}: {e}") # Log nhẹ, không làm phiền UI
-            continue
-
-    if updated:
-        progress_bar.progress(1.0, text="✅ Đang lưu vào Google Sheets...")
-        save_data_to_gsheet(df)
-        st.cache_data.clear()
-        status_box.success(f"✅ Đã cập nhật xong {total_to_process} cầu thủ!")
-        time.sleep(2)
-        status_box.empty()
-        progress_bar.empty()
-    
-    st.session_state['auto_extracting'] = False
-    return df
-
+            print(f"Lỗi {player_name}: {e}")
+        
+        # Tăng con trỏ và Rerun để xử lý người tiếp theo
+        state['current_idx_ptr'] += 1
+        st.rerun()
+        
+    else:
+        # 4. HOÀN TẤT
+        st.success(f"✅ Đã hoàn tất cập nhật {total} cầu thủ!")
+        save_data_to_gsheet(state['df_snapshot'])
+        
+        final_df = state['df_snapshot']
+        del st.session_state.sync_state # Dọn dẹp
+        
+        # Trả về DF để Main App hiển thị nút tải xuống
+        return final_df
 
 # --- MAIN APP ---
 def main():
@@ -2460,19 +2477,18 @@ def main():
             
         # Logic xử lý khi đang chạy đồng bộ
         if st.session_state.get('run_pesdb_sync', False):
-            # Load dữ liệu tạm để xử lý (tránh lỗi nếu df chưa được load ở main)
+            # Load dữ liệu tạm để xử lý
             df_sync = load_data_from_gsheet()
             
-            with st.spinner("⏳ Đang kết nối máy chủ PESDB... Vui lòng không tắt tab."):
-                # Chạy hàm quét (đã nâng cấp ở Bước 1)
-                updated_df = sync_pesdb_missing_fields(df_sync)
-                
-                # Tạo file CSV backup
+            # --- CODE MỚI: Gọi hàm trực tiếp, không bọc trong Spinner ---
+            # Hàm này sẽ tự Rerun UI liên tục nên không được chặn bằng Spinner
+            updated_df = sync_pesdb_missing_fields(df_sync)
+            
+            # Khi hàm trả về (nghĩa là đã xong hoặc đã dừng), hiện nút tải về
+            if isinstance(updated_df, pd.DataFrame):
                 csv = updated_df.to_csv(index=False).encode('utf-8-sig')
                 
-                st.success("✅ Cập nhật hoàn tất!")
-                
-                # Hiện nút tải về ngay lập tức
+                st.markdown("---")
                 st.download_button(
                     label="📥 Tải Backup (Excel/CSV)",
                     data=csv,
@@ -2480,9 +2496,12 @@ def main():
                     mime="text/csv",
                     key="download_after_sync"
                 )
-            
-            # Tắt trạng thái chạy để không lặp lại vòng lặp
-            st.session_state.run_pesdb_sync = False
+                
+                # Nút thoát chế độ sync thủ công nếu muốn
+                if st.button("Trở về màn hình chính"):
+                     st.session_state.run_pesdb_sync = False
+                     st.rerun()
+            # -----------------------------------------------------------
     
         st.divider()
     
