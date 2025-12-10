@@ -269,7 +269,7 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
 @st.dialog("Hồ sơ cầu thủ", width="large")
 def show_player_modal(row):
     """
-    Giao diện Scouting Profile - Đã sửa lỗi Indentation và hiển thị Text.
+    Giao diện Scouting Profile - Đã sửa lỗi hiển thị Text/Code Block.
     """
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
@@ -317,15 +317,16 @@ def show_player_modal(row):
         for i in range(1, max_score + 1):
             bg = accent_color if i <= score else "rgba(255,255,255,0.1)"
             bars += f'<div style="flex:1; height:4px; background:{bg}; border-radius:2px; margin-right:2px;"></div>'
+        # QUAN TRỌNG: Viết liền 1 dòng để tránh lỗi code block
         return f"""<div style="margin-bottom:8px;"><div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:#cbd5e1;"><span>{label}</span><span style="color:{accent_color}; font-weight:600">{value_text}</span></div><div style="display:flex; width:100%;">{bars}</div></div>"""
 
     def get_stat_color(val):
         try:
             v = int(val)
-            if v >= 90: return "#22d3ee" # Cyan (Rất cao)
-            if v >= 80: return "#4ade80" # Green (Cao)
-            if v >= 70: return "#facc15" # Yellow (Khá)
-            return "#94a3b8" # Gray
+            if v >= 90: return "#22d3ee" 
+            if v >= 80: return "#4ade80" 
+            if v >= 70: return "#facc15" 
+            return "#94a3b8" 
         except: return "#94a3b8"
 
     # --- 2. XỬ LÝ HTML CHO SKILLS ---
@@ -337,7 +338,6 @@ def show_player_modal(row):
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
 
     # --- 3. TẠO HTML CHO BẢNG CHỈ SỐ (STATS) ---
-    # Sử dụng vòng lặp Python để tạo HTML string, tránh lỗi thụt dòng
     stat_groups = {
         "Tấn công & Sút": ["Offensive Awareness", "Finishing", "Kicking Power", "Curl", "Set Piece Taking"],
         "Kiểm soát & Chuyền": ["Ball Control", "Dribbling", "Tight Possession", "Low Pass", "Lofted Pass"],
@@ -348,7 +348,6 @@ def show_player_modal(row):
     
     if pos not in ['GK']: del stat_groups["Thủ môn"]
 
-    # Logic tạo chuỗi HTML cho Stats
     stats_grid_html = ""
     for group_name, stats_list in stat_groups.items():
         rows_html = ""
@@ -356,41 +355,24 @@ def show_player_modal(row):
             val = row.get(key, '-')
             if val == '' or val is None: val = '-'
             color = get_stat_color(val)
-            # Tạo từng dòng chỉ số
-            rows_html += f"""
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; padding:2px 0; border-bottom:1px dashed rgba(255,255,255,0.05);">
-                <span style="font-size:0.75rem; color:#cbd5e1;">{key}</span>
-                <span style="font-size:0.9rem; font-weight:700; color:{color};">{val}</span>
-            </div>
-            """
-        # Đóng gói vào box nhóm
-        stats_grid_html += f"""
-        <div class="stat-group-box">
-            <div class="stat-group-title">{group_name}</div>
-            {rows_html}
-        </div>
-        """
+            # SỬA LỖI: Đẩy thẻ div sát lề trái, không thụt dòng
+            rows_html += f"""<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; padding:2px 0; border-bottom:1px dashed rgba(255,255,255,0.05);"><span style="font-size:0.75rem; color:#cbd5e1;">{key}</span><span style="font-size:0.9rem; font-weight:700; color:{color};">{val}</span></div>"""
+        
+        # SỬA LỖI: Đẩy thẻ div sát lề trái
+        stats_grid_html += f"""<div class="stat-group-box"><div class="stat-group-title">{group_name}</div>{rows_html}</div>"""
 
     # --- 4. HTML TỔNG HỢP ---
     reasons_html = ""
     if action and action != "N/A":
-        # Màu sắc cho Action
         act_bg = "rgba(34, 197, 94, 0.2)" if "GIỮ" in action else "rgba(239, 68, 68, 0.2)"
         act_bd = "#22c55e" if "GIỮ" in action else "#ef4444"
         act_tx = "#4ade80" if "GIỮ" in action else "#f87171"
         
-        reasons_html = f"""
-        <div style="margin: 0 20px 10px 20px; padding: 12px; background: {act_bg}; border: 1px solid {act_bd}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
-            <div style="font-weight: 800; font-size: 1.1rem; color: {act_tx}; white-space: nowrap;">{action}</div>
-            <div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;">
-                <div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>
-                {reasons}
-            </div>
-        </div>
-        """
+        # SỬA LỖI: Viết liền mạch hoặc dùng textwrap.dedent (ở đây chọn cách viết gọn)
+        reasons_html = f"""<div style="margin: 0 20px 10px 20px; padding: 12px; background: {act_bg}; border: 1px solid {act_bd}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;"><div style="font-weight: 800; font-size: 1.1rem; color: {act_tx}; white-space: nowrap;">{action}</div><div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;"><div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>{reasons}</div></div>"""
 
-    # --- 5. RENDER FINAL HTML ---
-    # Lưu ý: Các thẻ style và div chính phải viết sát lề hoặc dùng f-string cẩn thận
+    # --- 5. RENDER FINAL HTML (SỬA LỖI INDENTATION) ---
+    # Lưu ý: Các thẻ <style> và HTML chính phải bắt đầu ngay đầu dòng, không được có khoảng trắng phía trước
     full_html = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
@@ -417,64 +399,8 @@ def show_player_modal(row):
 .stat-group-box {{ background: rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.05); }}
 .stat-group-title {{ font-size: 0.8rem; font-weight: 700; color: {accent_color}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 4px; }}
 </style>
-
-<div class="profile-container">
-    <div class="pf-hero">
-        <div class="pf-img-wrapper"><img src="{real_img}" class="pf-img"></div>
-        <div class="pf-header-info">
-            <div class="pf-badges" style="margin-bottom:8px;">
-                <span class="pf-badge pf-rating">{rating}</span>
-                <span class="pf-badge">{pos}</span>
-                <span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span>
-            </div>
-            <div class="pf-name">{p_name}</div>
-            <div style="font-size: 0.9rem; color: #cbd5e1;">{club} <span style="margin:0 5px; color:#64748b">•</span> {nation}</div>
-        </div>
-    </div>
-    
-    {reasons_html}
-    
-    <div class="pf-grid">
-        <div>
-            <div class="pf-section-title">Thông số vật lý</div>
-            <div class="stat-grid" style="margin-bottom: 20px;">
-                <div class="stat-item"><div class="stat-label">Chiều cao</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div>
-                <div class="stat-item"><div class="stat-label">Cân nặng</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div>
-                <div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div>
-                <div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div>
-            </div>
-            
-            <div class="pf-section-title">Phong độ & Thể trạng</div>
-            <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
-                {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
-                {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
-                {render_stat_bar("Form / Condition", row.get('Form', '-'))}
-                {render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}
-            </div>
-        </div>
-        
-        <div>
-            <div class="pf-section-title">Phong cách thi đấu</div>
-            <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div>
-            
-            <div class="pf-section-title">Danh sách kỹ năng</div>
-            <div class="skill-container">{skills_html}</div>
-            
-            <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
-                <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
-                <div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
-                <div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="pf-section-title" style="margin: 20px 20px 0 20px; border-bottom:none;">Chi tiết chỉ số (In-game Stats)</div>
-    <div class="detailed-stats-container">
-        {stats_grid_html}
-    </div>
-</div>
+<div class="profile-container"><div class="pf-hero"><div class="pf-img-wrapper"><img src="{real_img}" class="pf-img"></div><div class="pf-header-info"><div class="pf-badges" style="margin-bottom:8px;"><span class="pf-badge pf-rating">{rating}</span><span class="pf-badge">{pos}</span><span class="pf-badge" style="color:{accent_color}; border-color:{accent_color}">{p_type}</span></div><div class="pf-name">{p_name}</div><div style="font-size: 0.9rem; color: #cbd5e1;">{club} <span style="margin:0 5px; color:#64748b">•</span> {nation}</div></div></div>{reasons_html}<div class="pf-grid"><div><div class="pf-section-title">Thông số vật lý</div><div class="stat-grid" style="margin-bottom: 20px;"><div class="stat-item"><div class="stat-label">Chiều cao</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div><div class="stat-item"><div class="stat-label">Cân nặng</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div><div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div><div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div></div><div class="pf-section-title">Phong độ & Thể trạng</div><div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">{render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}{render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}{render_stat_bar("Form / Condition", row.get('Form', '-'))}{render_stat_bar("Injury Resistance", row.get('Injury Resistance', '-'), max_score=3)}</div></div><div><div class="pf-section-title">Phong cách thi đấu</div><div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div><div class="pf-section-title">Danh sách kỹ năng</div><div class="skill-container">{skills_html}</div><div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};"><div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div><div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div><div style="font-size:0.8rem; color:#cbd5e1;">{row.get('Region','-')}</div></div></div></div><div class="pf-section-title" style="margin: 20px 20px 0 20px; border-bottom:none;">Chi tiết chỉ số (In-game Stats)</div><div class="detailed-stats-container">{stats_grid_html}</div></div>
 """
-    # QUAN TRỌNG: unsafe_allow_html=True để hiển thị giao diện thay vì mã text
     st.markdown(full_html, unsafe_allow_html=True)
 
     # Footer Actions
