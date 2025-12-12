@@ -1100,6 +1100,7 @@ FORMATIONS = {
     "4-3-3 (Holding)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "CF"],
     "4-3-3 (Attack)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "LWF", "RWF", "CF"],
     "4-3-3 (False 9)":      ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "LWF", "RWF", "SS"],
+    "4-3-1-2 (2 CF, 1 SS)": ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "CF", "CF"],
     "4-2-3-1 (Wide)":       ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "LMF", "RMF", "CF"],
     "4-2-3-1 (Control)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "AMF", "LWF", "RWF", "CF"],
     "4-2-3-1 (Flat)":       ["GK", "LB", "CB", "CB", "RB", "CMF", "CMF", "AMF", "LMF", "RMF", "CF"],
@@ -1109,7 +1110,6 @@ FORMATIONS = {
     "4-2-2-2 (Magic Box)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "DMF", "AMF", "AMF", "CF", "CF"],
     "4-3-1-2 (Diamond)":    ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "CF", "CF"],
     "4-1-2-3 (2 CF, 1 SS)": ["GK", "LB", "CB", "CB", "RB", "DMF", "AMF", "AMF", "SS", "CF", "CF"],
-    "4-3-1-2 (2 CF, 1 SS)": ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "SS", "CF", "CF"],
     "4-3-2-1 (Xmas Tree)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "CMF", "CMF", "AMF", "AMF", "CF"],
     "4-1-4-1 (Solid Mid)":  ["GK", "LB", "CB", "CB", "RB", "DMF", "LMF", "RMF", "CMF", "CMF", "CF"],
 
