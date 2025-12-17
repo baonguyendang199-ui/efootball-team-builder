@@ -12,4 +12,3 @@ undetected-chromedriver
 selenium
 scipy
 numpy
-math
