@@ -251,7 +251,7 @@ def render_calculator_tab():
     selected_booster = next((b for b in EFUtils.BOOSTERS if b['name'] == booster_name), None)
     booster_stats_list = selected_booster['stats'] if selected_booster else []
     
-    final_stats = EFUtils.calculate_build_stats(base_stats, allocation, booster_stats_list, manager_boost)
+    final_stats = OVRCalculator.calculate_build_stats(base_stats, allocation, booster_stats_list, manager_boost)
     precise_ovr = OVRCalculator.calculate_precise_rating(final_stats, position)
     rounded_ovr = int(precise_ovr)
     
