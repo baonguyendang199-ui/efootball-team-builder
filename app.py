@@ -26,11 +26,13 @@ st.set_page_config(
 )
 
 # ==========================================
-# BẮT ĐẦU: CODE MỚI THÊM VÀO (CALCULATOR)
+# BẮT ĐẦU: EFOOTBALL PRO CALCULATOR (FULL)
 # ==========================================
-class EFUtils:
+class EFConstants:
     POSITIONS = ['GK', 'CB', 'LB', 'RB', 'DMF', 'CMF', 'LMF', 'RMF', 'AMF', 'LWF', 'RWF', 'SS', 'CF']
-    DEFAULT_CONTROL_STATS = [
+    
+    # Mapping nhóm chỉ số (Progression)
+    PROG_STATS = [
         {'name': 'Shooting', 'affects': ['Finishing', 'Place Kicking', 'Curl']},
         {'name': 'Passing', 'affects': ['Low Pass', 'Lofted Pass']},
         {'name': 'Dribbling', 'affects': ['Ball Control', 'Dribbling', 'Tight Possession']},
@@ -42,6 +44,8 @@ class EFUtils:
         {'name': 'GK 2', 'affects': ['GK Parrying', 'GK Reach']},
         {'name': 'GK 3', 'affects': ['GK Catching', 'GK Reflexes']}
     ]
+
+    # Hệ số quan trọng (Coefficients)
     COEFFICIENTS = {
         'Height':              [186, 136, 49, 49, 61, 37, 12, 12, 37, 49, 49, 62, 99],
         'Offensive Awareness': [0, 14, 61, 61, 61, 98, 98, 98, 171, 159, 159, 173, 210],
@@ -72,6 +76,7 @@ class EFUtils:
         'Stamina':             [0, 68, 196, 196, 196, 196, 147, 147, 86, 49, 49, 49, 37],
         'Weak Foot Accuracy':  [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
     }
+    
     BOOSTERS = [
         {'name': 'None', 'stats': []},
         {'name': 'Accuracy', 'stats': ['Low Pass', 'Lofted Pass', 'Finishing', 'Kicking Power']},
@@ -93,188 +98,303 @@ class EFUtils:
     ]
 
     @staticmethod
-    def get_position_index(pos_name):
-        return EFUtils.POSITIONS.index(pos_name) if pos_name in EFUtils.POSITIONS else 12 
+    def get_pos_idx(pos):
+        return EFConstants.POSITIONS.index(pos) if pos in EFConstants.POSITIONS else 12
+
+class EFMath:
+    @staticmethod
+    def get_points_for_level(level, max_level):
+        # Logic tính tổng điểm có được khi đạt max level
+        # Đây là ước lượng dựa trên đường cong chuẩn của game
+        if max_level <= 1: return 0
+        total = 0
+        # Cứ mỗi level tăng thêm nhận 2 điểm (trung bình)
+        # Game thực tế: Lv 1->2 (2pts), ...
+        # Formula đơn giản hóa: (MaxLevel - 1) * 2
+        return (max_level - 1) * 2
 
     @staticmethod
-    def calculate_point_cost(level):
-        if level <= 0: return 0
-        if level <= 4: return 1
-        if level <= 8: return 2
-        if level <= 12: return 3
-        if level <= 16: return 4
-        if level <= 20: return 5
-        if level <= 24: return 6
-        return 7
+    def calc_cost(current_level):
+        # Chi phí để nâng cấp stat tiếp theo
+        # > 4: 1pt, >8: 2pts...
+        if current_level < 4: return 1
+        if current_level < 8: return 2
+        if current_level < 12: return 3
+        if current_level < 16: return 4
+        if current_level < 20: return 5
+        if current_level < 24: return 6
+        return 7 # Cap cost
 
-class OVRCalculator:
     @staticmethod
-    def calculate_precise_rating(stats_dict, position):
-        pos_idx = EFUtils.get_position_index(position)
+    def calculate_ovr(stats, pos_idx):
         k = 0
-        def get_stat(name, default=40):
-            return int(stats_dict.get(name, default))
-
-        k += (get_stat('Height', 175) - 25) * EFUtils.COEFFICIENTS['Height'][pos_idx]
-        k += (get_stat('Offensive Awareness') - 25) * EFUtils.COEFFICIENTS['Offensive Awareness'][pos_idx]
-        k += (get_stat('Ball Control') - 25) * EFUtils.COEFFICIENTS['Ball Control'][pos_idx]
-        k += (get_stat('Dribbling') - 25) * EFUtils.COEFFICIENTS['Dribbling'][pos_idx]
-        k += (get_stat('Tight Possession') - 25) * EFUtils.COEFFICIENTS['Tight Possession'][pos_idx]
-        k += (get_stat('Low Pass') - 25) * EFUtils.COEFFICIENTS['Low Pass'][pos_idx]
-        k += (get_stat('Lofted Pass') - 25) * EFUtils.COEFFICIENTS['Lofted Pass'][pos_idx]
-        k += (get_stat('Finishing') - 25) * EFUtils.COEFFICIENTS['Finishing'][pos_idx]
-        k += (get_stat('Heading') - 25) * EFUtils.COEFFICIENTS['Heading'][pos_idx]
-        k += (get_stat('Place Kicking') - 25) * EFUtils.COEFFICIENTS['Place Kicking'][pos_idx]
-        k += (get_stat('Curl') - 25) * EFUtils.COEFFICIENTS['Curl'][pos_idx]
-        k += (get_stat('Defensive Awareness') - 25) * EFUtils.COEFFICIENTS['Defensive Awareness'][pos_idx]
-        k += (get_stat('Defensive Engagement') - 25) * EFUtils.COEFFICIENTS['Defensive Engagement'][pos_idx]
-        k += (get_stat('Tackling') - 25) * EFUtils.COEFFICIENTS['Tackling'][pos_idx]
-        k += (get_stat('Aggression') - 25) * EFUtils.COEFFICIENTS['Aggression'][pos_idx]
-        k += (get_stat('Kicking Power') - 25) * EFUtils.COEFFICIENTS['Kicking Power'][pos_idx]
-        k += (get_stat('Speed') - 25) * EFUtils.COEFFICIENTS['Speed'][pos_idx]
-        k += (get_stat('Acceleration') - 25) * EFUtils.COEFFICIENTS['Acceleration'][pos_idx]
-        k += (get_stat('Balance') - 25) * EFUtils.COEFFICIENTS['Balance'][pos_idx]
-        k += (get_stat('Physical Contact') - 25) * EFUtils.COEFFICIENTS['Physical Contact'][pos_idx]
-        k += (get_stat('Jump') - 25) * EFUtils.COEFFICIENTS['Jump'][pos_idx]
-        k += (get_stat('Stamina') - 25) * EFUtils.COEFFICIENTS['Stamina'][pos_idx]
+        for key, val in stats.items():
+            if key in EFConstants.COEFFICIENTS:
+                coef = EFConstants.COEFFICIENTS[key][pos_idx]
+                if key == 'Weak Foot Accuracy':
+                    val_calc = math.floor(59 * val / 3 + 40)
+                    k += (val_calc - 25) * coef
+                else:
+                    k += (val - 25) * coef
         
-        k += (get_stat('Goalkeeping') - 25) * EFUtils.COEFFICIENTS['Goalkeeping'][pos_idx]
-        k += (get_stat('GK Catching') - 25) * EFUtils.COEFFICIENTS['GK Catching'][pos_idx]
-        k += (get_stat('GK Reach') - 25) * EFUtils.COEFFICIENTS['GK Reach'][pos_idx]
-        k += (get_stat('GK Reflexes') - 25) * EFUtils.COEFFICIENTS['GK Reflexes'][pos_idx]
-        k += (get_stat('GK Parrying') - 25) * EFUtils.COEFFICIENTS['GK Parrying'][pos_idx]
+        precise = math.floor(((k + 500) / 1000) * 100) / 100
+        return precise
 
-        wf_val = get_stat('Weak Foot Accuracy', 2)
-        wf_calc = math.floor(59 * wf_val / 3 + 40)
-        k += (wf_calc - 25) * EFUtils.COEFFICIENTS['Weak Foot Accuracy'][pos_idx]
-
-        precise_rating = math.floor(((k + 500) / 1000) * 100) / 100
-        return precise_rating
-
+class EFAutoBuild:
     @staticmethod
-    def calculate_build_stats(base_stats, allocation, booster_stats=None, manager_boost=0):
-        final_stats = {}
-        all_stats = list(EFUtils.COEFFICIENTS.keys())
+    def optimize(base_stats, position, available_points):
+        """Thuật toán Greedy để tự động phân phối điểm tối ưu OVR"""
+        pos_idx = EFConstants.get_pos_idx(position)
         
-        for stat in all_stats:
-            if stat == 'Height' or stat == 'Weak Foot Accuracy':
-                final_stats[stat] = base_stats.get(stat, 0)
-                continue
-
-            val = base_stats.get(stat, 40)
-            prog_add = 0
-            for alloc_key, level in allocation.items():
-                def_stat = next((x for x in EFUtils.DEFAULT_CONTROL_STATS if x['name'] == alloc_key), None)
-                if def_stat and level > 0:
-                    if stat in def_stat['affects']:
-                        prog_add += level 
+        # Sao chép allocation hiện tại (bắt đầu từ 0)
+        allocation = {stat['name']: 0 for stat in EFConstants.PROG_STATS}
+        current_stats = base_stats.copy()
+        remaining_points = available_points
+        
+        # Vòng lặp tối ưu
+        while remaining_points > 0:
+            best_stat_name = None
+            best_efficiency = -1
             
-            val_after_prog = min(val + prog_add, 99)
+            # Thử nâng cấp từng loại chỉ số
+            for group in EFConstants.PROG_STATS:
+                grp_name = group['name']
+                curr_lvl = allocation[grp_name]
+                
+                # Check giới hạn
+                if curr_lvl >= 99: continue # Không thể nâng quá 99
+                
+                # Tính chi phí
+                cost = EFMath.calc_cost(curr_lvl)
+                if cost > remaining_points: continue
+                if cost == 0: cost = 1 # Tránh chia cho 0 (dù logic cost >=1)
+                
+                # Tính OVR tăng thêm bao nhiêu?
+                # Thay vì tính lại toàn bộ OVR, ta tính tổng (Hệ số * 1) của các chỉ số con
+                gain = 0
+                for affected in group['affects']:
+                    # Chỉ số hiện tại của stat con
+                    curr_val = current_stats.get(affected, 40)
+                    if curr_val >= 99: continue # Đã max stat con
+                    
+                    coef = EFConstants.COEFFICIENTS.get(affected, [0]*13)[pos_idx]
+                    gain += coef # Tăng 1 đơn vị stat = tăng 'coef' điểm hệ số
+                
+                efficiency = gain / cost
+                
+                if efficiency > best_efficiency:
+                    best_efficiency = efficiency
+                    best_stat_name = grp_name
             
-            mgr_add = 0
-            if manager_boost > 0:
-                if val_after_prog >= 85: mgr_add = 3
-                elif val_after_prog >= 60: mgr_add = 2 
-                else: mgr_add = 1
-            
-            val_pre_external = val_after_prog + mgr_add
-            booster_add = 0
-            if booster_stats and stat in booster_stats:
-                booster_add = 2 
-            
-            final_stats[stat] = val_pre_external + booster_add
-            
-        return final_stats
+            # Nếu tìm được nước đi tốt nhất
+            if best_stat_name and best_efficiency > 0:
+                cost = EFMath.calc_cost(allocation[best_stat_name])
+                allocation[best_stat_name] += 1
+                remaining_points -= cost
+                
+                # Update temp stats
+                group = next(g for g in EFConstants.PROG_STATS if g['name'] == best_stat_name)
+                for affected in group['affects']:
+                    if affected in current_stats:
+                        current_stats[affected] = min(current_stats[affected] + 1, 99)
+            else:
+                break # Không còn gì để nâng hoặc không đủ điểm
+                
+        return allocation, remaining_points
 
 def render_calculator_tab():
-    st.header("🧮 Overall Rating Calculator (Precise)")
+    st.header("🧮 Efootball Pro Calculator (Full Features)")
     
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        position = st.selectbox("Vị trí (Position)", EFUtils.POSITIONS, index=12) 
-    with col2:
-        manager_boost = st.checkbox("Manager Boost (+88)", value=True)
-    with col3:
-        booster_name = st.selectbox("Booster", [b['name'] for b in EFUtils.BOOSTERS])
-    with col4:
-        height = st.number_input("Chiều cao (cm)", 150, 220, 180)
-        
+    # --- PHẦN 1: CONFIG & IMPORT ---
+    with st.container():
+        col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 1, 1])
+        with col_cfg1:
+            position = st.selectbox("Vị trí (Position)", EFConstants.POSITIONS, index=12) # Default CF
+        with col_cfg2:
+            max_level = st.number_input("Max Level", 1, 100, 30, help="Dùng để tính tổng điểm có được")
+        with col_cfg3:
+            total_points = EFMath.get_points_for_level(max_level, max_level) # Giả sử max luôn
+            st.metric("Tổng Points dự kiến", total_points)
+    
     st.divider()
-    
-    c_left, c_right = st.columns([1, 1.2])
-    base_stats = {'Height': height, 'Weak Foot Accuracy': 2}
-    allocation = {}
-    
-    with c_left:
-        st.subheader("1. Base Stats (Level 1)")
-        with st.expander("Nhập chỉ số gốc", expanded=True):
-            cols = st.columns(3)
-            input_keys = [
-                'Offensive Awareness', 'Ball Control', 'Dribbling', 'Tight Possession',
-                'Low Pass', 'Lofted Pass', 'Finishing', 'Heading', 'Place Kicking', 'Curl',
-                'Speed', 'Acceleration', 'Kicking Power', 'Jump', 'Physical Contact', 
-                'Balance', 'Stamina', 'Defensive Awareness', 'Tackling', 'Aggression', 
-                'Defensive Engagement', 'Goalkeeping', 'GK Catching', 'GK Parrying', 
-                'GK Reflexes', 'GK Reach'
-            ]
+
+    # --- PHẦN 2: BASE STATS (INPUT) ---
+    if "base_stats_store" not in st.session_state:
+        # Khởi tạo mặc định
+        def_stats = {}
+        keys = list(EFConstants.COEFFICIENTS.keys())
+        for k in keys: def_stats[k] = 40
+        def_stats['Height'] = 180
+        def_stats['Weak Foot Accuracy'] = 2
+        st.session_state.base_stats_store = def_stats
+
+    # Giao diện nhập
+    with st.expander("📝 1. Nhập Base Stats (Chỉ số Level 1)", expanded=True):
+        col_inp1, col_inp2 = st.columns([1, 3])
+        with col_inp1:
+            st.caption("Nhập nhanh hoặc dán JSON")
+            # Nút Import giả lập (vì không có trình duyệt thật để scrap ngay tại đây)
+            import_txt = st.text_area("Dán JSON stats (nếu có)", height=100)
+            if st.button("Load JSON"):
+                try:
+                    loaded = json.loads(import_txt)
+                    st.session_state.base_stats_store.update(loaded)
+                    st.toast("Loaded!", icon="✅")
+                    st.rerun()
+                except:
+                    st.error("JSON lỗi")
+        
+        with col_inp2:
+            # Grid nhập tay
+            inp_cols = st.columns(4)
+            keys = [k for k in EFConstants.COEFFICIENTS.keys() if k not in ['Height', 'Weak Foot Accuracy']]
             
-            for i, key in enumerate(input_keys):
-                default_val = 70
-                if "GK" in key or key == "Goalkeeping": default_val = 40
-                with cols[i % 3]:
-                    val = st.number_input(key, 40, 99, default_val, key=f"base_{key}")
-                    base_stats[key] = val
-                    
-    with c_right:
-        st.subheader("2. Progression Points")
-        used_points = 0
-        prog_cols = st.columns(2)
-        relevant_groups = EFUtils.DEFAULT_CONTROL_STATS
-        if position == "GK":
-            relevant_groups = [x for x in relevant_groups if "GK" in x['name'] or x['name'] in ['Aerial Strength', 'Lower Body Strength']]
-        else:
-            relevant_groups = [x for x in relevant_groups if "GK" not in x['name']]
+            # Render Inputs
+            st.session_state.base_stats_store['Height'] = inp_cols[0].number_input("Height", 150, 220, st.session_state.base_stats_store.get('Height', 180))
+            st.session_state.base_stats_store['Weak Foot Accuracy'] = inp_cols[1].number_input("Weak Foot", 1, 4, st.session_state.base_stats_store.get('Weak Foot Accuracy', 2))
             
-        for idx, group in enumerate(relevant_groups):
-            name = group['name']
-            c = prog_cols[idx % 2]
-            level = c.slider(f"{name}", 0, 20, 0, key=f"prog_{name}")
-            allocation[name] = level
-            cost = 0
-            for l in range(1, level + 1):
-                cost += EFUtils.calculate_point_cost(l)
-            used_points += cost
-        st.metric("Points Used", used_points)
+            for i, k in enumerate(keys):
+                c = inp_cols[(i+2) % 4]
+                val = st.session_state.base_stats_store.get(k, 40)
+                new_val = c.number_input(k, 40, 99, val, key=f"inp_{k}", label_visibility="visible")
+                st.session_state.base_stats_store[k] = new_val
 
     st.divider()
+
+    # --- PHẦN 3: PROGRESSION & AUTO BUILD ---
+    st.subheader("🚀 2. Progression & Auto Build")
     
-    selected_booster = next((b for b in EFUtils.BOOSTERS if b['name'] == booster_name), None)
-    booster_stats_list = selected_booster['stats'] if selected_booster else []
+    # State cho allocation
+    if "allocation" not in st.session_state:
+        st.session_state.allocation = {stat['name']: 0 for stat in EFConstants.PROG_STATS}
+
+    # Toolbar
+    tb_c1, tb_c2, tb_c3 = st.columns([1, 1, 2])
+    with tb_c1:
+        if st.button("🤖 Auto Allocate (Max OVR)", type="primary", use_container_width=True):
+            # Chạy thuật toán
+            alloc, left = EFAutoBuild.optimize(st.session_state.base_stats_store, position, total_points)
+            st.session_state.allocation = alloc
+            st.toast(f"Đã tối ưu! Dư {left} điểm.", icon="🤖")
+            st.rerun()
+    with tb_c2:
+        if st.button("🔄 Reset Points", use_container_width=True):
+            st.session_state.allocation = {stat['name']: 0 for stat in EFConstants.PROG_STATS}
+            st.rerun()
+
+    # Sliders cho Progression
+    c_prog_left, c_prog_right = st.columns(2)
     
-    final_stats = OVRCalculator.calculate_build_stats(base_stats, allocation, booster_stats_list, manager_boost)
-    precise_ovr = OVRCalculator.calculate_precise_rating(final_stats, position)
-    rounded_ovr = int(precise_ovr)
+    current_used_points = 0
     
-    st.subheader("📊 KẾT QUẢ")
-    res_c1, res_c2 = st.columns(2)
+    # Render Sliders
+    # Lọc stats GK/Non-GK
+    relevant_groups = EFConstants.PROG_STATS
+    if position == "GK":
+        relevant_groups = [x for x in relevant_groups if "GK" in x['name'] or x['name'] in ['Aerial Strength', 'Lower Body Strength']]
+    else:
+        relevant_groups = [x for x in relevant_groups if "GK" not in x['name']]
+
+    for i, group in enumerate(relevant_groups):
+        col = c_prog_left if i % 2 == 0 else c_prog_right
+        name = group['name']
+        current_val = st.session_state.allocation.get(name, 0)
+        
+        new_val = col.slider(f"{name}", 0, 20, current_val, key=f"slider_{name}")
+        st.session_state.allocation[name] = new_val
+        
+        # Tính point đã dùng
+        cost = 0
+        for l in range(1, new_val + 1):
+            cost += EFMath.calc_cost(l - 1) # Cost của level hiện tại
+        current_used_points += cost
+
+    # Hiển thị số dư
+    remaining = total_points - current_used_points
+    color = "green" if remaining >= 0 else "red"
+    st.markdown(f"**Points Left:** <span style='color:{color}; font-size:20px'>{remaining}</span> / {total_points}", unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- PHẦN 4: FINAL CALCULATION & DISPLAY ---
+    st.subheader("📊 Kết quả (Result)")
+    
+    # 4.1 Options
+    opt_c1, opt_c2 = st.columns(2)
+    with opt_c1:
+        booster_name = st.selectbox("Booster", [b['name'] for b in EFConstants.BOOSTERS])
+    with opt_c2:
+        manager_boost = st.checkbox("Manager Boost (+88 Proficiency)", value=True)
+
+    # 4.2 Calculate Stats
+    final_stats = {}
+    base = st.session_state.base_stats_store
+    alloc = st.session_state.allocation
+    
+    # Get Booster stats
+    booster_def = next((b for b in EFConstants.BOOSTERS if b['name'] == booster_name), None)
+    booster_affects = booster_def['stats'] if booster_def else []
+
+    for k in base.keys():
+        if k in ['Height', 'Weak Foot Accuracy']:
+            final_stats[k] = base[k]
+            continue
+            
+        val = base[k]
+        
+        # Add progression
+        prog_add = 0
+        for grp in EFConstants.PROG_STATS:
+            if k in grp['affects']:
+                # Hệ số cộng là 1:1, nhưng +2 ở các mốc nào đó? 
+                # Theo game hiện tại: +1 point progression = +1 stat value (đến 99)
+                # Tuy nhiên, slider level là số điểm cộng vào, không phải số point tiêu tốn
+                # Logic TS: stat += level
+                prog_add += alloc.get(grp['name'], 0)
+        
+        val_prog = min(val + prog_add, 99) # Cap 99 base
+        
+        # Manager
+        mgr_add = 0
+        if manager_boost:
+            if val_prog >= 85: mgr_add = 3 # Logic giản lược
+            elif val_prog >= 60: mgr_add = 2
+            else: mgr_add = 1
+        
+        # Booster
+        bst_add = 0
+        if k in booster_affects:
+            bst_add = 2 # Chuẩn booster +2
+            
+        final_stats[k] = val_prog + mgr_add + bst_add
+
+    # 4.3 Calculate OVR
+    precise_ovr = EFMath.calculate_ovr(final_stats, EFConstants.get_pos_idx(position))
+    
+    # Display Big Number
+    res_c1, res_c2, res_c3 = st.columns([1, 1, 2])
     with res_c1:
-        st.write("Precise Rating (Chính xác):")
-        st.markdown(f"<h1 style='color: #4ADE80'>{precise_ovr:.2f}</h1>", unsafe_allow_html=True)
+        st.caption("Precise Rating")
+        st.markdown(f"<h1 style='color:#4ADE80; margin:0'>{precise_ovr:.2f}</h1>", unsafe_allow_html=True)
     with res_c2:
-        st.write("In-Game Rating (Trong game):")
-        st.markdown(f"<h1 style='color: #FACC15'>{rounded_ovr}</h1>", unsafe_allow_html=True)
+        st.caption("In-Game Rating")
+        st.markdown(f"<h1 style='color:#FACC15; margin:0'>{int(precise_ovr)}</h1>", unsafe_allow_html=True)
+    with res_c3:
+        # Mini Chart or Detail
+        with st.expander("Xem chi tiết từng chỉ số (Final Stats)"):
+            st.dataframe(pd.DataFrame([final_stats]).T.rename(columns={0: 'Value'}), height=300)
 
 # ----------------------------------------------------
-# ĐIỀU HƯỚNG: TẠO MENU CHUYỂN TAB Ở ĐÂY
+# ĐIỀU HƯỚNG SIDEBAR
 # ----------------------------------------------------
 st.sidebar.divider()
 app_mode = st.sidebar.radio("📚 Chọn Chế Độ:", ["Team Builder", "Calculator 🧮"], index=0)
 
 if app_mode == "Calculator 🧮":
     render_calculator_tab()
-    st.stop() # Lệnh này DỪNG ứng dụng, không chạy phần code cũ bên dưới!
+    st.stop() 
 # ==========================================
-# KẾT THÚC: CODE MỚI THÊM VÀO
+# KẾT THÚC: EFOOTBALL PRO CALCULATOR (FULL)
 # ==========================================
 
 APP_THEME = {
