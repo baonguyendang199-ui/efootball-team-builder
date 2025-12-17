@@ -16,6 +16,7 @@ from google.oauth2.service_account import Credentials
 import gspread
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+import math
 
 st.set_page_config(
     page_title="Efootball Team Builder",
@@ -23,6 +24,258 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ==========================================
+# BẮT ĐẦU: CODE MỚI THÊM VÀO (CALCULATOR)
+# ==========================================
+class EFUtils:
+    POSITIONS = ['GK', 'CB', 'LB', 'RB', 'DMF', 'CMF', 'LMF', 'RMF', 'AMF', 'LWF', 'RWF', 'SS', 'CF']
+    DEFAULT_CONTROL_STATS = [
+        {'name': 'Shooting', 'affects': ['Finishing', 'Place Kicking', 'Curl']},
+        {'name': 'Passing', 'affects': ['Low Pass', 'Lofted Pass']},
+        {'name': 'Dribbling', 'affects': ['Ball Control', 'Dribbling', 'Tight Possession']},
+        {'name': 'Dexterity', 'affects': ['Offensive Awareness', 'Acceleration', 'Balance']},
+        {'name': 'Lower Body Strength', 'affects': ['Speed', 'Kicking Power', 'Stamina']},
+        {'name': 'Aerial Strength', 'affects': ['Heading', 'Jump', 'Physical Contact']},
+        {'name': 'Defending', 'affects': ['Defensive Awareness', 'Defensive Engagement', 'Tackling', 'Aggression']},
+        {'name': 'GK 1', 'affects': ['Goalkeeping', 'Jump']},
+        {'name': 'GK 2', 'affects': ['GK Parrying', 'GK Reach']},
+        {'name': 'GK 3', 'affects': ['GK Catching', 'GK Reflexes']}
+    ]
+    COEFFICIENTS = {
+        'Height':              [186, 136, 49, 49, 61, 37, 12, 12, 37, 49, 49, 62, 99],
+        'Offensive Awareness': [0, 14, 61, 61, 61, 98, 98, 98, 171, 159, 159, 173, 210],
+        'Ball Control':        [13, 27, 86, 86, 122, 171, 171, 171, 196, 159, 159, 210, 123],
+        'Dribbling':           [0, 14, 61, 61, 37, 98, 110, 122, 122, 159, 159, 123, 62],
+        'Tight Possession':    [0, 0, 37, 37, 24, 49, 73, 61, 73, 86, 86, 86, 37],
+        'Low Pass':            [27, 41, 61, 61, 122, 208, 135, 135, 196, 73, 73, 99, 37],
+        'Lofted Pass':         [40, 68, 147, 147, 122, 159, 196, 196, 159, 98, 98, 74, 12],
+        'Finishing':           [0, 27, 24, 24, 37, 73, 86, 86, 184, 159, 159, 284, 358],
+        'Place Kicking':       [0, 14, 24, 24, 12, 12, 24, 24, 12, 12, 12, 12, 12], 
+        'Curl':                [0, 14, 24, 24, 12, 12, 24, 24, 12, 12, 12, 12, 12],
+        'Heading':             [0, 55, 24, 24, 61, 24, 12, 12, 24, 24, 24, 25, 62],
+        'Defensive Awareness': [13, 286, 147, 147, 220, 86, 49, 49, 24, 12, 12, 0, 0],
+        'Defensive Engagement':[0, 14, 24, 24, 24, 24, 24, 24, 24, 24, 24, 12, 12],
+        'Tackling':            [0, 191, 86, 86, 122, 86, 24, 24, 24, 12, 12, 12, 12],
+        'Aggression':          [0, 82, 37, 37, 98, 37, 12, 12, 12, 12, 12, 12, 12],
+        'Kicking Power':       [53, 27, 24, 24, 49, 73, 24, 24, 73, 61, 61, 99, 123],
+        'Speed':               [13, 136, 220, 220, 61, 61, 196, 196, 98, 220, 220, 86, 99],
+        'Acceleration':        [40, 150, 184, 184, 61, 86, 159, 159, 86, 159, 159, 99, 123],
+        'Physical Contact':    [80, 204, 98, 98, 122, 49, 24, 24, 24, 37, 37, 37, 86],
+        'Balance':             [0, 0, 24, 24, 12, 24, 61, 61, 24, 73, 73, 74, 86],
+        'Jump':                [133, 109, 37, 37, 37, 12, 12, 12, 12, 24, 24, 37, 62],
+        'Goalkeeping':         [279, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'GK Catching':         [226, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'GK Reach':            [226, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'GK Reflexes':         [173, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'GK Parrying':         [173, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Stamina':             [0, 68, 196, 196, 196, 196, 147, 147, 86, 49, 49, 49, 37],
+        'Weak Foot Accuracy':  [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+    }
+    BOOSTERS = [
+        {'name': 'None', 'stats': []},
+        {'name': 'Accuracy', 'stats': ['Low Pass', 'Lofted Pass', 'Finishing', 'Kicking Power']},
+        {'name': 'Aerial', 'stats': ['Finishing', 'Heading', 'Jump', 'Physical Contact']},
+        {'name': 'Agility', 'stats': ['Speed', 'Acceleration', 'Balance', 'Stamina']},
+        {'name': 'Ball-carrying', 'stats': ['Dribbling', 'Tight Possession', 'Speed', 'Balance']},
+        {'name': 'Crossing', 'stats': ['Lofted Pass', 'Curl', 'Speed', 'Stamina']},
+        {'name': 'Defending', 'stats': ['Defensive Awareness', 'Tackling', 'Acceleration', 'Jump']},
+        {'name': 'Duel', 'stats': ['Defensive Awareness', 'Tackling', 'Speed', 'Stamina']},
+        {'name': 'Fantasista', 'stats': ['Ball Control', 'Dribbling', 'Finishing', 'Balance']},
+        {'name': 'Free-kick', 'stats': ['Finishing', 'Place Kicking', 'Curl', 'Kicking Power']},
+        {'name': 'Goalkeeping', 'stats': ['Goalkeeping', 'GK Catching', 'GK Parrying', 'GK Reflexes']},
+        {'name': 'Passing', 'stats': ['Low Pass', 'Lofted Pass', 'Curl', 'Kicking Power']},
+        {'name': 'Physicality', 'stats': ['Jump', 'Physical Contact', 'Balance', 'Stamina']},
+        {'name': 'Shooting', 'stats': ['Ball Control', 'Finishing', 'Kicking Power', 'Physical Contact']},
+        {'name': 'Speed', 'stats': ['Speed', 'Acceleration', 'Dribbling', 'Stamina']},
+        {'name': 'Strength', 'stats': ['Speed', 'Kicking Power', 'Jump', 'Physical Contact']},
+        {'name': 'Technique', 'stats': ['Ball Control', 'Dribbling', 'Tight Possession', 'Low Pass']}
+    ]
+
+    @staticmethod
+    def get_position_index(pos_name):
+        return EFUtils.POSITIONS.index(pos_name) if pos_name in EFUtils.POSITIONS else 12 
+
+    @staticmethod
+    def calculate_point_cost(level):
+        if level <= 0: return 0
+        if level <= 4: return 1
+        if level <= 8: return 2
+        if level <= 12: return 3
+        if level <= 16: return 4
+        if level <= 20: return 5
+        if level <= 24: return 6
+        return 7
+
+class OVRCalculator:
+    @staticmethod
+    def calculate_precise_rating(stats_dict, position):
+        pos_idx = EFUtils.get_position_index(position)
+        k = 0
+        def get_stat(name, default=40):
+            return int(stats_dict.get(name, default))
+
+        k += (get_stat('Height', 175) - 25) * EFUtils.COEFFICIENTS['Height'][pos_idx]
+        k += (get_stat('Offensive Awareness') - 25) * EFUtils.COEFFICIENTS['Offensive Awareness'][pos_idx]
+        k += (get_stat('Ball Control') - 25) * EFUtils.COEFFICIENTS['Ball Control'][pos_idx]
+        k += (get_stat('Dribbling') - 25) * EFUtils.COEFFICIENTS['Dribbling'][pos_idx]
+        k += (get_stat('Tight Possession') - 25) * EFUtils.COEFFICIENTS['Tight Possession'][pos_idx]
+        k += (get_stat('Low Pass') - 25) * EFUtils.COEFFICIENTS['Low Pass'][pos_idx]
+        k += (get_stat('Lofted Pass') - 25) * EFUtils.COEFFICIENTS['Lofted Pass'][pos_idx]
+        k += (get_stat('Finishing') - 25) * EFUtils.COEFFICIENTS['Finishing'][pos_idx]
+        k += (get_stat('Heading') - 25) * EFUtils.COEFFICIENTS['Heading'][pos_idx]
+        k += (get_stat('Place Kicking') - 25) * EFUtils.COEFFICIENTS['Place Kicking'][pos_idx]
+        k += (get_stat('Curl') - 25) * EFUtils.COEFFICIENTS['Curl'][pos_idx]
+        k += (get_stat('Defensive Awareness') - 25) * EFUtils.COEFFICIENTS['Defensive Awareness'][pos_idx]
+        k += (get_stat('Defensive Engagement') - 25) * EFUtils.COEFFICIENTS['Defensive Engagement'][pos_idx]
+        k += (get_stat('Tackling') - 25) * EFUtils.COEFFICIENTS['Tackling'][pos_idx]
+        k += (get_stat('Aggression') - 25) * EFUtils.COEFFICIENTS['Aggression'][pos_idx]
+        k += (get_stat('Kicking Power') - 25) * EFUtils.COEFFICIENTS['Kicking Power'][pos_idx]
+        k += (get_stat('Speed') - 25) * EFUtils.COEFFICIENTS['Speed'][pos_idx]
+        k += (get_stat('Acceleration') - 25) * EFUtils.COEFFICIENTS['Acceleration'][pos_idx]
+        k += (get_stat('Balance') - 25) * EFUtils.COEFFICIENTS['Balance'][pos_idx]
+        k += (get_stat('Physical Contact') - 25) * EFUtils.COEFFICIENTS['Physical Contact'][pos_idx]
+        k += (get_stat('Jump') - 25) * EFUtils.COEFFICIENTS['Jump'][pos_idx]
+        k += (get_stat('Stamina') - 25) * EFUtils.COEFFICIENTS['Stamina'][pos_idx]
+        
+        k += (get_stat('Goalkeeping') - 25) * EFUtils.COEFFICIENTS['Goalkeeping'][pos_idx]
+        k += (get_stat('GK Catching') - 25) * EFUtils.COEFFICIENTS['GK Catching'][pos_idx]
+        k += (get_stat('GK Reach') - 25) * EFUtils.COEFFICIENTS['GK Reach'][pos_idx]
+        k += (get_stat('GK Reflexes') - 25) * EFUtils.COEFFICIENTS['GK Reflexes'][pos_idx]
+        k += (get_stat('GK Parrying') - 25) * EFUtils.COEFFICIENTS['GK Parrying'][pos_idx]
+
+        wf_val = get_stat('Weak Foot Accuracy', 2)
+        wf_calc = math.floor(59 * wf_val / 3 + 40)
+        k += (wf_calc - 25) * EFUtils.COEFFICIENTS['Weak Foot Accuracy'][pos_idx]
+
+        precise_rating = math.floor(((k + 500) / 1000) * 100) / 100
+        return precise_rating
+
+    @staticmethod
+    def calculate_build_stats(base_stats, allocation, booster_stats=None, manager_boost=0):
+        final_stats = {}
+        all_stats = list(EFUtils.COEFFICIENTS.keys())
+        
+        for stat in all_stats:
+            if stat == 'Height' or stat == 'Weak Foot Accuracy':
+                final_stats[stat] = base_stats.get(stat, 0)
+                continue
+
+            val = base_stats.get(stat, 40)
+            prog_add = 0
+            for alloc_key, level in allocation.items():
+                def_stat = next((x for x in EFUtils.DEFAULT_CONTROL_STATS if x['name'] == alloc_key), None)
+                if def_stat and level > 0:
+                    if stat in def_stat['affects']:
+                        prog_add += level 
+            
+            val_after_prog = min(val + prog_add, 99)
+            
+            mgr_add = 0
+            if manager_boost > 0:
+                if val_after_prog >= 85: mgr_add = 3
+                elif val_after_prog >= 60: mgr_add = 2 
+                else: mgr_add = 1
+            
+            val_pre_external = val_after_prog + mgr_add
+            booster_add = 0
+            if booster_stats and stat in booster_stats:
+                booster_add = 2 
+            
+            final_stats[stat] = val_pre_external + booster_add
+            
+        return final_stats
+
+def render_calculator_tab():
+    st.header("🧮 Overall Rating Calculator (Precise)")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        position = st.selectbox("Vị trí (Position)", EFUtils.POSITIONS, index=12) 
+    with col2:
+        manager_boost = st.checkbox("Manager Boost (+88)", value=True)
+    with col3:
+        booster_name = st.selectbox("Booster", [b['name'] for b in EFUtils.BOOSTERS])
+    with col4:
+        height = st.number_input("Chiều cao (cm)", 150, 220, 180)
+        
+    st.divider()
+    
+    c_left, c_right = st.columns([1, 1.2])
+    base_stats = {'Height': height, 'Weak Foot Accuracy': 2}
+    allocation = {}
+    
+    with c_left:
+        st.subheader("1. Base Stats (Level 1)")
+        with st.expander("Nhập chỉ số gốc", expanded=True):
+            cols = st.columns(3)
+            input_keys = [
+                'Offensive Awareness', 'Ball Control', 'Dribbling', 'Tight Possession',
+                'Low Pass', 'Lofted Pass', 'Finishing', 'Heading', 'Place Kicking', 'Curl',
+                'Speed', 'Acceleration', 'Kicking Power', 'Jump', 'Physical Contact', 
+                'Balance', 'Stamina', 'Defensive Awareness', 'Tackling', 'Aggression', 
+                'Defensive Engagement', 'Goalkeeping', 'GK Catching', 'GK Parrying', 
+                'GK Reflexes', 'GK Reach'
+            ]
+            
+            for i, key in enumerate(input_keys):
+                default_val = 70
+                if "GK" in key or key == "Goalkeeping": default_val = 40
+                with cols[i % 3]:
+                    val = st.number_input(key, 40, 99, default_val, key=f"base_{key}")
+                    base_stats[key] = val
+                    
+    with c_right:
+        st.subheader("2. Progression Points")
+        used_points = 0
+        prog_cols = st.columns(2)
+        relevant_groups = EFUtils.DEFAULT_CONTROL_STATS
+        if position == "GK":
+            relevant_groups = [x for x in relevant_groups if "GK" in x['name'] or x['name'] in ['Aerial Strength', 'Lower Body Strength']]
+        else:
+            relevant_groups = [x for x in relevant_groups if "GK" not in x['name']]
+            
+        for idx, group in enumerate(relevant_groups):
+            name = group['name']
+            c = prog_cols[idx % 2]
+            level = c.slider(f"{name}", 0, 20, 0, key=f"prog_{name}")
+            allocation[name] = level
+            cost = 0
+            for l in range(1, level + 1):
+                cost += EFUtils.calculate_point_cost(l)
+            used_points += cost
+        st.metric("Points Used", used_points)
+
+    st.divider()
+    
+    selected_booster = next((b for b in EFUtils.BOOSTERS if b['name'] == booster_name), None)
+    booster_stats_list = selected_booster['stats'] if selected_booster else []
+    
+    final_stats = EFUtils.calculate_build_stats(base_stats, allocation, booster_stats_list, manager_boost)
+    precise_ovr = OVRCalculator.calculate_precise_rating(final_stats, position)
+    rounded_ovr = int(precise_ovr)
+    
+    st.subheader("📊 KẾT QUẢ")
+    res_c1, res_c2 = st.columns(2)
+    with res_c1:
+        st.write("Precise Rating (Chính xác):")
+        st.markdown(f"<h1 style='color: #4ADE80'>{precise_ovr:.2f}</h1>", unsafe_allow_html=True)
+    with res_c2:
+        st.write("In-Game Rating (Trong game):")
+        st.markdown(f"<h1 style='color: #FACC15'>{rounded_ovr}</h1>", unsafe_allow_html=True)
+
+# ----------------------------------------------------
+# ĐIỀU HƯỚNG: TẠO MENU CHUYỂN TAB Ở ĐÂY
+# ----------------------------------------------------
+st.sidebar.divider()
+app_mode = st.sidebar.radio("📚 Chọn Chế Độ:", ["Team Builder", "Calculator 🧮"], index=0)
+
+if app_mode == "Calculator 🧮":
+    render_calculator_tab()
+    st.stop() # Lệnh này DỪNG ứng dụng, không chạy phần code cũ bên dưới!
+# ==========================================
+# KẾT THÚC: CODE MỚI THÊM VÀO
+# ==========================================
 
 APP_THEME = {
     "primary": "#7C3AED",
