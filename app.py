@@ -2995,13 +2995,14 @@ def main():
                         pass
                     return 0, ""
 
-                # Chạy kiểm tra
+                # Chạy kiểm tra cho 3 nhóm mục tiêu
                 for gb in ['Club', 'Nation', 'League']:
                     s, msg = check_potential_impact(p, gb)
                     if s > 0:
                         score += s
                         impact_reasons.append(msg)
                 
+                # Bonus nếu là CLB bảo vệ (Barca)
                 if p['Club'] == "FC Barcelona":
                     score += 500
                     impact_reasons.append("💎 Cầu thủ FC Barcelona (Ưu tiên tuyệt đối)")
@@ -3013,6 +3014,7 @@ def main():
                     "Data": p
                 })
 
+            # Sắp xếp kết quả theo điểm số
             results = sorted(results, key=lambda x: x['Total Score'], reverse=True)
 
             st.divider()
@@ -3024,7 +3026,10 @@ def main():
                     c1, c2 = st.columns([1, 5])
                     with c1:
                         st.markdown(f"<h1 style='text-align:center; color:{color}; margin:0'>#{i+1}</h1>", unsafe_allow_html=True)
-                        st.caption(f"<div style='text-align:center'>Score: {res['Total Score']}</div>" if res['Total Score'] > 0 else "<div style='text-align:center'>Thấp</div>", unsafe_allow_html=True)
+                        if res['Total Score'] == 0:
+                            st.caption("<div style='text-align:center'>Thấp</div>", unsafe_allow_html=True)
+                        else:
+                            st.caption(f"<div style='text-align:center'>Score: {res['Total Score']}</div>", unsafe_allow_html=True)
                     
                     with c2:
                         p_res = res['Data']
@@ -3036,10 +3041,9 @@ def main():
                                 st.markdown(f"<small>✅ {r}</small>", unsafe_allow_html=True)
                         else:
                             st.markdown("<small style='color:#94A3B8'>⚠️ Không lọt vào Top 23 của bất kỳ team mục tiêu nào.</small>", unsafe_allow_html=True)
-
-    # Đoạn này là phần chân trang, luôn để ở ngoài các Tab nhưng bên trong hàm main()
-    st.divider()
-    st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
+    
+            st.divider()
+            st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
         
             # === DEBUG MODE ===
             st.divider()
