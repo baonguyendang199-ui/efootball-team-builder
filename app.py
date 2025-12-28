@@ -3048,7 +3048,7 @@ def main():
 
     # Footer - Luôn ở lề ngoài cùng của hàm main()
     st.divider()
-    st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
+        st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
         
             # === DEBUG MODE ===
             st.divider()
