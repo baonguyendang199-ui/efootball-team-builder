@@ -3046,7 +3046,7 @@ def main():
                                  st.markdown("<small style='color:#94A3B8'>⚠️ Không lọt vào Top 23 của bất kỳ team mục tiêu nào.</small>", unsafe_allow_html=True)
     
             st.divider()
-            st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
+                st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
         
             # === DEBUG MODE ===
             st.divider()
