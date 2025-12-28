@@ -2926,7 +2926,7 @@ def main():
             else:
                 st.session_state.current_tab = "inventory"
 
-elif current_tab == "scout":
+        elif current_tab == "scout":
         st.header("🎯 So sánh & Tuyển trạch (Scouting Priority)")
         st.caption("Nhập thông tin các cầu thủ bạn đang cân nhắc để hệ thống phân tích mức độ ưu tiên dựa trên Database hiện có.")
 
@@ -2941,9 +2941,15 @@ elif current_tab == "scout":
                     name = st.text_input(f"Tên", key=f"sc_name_{i}", placeholder="Ví dụ: Rodri")
                     rat = st.number_input(f"Rating Max", 70, 110, 95, key=f"sc_rat_{i}")
                     pos = st.selectbox(f"Vị trí", list(POSITIONS.keys()), index=12, key=f"sc_pos_{i}")
-                    club = st.selectbox(f"CLB", [""] + sorted(df['Club'].unique().tolist()), key=f"sc_club_{i}")
-                    nation = st.selectbox(f"Quốc gia", [""] + sorted(df['Nation'].unique().tolist()), key=f"sc_nation_{i}")
-                    league = st.selectbox(f"Giải đấu", [""] + sorted(df['League'].unique().tolist()), key=f"sc_league_{i}")
+                    
+                    # Lấy danh sách gợi ý từ DB hiện tại
+                    c_list = [""] + sorted(df['Club'].unique().tolist()) if 'Club' in df.columns else [""]
+                    n_list = [""] + sorted(df['Nation'].unique().tolist()) if 'Nation' in df.columns else [""]
+                    l_list = [""] + sorted(df['League'].unique().tolist()) if 'League' in df.columns else [""]
+                    
+                    club = st.selectbox(f"CLB", c_list, key=f"sc_club_{i}")
+                    nation = st.selectbox(f"Quốc gia", n_list, key=f"sc_nation_{i}")
+                    league = st.selectbox(f"Giải đấu", l_list, key=f"sc_league_{i}")
                     p_type = st.selectbox(f"Loại thẻ", ["NON-EPIC", "EPIC", "POTW"], key=f"sc_type_{i}")
                     
                     if name:
@@ -2963,29 +2969,30 @@ elif current_tab == "scout":
                 impact_reasons = []
                 
                 # Hàm kiểm tra rank giả định
-                def check_potential_impact(p_data, group_by):
-                    val = p_data.get(group_by)
-                    if not val: return 0, ""
+                def check_potential_impact(p_data, group_by_col):
+                    val = p_data.get(group_by_col)
+                    if not val or val == "": return 0, ""
                     
                     # Lấy danh sách hiện tại của group đó
-                    group_df = df[df[group_by] == val].copy()
+                    group_df = df[df[group_by_col] == val].copy()
                     
                     # Giả định thêm cầu thủ mới vào group
                     new_row = pd.DataFrame([p_data])
                     combined = pd.concat([group_df, new_row], ignore_index=True)
                     
-                    # Sắp xếp theo logic Top 23
+                    # Sắp xếp theo logic Top 23 (giống build_top23_map)
                     combined = combined.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                     combined = combined.reset_index(drop=True)
                     
                     # Tìm vị trí của cầu thủ mới
                     try:
+                        # Tìm index dựa trên tên cầu thủ vừa nhập
                         rank = combined[combined['Player'] == p_data['Player']].index[0] + 1
                         if rank <= 23:
-                            # Tính điểm ưu tiên: Rank càng nhỏ điểm càng cao. Hạng 1 của CLB quan trọng hơn hạng 1 của League.
-                            weight = {"Club": 100, "Nation": 50, "League": 30}.get(group_by, 10)
+                            # Tính điểm ưu tiên
+                            weight = {"Club": 100, "Nation": 50, "League": 30}.get(group_by_col, 10)
                             p_score = (24 - rank) * weight
-                            return p_score, f"Lọt Top 23 {group_by} ({val}) - Hạng {rank}/23"
+                            return p_score, f"Lọt Top 23 {group_by_col} ({val}) - Hạng {rank}/23"
                     except:
                         pass
                     return 0, ""
@@ -3014,33 +3021,29 @@ elif current_tab == "scout":
 
             # Hiển thị kết quả
             st.divider()
-            st.subheader("📊 Kết quả phân tích")
+            st.subheader("📊 Kết quả phân tích mức độ ưu tiên")
             
             for i, res in enumerate(results):
-                color = "gold" if i == 0 else "white"
+                color = "#FACC15" if i == 0 else "#E2E8F0" # Gold cho hạng nhất
                 with st.container(border=True):
-                    c1, c2 = st.columns([1, 4])
+                    c1, c2 = st.columns([1, 5])
                     with c1:
-                        st.markdown(f"<h1 style='text-align:center; color:{color}'>#{i+1}</h1>", unsafe_allow_html=True)
+                        st.markdown(f"<h1 style='text-align:center; color:{color}; margin:0'>#{i+1}</h1>", unsafe_allow_html=True)
                         if res['Total Score'] == 0:
-                            st.caption("Mức độ ưu tiên: Thấp")
+                            st.caption("<div style='text-align:center'>Thấp</div>", unsafe_allow_html=True)
                         else:
-                            st.caption(f"Priority Score: {res['Total Score']}")
+                            st.caption(f"<div style='text-align:center'>Score: {res['Total Score']}</div>", unsafe_allow_html=True)
                     
                     with c2:
-                        p = res['Data']
-                        st.markdown(f"### {p['Player']} ({p['Rating']})")
-                        st.write(f"**Vị trí:** {p['Position']} | **CLB:** {p['Club']} | **Quốc gia:** {p['Nation']}")
+                        p_res = res['Data']
+                        st.markdown(f"**{p_res['Player']}** — <span style='color:#4ADE80'>{p_res['Rating']}</span>", unsafe_allow_html=True)
+                        st.caption(f"{p_res['Position']} | {p_res['Club']} | {p_res['Nation']} | {p_res['Player Type']}")
                         
                         if res['Reasons']:
                             for r in res['Reasons']:
-                                st.write(f"✅ {r}")
+                                st.markdown(f"<small>✅ {r}</small>", unsafe_allow_html=True)
                         else:
-                            st.write("⚠️ Cầu thủ này không lọt vào Top 23 của đội hình mục tiêu nào. Chỉ nên lấy nếu bạn thực sự thích.")
-
-    # Thêm đoạn này vào phần xử lý menu ở đầu main()
-    if main_menu == "🎯 So sánh & Tuyển trạch":
-        st.session_state.current_tab = "scout"
+                            st.markdown("<small style='color:#94A3B8'>⚠️ Không lọt vào Top 23 của bất kỳ team mục tiêu nào.</small>", unsafe_allow_html=True)
     
             st.divider()
             st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
