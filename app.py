@@ -1658,26 +1658,25 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
     pool_df = pool_df.reset_index(drop=True)
 
-# --- LOGIC MỚI CHO UNITED NATIONS (ĐÃ SỬA LỖI MẤT SIÊU SAO) ---
+# --- LOGIC MỚI CHO UNITED NATIONS (DÒNG 844) ---
     if sort_mode == 'united_nations':
-        # 1. Sắp xếp toàn bộ cầu thủ theo Rating và Độ ưu tiên thẻ (Epic)
+        # BƯỚC 1: Sắp xếp toàn bộ theo Rating
         pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
         
-        # 2. Lấy cầu thủ GIỎI NHẤT của mỗi quốc gia làm đại diện duy nhất.
-        # Rashford 103 (England) chắc chắn sẽ thắng mọi cầu thủ England khác để lấy slot đại diện.
-        pool_df_unique = pool_df.drop_duplicates(subset=['Nation'], keep='first').copy()
+        # BƯỚC 2: Lấy đại diện XUẤT SẮC NHẤT mỗi quốc gia
+        # ✅ FIX: Giữ nguyên pool_df gốc, chỉ tạo pool phụ cho Starters
+        pool_df_nations = pool_df.drop_duplicates(subset=['Nation'], keep='first').copy()
         
-        # 3. Đảm bảo Pool có ít nhất một vài Thủ môn (GK).
-        # Vì bước 2 có thể bốc toàn Tiền đạo của các nước, ta cần bốc thêm GK từ các nước khác
-        # để thuật toán xếp đội hình có người cho vị trí GK.
-        if 'GK' not in pool_df_unique['Position'].values:
-            current_nations = pool_df_unique['Nation'].unique()
-            # Tìm các GK giỏi nhất từ những quốc gia CHƯA có đại diện ở bước 2
-            extra_gks = pool_df[(pool_df['Position'] == 'GK') & (~pool_df['Nation'].isin(current_nations))]
+        # BƯỚC 3: Đảm bảo có GK
+        if 'GK' not in pool_df_nations['Position'].values:
+            current_nations = pool_df_nations['Nation'].unique()
+            extra_gks = pool_df[(pool_df['Position'] == 'GK') & 
+                               (~pool_df['Nation'].isin(current_nations))]
             extra_gks = extra_gks.sort_values('Rating', ascending=False).head(3)
-            pool_df = pd.concat([pool_df_unique, extra_gks]).reset_index(drop=True)
-        else:
-            pool_df = pool_df_unique.reset_index(drop=True)
+            pool_df_nations = pd.concat([pool_df_nations, extra_gks]).reset_index(drop=True)
+        
+        # ✅ FIX: GHI ĐÈ pool_df để Hungarian Algorithm sử dụng
+        pool_df = pool_df_nations.reset_index(drop=True)
 
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
