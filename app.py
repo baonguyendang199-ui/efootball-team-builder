@@ -2926,7 +2926,7 @@ def main():
             else:
                 st.session_state.current_tab = "inventory"
 
-        elif current_tab == "scout":
+elif current_tab == "scout":
         st.header("🎯 So sánh & Tuyển trạch (Scouting Priority)")
         st.caption("Nhập thông tin các cầu thủ bạn đang cân nhắc để hệ thống phân tích mức độ ưu tiên dựa trên Database hiện có.")
 
