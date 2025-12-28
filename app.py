@@ -2980,16 +2980,14 @@ def main():
                     new_row = pd.DataFrame([p_data])
                     combined = pd.concat([group_df, new_row], ignore_index=True)
                     
-                    # Sắp xếp theo logic Top 23 (giống build_top23_map)
+                    # Sắp xếp theo logic Top 23
                     combined = combined.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                     combined = combined.reset_index(drop=True)
                     
                     # Tìm vị trí của cầu thủ mới
                     try:
-                        # Tìm index dựa trên tên cầu thủ vừa nhập
                         rank = combined[combined['Player'] == p_data['Player']].index[0] + 1
                         if rank <= 23:
-                            # Tính điểm ưu tiên
                             weight = {"Club": 100, "Nation": 50, "League": 30}.get(group_by_col, 10)
                             p_score = (24 - rank) * weight
                             return p_score, f"Lọt Top 23 {group_by_col} ({val}) - Hạng {rank}/23"
@@ -2997,14 +2995,13 @@ def main():
                         pass
                     return 0, ""
 
-                # Chạy kiểm tra cho 3 nhóm mục tiêu
+                # Chạy kiểm tra
                 for gb in ['Club', 'Nation', 'League']:
                     s, msg = check_potential_impact(p, gb)
                     if s > 0:
                         score += s
                         impact_reasons.append(msg)
                 
-                # Bonus nếu là CLB bảo vệ (Barca)
                 if p['Club'] == "FC Barcelona":
                     score += 500
                     impact_reasons.append("💎 Cầu thủ FC Barcelona (Ưu tiên tuyệt đối)")
@@ -3016,23 +3013,18 @@ def main():
                     "Data": p
                 })
 
-            # Sắp xếp kết quả theo điểm số
             results = sorted(results, key=lambda x: x['Total Score'], reverse=True)
 
-            # Hiển thị kết quả
             st.divider()
             st.subheader("📊 Kết quả phân tích mức độ ưu tiên")
             
             for i, res in enumerate(results):
-                color = "#FACC15" if i == 0 else "#E2E8F0" # Gold cho hạng nhất
+                color = "#FACC15" if i == 0 else "#E2E8F0"
                 with st.container(border=True):
                     c1, c2 = st.columns([1, 5])
                     with c1:
                         st.markdown(f"<h1 style='text-align:center; color:{color}; margin:0'>#{i+1}</h1>", unsafe_allow_html=True)
-                        if res['Total Score'] == 0:
-                            st.caption("<div style='text-align:center'>Thấp</div>", unsafe_allow_html=True)
-                        else:
-                            st.caption(f"<div style='text-align:center'>Score: {res['Total Score']}</div>", unsafe_allow_html=True)
+                        st.caption(f"<div style='text-align:center'>Score: {res['Total Score']}</div>" if res['Total Score'] > 0 else "<div style='text-align:center'>Thấp</div>", unsafe_allow_html=True)
                     
                     with c2:
                         p_res = res['Data']
@@ -3044,9 +3036,10 @@ def main():
                                 st.markdown(f"<small>✅ {r}</small>", unsafe_allow_html=True)
                         else:
                             st.markdown("<small style='color:#94A3B8'>⚠️ Không lọt vào Top 23 của bất kỳ team mục tiêu nào.</small>", unsafe_allow_html=True)
-    
-            st.divider()
-            st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
+
+    # Đoạn này là phần chân trang, luôn để ở ngoài các Tab nhưng bên trong hàm main()
+    st.divider()
+    st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
         
             # === DEBUG MODE ===
             st.divider()
