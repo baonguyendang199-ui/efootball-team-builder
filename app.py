@@ -2176,7 +2176,7 @@ target_nations = [
     "Uruguay", "Japan"
         ]
         
-target_leagues = ["Spanish League", "English League", "Italian League", "Bundesliga", "Ligue 1 McDonald's"]
+target_leagues = ["Spanish League", "English League", "Italian League", "Bundesliga", "Ligue 1 McDonald's", "MEIJI YASUDA J1 LEAGUE"]
 
 
 # ===== TỰ ĐỘNG CẬP NHẬT TARGET LISTS DỰA TRÊN PLAYER COUNT =====
