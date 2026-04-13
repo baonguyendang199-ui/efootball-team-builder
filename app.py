@@ -209,12 +209,12 @@ def render_calculator_tab():
     with st.container():
         col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 1, 1])
         with col_cfg1:
-            position = st.selectbox("Vị trí (Position)", EFConstants.POSITIONS, index=12) # Default CF
+            position = st.selectbox("Position", EFConstants.POSITIONS, index=12) # Default CF
         with col_cfg2:
-            max_level = st.number_input("Max Level", 1, 100, 30, help="Dùng để tính tổng điểm có được")
+            max_level = st.number_input("Max Level", 1, 100, 30, help="Used to estimate total points")
         with col_cfg3:
             total_points = EFMath.get_points_for_level(max_level, max_level) # Giả sử max luôn
-            st.metric("Tổng Points dự kiến", total_points)
+            st.metric("Estimated Total Points", total_points)
     
     st.divider()
 
@@ -229,12 +229,12 @@ def render_calculator_tab():
         st.session_state.base_stats_store = def_stats
 
     # Giao diện nhập
-    with st.expander("📝 1. Nhập Base Stats (Chỉ số Level 1)", expanded=True):
+    with st.expander("📝 1. Enter Base Stats (Level 1)", expanded=True):
         col_inp1, col_inp2 = st.columns([1, 3])
         with col_inp1:
-            st.caption("Nhập nhanh hoặc dán JSON")
+            st.caption("Quick paste JSON")
             # Nút Import giả lập (vì không có trình duyệt thật để scrap ngay tại đây)
-            import_txt = st.text_area("Dán JSON stats (nếu có)", height=100)
+            import_txt = st.text_area("Paste JSON stats (optional)", height=100)
             if st.button("Load JSON"):
                 try:
                     loaded = json.loads(import_txt)
@@ -242,7 +242,7 @@ def render_calculator_tab():
                     st.toast("Loaded!", icon="✅")
                     st.rerun()
                 except:
-                    st.error("JSON lỗi")
+                    st.error("Invalid JSON")
         
         with col_inp2:
             # Grid nhập tay
@@ -275,7 +275,7 @@ def render_calculator_tab():
             # Chạy thuật toán
             alloc, left = EFAutoBuild.optimize(st.session_state.base_stats_store, position, total_points)
             st.session_state.allocation = alloc
-            st.toast(f"Đã tối ưu! Dư {left} điểm.", icon="🤖")
+            st.toast(f"Optimized! {left} points remaining.", icon="🤖")
             st.rerun()
     with tb_c2:
         if st.button("🔄 Reset Points", use_container_width=True):
@@ -317,7 +317,7 @@ def render_calculator_tab():
     st.divider()
 
     # --- PHẦN 4: FINAL CALCULATION & DISPLAY ---
-    st.subheader("📊 Kết quả (Result)")
+    st.subheader("📊 Results")
     
     # 4.1 Options
     opt_c1, opt_c2 = st.columns(2)
@@ -381,14 +381,14 @@ def render_calculator_tab():
         st.markdown(f"<h1 style='color:#FACC15; margin:0'>{int(precise_ovr)}</h1>", unsafe_allow_html=True)
     with res_c3:
         # Mini Chart or Detail
-        with st.expander("Xem chi tiết từng chỉ số (Final Stats)"):
+        with st.expander("View detailed stats (Final Stats)"):
             st.dataframe(pd.DataFrame([final_stats]).T.rename(columns={0: 'Value'}), height=300)
 
 # ----------------------------------------------------
 # ĐIỀU HƯỚNG SIDEBAR
 # ----------------------------------------------------
 st.sidebar.divider()
-app_mode = st.sidebar.radio("📚 Chọn Chế Độ:", ["Team Builder", "Calculator 🧮"], index=0)
+app_mode = st.sidebar.radio("📚 Choose Mode:", ["Team Builder", "Calculator 🧮"], index=0)
 
 if app_mode == "Calculator 🧮":
     render_calculator_tab()
@@ -601,10 +601,10 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
     
     # --- LOGIC ACTION BADGE ---
     top_badge_html = ""
-    if "BÁN" in action:
-        top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">BÁN</div>'
-    elif "GIỮ" in action:
-        top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">GIỮ</div>'
+    if "SELL" in action:
+        top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">SELL</div>'
+    elif "KEEP" in action:
+        top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">KEEP</div>'
     
     # --- LOGIC METRIC TAG (QUAN TRỌNG: VIẾT TRÊN 1 DÒNG) ---
     metric_val = ""
@@ -624,7 +624,7 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
             elif highlight_metric == 'Weight':
                 metric_val = f"{player_data.get('Weight', '-')} kg"
             elif highlight_metric == 'Age':
-                metric_val = f"{player_data.get('Age', '-')} tuổi"
+                metric_val = f"{player_data.get('Age', '-')} yrs"
         except:
             pass
             
@@ -639,7 +639,7 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
     
     return html
 
-@st.dialog("Hồ sơ cầu thủ", width="large")
+@st.dialog("Player Profile", width="large")
 def show_player_modal(row):
     """
     Giao diện Scouting Profile - Phiên bản Fix lỗi hiển thị Code Text.
@@ -655,7 +655,7 @@ def show_player_modal(row):
     nation = row.get('Nation', 'Unknown Nation')
     
     action = str(row.get('Action', 'N/A')).upper()
-    reasons = str(row.get('Reasons', 'Chưa có phân tích'))
+    reasons = str(row.get('Reasons', 'No analysis yet'))
     
     img_url = row.get('Player URL', '') 
     pid = str(row.get('Player ID', '')).strip()
@@ -699,17 +699,17 @@ def show_player_modal(row):
     skills_html = ""
     for s in base_skills: skills_html += f'<span class="pf-skill">{s}</span>'
     for s in added_skills: skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
-    if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">Chưa có kỹ năng</span>'
+    if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">No skills yet</span>'
 
     # --- 3. REASONS BLOCK ---
-    action_bg = "rgba(34, 197, 94, 0.2)" if "GIỮ" in action else "rgba(239, 68, 68, 0.2)"
-    action_border = "#22c55e" if "GIỮ" in action else "#ef4444"
-    action_text = "#4ade80" if "GIỮ" in action else "#f87171"
+    action_bg = "rgba(34, 197, 94, 0.2)" if "KEEP" in action else "rgba(239, 68, 68, 0.2)"
+    action_border = "#22c55e" if "KEEP" in action else "#ef4444"
+    action_text = "#4ade80" if "KEEP" in action else "#f87171"
 
     reasons_html = ""
     if action != "N/A" and action != "":
         # HTML viết sát lề trái
-        reasons_html = f"""<div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;"><div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div><div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;"><div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">PHÂN TÍCH CHIẾN LƯỢC</div>{reasons}</div></div>"""
+        reasons_html = f"""<div style="margin: 0 20px 10px 20px; padding: 12px; background: {action_bg}; border: 1px solid {action_border}; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;"><div style="font-weight: 800; font-size: 1.1rem; color: {action_text}; white-space: nowrap;">{action}</div><div style="font-size: 0.9rem; color: #e2e8f0; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px; line-height: 1.4;"><div style="font-weight:600; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">STRATEGY ANALYSIS</div>{reasons}</div></div>"""
 
     # --- 4. HTML TỔNG (QUAN TRỌNG: VIẾT SÁT LỀ TRÁI, KHÔNG THỤT ĐẦU DÒNG) ---
     html_content = f"""
@@ -751,14 +751,14 @@ def show_player_modal(row):
 {reasons_html}
 <div class="pf-grid">
 <div>
-<div class="pf-section-title">Thông số vật lý</div>
+<div class="pf-section-title">Physical Stats</div>
 <div class="stat-grid" style="margin-bottom: 20px;">
-<div class="stat-item"><div class="stat-label">Chiều cao</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div>
-<div class="stat-item"><div class="stat-label">Cân nặng</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div>
-<div class="stat-item"><div class="stat-label">Tuổi</div><div class="stat-val">{row.get('Age','-')}</div></div>
-<div class="stat-item"><div class="stat-label">Chân thuận</div><div class="stat-val">{row.get('Foot','-')}</div></div>
+<div class="stat-item"><div class="stat-label">Height</div><div class="stat-val">{row.get('Height','-')} <small style="font-size:0.7em; color:#64748b">cm</small></div></div>
+<div class="stat-item"><div class="stat-label">Weight</div><div class="stat-val">{row.get('Weight','-')} <small style="font-size:0.7em; color:#64748b">kg</small></div></div>
+<div class="stat-item"><div class="stat-label">Age</div><div class="stat-val">{row.get('Age','-')}</div></div>
+<div class="stat-item"><div class="stat-label">Preferred Foot</div><div class="stat-val">{row.get('Foot','-')}</div></div>
 </div>
-<div class="pf-section-title">Kỹ thuật & Phong độ</div>
+<div class="pf-section-title">Technique & Form</div>
 <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
 {render_stat_bar("Weak Foot Usage", row.get('Weak Foot Usage', '-'))}
 {render_stat_bar("Weak Foot Accuracy", row.get('Weak Foot Accuracy', '-'))}
@@ -767,9 +767,9 @@ def show_player_modal(row):
 </div>
 </div>
 <div>
-<div class="pf-section-title">Phong cách thi đấu</div>
+<div class="pf-section-title">Playing Style</div>
 <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div>
-<div class="pf-section-title">Danh sách kỹ năng</div>
+<div class="pf-section-title">Skill List</div>
 <div class="skill-container">{skills_html}</div>
 <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
 <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
@@ -807,7 +807,7 @@ def render_app_hero(df: pd.DataFrame):
     top_positions = []
     if 'Position' in df.columns and not df.empty:
         top_positions = df['Position'].dropna().astype(str).value_counts().head(2).index.tolist()
-    top_positions_text = " & ".join(top_positions) if top_positions else "Đa dạng vị trí"
+    top_positions_text = " & ".join(top_positions) if top_positions else "Multiple Positions"
     last_sync = datetime.now().strftime("%d/%m/%Y • %H:%M")
     
     st.markdown(
@@ -815,11 +815,11 @@ def render_app_hero(df: pd.DataFrame):
         <div class="hero-card">
             <div class="hero-copy">
                 <div class="hero-eyebrow">UI Refresh • {last_sync}</div>
-                <h1>Control Center cho Efootball Team Builder</h1>
+                <h1>Control Center for Efootball Team Builder</h1>
                 <p class="hero-desc">
-                    Thiết kế mới áp dụng nguyên tắc user-centric, visual hierarchy, 
-                    khả năng tiếp cận WCAG và hỗ trợ AI cho quy trình build squad, 
-                    giúp trải nghiệm nhanh hơn, nhất quán trên mọi thiết bị.
+                    The redesigned interface applies user-centric principles, visual hierarchy, 
+                    WCAG accessibility, and AI support for the squad build workflow, 
+                    helping the experience stay faster and consistent across devices.
                 </p>
                 <div class="hero-tags">
                     <span class="pill">Responsive Grid</span>
@@ -830,14 +830,14 @@ def render_app_hero(df: pd.DataFrame):
             </div>
             <div class="hero-stats">
                 <div class="stat-card">
-                    <span>Tổng cầu thủ</span>
+                    <span>Total Players</span>
                     <strong>{total_players}</strong>
                     <small>{unique_clubs} clubs • {unique_leagues} leagues</small>
                 </div>
                 <div class="stat-card">
-                    <span>Rating trung bình</span>
+                    <span>Average Rating</span>
                     <strong>{avg_rating_display}</strong>
-                    <small>Top vị trí: {top_positions_text}</small>
+                    <small>Top positions: {top_positions_text}</small>
                 </div>
                 <div class="stat-card">
                     <span>EPIC share</span>
@@ -899,7 +899,7 @@ def apply_plotly_theme(fig):
 # --- GOOGLE SHEETS CONNECTION ---
 @st.cache_resource
 def get_gsheet_connection():
-    """Kết nối tới Google Sheets"""
+    """Connect to Google Sheets"""
     scope = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
@@ -914,7 +914,7 @@ def get_gsheet_connection():
     return client
 
 def load_data_from_gsheet():
-    """Đọc dữ liệu từ Google Sheets"""
+    """Read data from Google Sheets"""
     try:
         client = get_gsheet_connection()
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
@@ -966,15 +966,15 @@ def load_data_from_gsheet():
         
         return df
     except Exception as e:
-        st.error(f"❌ Lỗi khi đọc dữ liệu: {e}")
+        st.error(f"❌ Error reading data: {e}")
         return pd.DataFrame()
 
 def save_data_to_gsheet(df):
-    """Lưu dữ liệu lên Google Sheets"""
+    """Write data to Google Sheets"""
     try:
         # Check if dataframe is empty
         if df.empty:
-            st.error("⚠️ Không thể lưu: DataFrame trống!")
+            st.error("⚠️ Cannot save: DataFrame is empty!")
             return False
             
         client = get_gsheet_connection()
@@ -992,7 +992,7 @@ def save_data_to_gsheet(df):
         
         # Check again after cleaning
         if df_save.empty:
-            st.error("⚠️ Không thể lưu: DataFrame trống sau khi xử lý!")
+            st.error("⚠️ Cannot save: DataFrame is empty after processing!")
             return False
         
         # Clear and update
@@ -1000,7 +1000,7 @@ def save_data_to_gsheet(df):
         sheet.update([df_save.columns.values.tolist()] + df_save.values.tolist())
         return True
     except Exception as e:
-        st.error(f"❌ Lỗi khi lưu dữ liệu: {e}")
+        st.error(f"❌ Error saving data: {e}")
         # Don't clear sheet if there's an error!
         return False
 
@@ -1196,7 +1196,7 @@ def get_player_rank(df, row, group_by, max_size=23):
         sort_keys.append('Top23_Count')
         sort_asc.append(False) # False = Giảm dần
     
-    # Sắp xếp theo các tiêu chí đã định
+    # Sort theo các tiêu chí đã định
     group_df = group_df.sort_values(sort_keys, ascending=sort_asc).head(max_size)
     
     # Tìm vị trí của cầu thủ theo index gốc
@@ -1225,11 +1225,11 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
             continue
             
         if group_by in ['Nation', 'League']:
-            # Loại trùng tên, giữ thẻ tốt nhất
+            # Type trùng tên, giữ thẻ tốt nhất
             gdf = gdf.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
             gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
             
-        # Sắp xếp cơ bản: Rating, Epic_Priority
+        # Sort cơ bản: Rating, Epic_Priority
         # **Lưu ý: Không dùng Top23_Count ở đây để tránh vòng lặp phụ thuộc**
         gdf = gdf.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(max_size)
         top_indices.update(gdf.index.tolist())
@@ -1252,7 +1252,7 @@ def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     df['Top23_Count'] = 0
     
     # 3. CHỈ cộng điểm nếu:
-    #    a) Cầu thủ nằm trong Top 23 của team đó (raw indices)
+    #    a) Player nằm trong Top 23 của team đó (raw indices)
     #    b) Team đó nằm trong danh sách TARGET (Target list)
     
     # --- Xử lý Club ---
@@ -1276,7 +1276,7 @@ def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
 # --- SKILL INVENTORY MANAGEMENT (Google Sheets) ---
 @st.cache_data(ttl=10)
 def get_inventory_from_gsheet():
-    """Đọc skill inventory từ Google Sheets"""
+    """Read skill inventory from Google Sheets"""
     try:
         client = get_gsheet_connection()
         spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
@@ -1310,11 +1310,11 @@ def get_inventory_from_gsheet():
         return inventory
         
     except Exception as e:
-        st.error(f"❌ Lỗi đọc inventory từ Google Sheets: {e}")
+        st.error(f"❌ Error reading inventory from Google Sheets: {e}")
         return {}
 
 def save_skill_inventory_to_gsheet(inventory):
-    """Lưu skill inventory lên Google Sheets"""
+    """Save skill inventory to Google Sheets"""
     try:
         client = get_gsheet_connection()
         spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
@@ -1341,7 +1341,7 @@ def save_skill_inventory_to_gsheet(inventory):
         return True
         
     except Exception as e:
-        st.error(f"❌ Lỗi lưu inventory: {e}")
+        st.error(f"❌ Error saving inventory: {e}")
         return False
 
 # --- GK INVENTORY SYSTEM ---
@@ -1353,7 +1353,7 @@ GK_SKILLS_PRIORITY_LIST = [
 
 @st.cache_data(ttl=10)
 def get_gk_inventory_from_gsheet():
-    """Đọc kho skill GK riêng biệt"""
+    """Read GK skill inventory separately"""
     try:
         client = get_gsheet_connection()
         spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
@@ -1380,11 +1380,11 @@ def get_gk_inventory_from_gsheet():
             
         return inventory
     except Exception as e:
-        st.error(f"❌ Lỗi GK Inventory: {e}")
+        st.error(f"❌ GK Inventory error: {e}")
         return {}
 
 def save_gk_inventory_to_gsheet(inventory):
-    """Lưu kho GK"""
+    """Save GK inventory"""
     try:
         client = get_gsheet_connection()
         spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
@@ -1402,7 +1402,7 @@ def save_gk_inventory_to_gsheet(inventory):
         st.cache_data.clear()
         return True
     except Exception as e:
-        st.error(f"❌ Lỗi lưu GK Inventory: {e}")
+        st.error(f"❌ Error saving GK inventory: {e}")
         return False
 
 def update_inventory_count(skill_name, delta, is_gk=False):
@@ -1422,7 +1422,7 @@ def update_inventory_count(skill_name, delta, is_gk=False):
         else:
             return save_skill_inventory_to_gsheet(inventory)
     except Exception as e:
-        st.error(f"⚠️ Lỗi cập nhật: {e}")
+        st.error(f"⚠️ Update error: {e}")
         return False
 
 def get_inventory():
@@ -1649,18 +1649,18 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     else: pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper().str.strip()
 
     # 2. LỌC DỮ LIỆU
-    if filter_col and filter_val and filter_val != "(Tất cả)":
+    if filter_col and filter_val and filter_val != "(All)":
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
-    # Sắp xếp sơ bộ
+    # Sort sơ bộ
     pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
     pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
     pool_df = pool_df.reset_index(drop=True)
 
 # --- LOGIC MỚI CHO UNITED NATIONS (DÒNG 844) ---
     if sort_mode == 'united_nations':
-        # BƯỚC 1: Sắp xếp toàn bộ theo Rating
+        # BƯỚC 1: Sort toàn bộ theo Rating
         pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
         
         # BƯỚC 2: Lấy đại diện XUẤT SẮC NHẤT mỗi quốc gia
@@ -1895,7 +1895,7 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     best_formation_name = ""
 
     # Hằng số phạt cho mỗi vị trí thiếu (Đủ lớn để tách biệt các trường hợp)
-    # Ví dụ: Thiếu 1 người bị trừ 1 tỷ điểm. Thiếu 2 người bị trừ 2 tỷ điểm.
+    # Ví dụ: Thiếu 1 người bị trừ 1 tỷ points remaining. Thiếu 2 người bị trừ 2 tỷ points remaining.
     MISSING_PENALTY = 1_000_000_000 
 
     # Quét qua toàn bộ sơ đồ
@@ -2018,7 +2018,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         metric_label = ""
         if highlight_type == 'Height': val_display = f"{p.get('Height', '-')} cm"
         elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '-')} kg"
-        elif highlight_type == 'Age': val_display = f"{p.get('Age', '-')} tuổi"
+        elif highlight_type == 'Age': val_display = f"{p.get('Age', '-')} yrs"
         elif highlight_type == 'BMI':
             try:
                 h = float(re.sub(r'[^\d.]', '', str(p.get('Height', '0')))) / 100.0
@@ -2147,7 +2147,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
                 <div class="lines"><div class="center-circle"></div><div class="half-line"></div><div class="box-top"></div><div class="box-bot"></div></div>
                 {html_starters}
             </div>
-            <div class="bench"><div class="bench-title">Dự bị ({len(subs)})</div><div class="bench-grid">{html_subs}</div></div>
+            <div class="bench"><div class="bench-title">Substitutes ({len(subs)})</div><div class="bench-grid">{html_subs}</div></div>
         </div>
     </body>
     </html>
@@ -2271,7 +2271,7 @@ def auto_update_target_lists(df):
                 target_leagues.append(league_str)
                 updated = True
     
-    # Sắp xếp lại các list để dễ đọc
+    # Sort lại các list để dễ đọc
     if updated:
         target_nations.sort()
         target_clubs.sort()
@@ -2476,7 +2476,7 @@ def extract_max_level_rating(player_url: str, card_type: str = None, base_html: 
     """Lấy Overall Rating với logic tùy loại thẻ.
     
     POTW/Trending: dùng level gốc + 4 (không cần max level).
-    Loại khác: thử Max Level trước, fallback về level gốc, cuối cùng trả 0.
+    Type khác: thử Max Level trước, fallback về level gốc, cuối cùng trả 0.
     """
     def extract_rating_from_html(html: str) -> int:
         """Helper function để trích xuất rating từ HTML"""
@@ -2547,8 +2547,8 @@ def extract_max_level_rating(player_url: str, card_type: str = None, base_html: 
 def extract_secondary_positions(soup, main_position):
     """
     Trích xuất vị trí phụ từ sơ đồ sân bóng (div class='pitch').
-    CHỈ LẤY POS2 (Vị trí sở trường - Đỏ đậm).
-    Loại bỏ vị trí chính khỏi danh sách.
+    CHỈ LẤY POS2 (Position sở trường - Đỏ đậm).
+    Type bỏ vị trí chính khỏi danh sách.
     """
     # 1. Nếu là GK -> Không cần lấy vị trí phụ
     if str(main_position).strip().upper() == 'GK':
@@ -2709,7 +2709,7 @@ def extract_full_player_info(player_url: str) -> dict:
         return info
         
     except Exception as e:
-        st.error(f"❌ Lỗi khi trích xuất thông tin: {e}")
+        st.error(f"❌ Error extracting information: {e}")
         return default_info
 
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
@@ -2749,7 +2749,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         needs_extraction = df[has_url & (missing_sec_pos | missing_skills | missing_height)]
         
         if needs_extraction.empty:
-            st.success("✅ Dữ liệu đã đầy đủ! Không cần quét thêm.")
+            st.success("✅ Data is complete! No further scanning required.")
             st.session_state.run_pesdb_sync = False # Tắt cờ chạy
             return df
 
@@ -2768,19 +2768,19 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     current_ptr = state['current_idx_ptr']
     total = state['total']
     
-    # Hiển thị Progress Bar & Status
+    # Display progress bar & status
     progress = min(1.0, current_ptr / total)
-    st.progress(progress, text=f"🚀 Đang cập nhật: {current_ptr}/{total} cầu thủ")
+    st.progress(progress, text=f"🚀 Updating: {current_ptr}/{total} players")
     
     # --- NÚT DỪNG CẬP NHẬT ---
     # Vì dùng st.rerun(), nút này sẽ luôn phản hồi được ngay lập tức
-    if st.button("🛑 Dừng cập nhật ngay (Lưu kết quả hiện tại)", type="primary"):
+    if st.button("🛑 Stop update now (Save current progress)", type="primary"):
         # Lưu những gì đã làm được
         if state['updated_count'] > 0:
             save_data_to_gsheet(state['df_snapshot'])
-            st.toast(f"⚠️ Đã dừng! Đã lưu {state['updated_count']} cầu thủ.", icon="💾")
+            st.toast(f"⚠️ Stopped! Saved {state['updated_count']} cầu thủ.", icon="💾")
         else:
-            st.toast("⚠️ Đã dừng! Chưa có dữ liệu mới nào.", icon="🛑")
+            st.toast("⚠️ Stopped! No new data processed.", icon="🛑")
             
         final_df = state['df_snapshot']
         del st.session_state.sync_state # Xóa trạng thái
@@ -2795,7 +2795,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         player_name = str(row.get('Player', 'Unknown'))
         
         # Status Box nhỏ
-        st.info(f"📡 Đang tải dữ liệu cho: **{player_name}**...")
+        st.info(f"📡 Loading data for: **{player_name}**...")
 
         try:
             # Gọi hàm crawl dữ liệu
@@ -2826,7 +2826,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         
     else:
         # 4. HOÀN TẤT
-        st.success(f"✅ Đã hoàn tất cập nhật {total} cầu thủ!")
+        st.success(f"✅ Finished updating {total} cầu thủ!")
         save_data_to_gsheet(state['df_snapshot'])
         
         final_df = state['df_snapshot']
@@ -2841,10 +2841,10 @@ def main():
     inject_modern_ui_theme()
 
     with st.sidebar:
-        st.header("⚙️ Điều khiển")
+        st.header("⚙️ Controls")
     
         # 1. Nút tải lại dữ liệu (Giữ nguyên)
-        if st.button("🔄 Tải lại dữ liệu", use_container_width=True):
+        if st.button("🔄 Reload data", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
@@ -2853,11 +2853,11 @@ def main():
         st.divider()
 
         # 2. NÚT ĐỒNG BỘ MỚI (CÓ THANH TIẾN TRÌNH & TẢI BACKUP)
-        st.markdown("### 📡 Cập nhật dữ liệu")
-        st.caption("Quét PESDB để lấy Vị trí phụ & Skill")
+        st.markdown("### 📡 Data Update")
+        st.caption("Scan PESDB to fetch Secondary Positions & Skills")
         
         # Nút kích hoạt
-        if st.button("🔁 Quét & Cập nhật PESDB", use_container_width=True, type="primary"):
+        if st.button("🔁 Scan & Update PESDB", use_container_width=True, type="primary"):
             st.session_state.run_pesdb_sync = True
             st.rerun()
             
@@ -2876,7 +2876,7 @@ def main():
                 
                 st.markdown("---")
                 st.download_button(
-                    label="📥 Tải Backup (Excel/CSV)",
+                    label="📥 Download Backup (Excel/CSV)",
                     data=csv,
                     file_name=f"efootball_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
@@ -2884,7 +2884,7 @@ def main():
                 )
                 
                 # Nút thoát chế độ sync thủ công nếu muốn
-                if st.button("Trở về màn hình chính"):
+                if st.button("Return to main screen"):
                      st.session_state.run_pesdb_sync = False
                      st.rerun()
             # -----------------------------------------------------------
@@ -2893,67 +2893,71 @@ def main():
     
         # 3. Menu điều hướng (Giữ nguyên)
         main_menu = st.radio(
-            "📑 Điều hướng",
-            ["📊 Tổng quan", "👥 Quản lý cầu thủ", "🎮 Quản lý Skills"], # Đã xóa "Phân tích"
+            "📑 Navigation",
+            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills"], # Đã xóa "Phân tích"
             index=0
         )
     
         # Điều hướng chi tiết
-        if main_menu == "📊 Tổng quan":
+        if main_menu == "📊 Overview":
             st.session_state.current_tab = "overview"
     
-        elif main_menu == "👥 Quản lý cầu thủ":
+        elif main_menu == "👥 Manage Players":
             sub_menu = st.radio(
-                "⚽ Cầu thủ",
-                ["Danh sách", "Đội hình", "Thêm cầu thủ"],
+                "⚽ Player",
+                ["Player List", "Squad", "Add Player"],
                 index=0
             )
-            if sub_menu == "Danh sách":
+            if sub_menu == "Player List":
                 st.session_state.current_tab = "players"
-            elif sub_menu == "Đội hình":
+            elif sub_menu == "Squad":
                 st.session_state.current_tab = "squad"
-            else:
+            elif sub_menu == "Add Player":
                 st.session_state.current_tab = "add"
+            else:
+                st.session_state.current_tab = "players"
     
-        elif main_menu == "🎮 Quản lý Skills":
+        elif main_menu == "🎮 Manage Skills":
             sub_menu = st.radio(
                 "🛠️ Skills",
-                ["Quản lý", "Kho Skills"],
+                ["Manage", "Skill Inventory"],
                 index=0
             )
-            if sub_menu == "Quản lý":
+            if sub_menu == "Manage":
                 st.session_state.current_tab = "skills"
-            else:
+            elif sub_menu == "Skill Inventory":
                 st.session_state.current_tab = "inventory"
-    
-            st.divider()
-            st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
+            else:
+                st.session_state.current_tab = "skills"
         
-            # === DEBUG MODE ===
-            st.divider()
-            if st.checkbox("🐛 Debug Mode"):
-                st.caption("**Inventory State:**")
-                inv = get_inventory()
-                st.json(inv if inv else {"status": "empty"})
-                
-                st.caption("**Session State:**")
-                st.write({
-                    'current_tab': st.session_state.current_tab,
-                    'checkbox_reset_counter': st.session_state.get('checkbox_reset_counter', 0)
-                })
+        st.divider()
+        st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
 
-    with st.spinner("⏳ Đang tải dữ liệu từ Google Sheets..."):
+        # === DEBUG MODE ===
+        st.divider()
+        if st.checkbox("🐛 Debug Mode"):
+            st.caption("**Inventory State:**")
+            inv = get_inventory()
+            st.json(inv if inv else {"status": "empty"})
+
+            st.caption("**Session State:**")
+            st.write({
+                'current_tab': st.session_state.current_tab,
+                'checkbox_reset_counter': st.session_state.get('checkbox_reset_counter', 0)
+            })
+
+    with st.spinner("⏳ Loading data from Google Sheets..."):
         df = load_data_from_gsheet()
     
     # Nếu không có dữ liệu thì dừng sớm để tránh KeyError ở các bước sau
     if df.empty:
-        st.error("⚠️ Không tìm thấy dữ liệu cầu thủ trong Google Sheets. Vui lòng kiểm tra `spreadsheet_id` hoặc sheet.")
+        st.error("⚠️ Player data not found in Google Sheets. Please check `spreadsheet_id` or sheet.")
         return
 
     # Tự động cập nhật target lists dựa trên player count
     auto_update_target_lists(df)
 
-    # --- HÀM ĐỒNG BỘ PESDB CHO CẦU THỦ CŨ (THỦ CÔNG) ---
+    # --- HÀM ĐỒNG BỘ PESDB CHO PLAYER CŨ (THỦ CÔNG) ---
 
     # Nếu user ấn nút đồng bộ PESDB ở sidebar thì chạy ở đây
     if st.session_state.get('run_pesdb_sync', False):
@@ -2985,7 +2989,7 @@ def main():
                 sort_keys.append('Top23_Count')
                 sort_asc.append(False) # False = Giảm dần, ưu tiên số count cao hơn (thuộc nhiều Top 23 target hơn)
                 
-            # Sắp xếp theo các tiêu chí đã định
+            # Sort theo các tiêu chí đã định
             gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
             size = len(gdf)
             for rank, idx in enumerate(gdf.index.tolist(), start=1):
@@ -3002,7 +3006,7 @@ def main():
         return mapping.get((str(value), idx), None)
         
         if df.empty:
-            st.error("Không có dữ liệu cầu thủ!")
+            st.error("No player data available!")
             return
 
     current_tab = st.session_state.current_tab
@@ -3128,7 +3132,7 @@ def main():
         # 🧮 2. XỬ LÝ DỮ LIỆU
         # =========================================================================
         if df.empty:
-            st.error("Chưa có dữ liệu.")
+            st.error("No data available.")
             return
 
         # 1. Chuyển đổi số liệu
@@ -3190,16 +3194,16 @@ def main():
         # --- ROW 1: DATA OVERVIEW ---
         st.markdown("""
         <div class="section-header">
-            <span>📦 TỔNG QUAN DATABASE</span>
+            <span>📦 DATABASE OVERVIEW</span>
             <span class="header-pill">REAL-TIME</span>
         </div>
         """, unsafe_allow_html=True)
         
         r1c1, r1c2, r1c3, r1c4 = st.columns(4)
         stat_card(r1c1, "Tổng Cầu Thủ", f"{total_players:,}", "Total Players", "👥", "grad-blue")
-        stat_card(r1c2, "Câu Lạc Bộ", f"{total_clubs}", "Unique Clubs", "🛡️", "grad-blue")
-        stat_card(r1c3, "Quốc Gia", f"{total_nations}", "Nations", "🌍", "grad-blue")
-        stat_card(r1c4, "Giải Đấu", f"{total_leagues}", "Leagues", "🏆", "grad-blue")
+        stat_card(r1c2, "Club", f"{total_clubs}", "Unique Clubs", "🛡️", "grad-blue")
+        stat_card(r1c3, "Nation", f"{total_nations}", "Nations", "🌍", "grad-blue")
+        stat_card(r1c4, "League", f"{total_leagues}", "Leagues", "🏆", "grad-blue")
 
         # --- ROW 2: META STATS ---
         st.markdown("""
@@ -3212,23 +3216,23 @@ def main():
         r2c1, r2c2, r2c3, r2c4 = st.columns(4)
         stat_card(r2c1, "Unwavering", f"{unwavering_cnt}", "Phong độ ổn định", "📈", "grad-green")
         stat_card(r2c2, "2 Chân Như 1", f"{ambi_cnt}", "Ambidextrous", "🦶", "grad-gold")
-        stat_card(r2c3, "Thẻ EPIC", f"{epic_cnt}", "Huyền thoại", "✨", "grad-gold")
-        stat_card(r2c4, "Thẻ POTW", f"{potw_cnt}", "Trending / POTW", "⚡", "grad-purple")
+        stat_card(r2c3, "Epic cards", f"{epic_cnt}", "Huyền thoại", "✨", "grad-gold")
+        stat_card(r2c4, "POTW cards", f"{potw_cnt}", "Trending / POTW", "⚡", "grad-purple")
 
         # --- ROW 3: PHYSICAL AVERAGES ---
         st.markdown("""
         <div class="section-header">
-            <span>🧬 TRUNG BÌNH THỂ CHẤT</span>
+            <span>🧬 PHYSICAL AVERAGES</span>
             <span class="header-pill">AVERAGES</span>
         </div>
         """, unsafe_allow_html=True)
         
         r3c1, r3c2, r3c3, r3c4, r3c5 = st.columns(5)
-        stat_card(r3c1, "Rating TB", f"{avg_rating:.1f}", "OVR", "⭐", "grad-red")
-        stat_card(r3c2, "Tuổi TB", f"{avg_age:.1f}", "Years Old", "🎂", "grad-blue")
-        stat_card(r3c3, "Chiều Cao TB", f"{avg_height:.1f}", "cm", "📏", "grad-blue")
-        stat_card(r3c4, "Cân Nặng TB", f"{avg_weight:.1f}", "kg", "⚖️", "grad-blue")
-        stat_card(r3c5, "BMI TB", f"{avg_bmi:.1f}", "Body Index", "💪", "grad-blue")
+        stat_card(r3c1, "Avg Rating", f"{avg_rating:.1f}", "OVR", "⭐", "grad-red")
+        stat_card(r3c2, "Avg Age", f"{avg_age:.1f}", "Years Old", "🎂", "grad-blue")
+        stat_card(r3c3, "Avg Height", f"{avg_height:.1f}", "cm", "📏", "grad-blue")
+        stat_card(r3c4, "Avg Weight", f"{avg_weight:.1f}", "kg", "⚖️", "grad-blue")
+        stat_card(r3c5, "Avg BMI", f"{avg_bmi:.1f}", "Body Index", "💪", "grad-blue")
 
         # --- ROW 4: TOP 10 LEADERBOARDS (WITH CHARTS) ---
         st.markdown("""
@@ -3274,10 +3278,10 @@ def main():
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
         # 1. Top 10 Clubs
-        render_chart_top10(l_c1, 'Club', '🏛️ Câu Lạc Bộ (Clubs)', '#3b82f6') # Blue
+        render_chart_top10(l_c1, 'Club', '🏛️ Clubs', '#3b82f6') # Blue
 
         # 2. Top 10 Nations
-        render_chart_top10(l_c2, 'Nation', '🌍 Quốc Gia (Nations)', '#ef4444') # Red
+        render_chart_top10(l_c2, 'Nation', '🌍 Nation (Nations)', '#ef4444') # Red
 
         # 3. Top 10 Leagues
         df_league_clean = df[df['League'].astype(str).str.strip() != '']
@@ -3297,11 +3301,11 @@ def main():
         )
         
         with l_c3.container(border=True):
-            st.markdown(f"**🏆 Giải Đấu (Leagues)**")
+            st.markdown(f"**🏆 League (Leagues)**")
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
     elif current_tab == 'players':
-        st.header("👥 Cầu thủ")
+        st.header("👥 Players")
 
         SQUAD_SIZE = 23  # Số cầu thủ mỗi team
 
@@ -3335,7 +3339,7 @@ def main():
                 squad = pd.DataFrame()
                 remaining_slots = SQUAD_SIZE
     
-                # 1. Chọn 1 GK tốt nhất
+                # 1. Choose 1 GK tốt nhất
                 if not gk_df.empty:
                     gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
@@ -3343,7 +3347,7 @@ def main():
                     squad = pd.concat([squad, best_gk])
                     remaining_slots -= 1
     
-                # 2. Chọn 2 CB tốt nhất
+                # 2. Choose 2 CB tốt nhất
                 if not cb_df.empty:
                     cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
@@ -3351,7 +3355,7 @@ def main():
                     squad = pd.concat([squad, best_cb])
                     remaining_slots -= len(best_cb)
     
-                # 3. Chọn các cầu thủ còn lại (theo Rating giảm dần)
+                # 3. Choose các cầu thủ còn lại (theo Rating giảm dần)
                 others = team_df.drop(squad.index, errors='ignore')
                 if not others.empty:
                     others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
@@ -3360,7 +3364,7 @@ def main():
                     squad = pd.concat([squad, top_rest])
                 
                 # --- LƯU RANKING ---
-                # Sắp xếp lại squad theo Rating để đánh số thứ tự (Rank) cho chuẩn logic "Mạnh nhất"
+                # Sort lại squad theo Rating để đánh số thứ tự (Rank) cho chuẩn logic "Mạnh nhất"
                 final_squad = squad.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                 total_in_squad = len(final_squad)
                 
@@ -3374,7 +3378,7 @@ def main():
         nation_rank_map = get_top_23_ranked_map(df, 'Nation', target_nations)
         league_rank_map = get_top_23_ranked_map(df, 'League', target_leagues)
 
-        # ===== PHÁT HIỆN CẦU THỦ TRÙNG (GIỮ NGUYÊN) =====
+        # ===== PHÁT HIỆN PLAYER TRÙNG (KEEP NGUYÊN) =====
         def detect_duplicates(df):
             duplicates_info = []
             grouped = df.groupby(['Player', 'Club', 'Nation', 'League'])
@@ -3399,7 +3403,7 @@ def main():
 
         duplicates = detect_duplicates(df)
 
-        # ===== 2. CẬP NHẬT GỢI Ý BÁN (HIỆN RANK) =====
+        # ===== 2. CẬP NHẬT GỢI Ý SELL (HIỆN RANK) =====
         def suggest_action(row):
             idx = row.name
             club = str(row.get('Club', '')).strip()
@@ -3414,12 +3418,12 @@ def main():
 
             # 0. Kiểm tra club được bảo vệ
             if club in local_protected_clubs:
-                return ' ✅  GIỮ', f" 🛡 ️ {club} - Không bao giờ bán (Fan club)"
+                return ' ✅  KEEP', f" 🛡 ️ {club} - Never sell (Fan club)"
             
             # 1. Kiểm tra thẻ trùng
             is_duplicate = any(dup['index'] == idx for dup in duplicates)
             if is_duplicate:
-                return '❌ BÁN', "⚠️ Thẻ trùng - Có thẻ tốt hơn (cùng player + club + nation + league)"
+                return '❌ SELL', "⚠️ Duplicate card - Better card exists (same player + club + nation + league)"
             
             # 2. Kiểm tra thuộc Top 23 (DÙNG RANK MAP ĐỂ HIỂN THỊ CHI TIẾT)
             in_top_club = idx in club_rank_map
@@ -3439,15 +3443,15 @@ def main():
             
             # 3. Quyết định
             if reasons:
-                return '✅ GIỮ', " | ".join(reasons)
+                return '✅ KEEP', " | ".join(reasons)
             else:
-                return '❌ BÁN', "Không thuộc Top 23 của bất kỳ team nào"
+                return '❌ SELL', "Not part of any Top 23 team"
 
         # Apply suggestion
         rec_df = df.copy()
         suggestions = rec_df.apply(suggest_action, axis=1)
         rec_df['Action'], rec_df['Reasons'] = zip(*suggestions)
-        sell_df = rec_df[rec_df['Action'] == '❌ BÁN']
+        sell_df = rec_df[rec_df['Action'] == '❌ SELL']
 
         rank_info_list = []
         for idx, row in rec_df.iterrows():
@@ -3458,7 +3462,7 @@ def main():
             if nation_rank: ranks.append(nation_rank)
             league_rank = fast_rank(row.get('League', ''), idx, league_top_map)
             if league_rank: ranks.append(league_rank)
-            # Sắp xếp theo thứ tự Club → League → Nation
+            # Sort theo thứ tự Club → League → Nation
             rank_info_list.append("\n".join(ranks) if ranks else "")
         
         rec_df['Rank_Info'] = rank_info_list
@@ -3466,37 +3470,37 @@ def main():
         # ===== THỐNG KÊ TỔNG QUAN =====
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("🎯 Tổng cầu thủ", len(df))
+            st.metric("🎯 Total Players", len(df))
         with col2:
             protected_count = len(df[df['Club'].isin(PROTECTED_CLUBS)])
             st.metric("🛡️ FC Barcelona", protected_count)
         with col3:
-            st.metric("✅ Đề xuất giữ", len(df) - len(sell_df))
+            st.metric("✅ Recommended Keep", len(df) - len(sell_df))
         with col4:
-            st.metric("❌ Đề xuất bán", len(sell_df))
+            st.metric("❌ Recommended Sell", len(sell_df))
 
         # ===== CẢNH BÁO THẺ TRÙNG =====
         if duplicates:
-            st.error(f"⚠️ **CẢNH BÁO:** Phát hiện {len(duplicates)} thẻ TRÙNG (Cùng cầu thủ + Club + Nation + League)")
+            st.error(f"⚠️ **WARNING:** Detected {len(duplicates)} duplicate cards (same player + Club + Nation + League)")
             
-            with st.expander("🔍 Xem chi tiết thẻ trùng", expanded=True):
+            with st.expander("🔍 View duplicate card details", expanded=True):
                 dup_data = []
                 for dup in duplicates:
                     dup_data.append({
                         'STT': len(dup_data) + 1,
-                        'Cầu thủ': dup['player'],
+                        'Player': dup['player'],
                         'Rating': dup['rating'],
                         'Rarity': dup['rarity'],
                         'Club': dup['club'],
                         'Nation': dup['nation'],
                         'League': dup['league'],
-                        'Thẻ tốt nhất': f"{dup['best_rating']} ({dup['best_rarity']})",
+                        'Best card': f"{dup['best_rating']} ({dup['best_rarity']})",
                     })
                 
                 dup_df = pd.DataFrame(dup_data)
                 st.dataframe(dup_df, use_container_width=True, hide_index=True)
         else:
-            st.success("✅ Không phát hiện thẻ trùng")              
+            st.success("✅ No duplicate cards detected")              
         
         # 1. THANH ĐIỀU KHIỂN CHÍNH (TOP BAR)
         with st.container(border=True):
@@ -3504,16 +3508,16 @@ def main():
             
             with col_search:
                 search_query = st.text_input(
-                    "🔍 Tìm kiếm",
-                    placeholder="Nhập tên, CLB, Skills...",
+                    "🔍 Search",
+                    placeholder="Enter name, Club, Skills...",
                     label_visibility="collapsed",
                     key="filter_search_query"
                 )
             
             with col_view:
                 view_mode = st.radio(
-                    "Chế độ xem",
-                    ["🎴 Thẻ", "📋 Bảng"],
+                    "View mode",
+                    ["🎴 Cards", "📋 Table"],
                     horizontal=True,
                     label_visibility="collapsed",
                     key="filter_view_mode"
@@ -3525,68 +3529,68 @@ def main():
                     sort_options = [
                         'Rating', 'BMI', 'Height', 'Weight', 'Age', 'Player Name'
                     ]
-                    sort_col = st.selectbox("Sắp xếp", sort_options, index=0, label_visibility="collapsed", key="filter_sort_col")
+                    sort_col = st.selectbox("Sort", sort_options, index=0, label_visibility="collapsed", key="filter_sort_col")
                 with c_s2:
-                    sort_order = st.toggle("Tăng dần", False, key="filter_sort_asc")
+                    sort_order = st.toggle("Ascending", False, key="filter_sort_asc")
 
         # 2. BỘ LỌC NÂNG CAO (LAYOUT 5 CỘT MỚI)
-        with st.expander("🌪️ Bộ lọc nâng cao & Thống kê", expanded=False):
+        with st.expander("🌪️ Advanced filters & stats", expanded=False):
             # Thay đổi từ 4 cột sang 5 cột để chia nhỏ phần "Thuộc tính khác"
             f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
             
             with f_col1:
-                st.markdown("**Cơ bản**")
-                action_filter = st.selectbox("Hành động", ["Tất cả", "✅ GIỮ", "❌ BÁN"], key="filter_action")
+                st.markdown("**Basic**")
+                action_filter = st.selectbox("Action", ["All", "✅ KEEP", "❌ SELL"], key="filter_action")
                 pos_list = sorted(df['Position'].unique().tolist())
-                position_filter = st.multiselect("Vị trí", pos_list, key="filter_position")
+                position_filter = st.multiselect("Position", pos_list, key="filter_position")
                 style_list = sorted([str(x) for x in df['Position Style'].unique() if x])
                 style_filter = st.multiselect("Playstyle", style_list, key="filter_style")
             
             with f_col2:
-                st.markdown("**Đội bóng**")
+                st.markdown("**Team**")
                 club_list = sorted([str(x) for x in df['Club'].unique() if x])
-                club_filter = st.multiselect("CLB", club_list, key="filter_club")
-                league_list = ["Tất cả"] + sorted([str(x) for x in df['League'].unique() if x])
-                league_filter = st.selectbox("Giải đấu", league_list, key="filter_league")
+                club_filter = st.multiselect("Club", club_list, key="filter_club")
+                league_list = ["All"] + sorted([str(x) for x in df['League'].unique() if x])
+                league_filter = st.selectbox("League", league_list, key="filter_league")
                 nation_list = sorted([str(x) for x in df['Nation'].unique() if x])
-                nation_filter = st.multiselect("Quốc gia", nation_list, key="filter_nation")
+                nation_filter = st.multiselect("Nation", nation_list, key="filter_nation")
 
             with f_col3:
-                st.markdown("**Chỉ số & Thể chất**")
+                st.markdown("**Stats & Physical**")
                 h_values = pd.to_numeric(df['Height'], errors='coerce').dropna()
                 h_min, h_max = (int(h_values.min()), int(h_values.max())) if not h_values.empty else (150, 200)
-                height_range = st.slider("Chiều cao (cm)", h_min, h_max, (h_min, h_max), key="filter_height_range")
+                height_range = st.slider("Height (cm)", h_min, h_max, (h_min, h_max), key="filter_height_range")
                 
                 w_values = pd.to_numeric(df['Weight'], errors='coerce').dropna()
                 w_min, w_max = (int(w_values.min()), int(w_values.max())) if not w_values.empty else (50, 100)
-                weight_range = st.slider("Cân nặng (kg)", w_min, w_max, (w_min, w_max), key="filter_weight_range")
+                weight_range = st.slider("Weight (kg)", w_min, w_max, (w_min, w_max), key="filter_weight_range")
 
                 a_values = pd.to_numeric(df['Age'], errors='coerce').dropna()
                 a_min, a_max = (int(a_values.min()), int(a_values.max())) if not a_values.empty else (15, 45)
-                age_range = st.slider("Tuổi", a_min, a_max, (a_min, a_max), key="filter_age_range")
+                age_range = st.slider("Age", a_min, a_max, (a_min, a_max), key="filter_age_range")
 
             with f_col4:
-                st.markdown("**Thuộc tính (1)**")
-                type_filter = st.multiselect("Loại thẻ", df['Player Type'].unique(), key="filter_type")
+                st.markdown("**Attributes (1)**")
+                type_filter = st.multiselect("Card Type", df['Player Type'].unique(), key="filter_type")
                 
                 form_list = sorted([str(x) for x in df['Form'].unique() if str(x).strip()])
-                form_filter = st.multiselect("Phong độ (Form)", form_list, key="filter_form")
+                form_filter = st.multiselect("Form", form_list, key="filter_form")
                 
                 injury_list = sorted([str(x) for x in df['Injury Resistance'].unique() if str(x).strip()])
-                injury_filter = st.multiselect("Kháng chấn thương", injury_list, key="filter_injury")
+                injury_filter = st.multiselect("Injury Resistance", injury_list, key="filter_injury")
 
             with f_col5:
-                st.markdown("**Thuộc tính (2)**")
+                st.markdown("**Attributes (2)**")
                 wf_usage_list = sorted([str(x) for x in df['Weak Foot Usage'].unique() if str(x).strip()])
-                wf_usage_filter = st.multiselect("Dùng chân ko thuận", wf_usage_list, key="filter_wf_usage")
+                wf_usage_filter = st.multiselect("Non-dominant Foot Usage", wf_usage_list, key="filter_wf_usage")
                 
                 wf_acc_list = sorted([str(x) for x in df['Weak Foot Accuracy'].unique() if str(x).strip()])
-                wf_acc_filter = st.multiselect("Độ chính xác CKT", wf_acc_list, key="filter_wf_acc")
+                wf_acc_filter = st.multiselect("Weak Foot Accuracy", wf_acc_list, key="filter_wf_acc")
                 
-                foot_list = ["Tất cả"] + list(df['Foot'].unique()) if 'Foot' in df.columns else []
-                foot_filter = st.selectbox("Chân thuận", foot_list, key="filter_foot")
+                foot_list = ["All"] + list(df['Foot'].unique()) if 'Foot' in df.columns else []
+                foot_filter = st.selectbox("Preferred Foot", foot_list, key="filter_foot")
                 
-                skill_query = st.text_input("Tìm Skill", placeholder="vd: Blocker", key="filter_skill_query")
+                skill_query = st.text_input("Search Skill", placeholder="vd: Blocker", key="filter_skill_query")
                 
                 if st.button("🔄 Reset Filters", use_container_width=True):
                     keys_to_reset = [
@@ -3614,7 +3618,7 @@ def main():
         # Apply Filters
         if search_query:
             filtered_df = filtered_df[filtered_df['Player'].str.contains(search_query, case=False, na=False)]
-        if action_filter != "Tất cả":
+        if action_filter != "All":
             filtered_df = filtered_df[filtered_df['Action'] == action_filter]
         if position_filter:
             filtered_df = filtered_df[filtered_df['Position'].isin(position_filter)]
@@ -3622,7 +3626,7 @@ def main():
             filtered_df = filtered_df[filtered_df['Position Style'].isin(style_filter)]
         if club_filter:
             filtered_df = filtered_df[filtered_df['Club'].isin(club_filter)]
-        if league_filter != "Tất cả":
+        if league_filter != "All":
             filtered_df = filtered_df[filtered_df['League'] == league_filter]
         if nation_filter:
             filtered_df = filtered_df[filtered_df['Nation'].isin(nation_filter)]
@@ -3633,7 +3637,7 @@ def main():
         if injury_filter: filtered_df = filtered_df[filtered_df['Injury Resistance'].isin(injury_filter)]
         if wf_usage_filter: filtered_df = filtered_df[filtered_df['Weak Foot Usage'].isin(wf_usage_filter)]
         if wf_acc_filter: filtered_df = filtered_df[filtered_df['Weak Foot Accuracy'].isin(wf_acc_filter)]
-        if foot_filter != "Tất cả": filtered_df = filtered_df[filtered_df['Foot'] == foot_filter]
+        if foot_filter != "All": filtered_df = filtered_df[filtered_df['Foot'] == foot_filter]
         if skill_query:
             filtered_df = filtered_df[filtered_df['Skills'].astype(str).str.contains(skill_query, case=False, na=False)]
 
@@ -3653,15 +3657,15 @@ def main():
         # 4. DASHBOARD MINI
         st.markdown("---")
         m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Cầu thủ tìm thấy", len(filtered_df))
-        m2.metric("Rating TB", f"{filtered_df['Rating'].mean():.1f}")
-        m3.metric("Số lượng EPIC", len(filtered_df[filtered_df['Player Type'] == 'EPIC']))
-        m4.metric("Số lượng POTW", len(filtered_df[filtered_df['Player Type'] == 'POTW']))
-        m5.metric("Đề xuất BÁN", len(filtered_df[filtered_df['Action'] == '❌ BÁN']))
+        m1.metric("Players found", len(filtered_df))
+        m2.metric("Avg Rating", f"{filtered_df['Rating'].mean():.1f}")
+        m3.metric("EPIC count", len(filtered_df[filtered_df['Player Type'] == 'EPIC']))
+        m4.metric("POTW count", len(filtered_df[filtered_df['Player Type'] == 'POTW']))
+        m5.metric("Recommended SELL", len(filtered_df[filtered_df['Action'] == '❌ SELL']))
         st.markdown("---")
 
         # 5. HIỂN THỊ DỮ LIỆU
-        if view_mode == "📋 Bảng":
+        if view_mode == "📋 Table":
             table_df = filtered_df.copy()
             def get_img_link(row):
                 pid = str(row.get('Player ID', '')).strip()
@@ -3673,15 +3677,15 @@ def main():
             st.dataframe(
                 table_df[cols_to_show],
                 column_config={
-                    "Avatar": st.column_config.ImageColumn("Ảnh", width="small"),
-                    "Player": st.column_config.TextColumn("Tên cầu thủ", width="medium"),
+                    "Avatar": st.column_config.ImageColumn("Image", width="small"),
+                    "Player": st.column_config.TextColumn("Player name", width="medium"),
                     "Rating": st.column_config.ProgressColumn("OVR", format="%d", min_value=70, max_value=105, width="small"),
                     "Position": st.column_config.TextColumn("VT", width="small"),
                     "BMI": st.column_config.NumberColumn("BMI", format="%.2f", width="small"),
-                    "Player Type": st.column_config.TextColumn("Loại", width="small"),
+                    "Player Type": st.column_config.TextColumn("Type", width="small"),
                     "Action": st.column_config.TextColumn("Status", width="small"),
-                    "Skills": st.column_config.ListColumn("Kỹ năng", width="medium"),
-                    "Reasons": st.column_config.TextColumn("Ghi chú", width="large")
+                    "Skills": st.column_config.ListColumn("Skills", width="medium"),
+                    "Reasons": st.column_config.TextColumn("Notes", width="large")
                 },
                 use_container_width=True, height=800, hide_index=True
             )
@@ -3689,7 +3693,7 @@ def main():
             # --- CHẾ ĐỘ GRID (THẺ) ---
             MAX_ITEMS = 100
             if len(filtered_df) > MAX_ITEMS:
-                st.warning(f"⚠️ Đang hiển thị {MAX_ITEMS} cầu thủ đầu tiên. Hãy dùng bộ lọc để tìm cụ thể hơn.")
+                st.warning(f"⚠️ Showing the first {MAX_ITEMS} players. Use filters to narrow results.")
                 display_df = filtered_df.head(MAX_ITEMS)
             else:
                 display_df = filtered_df
@@ -3711,40 +3715,40 @@ def main():
                         card_html = render_efootball_card_html(p_data, highlight_metric=highlight_metric)
                         st.markdown(card_html, unsafe_allow_html=True)
                         
-                        if st.button("🔍 Xem chi tiết", key=f"btn_view_{idx}", use_container_width=True):
+                        if st.button("🔍 View details", key=f"btn_view_{idx}", use_container_width=True):
                             show_player_modal(player)
 
         # 6. THANH CÔNG CỤ CUỐI TRANG
         st.divider()
         with st.container(border=True):
-            st.markdown("#### 📂 Thao tác dữ liệu")
+            st.markdown("#### 📂 Data actions")
             ac1, ac2, ac3 = st.columns([1, 1, 2])
             with ac1:
                 if len(sell_df) > 0:
                     csv_sell = sell_df.to_csv(index=False).encode('utf-8-sig')
-                    st.download_button("⬇️ Tải DS Bán", csv_sell, "sell_list.csv", "text/csv", use_container_width=True)
+                    st.download_button("⬇️ Download Sell List", csv_sell, "sell_list.csv", "text/csv", use_container_width=True)
             with ac2:
                 csv_all = filtered_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("⬇️ Tải DS Lọc", csv_all, "filtered_list.csv", "text/csv", use_container_width=True)
+                st.download_button("⬇️ Download Filtered List", csv_all, "filtered_list.csv", "text/csv", use_container_width=True)
             with ac3:
-                with st.expander("🗑️ Xóa cầu thủ (Nguy hiểm)"):
-                    st.warning("Chọn cầu thủ để xóa vĩnh viễn khỏi Database")
+                with st.expander("🗑️ Delete player (Dangerous)"):
+                    st.warning("Choose players to permanently delete from the database")
                     del_options = filtered_df.index.tolist()
                     del_labels = {i: f"{filtered_df.loc[i, 'Player']} ({filtered_df.loc[i, 'Rating']})" for i in del_options}
-                    to_delete = st.multiselect("Chọn cầu thủ:", options=del_options, format_func=lambda x: del_labels.get(x, str(x)))
+                    to_delete = st.multiselect("Choose player:", options=del_options, format_func=lambda x: del_labels.get(x, str(x)))
                     if to_delete:
-                        if st.button(f"Xác nhận XÓA {len(to_delete)} cầu thủ", type="primary"):
+                        if st.button(f"Confirm DELETE {len(to_delete)} cầu thủ", type="primary"):
                             try:
                                 new_df = df.drop(index=to_delete, errors='ignore')
                                 if save_data_to_gsheet(new_df):
-                                    st.success("Đã xóa thành công!")
+                                    st.success("Deleted successfully!")
                                     st.cache_data.clear()
                                     st.rerun()
                             except Exception as e:
-                                st.error(f"Lỗi: {e}")
+                                st.error(f"Error: {e}")
 
     elif current_tab == 'skills':
-        st.header("🎮 Quản lý Skills & Training")
+        st.header("🎮 Manage Skills & Training")
         
         # --- CONFIG ---
         MAX_SKILLS = 10  # Efootball giới hạn 10 skills (5 gốc + 5 thêm)
@@ -3766,7 +3770,7 @@ def main():
             # Tuy nhiên, để code bên ngoài gọn, ta sẽ load đè nếu là GK
             if is_gk:
                 training_inventory = get_gk_inventory_from_gsheet()
-                st.info("🧤 Đang sử dụng Kho Skill Thủ Môn")
+                st.info("🧤 Using GK Skill Inventory")
             else:
                 training_inventory = current_inventory # Dùng kho thường
             
@@ -3788,14 +3792,14 @@ def main():
                 st.caption(f"{p_pos} | {row['Rating']} | {row['Club']}")
                 st.progress(used_slots / MAX_ADDED_SLOTS, text=f"Slot: {used_slots}/{MAX_ADDED_SLOTS}")
             st.divider()
-            st.markdown("**Skills hiện tại:**")
+            st.markdown("**Current Skills:**")
             skill_badges = ""
             for s in base_skills: skill_badges += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
             for s in added_skills: skill_badges += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
             st.markdown(skill_badges, unsafe_allow_html=True)
             
             if remaining_slots <= 0:
-                st.warning("🔒 Đã full slot!")
+                st.warning("🔒 Slot full!")
                 return
             st.divider()
             
@@ -3805,7 +3809,7 @@ def main():
             target_skills = all_missing[:remaining_slots]
             
             if not target_skills:
-                st.info("Không có skill chỉ định.")
+                st.info("No skill specified.")
                 return
 
             options_map = {}
@@ -3817,13 +3821,13 @@ def main():
                 if stock > 0:
                     label = f"🟢 {skill} (Kho: {stock})"
                 else:
-                    label = f"🔴 {skill} (Hết hàng)"
+                    label = f"🔴 {skill} (Out of stock)"
                 valid_options.append(skill)
                 options_map[skill] = label
             
-            st.markdown(f"#### 🎯 Mục tiêu ({'GK' if is_gk else 'Field'})")
+            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'})")
             selected = st.multiselect(
-                "Chọn skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
+                "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
                 default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
                 max_selections=remaining_slots
             )
@@ -3834,9 +3838,9 @@ def main():
             col_save1, col_save2 = st.columns(2)
             with col_save2:
                 btn_disabled = len(selected) == 0 or len(out_of_stock) > 0
-                if out_of_stock: st.error(f"⚠️ Hết hàng: {', '.join(out_of_stock)}")
+                if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
                 
-                if st.button("💾 Xác nhận thêm", type="primary", use_container_width=True, disabled=btn_disabled):
+                if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
                     new_added = added_skills + selected
                     df.at[idx, 'Added Skills'] = ", ".join(new_added)
                     if save_data_to_gsheet(df):
@@ -3844,7 +3848,7 @@ def main():
                         for s in selected:
                             update_inventory_count(s, -1, is_gk=is_gk)
                         
-                        st.toast("Thành công!", icon="🎉")
+                        st.toast("Success!", icon="🎉")
                         st.cache_data.clear()
                         time.sleep(1)
                         st.rerun()
@@ -3854,26 +3858,26 @@ def main():
             f1, f2, f3 = st.columns([3, 1, 1.2])
             with f1:
                 search_txt = st.text_input(
-                    "🔍 Tìm kiếm toàn diện", 
-                    placeholder="Nhập tên, kỹ năng, CLB, hoặc Quốc gia...", 
+                    "🔍 Search toàn diện", 
+                    placeholder="Enter name, skill, Club, or Nation...", 
                     label_visibility="collapsed"
                 )
             with f2:
-                ft_pos = st.multiselect("Vị trí", sorted(df['Position'].unique().tolist()), placeholder="Vị trí", label_visibility="collapsed")
+                ft_pos = st.multiselect("Position", sorted(df['Position'].unique().tolist()), placeholder="Position", label_visibility="collapsed")
             with f3:
                 # CẬP NHẬT OPTIONS ĐÚNG YÊU CẦU
-                status_opts = ["Có thể train", "Thiếu skills để thêm", "Đã đủ skills", "Tất cả"]
+                status_opts = ["Trainable", "Missing skills to add", "Full skills", "All"]
                 ft_status = st.selectbox(
-                    "Trạng thái", 
+                    "Status", 
                     status_opts, 
                     index=0, # Mặc định hiển thị những người train được ngay
                     label_visibility="collapsed"
                 )
             
-            with st.expander("🌪️ Bộ lọc nâng cao (Loại thẻ / Rating)"):
+            with st.expander("🌪️ Advanced filters (Card Type / Rating)"):
                 ef1, ef2 = st.columns(2)
                 with ef1:
-                    ft_type = st.multiselect("Loại thẻ", ["EPIC", "POTW", "NON-EPIC"], default=[], placeholder="Chọn loại thẻ...")
+                    ft_type = st.multiselect("Card Type", ["EPIC", "POTW", "NON-EPIC"], default=[], placeholder="Choose card type...")
                 with ef2:
                     min_r, max_r = int(df['Rating'].min()), int(df['Rating'].max())
                     rt_range = st.slider("Rating", min_r, max_r, (min_r, max_r))
@@ -3912,13 +3916,13 @@ def main():
             added = [x for x in str(row.get('Added Skills', '')).split(',') if x.strip()]
             
             if is_potw or len(added) >= MAX_ADDED_SLOTS:
-                return "Đã đủ skills"
+                return "Full skills"
 
             # 2. Xác định vị trí & Kho tương ứng
             p_pos = str(row['Position']).strip()
             is_gk = p_pos == 'GK'
             
-            # [QUAN TRỌNG] Chọn kho để check stock
+            # [QUAN TRỌNG] Choose kho để check stock
             current_inv = inventory_gk if is_gk else inventory_field
 
             # 3. Tính toán Strict Targets (Ưu tiên tuyệt đối)
@@ -3927,22 +3931,22 @@ def main():
             strict_targets = all_missing[:remaining_slots]
             
             if not strict_targets:
-                return "Đã đủ skills" # Không còn skill gợi ý nào
+                return "Full skills" # Không còn skill gợi ý nào
             
             # 4. Check Stock trong kho tương ứng
-            # Chỉ cần 1 skill trong nhóm Strict Targets có hàng -> Có thể train
+            # Chỉ cần 1 skill trong nhóm Strict Targets có hàng -> Trainable
             has_stock = any(current_inv.get(s, 0) > 0 for s in strict_targets)
             
             if has_stock:
-                return "Có thể train"
+                return "Trainable"
             else:
-                return "Thiếu skills để thêm"
+                return "Missing skills to add"
 
         # Áp dụng logic
         filtered_df['Train_Status'] = filtered_df.apply(classify_status_smart, axis=1)
 
         # Lọc theo Status người dùng chọn
-        if ft_status != "Tất cả":
+        if ft_status != "All":
             filtered_df = filtered_df[filtered_df['Train_Status'] == ft_status]
 
         # --- C. LOGIC SẮP XẾP (BARCELONA FIRST) ---
@@ -3958,10 +3962,10 @@ def main():
         
         col_pag1, col_pag2 = st.columns([4, 1])
         with col_pag1:
-            st.caption(f"Tìm thấy **{total_items}** cầu thủ.")
+            st.caption(f"Found **{total_items}** players.")
         with col_pag2:
             if num_pages > 1:
-                page = st.number_input("Trang", min_value=1, max_value=num_pages, value=1)
+                page = st.number_input("Page", min_value=1, max_value=num_pages, value=1)
             else:
                 page = 1
 
@@ -3971,7 +3975,7 @@ def main():
 
         # --- 4. HIỂN THỊ GRID CARD (Logic: Strict Priority / Dành slot tuyệt đối) ---
         if display_df.empty:
-            st.info("🔍 Không tìm thấy cầu thủ nào phù hợp.")
+            st.info("🔍 No matching players found.")
         else:
             # CSS Visual
             st.markdown("""
@@ -4034,7 +4038,7 @@ def main():
                             btn_type = "primary"
                         else:
                             missing_top1 = strict_targets[0] if strict_targets else ""
-                            btn_label = f"⚠️ Thiếu: {missing_top1}"
+                            btn_label = f"⚠️ Missing: {missing_top1}"
                             btn_disabled = True
 
                         # D. RENDER CARD
@@ -4073,14 +4077,14 @@ def main():
                                 show_training_modal(idx, row, inventory_field)
 
     elif current_tab == 'squad':
-        st.header("⚽ Quản lý Đội hình")
-        sq_tab1, sq_tab2 = st.tabs(["🤖 Auto Build (Thông minh)", "🛠️ Đội hình 23 (Thủ công)"])
+        st.header("⚽ Squad Management")
+        sq_tab1, sq_tab2 = st.tabs(["🤖 Auto Build (Smart)", "🛠️ 23-player Squad (Manual)"])
 
         # =========================================================
         # TAB 1: AUTO BUILD (REAL-TIME & AUTO FORMATION)
         # =========================================================
         with sq_tab1:
-            st.caption("🤖 Hệ thống sẽ tự động quét 27 sơ đồ để tìm đội hình mạnh nhất cho tiêu chí bạn chọn.")
+            st.caption("🤖 The system will scan 27 formations to find the strongest squad for your selected criteria.")
             
             with st.container(border=True):
                 # Chia làm 2 cột: 1 chọn chế độ, 2 chọn chi tiết
@@ -4094,19 +4098,19 @@ def main():
                 sort_mode = 'rating_desc'
                 
                 with c1:
-                    st.markdown("##### 1. Chế độ")
-                    build_mode = st.radio("Chọn kiểu build:", ["Theo Team/Giải", "Theo Chỉ số"], horizontal=True, label_visibility="collapsed")
+                    st.markdown("##### 1. Mode")
+                    build_mode = st.radio("Choose build type:", ["By Team/League", "By Stats"], horizontal=True, label_visibility="collapsed")
                 
                 with c2:
-                    st.markdown("##### 2. Cấu hình chi tiết")
+                    st.markdown("##### 2. Detailed configuration")
                     
-                    if build_mode == "Theo Team/Giải":
+                    if build_mode == "By Team/League":
                         # Giao diện chọn Team
                         col_a, col_b = st.columns(2)
                         with col_a:
-                            team_type = st.selectbox("Lọc theo:", ["(Toàn bộ)", "Club", "Nation", "League", "Region"])
+                            team_type = st.selectbox("Filter by:", ["(All)", "Club", "Nation", "League", "Region"])
                         with col_b:
-                            if team_type != "(Toàn bộ)":
+                            if team_type != "(All)":
                                 # --- CẬP NHẬT: SẮP XẾP THEO SỐ LƯỢNG GIẢM DẦN (GIỐNG TAB THỦ CÔNG) ---
                                 # 1. Đếm số lượng
                                 group_counts = df.groupby(team_type)['Player'].nunique().to_dict()
@@ -4114,7 +4118,7 @@ def main():
                                 # 2. Lấy danh sách duy nhất và loại bỏ giá trị rỗng
                                 unique_vals = [x for x in df[team_type].astype(str).unique() if str(x).strip()]
                                 
-                                # 3. Sắp xếp: Ưu tiên số lượng giảm dần -> Sau đó đến tên A-Z (để đẹp hơn nếu bằng số lượng)
+                                # 3. Sort: Ưu tiên số lượng giảm dần -> Sau đó đến tên A-Z (để đẹp hơn nếu bằng số lượng)
                                 # key=lambda x: (group_counts.get(x, 0), x) -> reverse=True sẽ sort count to nhất lên đầu
                                 sorted_opts = sorted(unique_vals, key=lambda x: group_counts.get(x, 0), reverse=True)
                                 
@@ -4122,27 +4126,27 @@ def main():
                                 formatted_opts = [f"{opt} ({group_counts.get(opt, 0)})" for opt in sorted_opts]
                                 
                                 # 5. Tạo Selectbox
-                                selected_display = st.selectbox(f"Chọn {team_type}:", ["(Tất cả)"] + formatted_opts)
+                                selected_display = st.selectbox(f"Choose {team_type}:", ["(All)"] + formatted_opts)
                                 
                                 # 6. Trích xuất giá trị thực để lọc (Bỏ phần số lượng đi)
-                                if selected_display == "(Tất cả)":
-                                    filter_val = "(Tất cả)"
+                                if selected_display == "(All)":
+                                    filter_val = "(All)"
                                 else:
                                     # Cắt chuỗi từ bên phải tại dấu mở ngoặc cuối cùng
                                     filter_val = selected_display.rsplit(" (", 1)[0]
                                 
                                 filter_col = team_type
                             else:
-                                st.selectbox("Giá trị:", ["-"], disabled=True)
+                                st.selectbox("Value:", ["-"], disabled=True)
                     else:
                         # Giao diện chọn Chỉ số
-                        stat_type = st.selectbox("Tiêu chí:", [
+                        stat_type = st.selectbox("Criteria:", [
                             "⭐ Highest Rating (Mạnh nhất)", 
                             "💪 The Tanks (Chiến Thần BMI Lớn)",     # Mới
                             "⚡ The Agiles (Sóc Nhỏ BMI Nhỏ)",     # Mới
                             "🦶 The Ambidextrous (2 Chân Như 1)",    # Mới
                             "🟣 Form Is Temporary (Full POTW)",     # Mới
-                            "🌍 United Nations (Đa Quốc Gia)",      # Mới
+                            "🌍 United Nations (Đa Nation)",      # Mới
                             "🦒 Tallest XI (Cao nhất)", 
                             "🐜 Shortest XI (Thấp nhất)",
                             "⚖️ Heaviest XI (Nặng nhất)",
@@ -4168,17 +4172,17 @@ def main():
             # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
             
             # 1. Kiểm tra nhanh dữ liệu (nếu chọn Team)
-            if build_mode == "Theo Team/Giải" and filter_col and filter_val and filter_val != "(Tất cả)":
+            if build_mode == "By Team/League" and filter_col and filter_val and filter_val != "(All)":
                 check_df = df[df[filter_col].astype(str) == filter_val]
                 if check_df.empty:
-                    st.warning(f"⚠️ Không có dữ liệu cho {filter_val}")
+                    st.warning(f"⚠️ No data for {filter_val}")
                 else:
                     pos_counts = check_df['Position'].value_counts()
                     missing_msg = []
-                    if pos_counts.get('GK', 0) == 0: missing_msg.append("Thiếu GK")
-                    if pos_counts.get('CB', 0) < 2: missing_msg.append("Thiếu CB thuần")
+                    if pos_counts.get('GK', 0) == 0: missing_msg.append("Missing GK")
+                    if pos_counts.get('CB', 0) < 2: missing_msg.append("Missing natural CB")
                     if missing_msg:
-                        st.toast(f"⚠️ Cảnh báo nhân sự: {', '.join(missing_msg)}", icon="⚠️")
+                        st.toast(f"⚠️ Squad warning: {', '.join(missing_msg)}", icon="⚠️")
 
             # 2. Chạy Auto Build (Luôn dùng find_best_formation_for_team)
             best_squad = []
@@ -4186,20 +4190,20 @@ def main():
             
             # Chỉ chạy khi có dữ liệu hợp lệ
             should_run = True
-            if build_mode == "Theo Team/Giải" and (not filter_val or filter_val == "(Tất cả)" or filter_val == "-"):
+            if build_mode == "By Team/League" and (not filter_val or filter_val == "(All)" or filter_val == "-"):
                 # Nếu chọn toàn bộ database thì hơi nặng, nhưng vẫn cho chạy
                 pass 
 
             if should_run:
                 # Dùng spinner để báo đang xử lý
-                with st.spinner("🤖 Đang quét 80+ sơ đồ để tìm đội hình tối ưu..."):
+                with st.spinner("🤖 Scanning 80+ formations to find the optimal squad..."):
                     found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
             
             if not best_squad:
-                st.warning("⚠️ Không tìm thấy cầu thủ phù hợp để xếp đội hình!")
+                st.warning("⚠️ No suitable players found for squad formation!")
             else:
                 if found_name:
-                    st.success(f"✅ Đội hình tối ưu nhất (Đá chính): **{found_name}**")
+                    st.success(f"✅ Best optimal lineup (Starters): **{found_name}**")
 
 # --- CODE MỚI: KIỂM TRA & BÁO THIẾU NGƯỜI ---
                     missing_slots = [p['Position'] for p in best_squad if p.get('Is_Starter') and p['Player'] == "---"]
@@ -4207,8 +4211,8 @@ def main():
                         from collections import Counter
                         missing_counts = Counter(missing_slots)
                         missing_text = ", ".join([f"{k} ({v})" for k, v in missing_counts.items()])
-                        st.error(f"⚠️ Đội hình chưa hoàn thiện! Đang thiếu {len(missing_slots)} vị trí: **{missing_text}**")
-                        st.info("💡 Hệ thống đã chọn sơ đồ này vì nó cần ít cầu thủ bổ sung nhất.")
+                        st.error(f"⚠️ Lineup incomplete! Missing {len(missing_slots)} positions: **{missing_text}**")
+                        st.info("💡 The system chose this formation because it requires the fewest additional players.")
                     # ---------------------------------------------
 
                 # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
@@ -4222,7 +4226,7 @@ def main():
                 custom_label = None
                 custom_value = None
 
-                if build_mode == "Theo Chỉ số":
+                if build_mode == "By Stats":
                     def get_val(p, key):
                         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
                         except: return 0
@@ -4260,50 +4264,50 @@ def main():
                             elif is_usage_good and is_acc_good:
                                 count_tier2 += 1
                                 
-                        custom_label = "Chân không thuận (Perf/Good)"
+                        custom_label = "Weak foot (Perf/Good)"
                         # Hiển thị dạng: 5 Perfect / 6 Good
                         custom_value = f"{count_tier1} Perf / {count_tier2} Good"
 
                     elif "United Nations" in stat_type:
                         # FIX: Lấy Nation từ p['Data'] thay vì p['Nation']
                         nations = set(p.get('Data', {}).get('Nation', '') for p in all_valid_players)
-                        # Loại bỏ giá trị rỗng nếu có
+                        # Type bỏ giá trị rỗng nếu có
                         if '' in nations: nations.remove('')
                         
-                        custom_label = "Số Quốc gia"
+                        custom_label = "Nation count"
                         custom_value = f"{len(nations)}"
                     
                     elif "POTW" in stat_type:
                         potw_c = sum(1 for p in all_valid_players if 'POTW' in str(p['Type']).upper() or 'TRENDING' in str(p['Type']).upper())
-                        custom_label = "Số thẻ POTW"
+                        custom_label = "POTW card count"
                         custom_value = f"{potw_c}"
                     elif "Cao" in stat_type or "Thấp" in stat_type:
                         vals = [get_val(p, 'Height') for p in all_valid_players]
                         avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Chiều cao TB (23)"
+                        custom_label = "Height TB (23)"
                         custom_value = f"{avg:.1f} cm"
                     elif "Nặng" in stat_type or "Nhẹ" in stat_type:
                         vals = [get_val(p, 'Weight') for p in all_valid_players]
                         avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Cân nặng TB (23)"
+                        custom_label = "Weight TB (23)"
                         custom_value = f"{avg:.1f} kg"
                     elif "Trẻ" in stat_type or "Già" in stat_type:
                         vals = [get_val(p, 'Age') for p in all_valid_players]
                         avg = sum(vals) / len(vals) if vals else 0
-                        custom_label = "Tuổi TB (23)"
+                        custom_label = "Age TB (23)"
                         custom_value = f"{avg:.1f}"
 
                 # --- HIỂN THỊ METRICS ---
                 if custom_label:
                     m1, m2, m3 = st.columns(3)
-                    with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
-                    with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
+                    with m1: st.metric("Total Power (23)", t_rat)
+                    with m2: st.metric("Avg Rating (23)", f"{a_rat:.1f}")
                     with m3: st.metric(custom_label, custom_value)
                 else:
                     m1, m2, m3 = st.columns(3)
-                    with m1: st.metric("Tổng Sức mạnh (23)", t_rat)
-                    with m2: st.metric("Rating TB (23)", f"{a_rat:.1f}")
-                    with m3: st.metric("Quân số", f"{total_players}/23")
+                    with m1: st.metric("Total Power (23)", t_rat)
+                    with m2: st.metric("Avg Rating (23)", f"{a_rat:.1f}")
+                    with m3: st.metric("Squad size", f"{total_players}/23")
                 
                 st.divider()
                 
@@ -4313,16 +4317,16 @@ def main():
                 # Xác định metric để hiển thị tooltip trên sân
                 metric_to_show = None
                 
-                if build_mode == "Theo Chỉ số":
-                    # Chiều cao
+                if build_mode == "By Stats":
+                    # Height
                     if "Cao" in stat_type or "Thấp" in stat_type or "Tallest" in stat_type or "Shortest" in stat_type: 
                         metric_to_show = 'Height'
                     
-                    # Cân nặng
+                    # Weight
                     elif "Nặng" in stat_type or "Nhẹ" in stat_type or "Heaviest" in stat_type or "Lightest" in stat_type: 
                         metric_to_show = 'Weight'
                     
-                    # Tuổi
+                    # Age
                     elif "Trẻ" in stat_type or "Già" in stat_type or "Youngest" in stat_type or "Oldest" in stat_type: 
                         metric_to_show = 'Age'
                     
@@ -4330,15 +4334,15 @@ def main():
                     elif "Tanks" in stat_type or "Agiles" in stat_type or "BMI" in stat_type:
                         metric_to_show = 'BMI'
                     
-                    # Chân thuận (Ambidextrous)
+                    # Preferred Foot (Ambidextrous)
                     elif "Ambidextrous" in stat_type or "Chân" in stat_type: 
                         metric_to_show = 'Ambidextrous'
                     
-                    # Quốc gia (United Nations)
-                    elif "United Nations" in stat_type or "Quốc Gia" in stat_type:
+                    # Nation (United Nations)
+                    elif "United Nations" in stat_type or "Nation" in stat_type:
                         metric_to_show = 'Nation'
                     
-                    # Loại thẻ (POTW / Epic)
+                    # Card Type (POTW / Epic)
                     elif "POTW" in stat_type or "Epic" in stat_type:
                         metric_to_show = 'Type'
 
@@ -4353,10 +4357,10 @@ def main():
                
 
         # =========================================================
-        # TAB 2: MANUAL BUILD (GIỮ NGUYÊN)
+        # TAB 2: MANUAL BUILD (KEEP NGUYÊN)
         # =========================================================
         with sq_tab2:
-            st.caption("🛠️ Chế độ kiểm tra Top 23 thẻ tốt nhất (Logic cũ).")
+            st.caption("🛠️ Best Top 23 card check mode (Legacy logic).")
             
             # --- LOGIC CŨ ---
             g1, g2 = st.columns(2)
@@ -4366,20 +4370,20 @@ def main():
                 group_counts = df[group_by].value_counts().to_dict()
                 group_options = [x for x in df[group_by].astype(str).unique() if str(x).strip()]
                 group_options_sorted = sorted(group_options, key=lambda x: group_counts.get(x, 0), reverse=True)
-                formatted_options = ["(Tất cả)"] + [f"{opt} ({group_counts.get(opt, 0)})" for opt in group_options_sorted]
-                selected_display = st.selectbox(f"Chọn {group_by}", formatted_options, key="old_sel")
+                formatted_options = ["(All)"] + [f"{opt} ({group_counts.get(opt, 0)})" for opt in group_options_sorted]
+                selected_display = st.selectbox(f"Choose {group_by}", formatted_options, key="old_sel")
             
-            if selected_display == "(Tất cả)":
-                group_value = "(Tất cả)"
+            if selected_display == "(All)":
+                group_value = "(All)"
             else:
                 group_value = selected_display.rsplit(" (", 1)[0]
             
             df_src = df.copy()
-            if group_value != "(Tất cả)":
+            if group_value != "(All)":
                 df_src = df_src[df_src[group_by].astype(str) == group_value]
             
             if df_src.empty:
-                st.warning("Không có cầu thủ.")
+                st.warning("No players.")
             else:
                 if group_by in ['Nation', 'League']:
                     df_src['TargetClubPriority'] = df_src['Club'].isin(target_clubs).astype(int)
@@ -4392,7 +4396,7 @@ def main():
                 squad = pd.DataFrame()
                 remaining_slots = MAX_SQUAD
                 
-                # Chọn GK
+                # Choose GK
                 gk_df = df_src[df_src['Position'] == 'GK'].copy()
                 if not gk_df.empty:
                     gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
@@ -4401,7 +4405,7 @@ def main():
                     squad = pd.concat([squad, best_gk])
                     remaining_slots -= 1
                 
-                # Chọn CB
+                # Choose CB
                 cb_df = df_src[df_src['Position'] == 'CB'].copy()
                 if not cb_df.empty:
                     cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
@@ -4410,7 +4414,7 @@ def main():
                     squad = pd.concat([squad, best_cb])
                     remaining_slots -= len(best_cb)
                 
-                # Chọn còn lại
+                # Choose còn lại
                 others = df_src.drop(squad.index, errors='ignore').copy()
                 if not others.empty and remaining_slots > 0:
                     others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
@@ -4421,7 +4425,7 @@ def main():
                 squad = squad.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                 
                 st.divider()
-                st.subheader(f"Danh sách 23 cầu thủ ({len(squad)}/23)")
+                st.subheader(f"23-player list ({len(squad)}/23)")
                 
                 # --- KHÔI PHỤC HIỂN THỊ CARD CÓ HÌNH ẢNH ---
                 for idx, row in squad.iterrows():
@@ -4453,7 +4457,7 @@ def main():
                             st.caption(f"**Club:** {row.get('Club','')} | **Nation:** {row.get('Nation','')}")
 
     elif current_tab == 'add':
-            st.header("➕ Thêm cầu thủ")
+            st.header("➕ Add player")
             
             # Initialize session state
             if 'add_preview_data' not in st.session_state:
@@ -4465,26 +4469,26 @@ def main():
             
             # ========== CHỌN CHẾ ĐỘ ==========
             mode = st.radio(
-                "Chọn chế độ",
-                ["➕ Thêm mới", "🔄 Upgrade cầu thủ có sẵn"],
+                "Choose mode",
+                ["➕ Thêm mới", "🔄 Upgrade existing player"],
                 horizontal=True,
                 key="add_mode_radio"
             )
             
-            st.session_state.add_mode = 'upgrade' if mode == "🔄 Upgrade cầu thủ có sẵn" else 'new'
+            st.session_state.add_mode = 'upgrade' if mode == "🔄 Upgrade existing player" else 'new'
             
             st.divider()
             
             # ========== CHẾ ĐỘ UPGRADE ==========
             if st.session_state.add_mode == 'upgrade':
-                st.info("💡 Chế độ này tự động tìm và thay thế thẻ cũ (cùng tên + Club + Nation + League)")
+                st.info("💡 This mode automatically finds and replaces old cards (same name + Club + Nation + League)")
                 
-                # Bước 1: Chọn cầu thủ
+                # Bước 1: Choose cầu thủ
                 existing_players = sorted(df['Player'].astype(str).unique().tolist())
                 selected_player = st.selectbox(
-                    "1️⃣ Chọn cầu thủ cần upgrade",
+                    "1️⃣ Choose player to upgrade",
                     options=[""] + existing_players,
-                    help="Chọn cầu thủ từ danh sách có sẵn"
+                    help="Choose a player from the existing list"
                 )
                 
                 if selected_player:
@@ -4492,7 +4496,7 @@ def main():
                     player_versions = df[df['Player'] == selected_player].copy()
                     player_versions = player_versions.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
                     
-                    st.subheader(f"📋 Phiên bản hiện có của {selected_player}")
+                    st.subheader(f"📋 Existing version of {selected_player}")
                     # Hiển thị thêm cột Secondary Positions để đối chiếu
                     cols_ver = ['Rating', 'Position', 'Secondary Positions', 'Player Type', 'Club', 'Nation', 'League']
                     cols_ver = [c for c in cols_ver if c in player_versions.columns]
@@ -4502,7 +4506,7 @@ def main():
                     st.dataframe(version_display, use_container_width=True, hide_index=True)
                     
                     st.divider()
-                    st.markdown("### 2️⃣ Nhập URL PESDB của phiên bản mới")
+                    st.markdown("### 2️⃣ Enter the new version PESDB URL")
                     
                     upgrade_url = st.text_input(
                         "URL PESDB",
@@ -4510,8 +4514,8 @@ def main():
                         key="upgrade_url"
                     )
                     
-                    if st.button("🔍 Lấy thông tin & Preview", type="primary", disabled=not upgrade_url):
-                        with st.spinner("⏳ Đang trích xuất dữ liệu..."):
+                    if st.button("🔍 Fetch info & preview", type="primary", disabled=not upgrade_url):
+                        with st.spinner("⏳ Extracting data..."):
                             player_info = extract_full_player_info(upgrade_url)
                             
                             if player_info and player_info['Player']:
@@ -4538,27 +4542,27 @@ def main():
                                     'Player_ID': extract_ehub_player_id(upgrade_url)
                                 }
                                 st.session_state.add_show_form = True
-                                st.success("✅ Đã lấy thông tin thành công!")
+                                st.success("✅ Successfully fetched info!")
                                 st.rerun()
                             else:
-                                st.error("❌ Không thể lấy thông tin từ URL này!")
+                                st.error("❌ Cannot fetch info from this URL!")
             
             # ========== CHẾ ĐỘ THÊM MỚI ==========
             else:
                 if not st.session_state.add_show_form:
-                    st.markdown("### 🔗 Bước 1: Nhập URL từ PESDB")
-                    st.info("💡 Nhập link PESDB để tự động lấy toàn bộ thông tin cầu thủ")
+                    st.markdown("### 🔗 Step 1: Enter PESDB URL")
+                    st.info("💡 Enter the PESDB link to automatically fetch full player info")
                     
                     pesdb_url = st.text_input(
                         "URL PESDB",
                         placeholder="https://pesdb.net/efootball/?id=105809740719809",
-                        help="Ví dụ: https://pesdb.net/efootball/?id=105809740719809"
+                        help="Example: https://pesdb.net/efootball/?id=105809740719809"
                     )
                     
                     col1, col2, col3 = st.columns([1, 1, 2])
                     with col1:
-                        if st.button("🔍 Lấy thông tin", type="primary", use_container_width=True, disabled=not pesdb_url):
-                            with st.spinner("⏳ Đang trích xuất dữ liệu từ PESDB..."):
+                        if st.button("🔍 Fetch info", type="primary", use_container_width=True, disabled=not pesdb_url):
+                            with st.spinner("⏳ Extracting data from PESDB..."):
                                 player_info = extract_full_player_info(pesdb_url)
                                 
                                 if player_info and player_info['Player']:
@@ -4585,13 +4589,13 @@ def main():
                                         'Player_ID': extract_ehub_player_id(pesdb_url)
                                     }
                                     st.session_state.add_show_form = True
-                                    st.success("✅ Đã lấy thông tin thành công!")
+                                    st.success("✅ Successfully fetched info!")
                                     st.rerun()
                                 else:
-                                    st.error("❌ Không thể lấy thông tin từ URL này. Vui lòng kiểm tra lại!")
+                                    st.error("❌ Cannot fetch info from this URL. Please check again!")
                     
                     with col2:
-                        if st.button("✍️ Nhập thủ công", use_container_width=True):
+                        if st.button("✍️ Enter manually", use_container_width=True):
                             st.session_state.add_preview_data = {
                                 'Player': '',
                                 'Rating': 90,
@@ -4618,13 +4622,13 @@ def main():
                             st.rerun()
                     
                     st.divider()
-                    st.caption("🎯 **Hướng dẫn:** Nhập URL PESDB để tự động lấy thông tin, hoặc chọn 'Nhập thủ công' để tự điền")
+                    st.caption("🎯 **Guide:** Enter the PESDB URL to fetch info automatically, or choose 'Enter manually' to fill it in yourself")
             
             # ========== BƯỚC 2: PREVIEW & CHỈNH SỬA (CHUNG CHO CẢ 2 MODE) ==========
             if st.session_state.add_show_form and st.session_state.add_preview_data:
                 data = st.session_state.add_preview_data
                 
-                st.markdown("### 📋 Bước 2: Xem trước & Chỉnh sửa")
+                st.markdown("### 📋 Step 2: Review & edit")
                 
                 # Hiển thị hình ảnh nếu có Player ID
                 if data.get('Player_ID'):
@@ -4635,29 +4639,29 @@ def main():
                     with col_info:
                         st.markdown(f"## {data.get('Player', 'Unknown Player')}")
                         # Hiển thị nhanh các vị trí
-                        st.caption(f"**Vị trí chính:** {data.get('Position')} | **Phụ:** {data.get('Secondary Positions')}")
+                        st.caption(f"**Main Position:** {data.get('Position')} | **Secondary:** {data.get('Secondary Positions')}")
                 else:
-                    st.markdown(f"## ✍️ Nhập thông tin cầu thủ mới")
+                    st.markdown(f"## ✍️ Enter new player information")
                 
                 st.divider()
                 
                 # Form chỉnh sửa
                 with st.form("add_player_final_form", clear_on_submit=False):
-                    st.subheader("✏️ Thông tin cầu thủ")
+                    st.subheader("✏️ Player information")
                     
-                    # Row 1: Tên + Rating + Loại
+                    # Row 1: Tên + Rating + Type
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        player_name = st.text_input("👤 Tên cầu thủ *", value=data.get('Player', ''), placeholder="Ví dụ: Lionel Messi")
+                        player_name = st.text_input("👤 Player name *", value=data.get('Player', ''), placeholder="Example: Lionel Messi")
                     with col2:
                         rating = st.number_input("⭐ Rating *", min_value=1, max_value=150, value=data.get('Rating', 90))
                     with col3:
                         type_options = ["NON-EPIC", "POTW", "EPIC"]
                         current_type = data.get('Player_Type', 'NON-EPIC')
                         type_idx = type_options.index(current_type) if current_type in type_options else 0
-                        player_type = st.selectbox("🏷️ Loại thẻ *", type_options, index=type_idx)
+                        player_type = st.selectbox("🏷️ Card Type *", type_options, index=type_idx)
                     
-                    # Row 2: Vị trí + Nhóm vị trí
+                    # Row 2: Position + Nhóm vị trí
                     col1, col2 = st.columns(2)
                     with col1:
                         existing_positions = sorted(df['Position'].unique().tolist(), key=lambda x: POSITION_ORDER.get(x, 999))
@@ -4665,25 +4669,25 @@ def main():
                         if current_pos and current_pos not in existing_positions:
                             existing_positions.insert(0, current_pos)
                         position_idx = existing_positions.index(current_pos) if current_pos in existing_positions else 0
-                        position = st.selectbox("📍 Vị trí Chính *", existing_positions, index=position_idx)
+                        position = st.selectbox("📍 Main Position *", existing_positions, index=position_idx)
                     with col2:
                         position_style = st.selectbox(
-                            "🎮 Nhóm vị trí *",
+                            "🎮 Position Group *",
                             POSITION_STYLES,
                             index=POSITION_STYLES.index(POSITIONS.get(position, "Forward"))
                         )
 
                     # --- MỚI: VỊ TRÍ PHỤ ---
-                    st.markdown("#### 🔁 Vị trí phụ (Secondary Positions)")
+                    st.markdown("#### 🔁 Secondary Positions")
                     secondary_pos = st.text_input(
-                        "Nhập các vị trí phụ (cách nhau bởi dấu phẩy)", 
+                        "Enter secondary positions (comma-separated)", 
                         value=data.get('Secondary Positions', ''),
-                        help="Ví dụ: LWF, SS, AMF. Để trống nếu không có."
+                        help="Example: LWF, SS, AMF. Leave blank if none."
                     )
                     # -----------------------
                     
                     st.divider()
-                    st.subheader("🌍 Thông tin đội bóng")
+                    st.subheader("🌍 Team information")
                     
                     # Row 3: Nation + Club + League
                     col1, col2, col3 = st.columns(3)
@@ -4694,9 +4698,9 @@ def main():
                         if current_nation and current_nation not in existing_nations:
                             existing_nations.insert(1, current_nation)
                         nation_idx = existing_nations.index(current_nation) if current_nation in existing_nations else 0
-                        nation = st.selectbox("🏴 Quốc gia", existing_nations, index=nation_idx)
+                        nation = st.selectbox("🏴 Nation", existing_nations, index=nation_idx)
                         if nation == "":
-                            nation_new = st.text_input("Nhập quốc gia mới", key="nation_new")
+                            nation_new = st.text_input("Enter a new nation", key="nation_new")
                             if nation_new:
                                 nation = nation_new
                     
@@ -4706,9 +4710,9 @@ def main():
                         if current_club and current_club not in existing_clubs:
                             existing_clubs.insert(1, current_club)
                         club_idx = existing_clubs.index(current_club) if current_club in existing_clubs else 0
-                        club = st.selectbox("⚽ CLB", existing_clubs, index=club_idx)
+                        club = st.selectbox("⚽ Club", existing_clubs, index=club_idx)
                         if club == "":
-                            club_new = st.text_input("Nhập CLB mới", key="club_new")
+                            club_new = st.text_input("Enter a new club", key="club_new")
                             if club_new:
                                 club = club_new
                     
@@ -4718,15 +4722,15 @@ def main():
                         if current_league and current_league not in existing_leagues:
                             existing_leagues.insert(1, current_league)
                         league_idx = existing_leagues.index(current_league) if current_league in existing_leagues else 0
-                        league = st.selectbox("🏆 Giải đấu", existing_leagues, index=league_idx)
+                        league = st.selectbox("🏆 League", existing_leagues, index=league_idx)
                         if league == "":
-                            league_new = st.text_input("Nhập giải đấu mới", key="league_new")
+                            league_new = st.text_input("Enter a new league", key="league_new")
                             if league_new:
                                 league = league_new
                     
                     # Row 4: Thể chất & thuộc tính
                     st.divider()
-                    st.subheader("📊 Thể chất & Thuộc tính")
+                    st.subheader("📊 Physicals & Attributes")
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
                         region_val = st.text_input("Region", value=data.get('Region', ''))
@@ -4755,10 +4759,10 @@ def main():
                     st.divider()
                     st.subheader("🎮 Skills")
                     skills = st.text_area(
-                        "Danh sách skills (cách nhau bởi dấu phẩy)",
+                        "Skill list (comma-separated)",
                         value=data.get('Skills', ''),
                         height=100,
-                        help="Ví dụ: Heading, Man Marking, Interception"
+                        help="Example: Heading, Man Marking, Interception"
                     )
                     
                     st.divider()
@@ -4766,9 +4770,9 @@ def main():
                     # Buttons
                     col1, col2, col3 = st.columns([2, 1, 1])
                     with col2:
-                        cancel_btn = st.form_submit_button("❌ Hủy", use_container_width=True)
+                        cancel_btn = st.form_submit_button("❌ Cancel", use_container_width=True)
                     with col3:
-                        save_btn = st.form_submit_button("💾 Lưu cầu thủ", type="primary", use_container_width=True)
+                        save_btn = st.form_submit_button("💾 Save player", type="primary", use_container_width=True)
                     
                     # Xử lý buttons
                     if cancel_btn:
@@ -4778,9 +4782,9 @@ def main():
                     
                     if save_btn:
                         if not player_name:
-                            st.error("❌ Vui lòng nhập tên cầu thủ!")
+                            st.error("❌ Please enter a player name!")
                         elif not position:
-                            st.error("❌ Vui lòng chọn vị trí!")
+                            st.error("❌ Please select a position!")
                         else:
                             player_type_norm = normalize_player_type(player_type)
                             # CHẾ ĐỘ UPGRADE
@@ -4822,7 +4826,7 @@ def main():
                                     try:
                                         if save_data_to_gsheet(new_df):
                                             rating_diff = int(rating) - old_rating
-                                            st.success(f"✅ Đã upgrade **{player_name}**: {old_rating} ({old_type}) → {rating} ({player_type}) ({rating_diff:+d})")
+                                            st.success(f"✅ Upgraded **{player_name}**: {old_rating} ({old_type}) → {rating} ({player_type}) ({rating_diff:+d})")
                                             st.info(f"📍 {club} | {nation} | {league}")
                                             
                                             st.session_state.add_preview_data = None
@@ -4833,12 +4837,12 @@ def main():
                                             time.sleep(1.5)
                                             st.rerun()
                                         else:
-                                            st.error("❌ Không thể lưu dữ liệu!")
+                                            st.error("❌ Could not save data!")
                                     except Exception as e:
-                                        st.error(f"❌ Lỗi: {e}")
+                                        st.error(f"❌ Error: {e}")
                                 else:
-                                    st.warning(f"⚠️ Không tìm thấy thẻ cũ với Club/Nation/League này")
-                                    st.info("💡 Sẽ thêm phiên bản mới thay vì upgrade")
+                                    st.warning(f"⚠️ No existing card found with this Club/Nation/League")
+                                    st.info("💡 Will add a new version instead of upgrading")
                                     
                                     new_player = {
                                         "Player": player_name,
@@ -4870,7 +4874,7 @@ def main():
                                     
                                     try:
                                         if save_data_to_gsheet(new_df):
-                                            st.success(f"✅ Đã thêm phiên bản mới: **{player_name}** {rating} | {club} | {nation} | {league}")
+                                            st.success(f"✅ Added new version: **{player_name}** {rating} | {club} | {nation} | {league}")
                                             
                                             st.session_state.add_preview_data = None
                                             st.session_state.add_show_form = False
@@ -4880,9 +4884,9 @@ def main():
                                             time.sleep(1.5)
                                             st.rerun()
                                         else:
-                                            st.error("❌ Không thể lưu dữ liệu!")
+                                            st.error("❌ Could not save data!")
                                     except Exception as e:
-                                        st.error(f"❌ Lỗi: {e}")
+                                        st.error(f"❌ Error: {e}")
                             
                             # CHẾ ĐỘ THÊM MỚI
                             else:
@@ -4916,22 +4920,22 @@ def main():
                                 
                                 try:
                                     if save_data_to_gsheet(new_df):
-                                        st.success(f"✅ Đã thêm cầu thủ **{player_name}** thành công!")
-                                        
+                                        st.success(f"✅ Successfully added player **{player_name}**!")
+
                                         st.session_state.add_preview_data = None
                                         st.session_state.add_show_form = False
                                         st.cache_data.clear()
                                         st.balloons()
-                                        
+
                                         time.sleep(1)
                                         st.rerun()
                                     else:
-                                        st.error("❌ Không thể lưu dữ liệu vào Google Sheets!")
+                                        st.error("❌ Could not save data to Google Sheets!")
                                 except Exception as e:
-                                    st.error(f"❌ Lỗi khi lưu: {e}")
+                                    st.error(f"❌ Error saving: {e}")
             
     elif current_tab == 'inventory':
-        st.header("📦 Quản lý Kho Skills")
+        st.header("📦 Skill Inventory Management")
 
         # --- 1. CSS CUSTOM ---
         st.markdown("""
@@ -4955,8 +4959,8 @@ def main():
         """, unsafe_allow_html=True)
 
         # --- 2. CHỌN KHO (FIELD vs GK) ---
-        inv_type = st.radio("📂 Chọn Kho:", ["🏃 Cầu thủ (Field)", "🧤 Thủ môn (GK)"], horizontal=True)
-        is_gk_mode = "Thủ môn" in inv_type
+        inv_type = st.radio("📂 Choose Kho:", ["🏃 Player (Field)", "🧤 Goalkeeper (GK)"], horizontal=True)
+        is_gk_mode = "Goalkeeper (GK)" in inv_type
 
         # --- 3. LOAD DATA TƯƠNG ỨNG ---
         if is_gk_mode:
@@ -4964,8 +4968,8 @@ def main():
             # GK chỉ dùng đúng list priority đã định nghĩa, không có category phức tạp
             target_skills = GK_SKILLS_PRIORITY_LIST
             # Gom tất cả vào 1 nhóm duy nhất cho gọn
-            grouped_skills = {"🧤 Kỹ năng Thủ Môn": target_skills}
-            st.info("💡 Đây là kho riêng biệt cho Thủ Môn. Skills ở đây không dùng chung với Cầu thủ thường.")
+            grouped_skills = {"🧤 Goalkeeper Skills": target_skills}
+            st.info("💡 This is a separate GK inventory. Skills here are not shared with regular players.")
         else:
             inventory = get_inventory()
             all_skills = get_all_known_skills()
@@ -4982,7 +4986,7 @@ def main():
             # Để đơn giản và đúng logic cũ: Field Inventory chứa tất cả skill (trừ những cái thuần GK nếu muốn lọc)
             
             grouped_skills = {k: [] for k in STRICT_CATEGORIES.keys()}
-            grouped_skills["❓ Chưa phân loại"] = []
+            grouped_skills["❓ Unsorted"] = []
             
             # Helper map
             skill_to_cat = {}
@@ -5006,7 +5010,7 @@ def main():
                                 found = True
                                 break
                         if found: break
-                if not found: grouped_skills["❓ Chưa phân loại"].append(skill)
+                if not found: grouped_skills["❓ Unsorted"].append(skill)
             
             grouped_skills = {k: v for k, v in grouped_skills.items() if v}
 
@@ -5015,13 +5019,13 @@ def main():
         with st.container(border=True):
             c1, c2, c3 = st.columns([2, 1, 1])
             with c1:
-                st.markdown(f"### 🎒 Tồn kho ({'GK' if is_gk_mode else 'Field'}): <span style='color:#4ade80'>{total_items}</span> thẻ", unsafe_allow_html=True)
+                st.markdown(f"### 🎒 Inventory ({'GK' if is_gk_mode else 'Field'}): <span style='color:#4ade80'>{total_items}</span> cards", unsafe_allow_html=True)
             with c2:
-                if st.button("🔄 Làm mới", use_container_width=True):
+                if st.button("🔄 Refresh", use_container_width=True):
                     st.cache_data.clear()
                     st.rerun()
             with c3:
-                if st.button("🗑️ Xóa kho này", type="primary"):
+                if st.button("🗑️ Delete this inventory", type="primary"):
                     if is_gk_mode: save_gk_inventory_to_gsheet({k:0 for k in GK_SKILLS_PRIORITY_LIST})
                     else: save_skill_inventory_to_gsheet({})
                     st.rerun()
@@ -5046,7 +5050,7 @@ def main():
                         elif "Defense" in cat_name: icon = "🛡️"
                         
                         stock_class = "has-stock" if current_qty > 0 else "no-stock"
-                        stock_text = "Còn hàng" if current_qty > 0 else "Hết hàng"
+                        stock_text = "In stock" if current_qty > 0 else "Out of stock"
                         
                         with cols[i % 4]:
                             st.markdown(f"""
@@ -5068,9 +5072,9 @@ def main():
             st.divider()
             col_submit, col_info = st.columns([1, 3])
             with col_submit:
-                submitted = st.form_submit_button("💾 CẬP NHẬT KHO", type="primary", use_container_width=True)
+                submitted = st.form_submit_button("💾 UPDATE INVENTORY", type="primary", use_container_width=True)
             with col_info:
-                st.caption("💡 Bạn đang chỉnh sửa kho **" + ("THỦ MÔN" if is_gk_mode else "CẦU THỦ") + "**. Hãy kiểm tra kỹ trước khi lưu.")
+                st.caption("💡 You are editing the **" + ("GK" if is_gk_mode else "PLAYER") + "**. Hãy kiểm tra kỹ trước khi lưu.")
 
         # --- 6. SAVE LOGIC ---
         if submitted:
@@ -5087,20 +5091,20 @@ def main():
                     if k not in final_inventory: final_inventory[k] = 0
 
             if has_changes:
-                with st.spinner("Đang lưu..."):
+                with st.spinner("Saving..."):
                     success = False
                     if is_gk_mode: success = save_gk_inventory_to_gsheet(final_inventory)
                     else: success = save_skill_inventory_to_gsheet(final_inventory)
                     
                     if success:
-                        st.toast("✅ Đã lưu thành công!", icon="💾")
+                        st.toast("✅ Saved successfully!", icon="💾")
                         st.cache_data.clear()
                         time.sleep(1)
                         st.rerun()
                     else:
-                        st.error("❌ Lỗi khi lưu.")
+                        st.error("❌ Error saving.")
             else:
-                st.toast("⚠️ Không có thay đổi.", icon="ℹ️")
+                st.toast("⚠️ No changes detected.", icon="ℹ️")
 
 
 if __name__ == "__main__":
