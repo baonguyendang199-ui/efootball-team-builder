@@ -4356,15 +4356,21 @@ def main():
                     st.dataframe(version_display, use_container_width=True, hide_index=True)
                     
                     st.divider()
-                    st.markdown("### 2️⃣ Enter the new version PESDB URL")
+                    st.markdown("### 2️⃣ Enter the new version PESDB URL or ID")
                     
-                    upgrade_url = st.text_input(
-                        "URL PESDB",
-                        placeholder="https://pesdb.net/efootball/?id=...",
+                    upgrade_input = st.text_input(
+                        "PESDB URL or Player ID",
+                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809",
                         key="upgrade_url"
                     )
                     
-                    if st.button("🔍 Fetch info & preview", type="primary", disabled=not upgrade_url):
+                    if st.button("🔍 Fetch info & preview", type="primary", disabled=not upgrade_input):
+                        # Xử lý input: nếu chỉ là số, thêm prefix
+                        if upgrade_input and upgrade_input.isdigit():
+                            upgrade_url = f"https://pesdb.net/efootball/?id={upgrade_input}"
+                        else:
+                            upgrade_url = upgrade_input
+                        
                         with st.spinner("⏳ Extracting data..."):
                             player_info = extract_full_player_info(upgrade_url)
                             
@@ -4400,18 +4406,24 @@ def main():
             # ========== CHẾ ĐỘ THÊM MỚI ==========
             else:
                 if not st.session_state.add_show_form:
-                    st.markdown("### 🔗 Step 1: Enter PESDB URL")
-                    st.info("💡 Enter the PESDB link to automatically fetch full player info")
+                    st.markdown("### 🔗 Step 1: Enter PESDB URL or ID")
+                    st.info("💡 Enter the PESDB link or just the player ID to automatically fetch full player info")
                     
-                    pesdb_url = st.text_input(
-                        "URL PESDB",
-                        placeholder="https://pesdb.net/efootball/?id=105809740719809",
-                        help="Example: https://pesdb.net/efootball/?id=105809740719809"
+                    pesdb_input = st.text_input(
+                        "PESDB URL or Player ID",
+                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809",
+                        help="Example: 105809740719809 or https://pesdb.net/efootball/?id=105809740719809"
                     )
                     
                     col1, col2, col3 = st.columns([1, 1, 2])
                     with col1:
-                        if st.button("🔍 Fetch info", type="primary", use_container_width=True, disabled=not pesdb_url):
+                        if st.button("🔍 Fetch info", type="primary", use_container_width=True, disabled=not pesdb_input):
+                            # Xử lý input: nếu chỉ là số, thêm prefix
+                            if pesdb_input and pesdb_input.isdigit():
+                                pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
+                            else:
+                                pesdb_url = pesdb_input
+                            
                             with st.spinner("⏳ Extracting data from PESDB..."):
                                 player_info = extract_full_player_info(pesdb_url)
                                 
