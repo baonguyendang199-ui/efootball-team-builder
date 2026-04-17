@@ -4364,9 +4364,12 @@ def main():
                         key="upgrade_url"
                     )
                     
-                    if st.button("🔍 Fetch info & preview", type="primary", disabled=not upgrade_input):
+                    # Tự động fetch khi input thay đổi
+                    if upgrade_input and upgrade_input != st.session_state.get('last_upgrade_input', ''):
+                        st.session_state.last_upgrade_input = upgrade_input
+                        
                         # Xử lý input: nếu chỉ là số, thêm prefix
-                        if upgrade_input and upgrade_input.isdigit():
+                        if upgrade_input.isdigit():
                             upgrade_url = f"https://pesdb.net/efootball/?id={upgrade_input}"
                         else:
                             upgrade_url = upgrade_input
@@ -4415,49 +4418,49 @@ def main():
                         help="Example: 105809740719809 or https://pesdb.net/efootball/?id=105809740719809"
                     )
                     
-                    col1, col2, col3 = st.columns([1, 1, 2])
-                    with col1:
-                        if st.button("🔍 Fetch info", type="primary", use_container_width=True, disabled=not pesdb_input):
-                            # Xử lý input: nếu chỉ là số, thêm prefix
-                            if pesdb_input and pesdb_input.isdigit():
-                                pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
-                            else:
-                                pesdb_url = pesdb_input
+                    # Tự động fetch khi input thay đổi
+                    if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
+                        st.session_state.last_pesdb_input = pesdb_input
+                        
+                        # Xử lý input: nếu chỉ là số, thêm prefix
+                        if pesdb_input.isdigit():
+                            pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
+                        else:
+                            pesdb_url = pesdb_input
+                        
+                        with st.spinner("⏳ Extracting data from PESDB..."):
+                            player_info = extract_full_player_info(pesdb_url)
                             
-                            with st.spinner("⏳ Extracting data from PESDB..."):
-                                player_info = extract_full_player_info(pesdb_url)
-                                
-                                if player_info and player_info['Player']:
-                                    st.session_state.add_preview_data = {
-                                        'Player': player_info['Player'],
-                                        'Rating': player_info.get('Rating', 0),
-                                        'Position': player_info['Position'],
-                                        'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
-                                        'Nation': player_info['Nation'],
-                                        'Club': player_info['Club'],
-                                        'League': player_info['League'],
-                                        'Region': player_info.get('Region', ''),
-                                        'Height': player_info.get('Height', ''),
-                                        'Weight': player_info.get('Weight', ''),
-                                        'Age': player_info.get('Age', ''),
-                                        'Foot': player_info.get('Foot', ''),
-                                        'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
-                                        'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
-                                        'Form': player_info.get('Form', ''),
-                                        'Injury Resistance': player_info.get('Injury Resistance', ''),
-                                        'Skills': player_info['Skills'],
-                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
-                                        'Player_URL': pesdb_url,
-                                        'Player_ID': extract_ehub_player_id(pesdb_url)
-                                    }
-                                    st.session_state.add_show_form = True
-                                    st.success("✅ Successfully fetched info!")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Cannot fetch info from this URL. Please check again!")
+                            if player_info and player_info['Player']:
+                                st.session_state.add_preview_data = {
+                                    'Player': player_info['Player'],
+                                    'Rating': player_info.get('Rating', 0),
+                                    'Position': player_info['Position'],
+                                    'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
+                                    'Nation': player_info['Nation'],
+                                    'Club': player_info['Club'],
+                                    'League': player_info['League'],
+                                    'Region': player_info.get('Region', ''),
+                                    'Height': player_info.get('Height', ''),
+                                    'Weight': player_info.get('Weight', ''),
+                                    'Age': player_info.get('Age', ''),
+                                    'Foot': player_info.get('Foot', ''),
+                                    'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
+                                    'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
+                                    'Form': player_info.get('Form', ''),
+                                    'Injury Resistance': player_info.get('Injury Resistance', ''),
+                                    'Skills': player_info['Skills'],
+                                    'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
+                                    'Player_URL': pesdb_url,
+                                    'Player_ID': extract_ehub_player_id(pesdb_url)
+                                }
+                                st.session_state.add_show_form = True
+                                st.success("✅ Successfully fetched info!")
+                            else:
+                                st.error("❌ Cannot fetch info from this URL. Please check again!")
                     
-                    with col2:
-                        if st.button("✍️ Enter manually", use_container_width=True):
+                    # Nút nhập tay nếu cần
+                    if st.button("✍️ Enter manually instead", use_container_width=True):
                             st.session_state.add_preview_data = {
                                 'Player': '',
                                 'Rating': 90,
