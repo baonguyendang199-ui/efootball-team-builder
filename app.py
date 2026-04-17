@@ -204,7 +204,6 @@ class EFAutoBuild:
 
 def render_calculator_tab():
     st.header("🧮 Efootball Pro Calculator (Full Features)")
-    
     # --- PHẦN 1: CONFIG & IMPORT ---
     with st.container():
         col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 1, 1])
@@ -384,18 +383,7 @@ def render_calculator_tab():
         with st.expander("View detailed stats (Final Stats)"):
             st.dataframe(pd.DataFrame([final_stats]).T.rename(columns={0: 'Value'}), height=300)
 
-# ----------------------------------------------------
-# ĐIỀU HƯỚNG SIDEBAR
-# ----------------------------------------------------
-st.sidebar.divider()
-app_mode = st.sidebar.radio("📚 Choose Mode:", ["Team Builder", "Calculator 🧮"], index=0)
-
-if app_mode == "Calculator 🧮":
-    render_calculator_tab()
-    st.stop() 
-# ==========================================
-# KẾT THÚC: EFOOTBALL PRO CALCULATOR (FULL)
-# ==========================================
+## Removed obsolete calculator tab selector
 
 APP_THEME = {
     "primary": "#7C3AED",
@@ -2850,45 +2838,6 @@ def main():
             st.session_state.manual_reload_triggered = True
             st.rerun()
 
-        st.divider()
-
-        # 2. NÚT ĐỒNG BỘ MỚI (CÓ THANH TIẾN TRÌNH & TẢI BACKUP)
-        st.markdown("### 📡 Data Update")
-        st.caption("Scan PESDB to fetch Secondary Positions & Skills")
-        
-        # Nút kích hoạt
-        if st.button("🔁 Scan & Update PESDB", use_container_width=True, type="primary"):
-            st.session_state.run_pesdb_sync = True
-            st.rerun()
-            
-        # Logic xử lý khi đang chạy đồng bộ
-        if st.session_state.get('run_pesdb_sync', False):
-            # Load dữ liệu tạm để xử lý
-            df_sync = load_data_from_gsheet()
-            
-            # --- CODE MỚI: Gọi hàm trực tiếp, không bọc trong Spinner ---
-            # Hàm này sẽ tự Rerun UI liên tục nên không được chặn bằng Spinner
-            updated_df = sync_pesdb_missing_fields(df_sync)
-            
-            # Khi hàm trả về (nghĩa là đã xong hoặc đã dừng), hiện nút tải về
-            if isinstance(updated_df, pd.DataFrame):
-                csv = updated_df.to_csv(index=False).encode('utf-8-sig')
-                
-                st.markdown("---")
-                st.download_button(
-                    label="📥 Download Backup (Excel/CSV)",
-                    data=csv,
-                    file_name=f"efootball_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    key="download_after_sync"
-                )
-                
-                # Nút thoát chế độ sync thủ công nếu muốn
-                if st.button("Return to main screen"):
-                     st.session_state.run_pesdb_sync = False
-                     st.rerun()
-            # -----------------------------------------------------------
-    
         st.divider()
     
         # 3. Menu điều hướng (Giữ nguyên)
