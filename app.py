@@ -4033,7 +4033,7 @@ def main():
         # TAB 1: AUTO BUILD (REAL-TIME & AUTO FORMATION)
         # =========================================================
         with sq_tab1:
-            st.caption("🤖 The system will scan 27 formations to find the strongest squad for your selected criteria.")
+            st.caption("🤖 Choose your squad build mode and criteria. Random mode will pick 23 players from the selected rarity group.")
             
             with st.container(border=True):
                 # Chia làm 2 cột: 1 chọn chế độ, 2 chọn chi tiết
@@ -4045,6 +4045,7 @@ def main():
                 filter_col = None
                 filter_val = None
                 sort_mode = 'rating_desc'
+                random_criteria = 'All'
                 
                 with c1:
                     st.markdown("##### 1. Mode")
@@ -4068,7 +4069,6 @@ def main():
                                 unique_vals = [x for x in df[team_type].astype(str).unique() if str(x).strip()]
                                 
                                 # 3. Sort: Ưu tiên số lượng giảm dần -> Sau đó đến tên A-Z (để đẹp hơn nếu bằng số lượng)
-                                # key=lambda x: (group_counts.get(x, 0), x) -> reverse=True sẽ sort count to nhất lên đầu
                                 sorted_opts = sorted(unique_vals, key=lambda x: group_counts.get(x, 0), reverse=True)
                                 
                                 # 4. Format hiển thị: "Tên (Số lượng)"
@@ -4077,17 +4077,16 @@ def main():
                                 # 5. Tạo Selectbox
                                 selected_display = st.selectbox(f"Choose {team_type}:", ["(All)"] + formatted_opts)
                                 
-                                # 6. Trích xuất giá trị thực để lọc (Bỏ phần số lượng đi)
+                                # 6. Tách giá trị thực để lọc (Bỏ phần số lượng đi)
                                 if selected_display == "(All)":
                                     filter_val = "(All)"
                                 else:
-                                    # Cắt chuỗi từ bên phải tại dấu mở ngoặc cuối cùng
                                     filter_val = selected_display.rsplit(" (", 1)[0]
                                 
                                 filter_col = team_type
                             else:
                                 st.selectbox("Value:", ["-"], disabled=True)
-                    else:
+                    elif build_mode == "By Stats":
                         # Giao diện chọn Chỉ số
                         stat_type = st.selectbox("Criteria:", [
                             "⭐ Highest Rating (Mạnh nhất)", 
@@ -4117,9 +4116,8 @@ def main():
                         elif "Nhẹ nhất" in stat_type: sort_mode = 'weight_asc'
                         elif "Trẻ nhất" in stat_type: sort_mode = 'age_asc'
                         elif "Già nhất" in stat_type: sort_mode = 'age_desc'
-                    if build_mode == "🎲 Random":
-                        formation_options = ["Random"] + list(FORMATIONS.keys())
-                        selected_formation = st.selectbox("Formation (optional):", formation_options, index=0)
+                    elif build_mode == "🎲 Random":
+                        random_criteria = st.selectbox("Random criteria:", ["All", "Non-Epic", "Epic", "POTW"], index=0, help="Select the player rarity group for random squad builds.")
 
             # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
             
@@ -4142,17 +4140,21 @@ def main():
             
             if build_mode == "🎲 Random":
                 import random
-                # Chọn formation
-                if selected_formation == "Random":
-                    formation_name = random.choice(list(FORMATIONS.keys()))
+                # Chọn formation ngẫu nhiên cho 11 starters
+                formation_name = random.choice(list(FORMATIONS.keys()))
+
+                filtered_df = df.copy()
+                if random_criteria == "Non-Epic":
+                    filtered_df = filtered_df[filtered_df['Player Type'] == 'NON-EPIC']
+                elif random_criteria == "Epic":
+                    filtered_df = filtered_df[filtered_df['Player Type'] == 'EPIC']
+                elif random_criteria == "POTW":
+                    filtered_df = filtered_df[filtered_df['Player Type'] == 'POTW']
+
+                if len(filtered_df) < 23:
+                    st.warning(f"⚠️ Not enough players for random squad with criteria '{random_criteria}'!")
                 else:
-                    formation_name = selected_formation
-                
-                # Random 23 players
-                if len(df) < 23:
-                    st.warning("⚠️ Not enough players for random squad!")
-                else:
-                    random_df = df.sample(n=23, random_state=None)
+                    random_df = filtered_df.sample(n=23, random_state=None)
                     squad = []
                     positions = FORMATIONS[formation_name]
                     random_players = random_df.to_dict('records')
