@@ -4045,11 +4045,10 @@ def main():
                 filter_col = None
                 filter_val = None
                 sort_mode = 'rating_desc'
-                random_criteria = 'All'
                 
                 with c1:
                     st.markdown("##### 1. Mode")
-                    build_mode = st.radio("Choose build type:", ["By Team/League", "By Stats", "🎲 Random"], horizontal=True, label_visibility="collapsed")
+                    build_mode = st.radio("Choose build type:", ["By Team/League", "By Stats"], horizontal=True, label_visibility="collapsed")
                 
                 with c2:
                     st.markdown("##### 2. Detailed configuration")
@@ -4116,8 +4115,6 @@ def main():
                         elif "Nhẹ nhất" in stat_type: sort_mode = 'weight_asc'
                         elif "Trẻ nhất" in stat_type: sort_mode = 'age_asc'
                         elif "Già nhất" in stat_type: sort_mode = 'age_desc'
-                    elif build_mode == "🎲 Random":
-                        random_criteria = st.selectbox("Random criteria:", ["All", "Non-Epic", "Epic", "POTW"], index=0, help="Select the player rarity group for random squad builds.")
 
             # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
             
@@ -4137,90 +4134,23 @@ def main():
             # 2. Chạy Auto Build
             best_squad = []
             found_name = ""
-            
-            if build_mode == "🎲 Random":
-                import random
-                # Chọn formation ngẫu nhiên cho 11 starters
-                formation_name = random.choice(list(FORMATIONS.keys()))
 
-                filtered_df = df.copy()
-                if random_criteria == "Non-Epic":
-                    filtered_df = filtered_df[filtered_df['Player Type'] == 'NON-EPIC']
-                elif random_criteria == "Epic":
-                    filtered_df = filtered_df[filtered_df['Player Type'] == 'EPIC']
-                elif random_criteria == "POTW":
-                    filtered_df = filtered_df[filtered_df['Player Type'] == 'POTW']
+            # Chỉ chạy khi có dữ liệu hợp lệ
+            should_run = True
+            if build_mode == "By Team/League" and (not filter_val or filter_val == "(All)" or filter_val == "-"):
+                # Nếu chọn toàn bộ database thì hơi nặng, nhưng vẫn cho chạy
+                pass 
 
-                if len(filtered_df) < 23:
-                    st.warning(f"⚠️ Not enough players for random squad with criteria '{random_criteria}'!")
-                else:
-                    random_df = filtered_df.sample(n=23, random_state=None)
-                    squad = []
-                    positions = FORMATIONS[formation_name]
-                    random_players = random_df.to_dict('records')
-                    
-                    # Assign starters
-                    for i, pos in enumerate(positions):
-                        player = random_players[i]
-                        squad.append({
-                            'Position': pos,
-                            'Player': player['Player'],
-                            'Rating': player['Rating'],
-                            'Score': player['Rating'],
-                            'Is_Starter': True,
-                            'Club': player.get('Club', ''),
-                            'Nation': player.get('Nation', ''),
-                            'Player Type': player.get('Player Type', ''),
-                            'Secondary Positions': player.get('Secondary Positions', ''),
-                            'Height': player.get('Height', ''),
-                            'Weight': player.get('Weight', ''),
-                            'Age': player.get('Age', ''),
-                            'Foot': player.get('Foot', ''),
-                            'Player ID': player.get('Player ID', ''),
-                            'Player URL': player.get('Player URL', ''),
-                        })
-                    
-                    # Assign subs
-                    for i in range(11, 23):
-                        player = random_players[i]
-                        squad.append({
-                            'Position': 'SUB',
-                            'Player': player['Player'],
-                            'Rating': player['Rating'],
-                            'Score': player['Rating'],
-                            'Is_Starter': False,
-                            'Club': player.get('Club', ''),
-                            'Nation': player.get('Nation', ''),
-                            'Player Type': player.get('Player Type', ''),
-                            'Secondary Positions': player.get('Secondary Positions', ''),
-                            'Height': player.get('Height', ''),
-                            'Weight': player.get('Weight', ''),
-                            'Age': player.get('Age', ''),
-                            'Foot': player.get('Foot', ''),
-                            'Player ID': player.get('Player ID', ''),
-                            'Player URL': player.get('Player URL', ''),
-                        })
-                    
-                    best_squad = squad
-                    found_name = formation_name
-                    st.success(f"✅ Random squad created with formation: **{found_name}**")
-            else:
-                # Chỉ chạy khi có dữ liệu hợp lệ
-                should_run = True
-                if build_mode == "By Team/League" and (not filter_val or filter_val == "(All)" or filter_val == "-"):
-                    # Nếu chọn toàn bộ database thì hơi nặng, nhưng vẫn cho chạy
-                    pass 
-
-                if should_run:
-                    # Dùng spinner để báo đang xử lý
-                    with st.spinner("🤖 Scanning 80+ formations to find the optimal squad..."):
-                        found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
+            if should_run:
+                # Dùng spinner để báo đang xử lý
+                with st.spinner("🤖 Scanning 80+ formations to find the optimal squad..."):
+                    found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
                 
-                if not best_squad:
-                    st.warning("⚠️ No suitable players found for squad formation!")
-                else:
-                    if found_name:
-                        st.success(f"✅ Best optimal lineup (Starters): **{found_name}**")
+            if not best_squad:
+                st.warning("⚠️ No suitable players found for squad formation!")
+            else:
+                if found_name:
+                    st.success(f"✅ Best optimal lineup (Starters): **{found_name}**")
 
 # --- CODE MỚI: KIỂM TRA & BÁO THIẾU NGƯỜI ---
                     missing_slots = [p['Position'] for p in best_squad if p.get('Is_Starter') and p['Player'] == "---"]
