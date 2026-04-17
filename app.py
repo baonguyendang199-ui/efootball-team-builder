@@ -4470,7 +4470,7 @@ def main():
             # ========== CHỌN CHẾ ĐỘ ==========
             mode = st.radio(
                 "Choose mode",
-                ["➕ Thêm mới", "🔄 Upgrade existing player"],
+                ["➕ Add", "🔄 Upgrade existing player"],
                 horizontal=True,
                 key="add_mode_radio"
             )
