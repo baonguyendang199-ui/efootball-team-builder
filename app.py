@@ -4027,7 +4027,7 @@ def main():
 
     elif current_tab == 'squad':
         st.header("⚽ Squad Management")
-        sq_tab1, sq_tab2 = st.tabs(["🤖 Auto Build (Smart)", "🛠️ 23-player Squad (Manual)"])
+        sq_tab1, = st.tabs(["🤖 Auto Build (Smart)"])
 
         # =========================================================
         # TAB 1: AUTO BUILD (REAL-TIME & AUTO FORMATION)
@@ -4305,106 +4305,7 @@ def main():
                 render_pitch_view(best_squad, formation_name=found_name, sort_mode=sort_mode)
                
 
-        # =========================================================
-        # TAB 2: MANUAL BUILD (KEEP NGUYÊN)
-        # =========================================================
-        with sq_tab2:
-            st.caption("🛠️ Best Top 23 card check mode (Legacy logic).")
-            
-            # --- LOGIC CŨ ---
-            g1, g2 = st.columns(2)
-            with g1:
-                group_by = st.selectbox("Theo", ["Club", "Nation", "League", "Region"], index=0, key="old_gb")
-            with g2:
-                group_counts = df[group_by].value_counts().to_dict()
-                group_options = [x for x in df[group_by].astype(str).unique() if str(x).strip()]
-                group_options_sorted = sorted(group_options, key=lambda x: group_counts.get(x, 0), reverse=True)
-                formatted_options = ["(All)"] + [f"{opt} ({group_counts.get(opt, 0)})" for opt in group_options_sorted]
-                selected_display = st.selectbox(f"Choose {group_by}", formatted_options, key="old_sel")
-            
-            if selected_display == "(All)":
-                group_value = "(All)"
-            else:
-                group_value = selected_display.rsplit(" (", 1)[0]
-            
-            df_src = df.copy()
-            if group_value != "(All)":
-                df_src = df_src[df_src[group_by].astype(str) == group_value]
-            
-            if df_src.empty:
-                st.warning("No players.")
-            else:
-                if group_by in ['Nation', 'League']:
-                    df_src['TargetClubPriority'] = df_src['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in df_src.columns: df_src['Top23_Count'] = 0
-                    df_src = df_src.sort_values(['Player', 'Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'], ascending=[True, False, True, False, False])
-                    df_src = df_src.drop_duplicates(subset=['Player'], keep='first')
-
-                # Logic lọc GK/CB và chọn top 23 (Code gốc)
-                MAX_SQUAD = 23
-                squad = pd.DataFrame()
-                remaining_slots = MAX_SQUAD
-                
-                # Choose GK
-                gk_df = df_src[df_src['Position'] == 'GK'].copy()
-                if not gk_df.empty:
-                    gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
-                    best_gk = gk_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(1)
-                    squad = pd.concat([squad, best_gk])
-                    remaining_slots -= 1
-                
-                # Choose CB
-                cb_df = df_src[df_src['Position'] == 'CB'].copy()
-                if not cb_df.empty:
-                    cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
-                    best_cb = cb_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(2)
-                    squad = pd.concat([squad, best_cb])
-                    remaining_slots -= len(best_cb)
-                
-                # Choose còn lại
-                others = df_src.drop(squad.index, errors='ignore').copy()
-                if not others.empty and remaining_slots > 0:
-                    others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in others.columns: others['Top23_Count'] = 0
-                    top_rest = others.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(remaining_slots)
-                    squad = pd.concat([squad, top_rest])
-                
-                squad = squad.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
-                
-                st.divider()
-                st.subheader(f"23-player list ({len(squad)}/23)")
-                
-                # --- KHÔI PHỤC HIỂN THỊ CARD CÓ HÌNH ẢNH ---
-                for idx, row in squad.iterrows():
-                    player_name = row['Player']
-                    rating = row['Rating']
-                    ptype = str(row['Player Type']).upper()
-                    
-                    # Logic lấy ảnh mạnh mẽ hơn
-                    pid = str(row.get('Player ID', '')).strip()
-                    purl = str(row.get('Player URL', '')).strip()
-                    if not pid and purl:
-                        m = re.search(r"(\d{14,})", purl)
-                        pid = m.group(1) if m else ""
-                    
-                    img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
-                    
-                    card_color = "🟣" if "POTW" in ptype else ("🟡" if "EPIC" in ptype and "NON" not in ptype else "🔵")
-                    
-                    with st.container(border=True):
-                        c_img, c_inf = st.columns([1, 5])
-                        with c_img:
-                            if img_url:
-                                st.image(img_url, width=60) 
-                            else:
-                                st.markdown("<div style='font-size:40px; text-align:center;'>👤</div>", unsafe_allow_html=True)
-                        with c_inf:
-                            st.markdown(f"### {card_color} {player_name}")
-                            st.markdown(f"**Rating:** {rating} | **Pos:** {row['Position']} | **Type:** {row['Player Type']}")
-                            st.caption(f"**Club:** {row.get('Club','')} | **Nation:** {row.get('Nation','')}")
-
+        # Manual squad tab removed.
     elif current_tab == 'add':
             st.header("➕ Add player")
             
