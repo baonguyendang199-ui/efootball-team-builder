@@ -1706,6 +1706,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             ptype = str(row.get('Player Type', '')).upper()
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
             return (10000 if is_potw else 0) + row['Rating']
+        elif sort_mode == 'epic_only':
+            ptype = str(row.get('Player Type', '')).upper()
+            is_epic = 'EPIC' in ptype and 'NON' not in ptype
+            return (10000 if is_epic else 0) + row['Rating']
+        elif sort_mode == 'non_epic':
+            ptype = str(row.get('Player Type', '')).upper()
+            is_non_epic = 'NON-EPIC' in ptype or ('EPIC' not in ptype and 'POTW' not in ptype)
+            return (10000 if is_non_epic else 0) + row['Rating']
         return row['Rating']
 
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
@@ -4090,33 +4098,17 @@ def main():
                     else:
                         # Giao diện chọn Chỉ số
                         stat_type = st.selectbox("Criteria:", [
-                            "⭐ Highest Rating (Mạnh nhất)", 
-                            "💪 The Tanks (Chiến Thần BMI Lớn)",     # Mới
-                            "⚡ The Agiles (Sóc Nhỏ BMI Nhỏ)",     # Mới
-                            "🦶 The Ambidextrous (2 Chân Như 1)",    # Mới
-                            "🟣 Form Is Temporary (Full POTW)",     # Mới
-                            "🌍 United Nations (Đa Nation)",      # Mới
-                            "🦒 Tallest XI (Cao nhất)", 
-                            "🐜 Shortest XI (Thấp nhất)",
-                            "⚖️ Heaviest XI (Nặng nhất)",
-                            "🪶 Lightest XI (Nhẹ nhất)",
-                            "👶 Youngest XI (Trẻ nhất)",
-                            "👴 Oldest XI (Già nhất)"
-                        ])
+                            "⭐ All",
+                            "🔵 Non-Epic",
+                            "🟡 Epic",
+                            "🟣 POTW"
+                        ], index=0)
                         
                         # Mapping từ Label sang ID
-                        if "Rating" in stat_type: sort_mode = 'rating_desc'
-                        elif "Tanks" in stat_type: sort_mode = 'bmi_desc'      # Mới
-                        elif "Agiles" in stat_type: sort_mode = 'bmi_asc'      # Mới
-                        elif "Ambidextrous" in stat_type: sort_mode = 'ambidextrous' # Mới
-                        elif "POTW" in stat_type: sort_mode = 'potw_only'      # Mới
-                        elif "United Nations" in stat_type: sort_mode = 'united_nations' # Mới
-                        elif "Cao nhất" in stat_type: sort_mode = 'height_desc'
-                        elif "Thấp nhất" in stat_type: sort_mode = 'height_asc'
-                        elif "Nặng nhất" in stat_type: sort_mode = 'weight_desc'
-                        elif "Nhẹ nhất" in stat_type: sort_mode = 'weight_asc'
-                        elif "Trẻ nhất" in stat_type: sort_mode = 'age_asc'
-                        elif "Già nhất" in stat_type: sort_mode = 'age_desc'
+                        if "All" in stat_type: sort_mode = 'rating_desc'
+                        elif "Non-Epic" in stat_type: sort_mode = 'non_epic'
+                        elif "Epic" in stat_type: sort_mode = 'epic_only'
+                        elif "POTW" in stat_type: sort_mode = 'potw_only'
                     if build_mode == "🎲 Random":
                         formation_options = ["Random"] + list(FORMATIONS.keys())
                         selected_formation = st.selectbox("Formation (optional):", formation_options, index=0)
@@ -4142,6 +4134,7 @@ def main():
             
             if build_mode == "🎲 Random":
                 import random
+                sort_mode = 'rating_desc'  # Set sort_mode for Random
                 # Chọn formation
                 if selected_formation == "Random":
                     formation_name = random.choice(list(FORMATIONS.keys()))
@@ -4181,8 +4174,9 @@ def main():
                     # Assign subs
                     for i in range(11, 23):
                         player = random_players[i]
+                        sub_pos = random.choice(positions)  # Random position for sub
                         squad.append({
-                            'Position': 'SUB',
+                            'Position': sub_pos,
                             'Player': player['Player'],
                             'Rating': player['Rating'],
                             'Score': player['Rating'],
