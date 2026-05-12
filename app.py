@@ -901,6 +901,7 @@ def get_gsheet_connection():
     client = gspread.authorize(credentials)
     return client
 
+@st.cache_data(ttl=60)
 def load_data_from_gsheet():
     """Read data from Google Sheets"""
     try:
@@ -1767,86 +1768,74 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # ==========================================================
     remaining_pool = pool_df[~pool_df.index.isin(used_indices)].copy()
     remaining_pool = remaining_pool[remaining_pool['Build_Score'] != ERROR_SCORE]
-    
+
     bench_picks = []
-    bench_pos_counts = {} 
+    bench_pos_counts = {}
     gk_on_bench_count = 0
     MAX_BENCH = 12
 
-    # --- [NEW] TÍNH GIỚI HẠN CB DỰ BỊ DỰA TRÊN SƠ ĐỒ ĐÁ CHÍNH ---
-    # Đếm số lượng 'CB' trong required_positions
+    # --- TÍNH GIỚI HẠN CB DỰ BỊ DỰA TRÊN SƠ ĐỒ ĐÁ CHÍNH ---
     num_starting_cbs = required_positions.count('CB')
-    
-    # Nếu đá chính >= 3 CB (Sơ đồ 3HV hoặc 5HV) -> Max 3 dự bị
-    # Nếu đá chính < 3 CB (Sơ đồ 4HV) -> Max 2 dự bị
     max_cb_subs_allowed = 3 if num_starting_cbs >= 3 else 2
-    # -----------------------------------------------------------
+
+    # --- PRE-COMPUTE phần TĨNH (không thay đổi giữa các vòng lặp) ---
+    remaining_pool['_pos'] = remaining_pool['Position'].astype(str).str.strip().str.upper()
+    remaining_pool['_nation'] = remaining_pool['Nation'].astype(str).str.strip()
+
+    def _can_fit_formation(row):
+        secs = [s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()]
+        return bool(set([row['_pos']] + secs).intersection(unique_formation_positions))
+    remaining_pool['_fits_formation'] = remaining_pool.apply(_can_fit_formation, axis=1)
+    remaining_pool['_fit_bonus'] = remaining_pool['_pos'].apply(lambda p: 0.2 if p in unique_formation_positions else 0.0)
+
+    if sort_mode in ['height_desc', 'weight_desc']:
+        _useful = {'LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF'}
+        def _is_cb_versatile(row):
+            secs = {s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()}
+            return bool(secs.intersection(_useful))
+        remaining_pool['_cb_versatile'] = remaining_pool.apply(_is_cb_versatile, axis=1)
+    else:
+        remaining_pool['_cb_versatile'] = False
 
     for _ in range(MAX_BENCH):
         if remaining_pool.empty:
             break
-            
-        def calculate_draft_priority(row):
-            base_score = row['Build_Score']
-            pos = str(row.get('Position', '')).strip().upper()
-            
-            # --- 1. STRICT FORMATION FIT ---
-            secs = [s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()]
-            all_playable_pos = set([pos] + secs)
-            if not all_playable_pos.intersection(unique_formation_positions):
-                return -999999
 
-            # --- 2. ANTI-SPAM CB (DYNAMIC LIMIT) ---
-            if pos == 'GK' and gk_on_bench_count >= 1:
-                return -999999
-            
-            if sort_mode in ['height_desc', 'weight_desc'] and pos == 'CB':
-                cb_count = bench_pos_counts.get('CB', 0)
-                
-                # SỬ DỤNG BIẾN ĐỘNG max_cb_subs_allowed THAY VÌ SỐ CỨNG 3
-                if cb_count >= max_cb_subs_allowed:
-                    useful_positions = ['LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF']
-                    is_versatile = any(p in str(row.get('Secondary Positions', '')).upper() for p in useful_positions)
-                    
-                    if not is_versatile:
-                        return -999999 
-            
-            # --- 3. LUẬT UNITED NATIONS ---
-            if sort_mode == 'united_nations':
-                p_nation = str(row.get('Nation', '')).strip()
-                if p_nation and p_nation in used_nations:
-                    return -999999
-            
-            # --- 4. BONUS ---
-            fit_bonus = 0
-            if pos in unique_formation_positions:
-                fit_bonus = 0.2
-            
-            current_count_on_bench = bench_pos_counts.get(pos, 0)
-            saturation_penalty = current_count_on_bench * 0.1
-            
-            return base_score + fit_bonus - saturation_penalty
+        # Lọc bằng mask thay vì apply toàn bộ DataFrame
+        mask = remaining_pool['_fits_formation']
 
-        remaining_pool['Draft_Score'] = remaining_pool.apply(calculate_draft_priority, axis=1)
-        
-        candidates = remaining_pool[remaining_pool['Draft_Score'] > -500000]
-        
+        if gk_on_bench_count >= 1:
+            mask = mask & (remaining_pool['_pos'] != 'GK')
+
+        if sort_mode in ['height_desc', 'weight_desc']:
+            cb_count = bench_pos_counts.get('CB', 0)
+            if cb_count >= max_cb_subs_allowed:
+                mask = mask & ~((remaining_pool['_pos'] == 'CB') & ~remaining_pool['_cb_versatile'])
+
+        if sort_mode == 'united_nations':
+            mask = mask & ~remaining_pool['_nation'].isin(used_nations)
+
+        candidates = remaining_pool[mask].copy()
         if candidates.empty:
             break
-            
+
+        # Chỉ tính saturation penalty (phần duy nhất thay đổi mỗi vòng)
+        candidates['_saturation'] = candidates['_pos'].map(lambda p: bench_pos_counts.get(p, 0) * 0.1)
+        candidates['Draft_Score'] = candidates['Build_Score'] + candidates['_fit_bonus'] - candidates['_saturation']
+
         candidates = candidates.sort_values(['Draft_Score', 'Rating'], ascending=[False, False])
         best_pick = candidates.iloc[0]
-        
+
         bench_picks.append(best_pick)
-        
-        picked_pos = str(best_pick['Position']).strip().upper()
+
+        picked_pos = best_pick['_pos']
         bench_pos_counts[picked_pos] = bench_pos_counts.get(picked_pos, 0) + 1
-        
+
         if picked_pos == 'GK':
             gk_on_bench_count += 1
         if sort_mode == 'united_nations':
-            used_nations.add(str(best_pick.get('Nation', '')).strip())
-            
+            used_nations.add(best_pick['_nation'])
+
         remaining_pool = remaining_pool.drop(best_pick.name)
 
     while len(bench_picks) < 12 and not remaining_pool.empty:
@@ -4370,7 +4359,6 @@ def main():
                         if upgrade_input.isdigit():
                             upgrade_url = f"https://pesdb.net/efootball/?id={upgrade_input}"
                         elif "efhub.com" in upgrade_input:
-                            # Extract ID từ efhub link rồi dùng pesdb để scrape
                             _pid = extract_ehub_player_id(upgrade_input)
                             upgrade_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else upgrade_input
                         else:
@@ -4428,7 +4416,6 @@ def main():
                         if pesdb_input.isdigit():
                             pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
                         elif "efhub.com" in pesdb_input:
-                            # Extract ID từ efhub link rồi dùng pesdb để scrape
                             _pid = extract_ehub_player_id(pesdb_input)
                             pesdb_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else pesdb_input
                         else:
