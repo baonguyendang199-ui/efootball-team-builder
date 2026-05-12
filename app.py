@@ -4358,7 +4358,7 @@ def main():
                     
                     upgrade_input = st.text_input(
                         "PESDB URL or Player ID",
-                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809",
+                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809 or https://efhub.com/players/106784161310028",
                         key="upgrade_url"
                     )
                     
@@ -4369,6 +4369,10 @@ def main():
                         # Xử lý input: nếu chỉ là số, thêm prefix
                         if upgrade_input.isdigit():
                             upgrade_url = f"https://pesdb.net/efootball/?id={upgrade_input}"
+                        elif "efhub.com" in upgrade_input:
+                            # Extract ID từ efhub link rồi dùng pesdb để scrape
+                            _pid = extract_ehub_player_id(upgrade_input)
+                            upgrade_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else upgrade_input
                         else:
                             upgrade_url = upgrade_input
                         
@@ -4408,12 +4412,12 @@ def main():
             else:
                 if not st.session_state.add_show_form:
                     st.markdown("### 🔗 Step 1: Enter PESDB URL or ID")
-                    st.info("💡 Enter the PESDB link or just the player ID to automatically fetch full player info")
+                    st.info("💡 Enter the PESDB link, player ID, or efhub link to automatically fetch full player info")
                     
                     pesdb_input = st.text_input(
                         "PESDB URL or Player ID",
-                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809",
-                        help="Example: 105809740719809 or https://pesdb.net/efootball/?id=105809740719809"
+                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809 or https://efhub.com/players/106784161310028",
+                        help="Example: 105809740719809 or https://pesdb.net/efootball/?id=105809740719809 or https://efhub.com/players/106784161310028"
                     )
                     
                     # Tự động fetch khi input thay đổi
@@ -4423,6 +4427,10 @@ def main():
                         # Xử lý input: nếu chỉ là số, thêm prefix
                         if pesdb_input.isdigit():
                             pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
+                        elif "efhub.com" in pesdb_input:
+                            # Extract ID từ efhub link rồi dùng pesdb để scrape
+                            _pid = extract_ehub_player_id(pesdb_input)
+                            pesdb_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else pesdb_input
                         else:
                             pesdb_url = pesdb_input
                         
