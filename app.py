@@ -1285,6 +1285,21 @@ def apply_squad_national_boosters(squad):
         p['Rating'] = get_national_booster_rating(p.get('Data', p), count)
     return squad
 
+def _is_exact_duplicate_copy(best_card, dup) -> bool:
+    """True when the same card exists more than once in inventory."""
+    best_pid = str(best_card.get('Player ID', '')).strip()
+    dup_pid = str(dup.get('Player ID', '')).strip()
+    if best_pid and dup_pid and best_pid == dup_pid:
+        return True
+    return (
+        str(best_card.get('Player', '')).strip() == str(dup.get('Player', '')).strip()
+        and str(best_card.get('Club', '')).strip() == str(dup.get('Club', '')).strip()
+        and str(best_card.get('Nation', '')).strip() == str(dup.get('Nation', '')).strip()
+        and str(best_card.get('League', '')).strip() == str(dup.get('League', '')).strip()
+        and str(best_card.get('Player Type', '')).strip() == str(dup.get('Player Type', '')).strip()
+        and int(best_card.get('Rating', 0) or 0) == int(dup.get('Rating', 0) or 0)
+    )
+
 def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> set:
     """Lấy index của Top 23 cầu thủ cho 1 nhóm (Nation/League/Club) - Logic tương tự build_top23_map nhưng chỉ lấy index."""
     top_indices = set()
@@ -3442,29 +3457,33 @@ def main():
             duplicates_info = []
             grouped = df.groupby(['Player', 'Club', 'Nation', 'League'])
             for (player, club, nation, league), group in grouped:
-                if len(group) > 1 and club and nation and league:
-                    sorted_group = group.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
-                    best_card = sorted_group.iloc[0]
-                    duplicate_cards = sorted_group.iloc[1:]
-                    for _, dup in duplicate_cards.iterrows():
-                        # National Booster exception: if this "lower" card can peak above the
-                        # "best" card in the national team context, it's not a true duplicate.
-                        if bool(dup.get('Has_National_Booster', False)):
-                            dup_nation_peak = int(dup.get('Booster_Rating_11_23', 0))
-                            best_base = int(best_card.get('Rating', 0))
-                            if dup_nation_peak > best_base:
-                                continue  # Keep both — they serve different squads
-                        duplicates_info.append({
-                            'index': dup.name,
-                            'player': player,
-                            'rating': dup['Rating'],
-                            'rarity': dup.get('Player Type', ''),
-                            'club': club,
-                            'nation': nation,
-                            'league': league,
-                            'best_rating': best_card['Rating'],
-                            'best_rarity': best_card.get('Player Type', '')
-                        })
+                if len(group) <= 1 or not str(player).strip():
+                    continue
+                sorted_group = group.copy()
+                sorted_group['_sort_rating'] = sorted_group.apply(get_nation_effective_rating, axis=1)
+                sorted_group = sorted_group.sort_values(['_sort_rating', 'Epic_Priority'], ascending=[False, True])
+                best_card = sorted_group.iloc[0]
+                duplicate_cards = sorted_group.iloc[1:]
+                for _, dup in duplicate_cards.iterrows():
+                    # Exact inventory copies are always redundant — sell extras.
+                    if not _is_exact_duplicate_copy(best_card, dup):
+                        # Different card variant: keep if the "weaker" one peaks higher with national booster.
+                        if _has_national_booster(dup):
+                            dup_peak = get_nation_effective_rating(dup)
+                            best_peak = get_nation_effective_rating(best_card)
+                            if dup_peak > best_peak:
+                                continue
+                    duplicates_info.append({
+                        'index': dup.name,
+                        'player': player,
+                        'rating': dup['Rating'],
+                        'rarity': dup.get('Player Type', ''),
+                        'club': club,
+                        'nation': nation,
+                        'league': league,
+                        'best_rating': best_card['Rating'],
+                        'best_rarity': best_card.get('Player Type', '')
+                    })
             return duplicates_info
 
         duplicates = detect_duplicates(df)
