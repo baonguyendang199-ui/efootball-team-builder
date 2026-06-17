@@ -1244,17 +1244,46 @@ def get_all_known_skills():
         all_skills.update(skills_list)
     return sorted(list(all_skills))
 
+def _has_national_booster(row) -> bool:
+    val = row.get('Has_National_Booster', False)
+    if isinstance(val, bool):
+        return val
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return False
+    return str(val).strip().upper() in ('TRUE', '1', 'YES')
+
+def get_national_booster_rating(row, same_nation_count: int = 23) -> int:
+    """Effective rating from national booster tiers based on same-nation squad count."""
+    base = int(row.get('Rating', 0) or 0)
+    if not _has_national_booster(row) or same_nation_count <= 0:
+        return base
+    if same_nation_count <= 7:
+        col = 'Booster_Rating_1_7'
+    elif same_nation_count <= 10:
+        col = 'Booster_Rating_8_10'
+    else:
+        col = 'Booster_Rating_11_23'
+    boosted = int(row.get(col, 0) or 0)
+    return boosted if boosted > base else base
+
 def get_nation_effective_rating(row):
-    """
-    Effective rating for a player in a 23-man national team context.
-    Uses Booster_Rating_11_23 if the player has a national booster and
-    the boosted value is higher than the base rating.
-    """
-    if row.get('Has_National_Booster', False):
-        boosted = int(row.get('Booster_Rating_11_23', 0))
-        if boosted > int(row.get('Rating', 0)):
-            return boosted
-    return int(row.get('Rating', 0))
+    """Effective rating for a player in a full 23-man national team context."""
+    return get_national_booster_rating(row, 23)
+
+def apply_squad_national_boosters(squad):
+    """Update squad player ratings based on same-nation counts in the 23-man squad."""
+    valid = [p for p in squad if p.get('Player') and p['Player'] != '---']
+    nation_counts = {}
+    for p in valid:
+        nation = str(p.get('Data', {}).get('Nation', '') or '').strip()
+        if nation:
+            nation_counts[nation] = nation_counts.get(nation, 0) + 1
+
+    for p in valid:
+        nation = str(p.get('Data', {}).get('Nation', '') or '').strip()
+        count = nation_counts.get(nation, 0)
+        p['Rating'] = get_national_booster_rating(p.get('Data', p), count)
+    return squad
 
 def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> set:
     """Lấy index của Top 23 cầu thủ cho 1 nhóm (Nation/League/Club) - Logic tương tự build_top23_map nhưng chỉ lấy index."""
@@ -1702,8 +1731,16 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
+    nation_boost_count = 0
+    if filter_col == 'Nation' and filter_val and filter_val != "(All)":
+        nation_boost_count = min(len(pool_df), 23)
+    pool_df['_build_rating'] = pool_df.apply(
+        lambda r: get_national_booster_rating(r, nation_boost_count) if nation_boost_count else int(r['Rating']),
+        axis=1,
+    )
+
     # Sort sơ bộ
-    pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+    pool_df = pool_df.sort_values(['_build_rating', 'Epic_Priority'], ascending=[False, True])
     pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
     pool_df = pool_df.reset_index(drop=True)
 
@@ -1731,10 +1768,11 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     ERROR_SCORE = -999999
 
     def calculate_score(row):
-        rating_bonus = row['Rating'] / 100000.0 
+        eff_rating = row['_build_rating']
+        rating_bonus = eff_rating / 100000.0 
         
         if sort_mode == 'rating_desc': 
-            return row['Rating'] + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
+            return eff_rating + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
         elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
         elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus 
         elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
@@ -1762,12 +1800,12 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             elif a_val == 3: tier_score = 30000
             elif a_val == 2: tier_score = 20000
             sub_tier_bonus = u_val * 100
-            return row['Rating'] + tier_score + sub_tier_bonus
+            return eff_rating + tier_score + sub_tier_bonus
         elif sort_mode == 'potw_only':
             ptype = str(row.get('Player Type', '')).upper()
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
-            return (10000 if is_potw else 0) + row['Rating']
-        return row['Rating']
+            return (10000 if is_potw else 0) + eff_rating
+        return eff_rating
 
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
     pool_df = pool_df.reset_index(drop=True)
@@ -1883,7 +1921,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         candidates['_saturation'] = candidates['_pos'].map(lambda p: bench_pos_counts.get(p, 0) * 0.1)
         candidates['Draft_Score'] = candidates['Build_Score'] + candidates['_fit_bonus'] - candidates['_saturation']
 
-        candidates = candidates.sort_values(['Draft_Score', 'Rating'], ascending=[False, False])
+        candidates = candidates.sort_values(['Draft_Score', '_build_rating'], ascending=[False, False])
         best_pick = candidates.iloc[0]
 
         bench_picks.append(best_pick)
@@ -1916,8 +1954,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             "Height": r_get('Height', ''), "Weight": r_get('Weight', ''), "Age": r_get('Age', ''),
             "Score": r_get('Build_Score'), "Data": row.to_dict() if hasattr(row, 'to_dict') else row
         })
-        
-    return final_squad
+
+    return apply_squad_national_boosters(final_squad)
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
@@ -2049,6 +2087,16 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         rating = p['Rating']
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
+
+        data = p.get('Data', {})
+        base_rating = int(data.get('Rating', rating) or rating)
+        booster_badge = ""
+        if _has_national_booster(data) and int(rating) > base_rating:
+            booster_badge = (
+                f'<div style="position:absolute; top:2px; left:2px; background:#7c3aed; '
+                f'color:white; font-size:7px; font-weight:bold; padding:1px 4px; '
+                f'border-radius:3px; z-index:21;">⚡</div>'
+            )
         
         # Logic Stat Tag
         val_display = ""
@@ -2099,6 +2147,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
 
         return f"""
         <div class="p-card {card_class}" style="{position_css}; --accent: {accent}; --shadow: {shadow};">
+            {booster_badge}
             {badge_html}
             <div class="p-bg"></div>
             <div class="p-header"><span class="p-pos">{pos}</span><span class="p-rating" style="color: {accent}">{rating}</span></div>
