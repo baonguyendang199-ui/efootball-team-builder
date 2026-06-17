@@ -4597,6 +4597,60 @@ def main():
                     st.markdown(f"## ✍️ Enter new player information")
                 
                 st.divider()
+
+                preview_rating = max(int(data.get('Rating', 90) or 90), 1)
+                form_identity = f"{data.get('Player_ID', '')}|{data.get('Player_URL', '')}|{data.get('Player', '')}"
+
+                def clear_add_booster_session():
+                    for key in (
+                        'add_booster_form_identity',
+                        'add_has_national_booster',
+                        'add_booster_1_7',
+                        'add_booster_8_10',
+                        'add_booster_11_23',
+                    ):
+                        st.session_state.pop(key, None)
+
+                if st.session_state.get('add_booster_form_identity') != form_identity:
+                    st.session_state.add_booster_form_identity = form_identity
+                    st.session_state.add_has_national_booster = bool(data.get('Has_National_Booster', False))
+                    st.session_state.add_booster_1_7 = int(data.get('Booster_Rating_1_7') or preview_rating)
+                    st.session_state.add_booster_8_10 = int(data.get('Booster_Rating_8_10') or preview_rating)
+                    st.session_state.add_booster_11_23 = int(data.get('Booster_Rating_11_23') or preview_rating)
+
+                st.subheader("⚡ POTW National Booster")
+                st.caption("Only applies to POTW cards with the special national booster mechanic")
+                st.checkbox(
+                    "🔥 This player has a National Booster",
+                    key="add_has_national_booster",
+                    help="Activates based on how many same-nationality teammates are in the squad"
+                )
+                if st.session_state.add_has_national_booster:
+                    st.info(f"Enter the boosted ratings for each tier (base rating: {preview_rating})")
+                    b_col1, b_col2, b_col3 = st.columns(3)
+                    with b_col1:
+                        st.number_input(
+                            "🔵 Rating with 1–7 same-nation players",
+                            min_value=preview_rating, max_value=150,
+                            key="add_booster_1_7",
+                            help="Effective rating when 1–7 same-nationality players are in the 23-man squad"
+                        )
+                    with b_col2:
+                        st.number_input(
+                            "🟡 Rating with 8–10 same-nation players",
+                            min_value=preview_rating, max_value=150,
+                            key="add_booster_8_10",
+                            help="Effective rating when 8–10 same-nationality players are in the 23-man squad"
+                        )
+                    with b_col3:
+                        st.number_input(
+                            "🔴 Rating with 11–23 same-nation players",
+                            min_value=preview_rating, max_value=150,
+                            key="add_booster_11_23",
+                            help="Effective rating when 11–23 same-nationality players are in the 23-man squad"
+                        )
+
+                st.divider()
                 
                 # Form chỉnh sửa
                 with st.form("add_player_final_form", clear_on_submit=False):
@@ -4717,42 +4771,6 @@ def main():
                         height=100,
                         help="Example: Heading, Man Marking, Interception"
                     )
-
-                    st.divider()
-                    st.subheader("⚡ POTW National Booster")
-                    st.caption("Only applies to POTW cards with the special national booster mechanic")
-                    has_booster = st.checkbox(
-                        "🔥 This player has a National Booster",
-                        value=bool(data.get('Has_National_Booster', False)),
-                        help="Activates based on how many same-nationality teammates are in the squad"
-                    )
-                    booster_1_7 = 0
-                    booster_8_10 = 0
-                    booster_11_23 = 0
-                    if has_booster:
-                        st.info(f"Enter the boosted ratings for each tier (base rating: {rating})")
-                        b_col1, b_col2, b_col3 = st.columns(3)
-                        with b_col1:
-                            booster_1_7 = st.number_input(
-                                "🔵 Rating with 1–7 same-nation players",
-                                min_value=int(rating), max_value=150,
-                                value=int(data.get('Booster_Rating_1_7') or rating),
-                                help="Effective rating when 1–7 same-nationality players are in the 23-man squad"
-                            )
-                        with b_col2:
-                            booster_8_10 = st.number_input(
-                                "🟡 Rating with 8–10 same-nation players",
-                                min_value=int(rating), max_value=150,
-                                value=int(data.get('Booster_Rating_8_10') or rating),
-                                help="Effective rating when 8–10 same-nationality players are in the 23-man squad"
-                            )
-                        with b_col3:
-                            booster_11_23 = st.number_input(
-                                "🔴 Rating with 11–23 same-nation players",
-                                min_value=int(rating), max_value=150,
-                                value=int(data.get('Booster_Rating_11_23') or rating),
-                                help="Effective rating when 11–23 same-nationality players are in the 23-man squad"
-                            )
                     
                     st.divider()
                     
@@ -4767,9 +4785,14 @@ def main():
                     if cancel_btn:
                         st.session_state.add_preview_data = None
                         st.session_state.add_show_form = False
+                        clear_add_booster_session()
                         st.rerun()
                     
                     if save_btn:
+                        has_booster = st.session_state.get('add_has_national_booster', False)
+                        booster_1_7 = int(st.session_state.get('add_booster_1_7', 0)) if has_booster else 0
+                        booster_8_10 = int(st.session_state.get('add_booster_8_10', 0)) if has_booster else 0
+                        booster_11_23 = int(st.session_state.get('add_booster_11_23', 0)) if has_booster else 0
                         if not player_name:
                             st.error("❌ Please enter a player name!")
                         elif not position:
@@ -4824,6 +4847,7 @@ def main():
                                             
                                             st.session_state.add_preview_data = None
                                             st.session_state.add_show_form = False
+                                            clear_add_booster_session()
                                             st.cache_data.clear()
                                             st.balloons()
                                             
@@ -4875,6 +4899,7 @@ def main():
                                             
                                             st.session_state.add_preview_data = None
                                             st.session_state.add_show_form = False
+                                            clear_add_booster_session()
                                             st.cache_data.clear()
                                             st.balloons()
                                             
@@ -4925,6 +4950,7 @@ def main():
 
                                         st.session_state.add_preview_data = None
                                         st.session_state.add_show_form = False
+                                        clear_add_booster_session()
                                         st.cache_data.clear()
                                         st.balloons()
 
