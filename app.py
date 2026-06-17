@@ -593,6 +593,17 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#ef4444; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(5deg);">SELL</div>'
     elif "KEEP" in action:
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">KEEP</div>'
+
+    booster_badge_html = ""
+    if player_data.get('Has_National_Booster', False):
+        b_peak = player_data.get('Booster_Rating_11_23', '')
+        if b_peak:
+            booster_badge_html = (
+                f'<div style="position:absolute; top:5px; left:5px; '
+                f'background:#7c3aed; color:white; font-size:8px; '
+                f'font-weight:bold; padding:1px 5px; border-radius:3px; '
+                f'z-index:5;">⚡{b_peak}</div>'
+            )
     
     # --- LOGIC METRIC TAG (QUAN TRỌNG: VIẾT TRÊN 1 DÒNG) ---
     metric_val = ""
@@ -623,7 +634,7 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
         metric_html = f'<div style="position: absolute; bottom: 58px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.95); color: {stat_color}; font-size: 10px; font-weight: 700; padding: 2px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); z-index: 20; white-space: nowrap; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center;">{label_html}<span>{metric_val}</span></div>'
 
     # --- HTML CARD TỔNG (CŨNG PHẢI 1 DÒNG) ---
-    html = f"""<div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">{metric_html}{top_badge_html}<div class="shine"></div><div class="card-header"><div class="rating-box">{rating}</div><div class="position-box">{pos}</div></div><img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'"><div class="card-info"><div class="player-name">{p_name}</div><div class="sub-info"><span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span><span>{str(player_data.get('Nation', ''))[:3].upper()}</span></div></div></div>"""
+    html = f"""<div class="e-card {card_class}" style="background: {bg_gradient}; width: {width};" title="{p_name} | {rating}">{metric_html}{top_badge_html}{booster_badge_html}<div class="shine"></div><div class="card-header"><div class="rating-box">{rating}</div><div class="position-box">{pos}</div></div><img src="{img_url}" class="player-img" onerror="this.src='https://pesdb.net/assets/img/card/f0.png'"><div class="card-info"><div class="player-name">{p_name}</div><div class="sub-info"><span style="opacity:0.9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 70%;">{club}</span><span>{str(player_data.get('Nation', ''))[:3].upper()}</span></div></div></div>"""
     
     return html
 
@@ -769,6 +780,24 @@ def show_player_modal(row):
 </div>
 """
     st.markdown(html_content, unsafe_allow_html=True)
+
+    if row.get('Has_National_Booster', False):
+        b1 = row.get('Booster_Rating_1_7', 0)
+        b2 = row.get('Booster_Rating_8_10', 0)
+        b3 = row.get('Booster_Rating_11_23', 0)
+        st.markdown(f"""
+        <div style="margin:10px 0; padding:12px; background:rgba(124,58,237,0.15);
+             border:1px solid #7c3aed; border-radius:8px;">
+            <div style="font-weight:700; color:#a78bfa; margin-bottom:6px;">
+                ⚡ National Booster Active
+            </div>
+            <div style="font-size:0.9rem; color:#e2e8f0; display:flex; gap:16px;">
+                <span>🔵 1–7 players: <b>{b1}</b></span>
+                <span>🟡 8–10 players: <b>{b2}</b></span>
+                <span>🔴 11–23 players: <b>{b3}</b></span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Footer Actions
     st.write("")
@@ -950,6 +979,18 @@ def load_data_from_gsheet():
         # Fix lỗi vị trí
         if 'Position' in df.columns:
             df['Position'] = df['Position'].astype(str).str.upper().str.strip()
+
+        for col in ['Booster_Rating_1_7', 'Booster_Rating_8_10', 'Booster_Rating_11_23']:
+            if col not in df.columns:
+                df[col] = 0
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+        if 'Has_National_Booster' not in df.columns:
+            df['Has_National_Booster'] = False
+        df['Has_National_Booster'] = (
+            df['Has_National_Booster'].astype(str).str.strip().str.upper()
+            .map({'TRUE': True, '1': True, 'FALSE': False, '0': False})
+            .fillna(False)
+        )
 
         df = calculate_top23_count(df)
         
@@ -1203,6 +1244,18 @@ def get_all_known_skills():
         all_skills.update(skills_list)
     return sorted(list(all_skills))
 
+def get_nation_effective_rating(row):
+    """
+    Effective rating for a player in a 23-man national team context.
+    Uses Booster_Rating_11_23 if the player has a national booster and
+    the boosted value is higher than the base rating.
+    """
+    if row.get('Has_National_Booster', False):
+        boosted = int(row.get('Booster_Rating_11_23', 0))
+        if boosted > int(row.get('Rating', 0)):
+            return boosted
+    return int(row.get('Rating', 0))
+
 def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> set:
     """Lấy index của Top 23 cầu thủ cho 1 nhóm (Nation/League/Club) - Logic tương tự build_top23_map nhưng chỉ lấy index."""
     top_indices = set()
@@ -1212,15 +1265,22 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
         gdf = df[df[group_by].astype(str) == value].copy()
         if gdf.empty:
             continue
+
+        if group_by == 'Nation':
+            gdf['_eff_rating'] = gdf.apply(get_nation_effective_rating, axis=1)
+            primary_sort_key = '_eff_rating'
+        else:
+            primary_sort_key = 'Rating'
             
         if group_by in ['Nation', 'League']:
             # Type trùng tên, giữ thẻ tốt nhất
-            gdf = gdf.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+            gdf = gdf.sort_values(['Player', primary_sort_key, 'Epic_Priority'], ascending=[True, False, True])
             gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
             
         # Sort cơ bản: Rating, Epic_Priority
         # **Lưu ý: Không dùng Top23_Count ở đây để tránh vòng lặp phụ thuộc**
-        gdf = gdf.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True]).head(max_size)
+        gdf = gdf.sort_values([primary_sort_key, 'Epic_Priority'], ascending=[False, True]).head(max_size)
+        gdf = gdf.drop(columns=['_eff_rating'], errors='ignore')
         top_indices.update(gdf.index.tolist())
         
     return top_indices
@@ -2914,12 +2974,17 @@ def main():
             gdf = df[df[group_by].astype(str) == value].copy()
             if gdf.empty:
                 continue
+            if group_by == 'Nation':
+                gdf['_eff_rating'] = gdf.apply(get_nation_effective_rating, axis=1)
+                primary_sort_key = '_eff_rating'
+            else:
+                primary_sort_key = 'Rating'
             # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
             if group_by in ['Nation', 'League']:
-                gdf = gdf.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+                gdf = gdf.sort_values(['Player', primary_sort_key, 'Epic_Priority'], ascending=[True, False, True])
                 gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
             # Xác định các tiêu chí sắp xếp
-            sort_keys = ['Rating', 'Epic_Priority']
+            sort_keys = [primary_sort_key, 'Epic_Priority']
             sort_asc = [False, True]
             
             # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
@@ -2929,6 +2994,7 @@ def main():
                 
             # Sort theo các tiêu chí đã định
             gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
+            gdf = gdf.drop(columns=['_eff_rating'], errors='ignore')
             size = len(gdf)
             for rank, idx in enumerate(gdf.index.tolist(), start=1):
                 top_map[(value, idx)] = f"{rank}/{size} {value}"
@@ -3260,13 +3326,19 @@ def main():
                 if team_df.empty:
                     continue
 
+                if group_by == 'Nation':
+                    team_df['_eff_rating'] = team_df.apply(get_nation_effective_rating, axis=1)
+                    primary_sort_key = '_eff_rating'
+                else:
+                    primary_sort_key = 'Rating'
+
                 # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
                 if group_by in ['Nation', 'League']:
                     team_df['TargetClubPriority'] = team_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in team_df.columns:
                         team_df['Top23_Count'] = 0
                     team_df = team_df.sort_values(
-                        ['Player', 'Rating', 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                        ['Player', primary_sort_key, 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
                         ascending=[True, False, True, False, False]
                     )
                     team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
@@ -3281,7 +3353,7 @@ def main():
                 if not gk_df.empty:
                     gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
-                    best_gk = gk_df.sort_values(['Rating', 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(1)
+                    best_gk = gk_df.sort_values([primary_sort_key, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(1)
                     squad = pd.concat([squad, best_gk])
                     remaining_slots -= 1
     
@@ -3289,7 +3361,7 @@ def main():
                 if not cb_df.empty:
                     cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
-                    best_cb = cb_df.sort_values(['Rating', 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(2)
+                    best_cb = cb_df.sort_values([primary_sort_key, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(2)
                     squad = pd.concat([squad, best_cb])
                     remaining_slots -= len(best_cb)
     
@@ -3298,12 +3370,12 @@ def main():
                 if not others.empty:
                     others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in others.columns: others['Top23_Count'] = 0
-                    top_rest = others.sort_values(['Rating', 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(remaining_slots)
+                    top_rest = others.sort_values([primary_sort_key, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(remaining_slots)
                     squad = pd.concat([squad, top_rest])
                 
                 # --- LƯU RANKING ---
                 # Sort lại squad theo Rating để đánh số thứ tự (Rank) cho chuẩn logic "Mạnh nhất"
-                final_squad = squad.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+                final_squad = squad.sort_values([primary_sort_key, 'Epic_Priority'], ascending=[False, True])
                 total_in_squad = len(final_squad)
                 
                 for rank, (idx, row) in enumerate(final_squad.iterrows(), start=1):
@@ -3326,6 +3398,13 @@ def main():
                     best_card = sorted_group.iloc[0]
                     duplicate_cards = sorted_group.iloc[1:]
                     for _, dup in duplicate_cards.iterrows():
+                        # National Booster exception: if this "lower" card can peak above the
+                        # "best" card in the national team context, it's not a true duplicate.
+                        if bool(dup.get('Has_National_Booster', False)):
+                            dup_nation_peak = int(dup.get('Booster_Rating_11_23', 0))
+                            best_base = int(best_card.get('Rating', 0))
+                            if dup_nation_peak > best_base:
+                                continue  # Keep both — they serve different squads
                         duplicates_info.append({
                             'index': dup.name,
                             'player': player,
@@ -3374,7 +3453,11 @@ def main():
                 reasons.append(f"Club: {club} ({rank_str})")
             if in_top_nation:
                 rank_str = nation_rank_map[idx]
-                reasons.append(f"Nation: {nation} ({rank_str})")
+                if row.get('Has_National_Booster', False):
+                    b_max = row.get('Booster_Rating_11_23', row['Rating'])
+                    reasons.append(f"Nation: {nation} ({rank_str}) [⚡ Boosted → {b_max}]")
+                else:
+                    reasons.append(f"Nation: {nation} ({rank_str})")
             if in_top_league:
                 rank_str = league_rank_map[idx]
                 reasons.append(f"League: {league} ({rank_str})")
@@ -4388,7 +4471,11 @@ def main():
                                     'Skills': player_info['Skills'],
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': upgrade_url,
-                                    'Player_ID': extract_ehub_player_id(upgrade_url)
+                                    'Player_ID': extract_ehub_player_id(upgrade_url),
+                                    'Has_National_Booster': False,
+                                    'Booster_Rating_1_7': 0,
+                                    'Booster_Rating_8_10': 0,
+                                    'Booster_Rating_11_23': 0,
                                 }
                                 st.session_state.add_show_form = True
                                 st.success("✅ Successfully fetched info!")
@@ -4445,7 +4532,11 @@ def main():
                                     'Skills': player_info['Skills'],
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': pesdb_url,
-                                    'Player_ID': extract_ehub_player_id(pesdb_url)
+                                    'Player_ID': extract_ehub_player_id(pesdb_url),
+                                    'Has_National_Booster': False,
+                                    'Booster_Rating_1_7': 0,
+                                    'Booster_Rating_8_10': 0,
+                                    'Booster_Rating_11_23': 0,
                                 }
                                 st.session_state.add_show_form = True
                                 st.success("✅ Successfully fetched info!")
@@ -4474,7 +4565,11 @@ def main():
                                 'Skills': '',
                                 'Player_Type': 'NON-EPIC',
                                 'Player_URL': '',
-                                'Player_ID': ''
+                                'Player_ID': '',
+                                'Has_National_Booster': False,
+                                'Booster_Rating_1_7': 0,
+                                'Booster_Rating_8_10': 0,
+                                'Booster_Rating_11_23': 0,
                             }
                             st.session_state.add_show_form = True
                             st.rerun()
@@ -4622,6 +4717,42 @@ def main():
                         height=100,
                         help="Example: Heading, Man Marking, Interception"
                     )
+
+                    st.divider()
+                    st.subheader("⚡ POTW National Booster")
+                    st.caption("Only applies to POTW cards with the special national booster mechanic")
+                    has_booster = st.checkbox(
+                        "🔥 This player has a National Booster",
+                        value=bool(data.get('Has_National_Booster', False)),
+                        help="Activates based on how many same-nationality teammates are in the squad"
+                    )
+                    booster_1_7 = 0
+                    booster_8_10 = 0
+                    booster_11_23 = 0
+                    if has_booster:
+                        st.info(f"Enter the boosted ratings for each tier (base rating: {rating})")
+                        b_col1, b_col2, b_col3 = st.columns(3)
+                        with b_col1:
+                            booster_1_7 = st.number_input(
+                                "🔵 Rating with 1–7 same-nation players",
+                                min_value=int(rating), max_value=150,
+                                value=int(data.get('Booster_Rating_1_7') or rating),
+                                help="Effective rating when 1–7 same-nationality players are in the 23-man squad"
+                            )
+                        with b_col2:
+                            booster_8_10 = st.number_input(
+                                "🟡 Rating with 8–10 same-nation players",
+                                min_value=int(rating), max_value=150,
+                                value=int(data.get('Booster_Rating_8_10') or rating),
+                                help="Effective rating when 8–10 same-nationality players are in the 23-man squad"
+                            )
+                        with b_col3:
+                            booster_11_23 = st.number_input(
+                                "🔴 Rating with 11–23 same-nation players",
+                                min_value=int(rating), max_value=150,
+                                value=int(data.get('Booster_Rating_11_23') or rating),
+                                help="Effective rating when 11–23 same-nationality players are in the 23-man squad"
+                            )
                     
                     st.divider()
                     
@@ -4680,6 +4811,10 @@ def main():
                                     new_df.at[old_idx, 'Skills'] = skills
                                     new_df.at[old_idx, 'Added Skills'] = ""
                                     new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type_norm == "EPIC" else 1
+                                    new_df.at[old_idx, 'Has_National_Booster'] = has_booster
+                                    new_df.at[old_idx, 'Booster_Rating_1_7'] = int(booster_1_7) if has_booster else 0
+                                    new_df.at[old_idx, 'Booster_Rating_8_10'] = int(booster_8_10) if has_booster else 0
+                                    new_df.at[old_idx, 'Booster_Rating_11_23'] = int(booster_11_23) if has_booster else 0
                                     
                                     try:
                                         if save_data_to_gsheet(new_df):
@@ -4726,6 +4861,10 @@ def main():
                                         "Skills": skills,
                                         "Added Skills": "",
                                         "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
+                                        "Has_National_Booster": has_booster,
+                                        "Booster_Rating_1_7": int(booster_1_7) if has_booster else 0,
+                                        "Booster_Rating_8_10": int(booster_8_10) if has_booster else 0,
+                                        "Booster_Rating_11_23": int(booster_11_23) if has_booster else 0,
                                     }
                                     
                                     new_df = pd.concat([new_df, pd.DataFrame([new_player])], ignore_index=True)
@@ -4772,6 +4911,10 @@ def main():
                                     "Skills": skills,
                                     "Added Skills": "",
                                     "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
+                                    "Has_National_Booster": has_booster,
+                                    "Booster_Rating_1_7": int(booster_1_7) if has_booster else 0,
+                                    "Booster_Rating_8_10": int(booster_8_10) if has_booster else 0,
+                                    "Booster_Rating_11_23": int(booster_11_23) if has_booster else 0,
                                 }
                                 
                                 new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
