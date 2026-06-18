@@ -10,6 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import altair as alt
+import plotly.express as px
 import streamlit as st
 import json
 from google.oauth2.service_account import Credentials
@@ -25,9 +26,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==========================================
-# BẮT ĐẦU: EFOOTBALL PRO CALCULATOR (FULL)
-# ==========================================
 class EFConstants:
     POSITIONS = ['GK', 'CB', 'LB', 'RB', 'DMF', 'CMF', 'LMF', 'RMF', 'AMF', 'LWF', 'RWF', 'SS', 'CF']
     
@@ -103,13 +101,10 @@ class EFConstants:
 
 class EFMath:
     @staticmethod
-    def get_points_for_level(level, max_level):
+    def get_points_for_level(max_level):
         # Logic tính tổng điểm có được khi đạt max level
         # Đây là ước lượng dựa trên đường cong chuẩn của game
         if max_level <= 1: return 0
-        total = 0
-        # Cứ mỗi level tăng thêm nhận 2 điểm (trung bình)
-        # Game thực tế: Lv 1->2 (2pts), ...
         # Formula đơn giản hóa: (MaxLevel - 1) * 2
         return (max_level - 1) * 2
 
@@ -202,188 +197,8 @@ class EFAutoBuild:
                 
         return allocation, remaining_points
 
-def render_calculator_tab():
-    st.header("🧮 Efootball Pro Calculator (Full Features)")
-    # --- PHẦN 1: CONFIG & IMPORT ---
-    with st.container():
-        col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 1, 1])
-        with col_cfg1:
-            position = st.selectbox("Position", EFConstants.POSITIONS, index=12) # Default CF
-        with col_cfg2:
-            max_level = st.number_input("Max Level", 1, 100, 30, help="Used to estimate total points")
-        with col_cfg3:
-            total_points = EFMath.get_points_for_level(max_level, max_level) # Giả sử max luôn
-            st.metric("Estimated Total Points", total_points)
-    
-    st.divider()
+## Calculator removed
 
-    # --- PHẦN 2: BASE STATS (INPUT) ---
-    if "base_stats_store" not in st.session_state:
-        # Khởi tạo mặc định
-        def_stats = {}
-        keys = list(EFConstants.COEFFICIENTS.keys())
-        for k in keys: def_stats[k] = 40
-        def_stats['Height'] = 180
-        def_stats['Weak Foot Accuracy'] = 2
-        st.session_state.base_stats_store = def_stats
-
-    # Giao diện nhập
-    with st.expander("📝 1. Enter Base Stats (Level 1)", expanded=True):
-        col_inp1, col_inp2 = st.columns([1, 3])
-        with col_inp1:
-            st.caption("Quick paste JSON")
-            # Nút Import giả lập (vì không có trình duyệt thật để scrap ngay tại đây)
-            import_txt = st.text_area("Paste JSON stats (optional)", height=100)
-            if st.button("Load JSON"):
-                try:
-                    loaded = json.loads(import_txt)
-                    st.session_state.base_stats_store.update(loaded)
-                    st.toast("Loaded!", icon="✅")
-                    st.rerun()
-                except:
-                    st.error("Invalid JSON")
-        
-        with col_inp2:
-            # Grid nhập tay
-            inp_cols = st.columns(4)
-            keys = [k for k in EFConstants.COEFFICIENTS.keys() if k not in ['Height', 'Weak Foot Accuracy']]
-            
-            # Render Inputs
-            st.session_state.base_stats_store['Height'] = inp_cols[0].number_input("Height", 150, 220, st.session_state.base_stats_store.get('Height', 180))
-            st.session_state.base_stats_store['Weak Foot Accuracy'] = inp_cols[1].number_input("Weak Foot", 1, 4, st.session_state.base_stats_store.get('Weak Foot Accuracy', 2))
-            
-            for i, k in enumerate(keys):
-                c = inp_cols[(i+2) % 4]
-                val = st.session_state.base_stats_store.get(k, 40)
-                new_val = c.number_input(k, 40, 99, val, key=f"inp_{k}", label_visibility="visible")
-                st.session_state.base_stats_store[k] = new_val
-
-    st.divider()
-
-    # --- PHẦN 3: PROGRESSION & AUTO BUILD ---
-    st.subheader("🚀 2. Progression & Auto Build")
-    
-    # State cho allocation
-    if "allocation" not in st.session_state:
-        st.session_state.allocation = {stat['name']: 0 for stat in EFConstants.PROG_STATS}
-
-    # Toolbar
-    tb_c1, tb_c2, tb_c3 = st.columns([1, 1, 2])
-    with tb_c1:
-        if st.button("🤖 Auto Allocate (Max OVR)", type="primary", use_container_width=True):
-            # Chạy thuật toán
-            alloc, left = EFAutoBuild.optimize(st.session_state.base_stats_store, position, total_points)
-            st.session_state.allocation = alloc
-            st.toast(f"Optimized! {left} points remaining.", icon="🤖")
-            st.rerun()
-    with tb_c2:
-        if st.button("🔄 Reset Points", use_container_width=True):
-            st.session_state.allocation = {stat['name']: 0 for stat in EFConstants.PROG_STATS}
-            st.rerun()
-
-    # Sliders cho Progression
-    c_prog_left, c_prog_right = st.columns(2)
-    
-    current_used_points = 0
-    
-    # Render Sliders
-    # Lọc stats GK/Non-GK
-    relevant_groups = EFConstants.PROG_STATS
-    if position == "GK":
-        relevant_groups = [x for x in relevant_groups if "GK" in x['name'] or x['name'] in ['Aerial Strength', 'Lower Body Strength']]
-    else:
-        relevant_groups = [x for x in relevant_groups if "GK" not in x['name']]
-
-    for i, group in enumerate(relevant_groups):
-        col = c_prog_left if i % 2 == 0 else c_prog_right
-        name = group['name']
-        current_val = st.session_state.allocation.get(name, 0)
-        
-        new_val = col.slider(f"{name}", 0, 20, current_val, key=f"slider_{name}")
-        st.session_state.allocation[name] = new_val
-        
-        # Tính point đã dùng
-        cost = 0
-        for l in range(1, new_val + 1):
-            cost += EFMath.calc_cost(l - 1) # Cost của level hiện tại
-        current_used_points += cost
-
-    # Hiển thị số dư
-    remaining = total_points - current_used_points
-    color = "green" if remaining >= 0 else "red"
-    st.markdown(f"**Points Left:** <span style='color:{color}; font-size:20px'>{remaining}</span> / {total_points}", unsafe_allow_html=True)
-
-    st.divider()
-
-    # --- PHẦN 4: FINAL CALCULATION & DISPLAY ---
-    st.subheader("📊 Results")
-    
-    # 4.1 Options
-    opt_c1, opt_c2 = st.columns(2)
-    with opt_c1:
-        booster_name = st.selectbox("Booster", [b['name'] for b in EFConstants.BOOSTERS])
-    with opt_c2:
-        manager_boost = st.checkbox("Manager Boost (+88 Proficiency)", value=True)
-
-    # 4.2 Calculate Stats
-    final_stats = {}
-    base = st.session_state.base_stats_store
-    alloc = st.session_state.allocation
-    
-    # Get Booster stats
-    booster_def = next((b for b in EFConstants.BOOSTERS if b['name'] == booster_name), None)
-    booster_affects = booster_def['stats'] if booster_def else []
-
-    for k in base.keys():
-        if k in ['Height', 'Weak Foot Accuracy']:
-            final_stats[k] = base[k]
-            continue
-            
-        val = base[k]
-        
-        # Add progression
-        prog_add = 0
-        for grp in EFConstants.PROG_STATS:
-            if k in grp['affects']:
-                # Hệ số cộng là 1:1, nhưng +2 ở các mốc nào đó? 
-                # Theo game hiện tại: +1 point progression = +1 stat value (đến 99)
-                # Tuy nhiên, slider level là số điểm cộng vào, không phải số point tiêu tốn
-                # Logic TS: stat += level
-                prog_add += alloc.get(grp['name'], 0)
-        
-        val_prog = min(val + prog_add, 99) # Cap 99 base
-        
-        # Manager
-        mgr_add = 0
-        if manager_boost:
-            if val_prog >= 85: mgr_add = 3 # Logic giản lược
-            elif val_prog >= 60: mgr_add = 2
-            else: mgr_add = 1
-        
-        # Booster
-        bst_add = 0
-        if k in booster_affects:
-            bst_add = 2 # Chuẩn booster +2
-            
-        final_stats[k] = val_prog + mgr_add + bst_add
-
-    # 4.3 Calculate OVR
-    precise_ovr = EFMath.calculate_ovr(final_stats, EFConstants.get_pos_idx(position))
-    
-    # Display Big Number
-    res_c1, res_c2, res_c3 = st.columns([1, 1, 2])
-    with res_c1:
-        st.caption("Precise Rating")
-        st.markdown(f"<h1 style='color:#4ADE80; margin:0'>{precise_ovr:.2f}</h1>", unsafe_allow_html=True)
-    with res_c2:
-        st.caption("In-Game Rating")
-        st.markdown(f"<h1 style='color:#FACC15; margin:0'>{int(precise_ovr)}</h1>", unsafe_allow_html=True)
-    with res_c3:
-        # Mini Chart or Detail
-        with st.expander("View detailed stats (Final Stats)"):
-            st.dataframe(pd.DataFrame([final_stats]).T.rename(columns={0: 'Value'}), height=300)
-
-## Removed obsolete calculator tab selector
 
 APP_THEME = {
     "primary": "#7C3AED",
@@ -1561,12 +1376,6 @@ def get_inventory():
 # --- CONFIG ---
 MAX_SQUAD_SIZE = 23
 
-st.set_page_config(
-    page_title="Efootball Team Builder",
-    page_icon="⚽",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 # Position mapping
 POSITIONS = {
@@ -1704,13 +1513,19 @@ FORMATION_COORDS = {
         (15, 35), (15, 65)                      # CFs
     ],
     "3-4-3 (Standard)": [
-        (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (25, 20), (25, 80), (15, 50)
+        (92, 50), (80, 25), (82, 50), (80, 75),   # GK, 3 CBs
+        (55, 10), (55, 90), (60, 35), (60, 65),   # LMF, RMF, 2 CMs
+        (22, 20), (15, 50), (22, 80)               # LWF, CF, RWF
     ],
     "3-4-3 (Pressing)": [
-        (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (25, 20), (25, 80), (15, 50)
+        (92, 50), (78, 25), (80, 50), (78, 75),   # GK, 3 CBs (pushed higher)
+        (50, 10), (50, 90), (55, 35), (55, 65),   # wider MFs, higher press
+        (18, 20), (12, 50), (18, 80)               # forwards closer to goal
     ],
     "3-4-3 (Defensive)": [
-        (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (25, 20), (25, 80), (15, 50)
+        (92, 50), (82, 25), (84, 50), (82, 75),   # GK, 3 CBs (deep)
+        (62, 10), (62, 90), (65, 35), (65, 65),   # MFs sitting deep
+        (28, 20), (22, 50), (28, 80)               # forwards deeper starting
     ],
     "3-4-1-2 (Classic)": [
         (92, 50), (80, 25), (82, 50), (80, 75), (50, 10), (50, 90), (60, 35), (60, 65), (40, 50), (15, 35), (15, 65)
@@ -2982,17 +2797,17 @@ def main():
 
         st.divider()
     
-        # 3. Menu điều hướng (Giữ nguyên)
+        # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills"], # Đã xóa "Phân tích"
+            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills"],
             index=0
         )
-    
+
         # Điều hướng chi tiết
         if main_menu == "📊 Overview":
             st.session_state.current_tab = "overview"
-    
+
         elif main_menu == "👥 Manage Players":
             sub_menu = st.radio(
                 "⚽ Player",
@@ -3007,7 +2822,7 @@ def main():
                 st.session_state.current_tab = "add"
             else:
                 st.session_state.current_tab = "players"
-    
+
         elif main_menu == "🎮 Manage Skills":
             sub_menu = st.radio(
                 "🛠️ Skills",
@@ -3020,7 +2835,9 @@ def main():
                 st.session_state.current_tab = "inventory"
             else:
                 st.session_state.current_tab = "skills"
-        
+
+        # Tools removed
+
         st.divider()
         st.caption(f"☁️ Google Sheets • Max Squad: {MAX_SQUAD_SIZE}")
 
@@ -3337,7 +3154,7 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        import plotly.express as px
+        
         
         l_c1, l_c2, l_c3 = st.columns(3)
 
@@ -3376,7 +3193,7 @@ def main():
         render_chart_top10(l_c1, 'Club', '🏛️ Clubs', '#3b82f6') # Blue
 
         # 2. Top 10 Nations
-        render_chart_top10(l_c2, 'Nation', '🌍 Nation (Nations)', '#ef4444') # Red
+        render_chart_top10(l_c2, 'Nation', '🌍 Top Nations', '#ef4444') # Red
 
         # 3. Top 10 Leagues
         df_league_clean = df[df['League'].astype(str).str.strip() != '']
@@ -3396,7 +3213,7 @@ def main():
         )
         
         with l_c3.container(border=True):
-            st.markdown(f"**🏆 League (Leagues)**")
+            st.markdown(f"**🏆 Top Leagues**")
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
     elif current_tab == 'players':
@@ -5070,7 +4887,7 @@ def main():
             STRICT_CATEGORIES = {
                 "🎮 Dribbling": ["Sole Control", "Scissors Feint", "Double Touch", "Flip Flap", "Marseille Turn", "Sombrero", "Chop Turn", "Cut Behind & Turn", "Scotch Move", "Rabona"],
                 "⚽ Passing": ["Weighted Pass", "Pinpoint Crossing", "One-touch Pass", "Through Passing", "No Look Pass", "Low Lofted Pass", "Long Throw"],
-                "🎯 Shooting": ["First-time Shot", "Long-Range Shooting", "Long-Range Curler", "Outside Curler", "Chip Shot Control", "Knuckle Shot", "Dipping Shot", "Rising Shot", "Acrobatic Finishing"],
+                "🎯 Shooting": ["First-time Shot", "Long Range Shooting", "Long-Range Curler", "Outside Curler", "Chip Shot Control", "Knuckle Shot", "Dipping Shot", "Rising Shot", "Acrobatic Finishing"],
                 "🛡️ Defense": ["Man Marking", "Track Back", "Acrobatic Clearance", "Interception", "Blocker", "Heading", "Aerial Superiority", "Sliding Tackle"],
                 "✨ Other": ["Captaincy", "Super Sub", "Fighting Spirit", "Gamesmanship", "Penalty Specialist", "Heel Trick"]
             }
@@ -5118,10 +4935,27 @@ def main():
                     st.cache_data.clear()
                     st.rerun()
             with c3:
+                if 'confirm_delete_inventory' not in st.session_state:
+                    st.session_state['confirm_delete_inventory'] = False
+
                 if st.button("🗑️ Delete this inventory", type="primary"):
-                    if is_gk_mode: save_gk_inventory_to_gsheet({k:0 for k in GK_SKILLS_PRIORITY_LIST})
-                    else: save_skill_inventory_to_gsheet({})
-                    st.rerun()
+                    st.session_state['confirm_delete_inventory'] = True
+
+                if st.session_state.get('confirm_delete_inventory'):
+                    st.warning("⚠️ This will delete all inventory data. This action is irreversible.")
+                    col_yes, col_no = st.columns([1,1])
+                    with col_yes:
+                        if st.button("⚠️ Yes, delete everything", key="confirm_delete_yes", type="primary"):
+                            if is_gk_mode:
+                                save_gk_inventory_to_gsheet({k:0 for k in GK_SKILLS_PRIORITY_LIST})
+                            else:
+                                save_skill_inventory_to_gsheet({})
+                            st.session_state['confirm_delete_inventory'] = False
+                            st.rerun()
+                    with col_no:
+                        if st.button("Cancel", key="confirm_delete_cancel"):
+                            st.session_state['confirm_delete_inventory'] = False
+                            st.rerun()
 
         st.write("") 
 
@@ -5167,7 +5001,7 @@ def main():
             with col_submit:
                 submitted = st.form_submit_button("💾 UPDATE INVENTORY", type="primary", use_container_width=True)
             with col_info:
-                st.caption("💡 You are editing the **" + ("GK" if is_gk_mode else "PLAYER") + "**. Hãy kiểm tra kỹ trước khi lưu.")
+                st.caption("💡 You are editing the **" + ("GK" if is_gk_mode else "PLAYER") + " inventory. Please review carefully before saving.")
 
         # --- 6. SAVE LOGIC ---
         if submitted:
