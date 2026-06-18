@@ -1786,7 +1786,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     _BUILD_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
     _bcol = _BUILD_COL.get(filter_col, 'Rating')
     pool_df['_build_rating'] = pool_df[_bcol] if _bcol in pool_df.columns else pool_df['Rating']
-    nation_build = (filter_col == 'Nation' and bool(filter_val) and filter_val != "(All)")
 
     # Sort sơ bộ
     pool_df = pool_df.sort_values(['_build_rating', 'Epic_Priority'], ascending=[False, True])
@@ -2004,7 +2003,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             "Score": r_get('Build_Score'), "Data": row.to_dict() if hasattr(row, 'to_dict') else row
         })
 
-    return apply_squad_national_boosters(final_squad, nation_build=nation_build, filter_col=filter_col)
+    return apply_squad_national_boosters(final_squad, filter_col=filter_col)
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
@@ -2139,7 +2138,11 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
 
         data = p.get('Data', {})
         base_rating = int(data.get('Rating', rating) or rating)
-        eff_rating = int(data.get('Effective_Nation_Rating', base_rating) or base_rating)
+        # Check for any effective rating (Nation, Club, or League)
+        eff_rating = base_rating
+        for eff_col in ['Effective_Nation_Rating', 'Effective_Club_Rating', 'Effective_League_Rating']:
+            if eff_col in data:
+                eff_rating = max(eff_rating, int(data.get(eff_col, base_rating) or base_rating))
         booster_badge = ""
         if data.get('National Booster', False) and eff_rating > base_rating:
             booster_badge = (
