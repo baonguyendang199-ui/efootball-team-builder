@@ -4010,7 +4010,8 @@ def main():
                                 st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
                             
                             if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
-                                show_training_modal(idx, row, inventory_field)
+                                # Pass the correct inventory depending on player position to avoid extra API calls
+                                show_training_modal(idx, row, inventory_gk if is_gk_player else inventory_field)
 
     elif current_tab == 'squad':
         st.header("⚽ Squad Management")
@@ -4967,7 +4968,12 @@ def main():
             for tab_idx, (cat_name, skills_in_cat) in enumerate(grouped_skills.items()):
                 with tabs[tab_idx]:
                     cols = st.columns(4)
-                    for i, skill in enumerate(sorted(skills_in_cat)):
+                    # Preserve explicit priority order for GK inventory; alphabetical for Field
+                    if is_gk_mode:
+                        skills_iter = skills_in_cat
+                    else:
+                        skills_iter = sorted(skills_in_cat)
+                    for i, skill in enumerate(skills_iter):
                         current_qty = inventory.get(skill, 0)
                         
                         icon = "🧤" if is_gk_mode else "✨"
@@ -4988,9 +4994,10 @@ def main():
                             </div>
                             """, unsafe_allow_html=True)
                             
+                            widget_key = f"inv_{'gk' if is_gk_mode else 'field'}_{skill}"
                             val = st.number_input(
                                 f"{skill}", min_value=0, max_value=999, 
-                                value=int(current_qty), step=1, key=f"inv_{skill}", 
+                                value=int(current_qty), step=1, key=widget_key, 
                                 label_visibility="collapsed"
                             )
                             new_values[skill] = val
