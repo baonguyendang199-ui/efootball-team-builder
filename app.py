@@ -618,7 +618,8 @@ def show_player_modal(row):
     c1, c2 = st.columns([1, 4])
     with c1:
         if row.get('Player URL'):
-            st.link_button("🌐 PESDB Link", row.get('Player URL'), use_container_width=True)
+            efhub_link = make_ehub_player_url(row.get('Player URL')) or row.get('Player URL')
+            st.link_button("🌐 EFHub Link", efhub_link, use_container_width=True)
     with c2:
         pass
 
@@ -2254,9 +2255,9 @@ def extract_ehub_player_id(value: str) -> str:
     return m.group(1) if m else ""
 
 def make_ehub_player_url(player_id: str) -> str:
-    """Tạo URL PESDB từ Player ID"""
+    """Tạo URL EFHub player từ Player ID hoặc URL"""
     pid = extract_ehub_player_id(player_id)
-    return f"{PESDB_PLAYER_URL_BASE}{pid}" if pid else ""
+    return f"https://efhub.com/players/{pid}" if pid else ""
 
 def make_ehub_player_image_url(player_id: str) -> str:
     """Tạo URL hình ảnh từ Player ID - PESDB format"""
