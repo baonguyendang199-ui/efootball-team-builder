@@ -992,9 +992,9 @@ def load_data_from_gsheet():
             if old_col in df.columns and new_col not in df.columns:
                 df[new_col] = df[old_col]
 
-        df = calculate_top23_count(df)
         df = apply_national_booster(df)
         df = apply_club_league_booster(df)
+        df = calculate_top23_count(df)
         
         return df
     except Exception as e:
@@ -1323,14 +1323,20 @@ def apply_club_league_booster(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def apply_squad_national_boosters(squad, nation_build=False):
-    """Show Effective_Nation_Rating on pitch cards when building a Nation squad."""
-    if not nation_build:
+def apply_squad_national_boosters(squad, nation_build=False, filter_col=None):
+    """Show effective rating on pitch cards based on build type (Nation/Club/League)."""
+    EFF_COL = {
+        'Nation': 'Effective_Nation_Rating',
+        'Club':   'Effective_Club_Rating',
+        'League': 'Effective_League_Rating',
+    }
+    eff_col = EFF_COL.get(filter_col)
+    if not eff_col:
         return squad
     for p in squad:
         if p.get('Player') and p['Player'] != '---':
             data = p.get('Data', {})
-            eff = data.get('Effective_Nation_Rating', data.get('Rating', p['Rating']))
+            eff = data.get(eff_col, data.get('Rating', p['Rating']))
             p['Rating'] = int(eff)
     return squad
 
@@ -1780,6 +1786,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     _BUILD_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
     _bcol = _BUILD_COL.get(filter_col, 'Rating')
     pool_df['_build_rating'] = pool_df[_bcol] if _bcol in pool_df.columns else pool_df['Rating']
+    nation_build = (filter_col == 'Nation' and bool(filter_val) and filter_val != "(All)")
 
     # Sort sơ bộ
     pool_df = pool_df.sort_values(['_build_rating', 'Epic_Priority'], ascending=[False, True])
@@ -1997,7 +2004,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             "Score": r_get('Build_Score'), "Data": row.to_dict() if hasattr(row, 'to_dict') else row
         })
 
-    return apply_squad_national_boosters(final_squad, nation_build=nation_build)
+    return apply_squad_national_boosters(final_squad, nation_build=nation_build, filter_col=filter_col)
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
