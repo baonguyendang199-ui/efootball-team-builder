@@ -1013,7 +1013,7 @@ def save_data_to_gsheet(df):
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
         
         # Remove Epic_Priority column before saving
-        df_save = df.drop(columns=['Epic_Priority', 'Effective_Nation_Rating', 'Top23_Count'], errors='ignore').copy()
+        df_save = df.drop(columns=['Epic_Priority', 'Effective_Nation_Rating', 'Effective_Club_Rating', 'Effective_League_Rating', 'Top23_Count'], errors='ignore').copy()
         
         # CRITICAL: Replace NaN/inf values with empty string or 0
         # This prevents JSON error when saving to Google Sheets
@@ -1215,7 +1215,9 @@ def get_player_rank(df, row, group_by, max_size=23):
         return None
     
     # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
-    rank_col = 'Effective_Nation_Rating' if group_by == 'Nation' and 'Effective_Nation_Rating' in group_df.columns else 'Rating'
+    _RANK_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
+    _candidate = _RANK_COL.get(group_by, 'Rating')
+    rank_col = _candidate if _candidate in group_df.columns else 'Rating'
     if group_by in ['Nation', 'League']:
         group_df = group_df.sort_values(['Player', rank_col, 'Epic_Priority'], ascending=[True, False, True])
         group_df = group_df.drop_duplicates(subset=['Player'], keep='first')
@@ -1342,10 +1344,9 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
         if gdf.empty:
             continue
 
-        if group_by == 'Nation' and 'Effective_Nation_Rating' in gdf.columns:
-            primary_sort_key = 'Effective_Nation_Rating'
-        else:
-            primary_sort_key = 'Rating'
+        _RANK_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
+        _candidate = _RANK_COL.get(group_by, 'Rating')
+        primary_sort_key = _candidate if _candidate in gdf.columns else 'Rating'
             
         if group_by in ['Nation', 'League']:
             # Type trùng tên, giữ thẻ tốt nhất
@@ -1776,11 +1777,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
-    nation_build = filter_col == 'Nation' and filter_val and filter_val != "(All)"
-    if nation_build and 'Effective_Nation_Rating' in pool_df.columns:
-        pool_df['_build_rating'] = pool_df['Effective_Nation_Rating']
-    else:
-        pool_df['_build_rating'] = pool_df['Rating']
+    _BUILD_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
+    _bcol = _BUILD_COL.get(filter_col, 'Rating')
+    pool_df['_build_rating'] = pool_df[_bcol] if _bcol in pool_df.columns else pool_df['Rating']
 
     # Sort sơ bộ
     pool_df = pool_df.sort_values(['_build_rating', 'Epic_Priority'], ascending=[False, True])
@@ -3481,8 +3480,9 @@ def main():
             grouped = df.groupby(['Player', 'Club', 'Nation', 'League'])
             for (player, club, nation, league), group in grouped:
                 if len(group) > 1 and club and nation and league:
-                    # Best by base Rating → determines Club and League squad inclusion
-                    sorted_by_rating = group.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+                    # Best by Effective_Club_Rating → determines Club and League squad inclusion
+                    sort_col = 'Effective_Club_Rating' if 'Effective_Club_Rating' in group.columns else 'Rating'
+                    sorted_by_rating = group.sort_values([sort_col, 'Epic_Priority'], ascending=[False, True])
                     best_overall_idx = sorted_by_rating.index[0]
                     
                     # Best by Effective_Nation_Rating → determines Nation squad inclusion
@@ -3541,7 +3541,10 @@ def main():
             # Format hiển thị: "Club: Manchester B (5/11)"
             if in_top_club:
                 rank_str = club_rank_map[idx]
-                reasons.append(f"Club: {club} ({rank_str})")
+                base = row.get('Rating', '')
+                eff_club = row.get('Effective_Club_Rating', base)
+                boost_note = f" [Boosted {base}→{eff_club}]" if eff_club != base else ""
+                reasons.append(f"Club: {club} ({rank_str}){boost_note}")
             if in_top_nation:
                 rank_str = nation_rank_map[idx]
                 base = row.get('Rating', '')
@@ -3550,7 +3553,10 @@ def main():
                 reasons.append(f"Nation: {nation} ({rank_str}){boost_note}")
             if in_top_league:
                 rank_str = league_rank_map[idx]
-                reasons.append(f"League: {league} ({rank_str})")
+                base = row.get('Rating', '')
+                eff_league = row.get('Effective_League_Rating', base)
+                boost_note = f" [Boosted {base}→{eff_league}]" if eff_league != base else ""
+                reasons.append(f"League: {league} ({rank_str}){boost_note}")
             
             # 3. Quyết định
             if reasons:
