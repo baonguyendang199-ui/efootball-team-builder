@@ -396,7 +396,6 @@ APP_THEME = {
     "text": "#E2E8F0",
     "muted": "#94A3B8"
 }
-SHOW_APP_HERO = False
 
 
 def inject_modern_ui_theme():
@@ -1820,7 +1819,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         rating_bonus = eff_rating / 100000.0 
         
         if sort_mode == 'rating_desc': 
-            return eff_rating + (0.1 if row.get('Epic_Priority', 0) == 1 else 0)
+            return eff_rating
         elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
         elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus 
         elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
@@ -2830,14 +2829,6 @@ def extract_full_player_info(player_url: str) -> dict:
         # Lấy Player Type
         info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
         
-        # ... (Phần dưới giữ nguyên) ...
-        
-        # Lấy Skills
-        info['Skills'] = extract_player_skills(player_url)
-        
-        # Lấy Player Type từ loại thẻ
-        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
-        
         # Lấy Rating (POTW dùng level gốc +4, thẻ khác ưu tiên Max Level)
         info['Rating'] = extract_max_level_rating(
             player_url,
@@ -3107,15 +3098,16 @@ def main():
     # Hàm tra cứu nhanh
     def fast_rank(value, idx, mapping):
         return mapping.get((str(value), idx), None)
-        
-        if df.empty:
-            st.error("No player data available!")
-            return
+    
+    if df.empty:
+        st.error("No player data available!")
+        return
 
     current_tab = st.session_state.current_tab
 
-    if SHOW_APP_HERO and current_tab == 'overview':
-        render_app_hero(df)
+    # render_app_hero() dọc được xóa - dead code
+    # if SHOW_APP_HERO and current_tab == 'overview':
+    #     render_app_hero(df)
 
     # Đảm bảo dòng 'if' này thẳng hàng với các dòng code khác trong hàm main()
     if current_tab == 'overview':
