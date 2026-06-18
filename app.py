@@ -994,6 +994,7 @@ def load_data_from_gsheet():
 
         df = calculate_top23_count(df)
         df = apply_national_booster(df)
+        df = apply_club_league_booster(df)
         
         return df
     except Exception as e:
@@ -1286,6 +1287,37 @@ def apply_national_booster(df: pd.DataFrame) -> pd.DataFrame:
         return int(val) if val > 0 else row['Rating']
 
     df['Effective_Nation_Rating'] = df.apply(_boosted_rating, axis=1)
+    return df
+
+
+def apply_club_league_booster(df: pd.DataFrame) -> pd.DataFrame:
+    for col in ['Booster Rating 1-7', 'Booster Rating 8-10', 'Booster Rating 11-23']:
+        if col not in df.columns:
+            df[col] = 0
+
+    df['Effective_Club_Rating']   = df['Rating'].copy()
+    df['Effective_League_Rating'] = df['Rating'].copy()
+
+    club_depth   = df.groupby(['Club',   'Nation'])['Player'].nunique()
+    league_depth = df.groupby(['League', 'Nation'])['Player'].nunique()
+
+    def _boosted(row, depth):
+        if not row['National Booster']:
+            return row['Rating']
+        if depth <= 7:
+            val = row['Booster Rating 1-7']
+        elif depth <= 10:
+            val = row['Booster Rating 8-10']
+        else:
+            val = row['Booster Rating 11-23']
+        return int(val) if val > 0 else row['Rating']
+
+    df['Effective_Club_Rating'] = df.apply(
+        lambda r: _boosted(r, int(club_depth.get((r['Club'], r['Nation']), 0))), axis=1
+    )
+    df['Effective_League_Rating'] = df.apply(
+        lambda r: _boosted(r, int(league_depth.get((r['League'], r['Nation']), 0))), axis=1
+    )
     return df
 
 
@@ -3035,7 +3067,9 @@ def main():
             gdf = df[df[group_by].astype(str) == value].copy()
             if gdf.empty:
                 continue
-            rank_col = 'Effective_Nation_Rating' if group_by == 'Nation' else 'Rating'
+            _RANK_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
+            _candidate = _RANK_COL.get(group_by, 'Rating')
+            rank_col = _candidate if _candidate in gdf.columns else 'Rating'
             # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
             if group_by in ['Nation', 'League']:
                 gdf = gdf.sort_values(['Player', rank_col, 'Epic_Priority'], ascending=[True, False, True])
@@ -3378,7 +3412,8 @@ def main():
             For Club and League, sorts/ranks by base Rating as before.
             """
             ranked_map = {}
-            rank_col = 'Effective_Nation_Rating' if group_by == 'Nation' else 'Rating'
+            _RANK_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
+            rank_col = _RANK_COL.get(group_by, 'Rating')
             
             for value in values:
                 team_df = df[df[group_by].astype(str) == value].copy()
