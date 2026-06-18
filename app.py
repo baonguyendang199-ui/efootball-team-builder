@@ -595,8 +595,8 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
         top_badge_html = f'<div style="position:absolute; top:35px; right:5px; background:#22c55e; color:white; font-size:9px; font-weight:bold; padding:2px 6px; border-radius:4px; z-index:4; box-shadow:0 1px 3px rgba(0,0,0,0.5); transform: rotate(-5deg);">KEEP</div>'
 
     booster_badge_html = ""
-    if player_data.get('Has_National_Booster', False):
-        b_peak = player_data.get('Booster_Rating_11_23', '')
+    if player_data.get('National Booster', False):
+        b_peak = player_data.get('Booster Rating 11-23', '') or player_data.get('Effective_Nation_Rating', '')
         if b_peak:
             booster_badge_html = (
                 f'<div style="position:absolute; top:5px; left:5px; '
@@ -781,10 +781,10 @@ def show_player_modal(row):
 """
     st.markdown(html_content, unsafe_allow_html=True)
 
-    if row.get('Has_National_Booster', False):
-        b1 = row.get('Booster_Rating_1_7', 0)
-        b2 = row.get('Booster_Rating_8_10', 0)
-        b3 = row.get('Booster_Rating_11_23', 0)
+    if row.get('National Booster', False):
+        b1 = row.get('Booster Rating 1-7', 0)
+        b2 = row.get('Booster Rating 8-10', 0)
+        b3 = row.get('Booster Rating 11-23', 0)
         st.markdown(f"""
         <div style="margin:10px 0; padding:12px; background:rgba(124,58,237,0.15);
              border:1px solid #7c3aed; border-radius:8px;">
@@ -945,7 +945,8 @@ def load_data_from_gsheet():
             "Nation", "Club", "League",
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
-            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions"
+            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions",
+            "National Booster", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23"
         ]
         for col in required_cols:
             if col not in df.columns:
@@ -980,19 +981,19 @@ def load_data_from_gsheet():
         if 'Position' in df.columns:
             df['Position'] = df['Position'].astype(str).str.upper().str.strip()
 
-        for col in ['Booster_Rating_1_7', 'Booster_Rating_8_10', 'Booster_Rating_11_23']:
-            if col not in df.columns:
-                df[col] = 0
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-        if 'Has_National_Booster' not in df.columns:
-            df['Has_National_Booster'] = False
-        df['Has_National_Booster'] = (
-            df['Has_National_Booster'].astype(str).str.strip().str.upper()
-            .map({'TRUE': True, '1': True, 'FALSE': False, '0': False})
-            .fillna(False)
-        )
+        # Migrate legacy column names if present
+        _legacy_cols = {
+            'Has_National_Booster': 'National Booster',
+            'Booster_Rating_1_7': 'Booster Rating 1-7',
+            'Booster_Rating_8_10': 'Booster Rating 8-10',
+            'Booster_Rating_11_23': 'Booster Rating 11-23',
+        }
+        for old_col, new_col in _legacy_cols.items():
+            if old_col in df.columns and new_col not in df.columns:
+                df[new_col] = df[old_col]
 
         df = calculate_top23_count(df)
+        df = apply_national_booster(df)
         
         return df
     except Exception as e:
@@ -1011,7 +1012,7 @@ def save_data_to_gsheet(df):
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
         
         # Remove Epic_Priority column before saving
-        df_save = df.drop(columns=['Epic_Priority'], errors='ignore').copy()
+        df_save = df.drop(columns=['Epic_Priority', 'Effective_Nation_Rating', 'Top23_Count'], errors='ignore').copy()
         
         # CRITICAL: Replace NaN/inf values with empty string or 0
         # This prevents JSON error when saving to Google Sheets
@@ -1213,12 +1214,13 @@ def get_player_rank(df, row, group_by, max_size=23):
         return None
     
     # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
+    rank_col = 'Effective_Nation_Rating' if group_by == 'Nation' and 'Effective_Nation_Rating' in group_df.columns else 'Rating'
     if group_by in ['Nation', 'League']:
-        group_df = group_df.sort_values(['Player', 'Rating', 'Epic_Priority'], ascending=[True, False, True])
+        group_df = group_df.sort_values(['Player', rank_col, 'Epic_Priority'], ascending=[True, False, True])
         group_df = group_df.drop_duplicates(subset=['Player'], keep='first')
 
     # Xác định các tiêu chí sắp xếp
-    sort_keys = ['Rating', 'Epic_Priority']
+    sort_keys = [rank_col, 'Epic_Priority']
     sort_asc = [False, True]
     
     # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
@@ -1244,61 +1246,59 @@ def get_all_known_skills():
         all_skills.update(skills_list)
     return sorted(list(all_skills))
 
-def _has_national_booster(row) -> bool:
-    val = row.get('Has_National_Booster', False)
-    if isinstance(val, bool):
-        return val
-    if val is None or (isinstance(val, float) and pd.isna(val)):
-        return False
-    return str(val).strip().upper() in ('TRUE', '1', 'YES')
+def _parse_bool(val) -> bool:
+    """Parse boolean from Google Sheets cell (handles TRUE/True/1/YES/''/False etc.)."""
+    return str(val).strip().upper() in ("TRUE", "YES", "1", "Y")
 
-def get_national_booster_rating(row, same_nation_count: int = 23) -> int:
-    """Effective rating from national booster tiers based on same-nation squad count."""
-    base = int(row.get('Rating', 0) or 0)
-    if not _has_national_booster(row) or same_nation_count <= 0:
-        return base
-    if same_nation_count <= 7:
-        col = 'Booster_Rating_1_7'
-    elif same_nation_count <= 10:
-        col = 'Booster_Rating_8_10'
-    else:
-        col = 'Booster_Rating_11_23'
-    boosted = int(row.get(col, 0) or 0)
-    return boosted if boosted > base else base
 
-def get_nation_effective_rating(row):
-    """Effective rating for a player in a full 23-man national team context."""
-    return get_national_booster_rating(row, 23)
+def apply_national_booster(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute Effective_Nation_Rating for each player.
+    For National Booster cards, the effective rating for Nation ranking is a
+    depth-tiered boosted value. For all other cards it equals the base Rating.
+    Depth = number of DISTINCT player names of that nationality in the full squad.
+    """
+    if 'National Booster' not in df.columns:
+        df['National Booster'] = False
+    for col in ['Booster Rating 1-7', 'Booster Rating 8-10', 'Booster Rating 11-23']:
+        if col not in df.columns:
+            df[col] = 0
 
-def apply_squad_national_boosters(squad):
-    """Update squad player ratings based on same-nation counts in the 23-man squad."""
-    valid = [p for p in squad if p.get('Player') and p['Player'] != '---']
-    nation_counts = {}
-    for p in valid:
-        nation = str(p.get('Data', {}).get('Nation', '') or '').strip()
-        if nation:
-            nation_counts[nation] = nation_counts.get(nation, 0) + 1
+    df['National Booster'] = df['National Booster'].apply(_parse_bool)
 
-    for p in valid:
-        nation = str(p.get('Data', {}).get('Nation', '') or '').strip()
-        count = nation_counts.get(nation, 0)
-        p['Rating'] = get_national_booster_rating(p.get('Data', p), count)
+    for col in ['Booster Rating 1-7', 'Booster Rating 8-10', 'Booster Rating 11-23']:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+    df['Effective_Nation_Rating'] = df['Rating'].copy()
+
+    nation_depth = df.groupby('Nation')['Player'].nunique()
+
+    def _boosted_rating(row):
+        if not row['National Booster']:
+            return row['Rating']
+        depth = int(nation_depth.get(row['Nation'], 0))
+        if depth <= 7:
+            val = row['Booster Rating 1-7']
+        elif depth <= 10:
+            val = row['Booster Rating 8-10']
+        else:
+            val = row['Booster Rating 11-23']
+        return int(val) if val > 0 else row['Rating']
+
+    df['Effective_Nation_Rating'] = df.apply(_boosted_rating, axis=1)
+    return df
+
+
+def apply_squad_national_boosters(squad, nation_build=False):
+    """Show Effective_Nation_Rating on pitch cards when building a Nation squad."""
+    if not nation_build:
+        return squad
+    for p in squad:
+        if p.get('Player') and p['Player'] != '---':
+            data = p.get('Data', {})
+            eff = data.get('Effective_Nation_Rating', data.get('Rating', p['Rating']))
+            p['Rating'] = int(eff)
     return squad
-
-def _is_exact_duplicate_copy(best_card, dup) -> bool:
-    """True when the same card exists more than once in inventory."""
-    best_pid = str(best_card.get('Player ID', '')).strip()
-    dup_pid = str(dup.get('Player ID', '')).strip()
-    if best_pid and dup_pid and best_pid == dup_pid:
-        return True
-    return (
-        str(best_card.get('Player', '')).strip() == str(dup.get('Player', '')).strip()
-        and str(best_card.get('Club', '')).strip() == str(dup.get('Club', '')).strip()
-        and str(best_card.get('Nation', '')).strip() == str(dup.get('Nation', '')).strip()
-        and str(best_card.get('League', '')).strip() == str(dup.get('League', '')).strip()
-        and str(best_card.get('Player Type', '')).strip() == str(dup.get('Player Type', '')).strip()
-        and int(best_card.get('Rating', 0) or 0) == int(dup.get('Rating', 0) or 0)
-    )
 
 def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> set:
     """Lấy index của Top 23 cầu thủ cho 1 nhóm (Nation/League/Club) - Logic tương tự build_top23_map nhưng chỉ lấy index."""
@@ -1310,9 +1310,8 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
         if gdf.empty:
             continue
 
-        if group_by == 'Nation':
-            gdf['_eff_rating'] = gdf.apply(get_nation_effective_rating, axis=1)
-            primary_sort_key = '_eff_rating'
+        if group_by == 'Nation' and 'Effective_Nation_Rating' in gdf.columns:
+            primary_sort_key = 'Effective_Nation_Rating'
         else:
             primary_sort_key = 'Rating'
             
@@ -1324,7 +1323,6 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
         # Sort cơ bản: Rating, Epic_Priority
         # **Lưu ý: Không dùng Top23_Count ở đây để tránh vòng lặp phụ thuộc**
         gdf = gdf.sort_values([primary_sort_key, 'Epic_Priority'], ascending=[False, True]).head(max_size)
-        gdf = gdf.drop(columns=['_eff_rating'], errors='ignore')
         top_indices.update(gdf.index.tolist())
         
     return top_indices
@@ -1746,13 +1744,11 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
-    nation_boost_count = 0
-    if filter_col == 'Nation' and filter_val and filter_val != "(All)":
-        nation_boost_count = min(len(pool_df), 23)
-    pool_df['_build_rating'] = pool_df.apply(
-        lambda r: get_national_booster_rating(r, nation_boost_count) if nation_boost_count else int(r['Rating']),
-        axis=1,
-    )
+    nation_build = filter_col == 'Nation' and filter_val and filter_val != "(All)"
+    if nation_build and 'Effective_Nation_Rating' in pool_df.columns:
+        pool_df['_build_rating'] = pool_df['Effective_Nation_Rating']
+    else:
+        pool_df['_build_rating'] = pool_df['Rating']
 
     # Sort sơ bộ
     pool_df = pool_df.sort_values(['_build_rating', 'Epic_Priority'], ascending=[False, True])
@@ -1970,7 +1966,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             "Score": r_get('Build_Score'), "Data": row.to_dict() if hasattr(row, 'to_dict') else row
         })
 
-    return apply_squad_national_boosters(final_squad)
+    return apply_squad_national_boosters(final_squad, nation_build=nation_build)
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
@@ -2105,8 +2101,9 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
 
         data = p.get('Data', {})
         base_rating = int(data.get('Rating', rating) or rating)
+        eff_rating = int(data.get('Effective_Nation_Rating', base_rating) or base_rating)
         booster_badge = ""
-        if _has_national_booster(data) and int(rating) > base_rating:
+        if data.get('National Booster', False) and eff_rating > base_rating:
             booster_badge = (
                 f'<div style="position:absolute; top:2px; left:2px; background:#7c3aed; '
                 f'color:white; font-size:7px; font-weight:bold; padding:1px 4px; '
@@ -3038,17 +3035,13 @@ def main():
             gdf = df[df[group_by].astype(str) == value].copy()
             if gdf.empty:
                 continue
-            if group_by == 'Nation':
-                gdf['_eff_rating'] = gdf.apply(get_nation_effective_rating, axis=1)
-                primary_sort_key = '_eff_rating'
-            else:
-                primary_sort_key = 'Rating'
+            rank_col = 'Effective_Nation_Rating' if group_by == 'Nation' else 'Rating'
             # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
             if group_by in ['Nation', 'League']:
-                gdf = gdf.sort_values(['Player', primary_sort_key, 'Epic_Priority'], ascending=[True, False, True])
+                gdf = gdf.sort_values(['Player', rank_col, 'Epic_Priority'], ascending=[True, False, True])
                 gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
             # Xác định các tiêu chí sắp xếp
-            sort_keys = [primary_sort_key, 'Epic_Priority']
+            sort_keys = [rank_col, 'Epic_Priority']
             sort_asc = [False, True]
             
             # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
@@ -3058,7 +3051,6 @@ def main():
                 
             # Sort theo các tiêu chí đã định
             gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
-            gdf = gdf.drop(columns=['_eff_rating'], errors='ignore')
             size = len(gdf)
             for rank, idx in enumerate(gdf.index.tolist(), start=1):
                 top_map[(value, idx)] = f"{rank}/{size} {value}"
@@ -3382,19 +3374,16 @@ def main():
             """
             Trả về dict: {index_cầu_thủ: 'Rank/Total'}
             Ví dụ: {102: '1/23', 105: '5/11'}
+            For Nation, sorts/ranks by Effective_Nation_Rating (which includes National Booster values).
+            For Club and League, sorts/ranks by base Rating as before.
             """
             ranked_map = {}
+            rank_col = 'Effective_Nation_Rating' if group_by == 'Nation' else 'Rating'
             
             for value in values:
                 team_df = df[df[group_by].astype(str) == value].copy()
                 if team_df.empty:
                     continue
-
-                if group_by == 'Nation':
-                    team_df['_eff_rating'] = team_df.apply(get_nation_effective_rating, axis=1)
-                    primary_sort_key = '_eff_rating'
-                else:
-                    primary_sort_key = 'Rating'
 
                 # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
                 if group_by in ['Nation', 'League']:
@@ -3402,7 +3391,7 @@ def main():
                     if 'Top23_Count' not in team_df.columns:
                         team_df['Top23_Count'] = 0
                     team_df = team_df.sort_values(
-                        ['Player', primary_sort_key, 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                        ['Player', rank_col, 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
                         ascending=[True, False, True, False, False]
                     )
                     team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
@@ -3417,7 +3406,7 @@ def main():
                 if not gk_df.empty:
                     gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
-                    best_gk = gk_df.sort_values([primary_sort_key, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(1)
+                    best_gk = gk_df.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(1)
                     squad = pd.concat([squad, best_gk])
                     remaining_slots -= 1
     
@@ -3425,21 +3414,20 @@ def main():
                 if not cb_df.empty:
                     cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
-                    best_cb = cb_df.sort_values([primary_sort_key, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(2)
+                    best_cb = cb_df.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(2)
                     squad = pd.concat([squad, best_cb])
                     remaining_slots -= len(best_cb)
     
-                # 3. Choose các cầu thủ còn lại (theo Rating giảm dần)
+                # 3. Choose các cầu thủ còn lại
                 others = team_df.drop(squad.index, errors='ignore')
                 if not others.empty:
                     others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in others.columns: others['Top23_Count'] = 0
-                    top_rest = others.sort_values([primary_sort_key, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(remaining_slots)
+                    top_rest = others.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(remaining_slots)
                     squad = pd.concat([squad, top_rest])
                 
                 # --- LƯU RANKING ---
-                # Sort lại squad theo Rating để đánh số thứ tự (Rank) cho chuẩn logic "Mạnh nhất"
-                final_squad = squad.sort_values([primary_sort_key, 'Epic_Priority'], ascending=[False, True])
+                final_squad = squad.sort_values([rank_col, 'Epic_Priority'], ascending=[False, True])
                 total_in_squad = len(final_squad)
                 
                 for rank, (idx, row) in enumerate(final_squad.iterrows(), start=1):
@@ -3457,33 +3445,33 @@ def main():
             duplicates_info = []
             grouped = df.groupby(['Player', 'Club', 'Nation', 'League'])
             for (player, club, nation, league), group in grouped:
-                if len(group) <= 1 or not str(player).strip():
-                    continue
-                sorted_group = group.copy()
-                sorted_group['_sort_rating'] = sorted_group.apply(get_nation_effective_rating, axis=1)
-                sorted_group = sorted_group.sort_values(['_sort_rating', 'Epic_Priority'], ascending=[False, True])
-                best_card = sorted_group.iloc[0]
-                duplicate_cards = sorted_group.iloc[1:]
-                for _, dup in duplicate_cards.iterrows():
-                    # Exact inventory copies are always redundant — sell extras.
-                    if not _is_exact_duplicate_copy(best_card, dup):
-                        # Different card variant: keep if the "weaker" one peaks higher with national booster.
-                        if _has_national_booster(dup):
-                            dup_peak = get_nation_effective_rating(dup)
-                            best_peak = get_nation_effective_rating(best_card)
-                            if dup_peak > best_peak:
-                                continue
-                    duplicates_info.append({
-                        'index': dup.name,
-                        'player': player,
-                        'rating': dup['Rating'],
-                        'rarity': dup.get('Player Type', ''),
-                        'club': club,
-                        'nation': nation,
-                        'league': league,
-                        'best_rating': best_card['Rating'],
-                        'best_rarity': best_card.get('Player Type', '')
-                    })
+                if len(group) > 1 and club and nation and league:
+                    # Best by base Rating → determines Club and League squad inclusion
+                    sorted_by_rating = group.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
+                    best_overall_idx = sorted_by_rating.index[0]
+                    
+                    # Best by Effective_Nation_Rating → determines Nation squad inclusion
+                    sorted_by_nation = group.sort_values(['Effective_Nation_Rating', 'Epic_Priority'], ascending=[False, True])
+                    best_nation_idx = sorted_by_nation.index[0]
+                    
+                    # A card is NOT a duplicate if it wins along at least one dimension.
+                    keep_indices = {best_overall_idx, best_nation_idx}
+                    best_card = sorted_by_rating.iloc[0]
+                    
+                    for idx in group.index:
+                        if idx not in keep_indices:
+                            dup = group.loc[idx]
+                            duplicates_info.append({
+                                'index': idx,
+                                'player': player,
+                                'rating': dup['Rating'],
+                                'rarity': dup.get('Player Type', ''),
+                                'club': club,
+                                'nation': nation,
+                                'league': league,
+                                'best_rating': best_card['Rating'],
+                                'best_rarity': best_card.get('Player Type', '')
+                            })
             return duplicates_info
 
         duplicates = detect_duplicates(df)
@@ -3521,11 +3509,10 @@ def main():
                 reasons.append(f"Club: {club} ({rank_str})")
             if in_top_nation:
                 rank_str = nation_rank_map[idx]
-                if row.get('Has_National_Booster', False):
-                    b_max = row.get('Booster_Rating_11_23', row['Rating'])
-                    reasons.append(f"Nation: {nation} ({rank_str}) [⚡ Boosted → {b_max}]")
-                else:
-                    reasons.append(f"Nation: {nation} ({rank_str})")
+                base = row.get('Rating', '')
+                eff = row.get('Effective_Nation_Rating', base)
+                boost_note = f" [Boosted {base}→{eff}]" if eff != base else ""
+                reasons.append(f"Nation: {nation} ({rank_str}){boost_note}")
             if in_top_league:
                 rank_str = league_rank_map[idx]
                 reasons.append(f"League: {league} ({rank_str})")
@@ -4540,10 +4527,10 @@ def main():
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': upgrade_url,
                                     'Player_ID': extract_ehub_player_id(upgrade_url),
-                                    'Has_National_Booster': False,
-                                    'Booster_Rating_1_7': 0,
-                                    'Booster_Rating_8_10': 0,
-                                    'Booster_Rating_11_23': 0,
+                                    'National Booster': False,
+                                    'Booster Rating 1-7': 0,
+                                    'Booster Rating 8-10': 0,
+                                    'Booster Rating 11-23': 0,
                                 }
                                 st.session_state.add_show_form = True
                                 st.success("✅ Successfully fetched info!")
@@ -4601,10 +4588,10 @@ def main():
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': pesdb_url,
                                     'Player_ID': extract_ehub_player_id(pesdb_url),
-                                    'Has_National_Booster': False,
-                                    'Booster_Rating_1_7': 0,
-                                    'Booster_Rating_8_10': 0,
-                                    'Booster_Rating_11_23': 0,
+                                    'National Booster': False,
+                                    'Booster Rating 1-7': 0,
+                                    'Booster Rating 8-10': 0,
+                                    'Booster Rating 11-23': 0,
                                 }
                                 st.session_state.add_show_form = True
                                 st.success("✅ Successfully fetched info!")
@@ -4634,10 +4621,10 @@ def main():
                                 'Player_Type': 'NON-EPIC',
                                 'Player_URL': '',
                                 'Player_ID': '',
-                                'Has_National_Booster': False,
-                                'Booster_Rating_1_7': 0,
-                                'Booster_Rating_8_10': 0,
-                                'Booster_Rating_11_23': 0,
+                                'National Booster': False,
+                                'Booster Rating 1-7': 0,
+                                'Booster Rating 8-10': 0,
+                                'Booster Rating 11-23': 0,
                             }
                             st.session_state.add_show_form = True
                             st.rerun()
@@ -4666,60 +4653,6 @@ def main():
                 
                 st.divider()
 
-                preview_rating = max(int(data.get('Rating', 90) or 90), 1)
-                form_identity = f"{data.get('Player_ID', '')}|{data.get('Player_URL', '')}|{data.get('Player', '')}"
-
-                def clear_add_booster_session():
-                    for key in (
-                        'add_booster_form_identity',
-                        'add_has_national_booster',
-                        'add_booster_1_7',
-                        'add_booster_8_10',
-                        'add_booster_11_23',
-                    ):
-                        st.session_state.pop(key, None)
-
-                if st.session_state.get('add_booster_form_identity') != form_identity:
-                    st.session_state.add_booster_form_identity = form_identity
-                    st.session_state.add_has_national_booster = bool(data.get('Has_National_Booster', False))
-                    st.session_state.add_booster_1_7 = int(data.get('Booster_Rating_1_7') or preview_rating)
-                    st.session_state.add_booster_8_10 = int(data.get('Booster_Rating_8_10') or preview_rating)
-                    st.session_state.add_booster_11_23 = int(data.get('Booster_Rating_11_23') or preview_rating)
-
-                st.subheader("⚡ POTW National Booster")
-                st.caption("Only applies to POTW cards with the special national booster mechanic")
-                st.checkbox(
-                    "🔥 This player has a National Booster",
-                    key="add_has_national_booster",
-                    help="Activates based on how many same-nationality teammates are in the squad"
-                )
-                if st.session_state.add_has_national_booster:
-                    st.info(f"Enter the boosted ratings for each tier (base rating: {preview_rating})")
-                    b_col1, b_col2, b_col3 = st.columns(3)
-                    with b_col1:
-                        st.number_input(
-                            "🔵 Rating with 1–7 same-nation players",
-                            min_value=preview_rating, max_value=150,
-                            key="add_booster_1_7",
-                            help="Effective rating when 1–7 same-nationality players are in the 23-man squad"
-                        )
-                    with b_col2:
-                        st.number_input(
-                            "🟡 Rating with 8–10 same-nation players",
-                            min_value=preview_rating, max_value=150,
-                            key="add_booster_8_10",
-                            help="Effective rating when 8–10 same-nationality players are in the 23-man squad"
-                        )
-                    with b_col3:
-                        st.number_input(
-                            "🔴 Rating with 11–23 same-nation players",
-                            min_value=preview_rating, max_value=150,
-                            key="add_booster_11_23",
-                            help="Effective rating when 11–23 same-nationality players are in the 23-man squad"
-                        )
-
-                st.divider()
-                
                 # Form chỉnh sửa
                 with st.form("add_player_final_form", clear_on_submit=False):
                     st.subheader("✏️ Player information")
@@ -4841,6 +4774,36 @@ def main():
                     )
                     
                     st.divider()
+                    st.subheader("🚀 National Booster (POTW)")
+                    national_booster = st.checkbox(
+                        "This card has a National Booster",
+                        value=bool(data.get('National Booster', False)),
+                        help="Enable for National Booster POTW cards. The boosted rating applies ONLY to Nation squad ranking, not Club or League."
+                    )
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        booster_1_7 = st.number_input(
+                            "Boosted Rating (1–7 compatriots)",
+                            min_value=1, max_value=150,
+                            value=int(data.get('Booster Rating 1-7', 0) or data.get('Rating', 90)),
+                            help="Effective Nation Rating when you own 1–7 players of this nationality"
+                        )
+                    with col2:
+                        booster_8_10 = st.number_input(
+                            "Boosted Rating (8–10 compatriots)",
+                            min_value=1, max_value=150,
+                            value=int(data.get('Booster Rating 8-10', 0) or data.get('Rating', 90)),
+                            help="Effective Nation Rating when you own 8–10 players of this nationality"
+                        )
+                    with col3:
+                        booster_11_23 = st.number_input(
+                            "Boosted Rating (11–23 compatriots)",
+                            min_value=1, max_value=150,
+                            value=int(data.get('Booster Rating 11-23', 0) or data.get('Rating', 90)),
+                            help="Effective Nation Rating when you own 11–23 players of this nationality"
+                        )
+
+                    st.divider()
                     
                     # Buttons
                     col1, col2, col3 = st.columns([2, 1, 1])
@@ -4853,14 +4816,9 @@ def main():
                     if cancel_btn:
                         st.session_state.add_preview_data = None
                         st.session_state.add_show_form = False
-                        clear_add_booster_session()
                         st.rerun()
                     
                     if save_btn:
-                        has_booster = st.session_state.get('add_has_national_booster', False)
-                        booster_1_7 = int(st.session_state.get('add_booster_1_7', 0)) if has_booster else 0
-                        booster_8_10 = int(st.session_state.get('add_booster_8_10', 0)) if has_booster else 0
-                        booster_11_23 = int(st.session_state.get('add_booster_11_23', 0)) if has_booster else 0
                         if not player_name:
                             st.error("❌ Please enter a player name!")
                         elif not position:
@@ -4902,10 +4860,10 @@ def main():
                                     new_df.at[old_idx, 'Skills'] = skills
                                     new_df.at[old_idx, 'Added Skills'] = ""
                                     new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type_norm == "EPIC" else 1
-                                    new_df.at[old_idx, 'Has_National_Booster'] = has_booster
-                                    new_df.at[old_idx, 'Booster_Rating_1_7'] = int(booster_1_7) if has_booster else 0
-                                    new_df.at[old_idx, 'Booster_Rating_8_10'] = int(booster_8_10) if has_booster else 0
-                                    new_df.at[old_idx, 'Booster_Rating_11_23'] = int(booster_11_23) if has_booster else 0
+                                    new_df.at[old_idx, 'National Booster'] = national_booster
+                                    new_df.at[old_idx, 'Booster Rating 1-7'] = booster_1_7 if national_booster else 0
+                                    new_df.at[old_idx, 'Booster Rating 8-10'] = booster_8_10 if national_booster else 0
+                                    new_df.at[old_idx, 'Booster Rating 11-23'] = booster_11_23 if national_booster else 0
                                     
                                     try:
                                         if save_data_to_gsheet(new_df):
@@ -4915,7 +4873,6 @@ def main():
                                             
                                             st.session_state.add_preview_data = None
                                             st.session_state.add_show_form = False
-                                            clear_add_booster_session()
                                             st.cache_data.clear()
                                             st.balloons()
                                             
@@ -4953,10 +4910,10 @@ def main():
                                         "Skills": skills,
                                         "Added Skills": "",
                                         "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
-                                        "Has_National_Booster": has_booster,
-                                        "Booster_Rating_1_7": int(booster_1_7) if has_booster else 0,
-                                        "Booster_Rating_8_10": int(booster_8_10) if has_booster else 0,
-                                        "Booster_Rating_11_23": int(booster_11_23) if has_booster else 0,
+                                        "National Booster": national_booster,
+                                        "Booster Rating 1-7": booster_1_7 if national_booster else 0,
+                                        "Booster Rating 8-10": booster_8_10 if national_booster else 0,
+                                        "Booster Rating 11-23": booster_11_23 if national_booster else 0,
                                     }
                                     
                                     new_df = pd.concat([new_df, pd.DataFrame([new_player])], ignore_index=True)
@@ -4967,7 +4924,6 @@ def main():
                                             
                                             st.session_state.add_preview_data = None
                                             st.session_state.add_show_form = False
-                                            clear_add_booster_session()
                                             st.cache_data.clear()
                                             st.balloons()
                                             
@@ -5004,10 +4960,10 @@ def main():
                                     "Skills": skills,
                                     "Added Skills": "",
                                     "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
-                                    "Has_National_Booster": has_booster,
-                                    "Booster_Rating_1_7": int(booster_1_7) if has_booster else 0,
-                                    "Booster_Rating_8_10": int(booster_8_10) if has_booster else 0,
-                                    "Booster_Rating_11_23": int(booster_11_23) if has_booster else 0,
+                                    "National Booster": national_booster,
+                                    "Booster Rating 1-7": booster_1_7 if national_booster else 0,
+                                    "Booster Rating 8-10": booster_8_10 if national_booster else 0,
+                                    "Booster Rating 11-23": booster_11_23 if national_booster else 0,
                                 }
                                 
                                 new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
@@ -5018,7 +4974,6 @@ def main():
 
                                         st.session_state.add_preview_data = None
                                         st.session_state.add_show_form = False
-                                        clear_add_booster_session()
                                         st.cache_data.clear()
                                         st.balloons()
 
