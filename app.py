@@ -3559,8 +3559,10 @@ def main():
                 reasons.append(f"League: {league} ({rank_str}){boost_note}")
             
             # 3. Quyết định
-            if reasons:
-                return '✅ KEEP', " | ".join(reasons)
+            # Nếu player nằm trong ít nhất một Top 23 rank (Club/Nation/League)
+            # thì luôn KEEP, bất kể hiện tại map có thể thiếu do lựa chọn squad mẫu.
+            if in_top_club or in_top_nation or in_top_league:
+                return '✅ KEEP', " | ".join(reasons) if reasons else "Included in at least one Top 23 team"
             else:
                 return '❌ SELL', "Not part of any Top 23 team"
 
