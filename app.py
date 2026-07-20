@@ -1177,6 +1177,73 @@ def apply_squad_national_boosters(squad, nation_build=False, filter_col=None):
             p['Rating'] = val if val > 0 else int(data.get('Rating', p['Rating']))
     return squad
 
+
+def build_squad_based_effective_ratings(df: pd.DataFrame, squad: list) -> pd.DataFrame:
+    """
+    Recompute effective ratings for the full player pool based on the actual depth
+    inside a built squad (starters + bench), mirroring Squad Builder's logic.
+    """
+    out_df = df.copy()
+
+    if 'National Booster' not in out_df.columns:
+        out_df['National Booster'] = False
+    for col in ['Booster Rating 1-7', 'Booster Rating 8-10', 'Booster Rating 11-23']:
+        if col not in out_df.columns:
+            out_df[col] = 0
+
+    out_df['National Booster'] = out_df['National Booster'].apply(_parse_bool)
+    for col in ['Booster Rating 1-7', 'Booster Rating 8-10', 'Booster Rating 11-23']:
+        out_df[col] = pd.to_numeric(out_df[col], errors='coerce').fillna(0).astype(int)
+
+    def _depth_map_for(group_col: str) -> dict:
+        depth = {}
+        for p in squad or []:
+            if not p.get('Player') or p['Player'] == '---':
+                continue
+            data = p.get('Data', {})
+            value = str(data.get(group_col, '')).strip()
+            if value:
+                depth[value] = depth.get(value, 0) + 1
+        return depth
+
+    def _tier_value(data_dict, depth):
+        if depth <= 7:
+            val = data_dict.get('Booster Rating 1-7', 0)
+        elif depth <= 10:
+            val = data_dict.get('Booster Rating 8-10', 0)
+        else:
+            val = data_dict.get('Booster Rating 11-23', 0)
+        try:
+            val = int(val)
+        except (TypeError, ValueError):
+            val = 0
+        base = data_dict.get('Rating', 0)
+        return val if val > 0 else base
+
+    def _effective_for(row, group_col, depth_map):
+        if not _parse_bool(row.get('National Booster', False)):
+            return row.get('Rating', 0)
+        value = str(row.get(group_col, '')).strip()
+        depth = int(depth_map.get(value, 0))
+        return _tier_value(row.to_dict(), depth)
+
+    nation_depth = _depth_map_for('Nation')
+    club_depth = _depth_map_for('Club')
+    league_depth = _depth_map_for('League')
+
+    out_df['Effective_Nation_Rating'] = out_df.apply(
+        lambda r: _effective_for(r, 'Nation', nation_depth), axis=1
+    )
+    out_df['Effective_Club_Rating'] = out_df.apply(
+        lambda r: _effective_for(r, 'Club', club_depth), axis=1
+    )
+    out_df['Effective_League_Rating'] = out_df.apply(
+        lambda r: _effective_for(r, 'League', league_depth), axis=1
+    )
+
+    return out_df
+
+
 def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> set:
     """Lấy index của Top 23 cầu thủ cho 1 nhóm (Nation/League/Club) - Logic tương tự build_top23_map nhưng chỉ lấy index."""
     top_indices = set()
@@ -3380,10 +3447,17 @@ def main():
 
             return ranked_map
         
-        # Tính toán Rank Map cho từng nhóm
-        club_rank_map = get_top_23_ranked_map(df, 'Club', target_clubs)
-        nation_rank_map = get_top_23_ranked_map(df, 'Nation', target_nations)
-        league_rank_map = get_top_23_ranked_map(df, 'League', target_leagues)
+        # Tính toán Rank Map cho từng nhóm dựa trên đội hình build thực tế
+        try:
+            ranking_squad = auto_build_squad(df, list(FORMATIONS.keys())[0], sort_mode='rating_desc')
+        except Exception:
+            ranking_squad = []
+
+        ranking_df = build_squad_based_effective_ratings(df, ranking_squad)
+
+        club_rank_map = get_top_23_ranked_map(ranking_df, 'Club', target_clubs)
+        nation_rank_map = get_top_23_ranked_map(ranking_df, 'Nation', target_nations)
+        league_rank_map = get_top_23_ranked_map(ranking_df, 'League', target_leagues)
 
         # ===== PHÁT HIỆN PLAYER TRÙNG (KEEP NGUYÊN) =====
         def detect_duplicates(df):
@@ -3420,7 +3494,7 @@ def main():
                             })
             return duplicates_info
 
-        duplicates = detect_duplicates(df)
+        duplicates = detect_duplicates(ranking_df)
 
         # ===== 2. CẬP NHẬT GỢI Ý SELL (HIỆN RANK) =====
         def suggest_action(row):
@@ -3476,7 +3550,7 @@ def main():
                 return '❌ SELL', "Not part of any Top 23 team"
 
         # Apply suggestion
-        rec_df = df.copy()
+        rec_df = ranking_df.copy()
         suggestions = rec_df.apply(suggest_action, axis=1)
         rec_df['Action'], rec_df['Reasons'] = zip(*suggestions)
         sell_df = rec_df[rec_df['Action'] == '❌ SELL']
