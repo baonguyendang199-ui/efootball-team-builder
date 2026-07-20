@@ -3449,13 +3449,16 @@ def main():
 
             return ranked_map
         
-        # Tính toán Rank Map cho từng nhóm dựa trên đội hình build hội tụ thực tế
-        # Thay vì dùng một lượt build sơ bộ, ta dùng cùng logic tìm formation tốt nhất
-        # để đảm bảo depth booster được tính theo squad thật, giống Squad Builder.
-        try:
-            _, ranking_squad = find_best_formation_for_team(df, 'rating_desc', None, None)
-        except Exception:
-            ranking_squad = []
+        # Tính toán Rank Map cho từng nhóm dựa trên squad thực tế vừa được build ở tab Squad.
+        # Nếu có squad vừa build trong session state thì ưu tiên dùng nó để đảm bảo
+        # Players tab khớp đúng với formation hiện đang hiển thị trong Squad Builder.
+        ranking_squad = st.session_state.get('last_built_squad', [])
+
+        if not ranking_squad:
+            try:
+                _, ranking_squad = find_best_formation_for_team(df, 'rating_desc', None, None)
+            except Exception:
+                ranking_squad = []
 
         if not ranking_squad:
             try:
@@ -4320,6 +4323,10 @@ def main():
             if not best_squad:
                 st.warning("⚠️ No suitable players found for squad formation!")
             else:
+                # Lưu squad vừa build để tab Players dùng chung logic đánh giá Top 23
+                st.session_state['last_built_squad'] = best_squad
+                st.session_state['last_built_formation'] = found_name
+
                 if found_name:
                     st.success(f"✅ Best optimal lineup (Starters): **{found_name}**")
 
