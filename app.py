@@ -3531,11 +3531,6 @@ def main():
             if club in local_protected_clubs:
                 return ' ✅  KEEP', f" 🛡 ️ {club} - Never sell (Fan club)"
             
-            # 1. Kiểm tra thẻ trùng
-            is_duplicate = any(dup['index'] == idx for dup in duplicates)
-            if is_duplicate:
-                return '❌ SELL', "⚠️ Duplicate card - Better card exists (same player + club + nation + league)"
-            
             # 2. Kiểm tra thuộc Top 23 (DÙNG RANK MAP ĐỂ HIỂN THỊ CHI TIẾT)
             in_top_club = idx in club_rank_map
             in_top_nation = idx in nation_rank_map
@@ -3561,13 +3556,16 @@ def main():
                 boost_note = f" [Boosted {base}→{eff_league}]" if eff_league != base else ""
                 reasons.append(f"League: {league} ({rank_str}){boost_note}")
             
-            # 3. Quyết định
-            # Nếu player nằm trong ít nhất một Top 23 rank (Club/Nation/League)
-            # thì luôn KEEP, bất kể hiện tại map có thể thiếu do lựa chọn squad mẫu.
+            # 3. Kiểm tra thẻ trùng (nếu có): chỉ SELL nếu thẻ không nằm trong bất kỳ Top23 nào
+            is_duplicate = any(dup['index'] == idx for dup in duplicates)
+            if is_duplicate and not (in_top_club or in_top_nation or in_top_league):
+                return '❌ SELL', "⚠️ Duplicate card - Better card exists (same player + club + nation + league)"
+
+            # 4. Quyết định: nếu player nằm trong ít nhất một Top 23 rank thì KEEP
             if in_top_club or in_top_nation or in_top_league:
                 return '✅ KEEP', " | ".join(reasons) if reasons else "Included in at least one Top 23 team"
-            else:
-                return '❌ SELL', "Not part of any Top 23 team"
+
+            return '❌ SELL', "Not part of any Top 23 team"
 
         # Apply suggestion
         rec_df = ranking_df.copy()
