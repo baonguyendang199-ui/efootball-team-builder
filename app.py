@@ -367,7 +367,8 @@ def render_efootball_card_html(player_data, width="100%", highlight_metric=None)
     import re
     
     p_name = player_data.get('Player', 'Unknown')
-    rating = player_data.get('Rating', 0)
+    base_rating = int(player_data.get('Rating', 0) or 0)
+    rating = int(player_data.get('Effective_Nation_Rating', base_rating) or base_rating)
     pos = player_data.get('Position', '?')
     p_type = str(player_data.get('Player Type', 'NON-EPIC')).upper()
     action = str(player_data.get('Action', '')).upper()
@@ -460,7 +461,8 @@ def show_player_modal(row):
     """
     # --- 1. CHUẨN BỊ DỮ LIỆU ---
     p_name = row.get('Player', 'Unknown')
-    rating = row.get('Rating', 0)
+    base_rating = int(row.get('Rating', 0) or 0)
+    rating = int(row.get('Effective_Nation_Rating', base_rating) or base_rating)
     pos = row.get('Position', '?')
     style = row.get('Position Style', 'N/A')
     p_type = str(row.get('Player Type', 'Standard')).upper()
