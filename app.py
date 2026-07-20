@@ -3385,8 +3385,8 @@ def main():
             """
             Trả về dict: {index_cầu_thủ: 'Rank/Total'}
             Ví dụ: {102: '1/23', 105: '5/11'}
-            For Nation, sorts/ranks by Effective_Nation_Rating (which includes National Booster values).
-            For Club and League, sorts/ranks by base Rating as before.
+            Dựa trên effective ratings được tính lại theo depth thật trong squad build,
+            không dùng proxy từ toàn bộ kho thẻ.
             """
             ranked_map = {}
             _RANK_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
@@ -3458,6 +3458,11 @@ def main():
         club_rank_map = get_top_23_ranked_map(ranking_df, 'Club', target_clubs)
         nation_rank_map = get_top_23_ranked_map(ranking_df, 'Nation', target_nations)
         league_rank_map = get_top_23_ranked_map(ranking_df, 'League', target_leagues)
+
+        # Đồng bộ rank info hiển thị ở Players tab với cùng logic effective rating mới
+        club_top_map = build_top23_map(ranking_df, 'Club')
+        league_top_map = build_top23_map(ranking_df, 'League')
+        nation_top_map = build_top23_map(ranking_df, 'Nation')
 
         # ===== PHÁT HIỆN PLAYER TRÙNG (KEEP NGUYÊN) =====
         def detect_duplicates(df):
