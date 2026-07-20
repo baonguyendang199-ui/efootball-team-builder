@@ -3447,11 +3447,19 @@ def main():
 
             return ranked_map
         
-        # Tính toán Rank Map cho từng nhóm dựa trên đội hình build thực tế
+        # Tính toán Rank Map cho từng nhóm dựa trên đội hình build hội tụ thực tế
+        # Thay vì dùng một lượt build sơ bộ, ta dùng cùng logic tìm formation tốt nhất
+        # để đảm bảo depth booster được tính theo squad thật, giống Squad Builder.
         try:
-            ranking_squad = auto_build_squad(df, list(FORMATIONS.keys())[0], sort_mode='rating_desc')
+            _, ranking_squad = find_best_formation_for_team(df, 'rating_desc', None, None)
         except Exception:
             ranking_squad = []
+
+        if not ranking_squad:
+            try:
+                ranking_squad = auto_build_squad(df, list(FORMATIONS.keys())[0], sort_mode='rating_desc')
+            except Exception:
+                ranking_squad = []
 
         ranking_df = build_squad_based_effective_ratings(df, ranking_squad)
 
