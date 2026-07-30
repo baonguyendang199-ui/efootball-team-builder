@@ -942,8 +942,8 @@ POSITION_SKILLS_PRIORITY = {
         "GK Low Punt", "GK High Punt", "GK Long Throw",
         "GK Penalty Saver", "Fighting Spirit", "Low Lofted Pass",
         "One-touch Pass", "Through Passing", "Weighted Pass",
-        "Outside Curler", "Sole Control", "Heel Trick",
-        "Captaincy"
+        "Captaincy", "Sole Control", "Heel Trick",
+        "Outside Curler"
     ]
 }
 
