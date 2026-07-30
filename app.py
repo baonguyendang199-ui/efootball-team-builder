@@ -1382,7 +1382,9 @@ def save_skill_inventory_to_gsheet(inventory):
 
 # --- GK INVENTORY SYSTEM ---
 GK_SKILLS_PRIORITY_LIST = [
- 
+    "GK Low Punt", "GK High Punt", "GK Long Throw", "GK Penalty Saver", 
+    "Fighting Spirit", "Low Lofted Pass", "One-touch Pass", "Through Passing", 
+    "Weighted Pass", "Outside Curler", "Sole Control", "Heel Trick", "Captaincy"
 ]
 
 @st.cache_data(ttl=10)
