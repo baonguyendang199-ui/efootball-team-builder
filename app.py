@@ -2167,23 +2167,24 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         display_name = name_parts[-1].upper() if len(name_parts) > 1 else full_name.upper()
         if len(display_name) > 9: display_name = display_name[:8] + "."
 
-        rating = p['Rating']
         pos = p['Position']
         img = p['Image'] if p['Image'] else "https://pesdb.net/assets/img/card/f0.png"
 
         data = p.get('Data', {})
-        base_rating = int(data.get('Rating', rating) or rating)
-        # Check for any effective rating (Nation, Club, or League)
+        base_rating = int(data.get('Rating', p['Rating']) or p['Rating'])
+        booster_type = _normalize_booster_type(data.get('Booster Type', 'None'))
         eff_rating = base_rating
         for eff_col in ['Effective_Nation_Rating', 'Effective_Club_Rating', 'Effective_League_Rating']:
             if eff_col in data:
                 eff_rating = max(eff_rating, int(data.get(eff_col, base_rating) or base_rating))
+
+        rating = eff_rating
         booster_badge = ""
-        if _normalize_booster_type(data.get('Booster Type', 'None')) != 'None' and eff_rating > base_rating:
+        if booster_type != 'None' and eff_rating > base_rating:
             booster_badge = (
                 '<div style="position:absolute; top:2px; left:2px; background:#7c3aed; '
                 'color:white; font-size:7px; font-weight:bold; padding:1px 4px; '
-                'border-radius:3px; z-index:21;'>\u26A1</div>'
+                'border-radius:3px; z-index:21;'>⚡</div>'
             )
         
         # Logic Stat Tag
