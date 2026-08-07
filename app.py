@@ -7,6 +7,9 @@ from pathlib import Path
 from datetime import datetime
 import re
 from io import BytesIO
+import hashlib
+import uuid
+from urllib.parse import quote, urlparse
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -764,7 +767,8 @@ def load_data_from_gsheet():
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
             "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions",
-            "National Booster", "Booster Type", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23"
+            "National Booster", "Booster Type", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23",
+            *PESDATA_BODY_MODEL_FIELDS
         ]
         for col in required_cols:
             if col not in df.columns:
@@ -785,7 +789,8 @@ def load_data_from_gsheet():
             "Nation", "Club", "League",
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
-            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions", "Booster Type"
+            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions", "Booster Type",
+            *PESDATA_BODY_MODEL_FIELDS
         ]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
@@ -2468,6 +2473,34 @@ def auto_update_target_lists(df):
 # ==================== PESDB SCRAPER ====================
 PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/?id="
 PESDB_IMAGE_URL_BASE = "https://pesdb.net/assets/img/card/"
+PESDATA_API_BASE = "https://www.pesdata.net/api/player/detail"
+PESDATA_API_VERSION = "1.9.0"
+PESDATA_API_TOKEN = "null"
+PESDATA_API_SECRET = "777888"
+PESDATA_BODY_MODEL_FIELDS = [
+    'Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement',
+    'Neck Size', 'Shoulder Height', 'Leg Length', 'Thigh Size', 'Waist Size',
+    'Arm Size', 'Calf Size', 'Leg Coverage Radius', 'Arm Coverage Radius',
+    'Jumping Height', 'Torso Collision', 'Leg Length Based Height'
+]
+PESDATA_APPEARANCE_KEY_MAP = {
+    'ArmLength': 'Arm Length',
+    'ShoulderWidth': 'Shoulder Width',
+    'NeckLength': 'Neck Length',
+    'ChestMeasurement': 'Chest Measurement',
+    'NeckSize': 'Neck Size',
+    'ShoulderHeight': 'Shoulder Height',
+    'LegLength': 'Leg Length',
+    'ThighSize': 'Thigh Size',
+    'WaistSize': 'Waist Size',
+    'ArmSize': 'Arm Size',
+    'CalfSize': 'Calf Size',
+    'LegCoverageRadius': 'Leg Coverage Radius',
+    'ArmCoverageRadius': 'Arm Coverage Radius',
+    'JumpingHeight': 'Jumping Height',
+    'TorsoCollision': 'Torso Collision',
+    'LegLengthBasedHeight': 'Leg Length Based Height'
+}
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -2476,6 +2509,70 @@ HEADERS = {
     'Referer': 'https://pesdb.net/',
     'Connection': 'keep-alive',
 }
+
+
+def _pesdata_encode_value(value: str) -> str:
+    return quote(str(value), safe="'")
+
+
+def _build_pesdata_signature(params: dict) -> dict:
+    clean_params = {k: str(v) for k, v in params.items() if v is not None and str(v) != ''}
+    sorted_keys = sorted(clean_params.keys())
+    query = '&'.join(f"{k}={_pesdata_encode_value(clean_params[k])}" for k in sorted_keys)
+    timestamp = str(int(time.time()))
+    nonce = uuid.uuid4().hex[:13]
+    payload = f"{timestamp}{nonce}{PESDATA_API_SECRET}{query}"
+    signature = hashlib.md5(payload.encode('utf-8')).hexdigest()
+    return {
+        'timestamp': timestamp,
+        'nonce': nonce,
+        'signature': signature,
+    }
+
+
+def _extract_pesdata_player_id(value: str) -> str:
+    if not value:
+        return ""
+    text = str(value).strip()
+    m = re.search(r"(?:player/detail/)?(\d{12,})", text)
+    return m.group(1) if m else ""
+
+
+def fetch_pesdata_player_json(player_id_or_url: str) -> dict:
+    pid = _extract_pesdata_player_id(player_id_or_url)
+    if not pid:
+        return {}
+
+    params = {'id': pid}
+    signature = _build_pesdata_signature(params)
+    headers = HEADERS.copy()
+    headers.update({
+        'version': PESDATA_API_VERSION,
+        'token': PESDATA_API_TOKEN,
+        'x-timestamp': signature['timestamp'],
+        'x-nonce': signature['nonce'],
+        'x-signature': signature['signature'],
+        'Referer': f'https://www.pesdata.net/player/detail/{pid}',
+        'Accept': 'application/json, text/plain, */*',
+    })
+
+    try:
+        resp = requests.get(PESDATA_API_BASE, headers=headers, params=params, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if isinstance(data, dict):
+            if data.get('data'):
+                if isinstance(data['data'], list) and data['data']:
+                    return data['data'][0]
+                if isinstance(data['data'], dict):
+                    return data['data']
+            if data.get('code') in (0, 200) and isinstance(data.get('data'), dict):
+                return data['data']
+    except Exception:
+        pass
+    return {}
+
 
 def extract_ehub_player_id(value: str) -> str:
     """Extract player ID from URL or string"""
@@ -2772,12 +2869,12 @@ def extract_secondary_positions(soup, main_position):
         return ""
 
 def extract_full_player_info(player_url: str) -> dict:
-    """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB
+    """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB hoặc PESDATA.
     
     Returns:
         dict: {
             'Player': str,
-            'Rating': int,  # Từ Max Level
+            'Rating': int,
             'Position': str,
             'Nation': str,
             'Club': str,
@@ -2792,7 +2889,8 @@ def extract_full_player_info(player_url: str) -> dict:
             'Weak Foot Accuracy': str,
             'Form': str,
             'Injury Resistance': str,
-            'Player_Type': str,  # POTW/EPIC/NON-EPIC
+            'Player_Type': str,
+            ... body model fields ...
         }
     """
     default_info = {
@@ -2814,18 +2912,48 @@ def extract_full_player_info(player_url: str) -> dict:
         'Injury Resistance': '',
         'Player_Type': 'NON-EPIC',
     }
-    
+    for field_name in PESDATA_BODY_MODEL_FIELDS:
+        default_info[field_name] = ''
+
     try:
+        normalized_url = str(player_url).strip()
+        pesdata_mode = normalized_url.isdigit() or 'pesdata.net' in normalized_url or 'player/detail/' in normalized_url
+        if pesdata_mode:
+            pesdata_data = fetch_pesdata_player_json(normalized_url)
+            if pesdata_data:
+                info = default_info.copy()
+                info['Player'] = pesdata_data.get('playerName') or pesdata_data.get('player_english_name') or pesdata_data.get('player_chinese_name') or ''
+                info['Rating'] = int(pesdata_data.get('overall') or 0)
+                info['Position'] = pesdata_data.get('position') or ''
+                info['Nation'] = pesdata_data.get('country_english_name') or pesdata_data.get('country_chinese_name') or pesdata_data.get('nationality') or ''
+                info['Club'] = pesdata_data.get('club_english_name') or pesdata_data.get('club_chinese_name') or pesdata_data.get('club') or ''
+                info['League'] = pesdata_data.get('competition_name') or pesdata_data.get('League') or ''
+                info['Height'] = str(pesdata_data.get('height') or '')
+                info['Weight'] = str(pesdata_data.get('weight') or '')
+                info['Age'] = str(pesdata_data.get('age') or '')
+                info['Foot'] = pesdata_data.get('Foot') or ''
+                info['Weak Foot Usage'] = pesdata_data.get('WeakFootUsage_cn') or str(pesdata_data.get('WeakFootUsage') or '')
+                info['Weak Foot Accuracy'] = pesdata_data.get('WeakFootAcc_cn') or str(pesdata_data.get('WeakFootAcc') or '')
+                info['Form'] = pesdata_data.get('Form_cn') or str(pesdata_data.get('Form') or '')
+                info['Injury Resistance'] = pesdata_data.get('InjuryResistance_cn') or str(pesdata_data.get('InjuryResistance') or '')
+                info['Skills'] = ', '.join(pesdata_data.get('Skills') or [])
+                info['Player_Type'] = normalize_player_type(pesdata_data.get('CardTypeCN') or pesdata_data.get('CardStyle') or pesdata_data.get('cardType') or '')
+                appearance = pesdata_data.get('appearance') or {}
+                for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
+                    if field_name in info:
+                        info[field_name] = appearance.get(json_key, '')
+                return info
+
         if not player_url or not str(player_url).startswith('http'):
             return default_info
-        
+
         html = fetch_ehub_raw_html(player_url)
         if not html:
             return default_info
-        
+
         soup = BeautifulSoup(html, 'html.parser')
         info = default_info.copy()
-        
+
         # Mapping từ PESDB labels sang tên fields
         field_mapping = {
             'Player Name': 'Player',
@@ -2842,7 +2970,7 @@ def extract_full_player_info(player_url: str) -> dict:
             'Form': 'Form',
             'Injury Resistance': 'Injury Resistance',
         }
-        
+
         # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
         rows = soup.find_all('tr')
         for row in rows:
@@ -2851,43 +2979,29 @@ def extract_full_player_info(player_url: str) -> dict:
             if th and td:
                 key = th.get_text(strip=True).replace(':', '')
                 value = td.get_text(strip=True)
-                
-                # Map sang field name
                 if key in field_mapping:
                     field_name = field_mapping[key]
                     info[field_name] = value
-                
-                # ... (Phần trên giữ nguyên) ...
-
-                # Xử lý Position đặc biệt
                 if key == 'Position':
                     pos_div = td.find('div', title=True)
                     if pos_div:
                         info['Position'] = pos_div.get_text(strip=True)
-        
-        # === THÊM ĐOẠN NÀY VÀO ===
+
         # Lấy vị trí phụ từ sơ đồ sân bóng
         info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
-        # =========================
-
-        # Lấy Skills
         info['Skills'] = extract_player_skills(player_url)
-        
-        # Lấy Player Type
         info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
-        
-        # Lấy Rating (POTW dùng level gốc +4, thẻ khác ưu tiên Max Level)
         info['Rating'] = extract_max_level_rating(
             player_url,
             card_type=info.get('Player_Type'),
             base_html=html
         )
-        
         return info
-        
+
     except Exception as e:
         st.error(f"❌ Error extracting information: {e}")
         return default_info
+
 
 def get_unique_values(df: pd.DataFrame, column: str) -> list:
     if column in df.columns:
@@ -4615,7 +4729,9 @@ def main():
                         
                         # Xử lý input: nếu chỉ là số, thêm prefix
                         if upgrade_input.isdigit():
-                            upgrade_url = f"https://pesdb.net/efootball/?id={upgrade_input}"
+                            upgrade_url = f"https://www.pesdata.net/player/detail/{upgrade_input}"
+                        elif "pesdata.net" in upgrade_input or "player/detail/" in upgrade_input:
+                            upgrade_url = upgrade_input
                         elif "efhub.com" in upgrade_input:
                             _pid = extract_ehub_player_id(upgrade_input)
                             upgrade_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else upgrade_input
@@ -4647,6 +4763,7 @@ def main():
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': upgrade_url,
                                     'Player_ID': extract_ehub_player_id(upgrade_url),
+                                    **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
                                     'Booster Type': 'None',
                                     'National Booster': False,
                                     'Booster Rating 1-7': 0,
@@ -4677,7 +4794,9 @@ def main():
                         
                         # Xử lý input: nếu chỉ là số, thêm prefix
                         if pesdb_input.isdigit():
-                            pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
+                            pesdb_url = f"https://www.pesdata.net/player/detail/{pesdb_input}"
+                        elif "pesdata.net" in pesdb_input or "player/detail/" in pesdb_input:
+                            pesdb_url = pesdb_input
                         elif "efhub.com" in pesdb_input:
                             _pid = extract_ehub_player_id(pesdb_input)
                             pesdb_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else pesdb_input
@@ -4709,6 +4828,7 @@ def main():
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': pesdb_url,
                                     'Player_ID': extract_ehub_player_id(pesdb_url),
+                                    **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
                                     'Booster Type': 'None',
                                     'National Booster': False,
                                     'Booster Rating 1-7': 0,
