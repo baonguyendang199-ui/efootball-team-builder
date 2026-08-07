@@ -4883,7 +4883,14 @@ def main():
                         st.caption(f"**Main Position:** {data.get('Position')} | **Secondary:** {data.get('Secondary Positions')}")
                 else:
                     st.markdown(f"## ✍️ Enter new player information")
-                
+
+                if any(data.get(field) for field in PESDATA_BODY_MODEL_FIELDS):
+                    with st.expander("📦 PESDATA Body Model Preview", expanded=True):
+                        cols = st.columns(3)
+                        for idx, field_name in enumerate(PESDATA_BODY_MODEL_FIELDS):
+                            with cols[idx % 3]:
+                                st.text_input(field_name, value=data.get(field_name, ''), key=f"preview_{field_name}", disabled=True)
+
                 st.divider()
 
                 # Form chỉnh sửa
