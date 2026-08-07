@@ -521,13 +521,17 @@ def show_player_modal(row):
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">No skills yet</span>'
 
     # --- 2.5 BODY MODEL ---
-    body_items = []
-    for field in PESDATA_BODY_MODEL_FIELDS:
-        txt = str(row.get(field, '') or '').strip()
-        if not txt:
-            txt = '-'
-        body_items.append(f'<div class="model-item"><div class="model-label">{field}</div><div class="model-value">{txt}</div></div>')
-    body_model_html = '<div class="pf-section-title">Body Model</div><div class="model-grid">' + ''.join(body_items) + '</div>'
+    has_body_model = any(str(row.get(field, '') or '').strip() for field in PESDATA_BODY_MODEL_FIELDS)
+    if has_body_model:
+        body_items = []
+        for field in PESDATA_BODY_MODEL_FIELDS:
+            txt = str(row.get(field, '') or '').strip()
+            if not txt:
+                continue
+            body_items.append(f'<div class="model-item"><div class="model-label">{field}</div><div class="model-value">{txt}</div></div>')
+        body_model_html = '<div class="pf-section-title">Body Model</div><div class="model-grid">' + ''.join(body_items) + '</div>'
+    else:
+        body_model_html = ''
 
     # --- 3. REASONS BLOCK ---
     action_bg = "rgba(34, 197, 94, 0.2)" if "KEEP" in action else "rgba(239, 68, 68, 0.2)"
@@ -562,6 +566,10 @@ def show_player_modal(row):
 .pf-skill {{ font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; transition: all 0.2s; }}
 .pf-skill:hover {{ background: {accent_color}33; border-color: {accent_color}; color: white; }}
 .pf-skill.added {{ border-left: 3px solid #4ade80; background: rgba(74, 222, 128, 0.1); }}
+.model-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }}
+.model-item {{ display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); }}
+.model-label {{ font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }}
+.model-value {{ font-size: 0.95rem; font-weight: 700; color: #e2e8f0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
 </style>
 <div class="profile-container">
 <div class="pf-hero">
@@ -4899,9 +4907,11 @@ def main():
 
                 if any(data.get(field) for field in PESDATA_BODY_MODEL_FIELDS):
                     with st.expander("📦 PESDATA Body Model Preview", expanded=True):
-                        cols = st.columns(3)
+                        cols = st.columns(2)
                         for idx, field_name in enumerate(PESDATA_BODY_MODEL_FIELDS):
-                            with cols[idx % 3]:
+                            if not data.get(field_name):
+                                continue
+                            with cols[idx % 2]:
                                 st.text_input(field_name, value=data.get(field_name, ''), key=f"preview_{field_name}", disabled=True)
 
                 st.divider()
