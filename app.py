@@ -216,6 +216,38 @@ APP_THEME = {
     "muted": "#94A3B8"
 }
 
+SPECIAL_SQUAD_OPTIONS = [
+    ("⭐ Highest Rating (Mạnh nhất)", "rating_desc"),
+    ("💪 The Tanks (Chiến Thần BMI Lớn)", "bmi_desc"),
+    ("⚡ The Agiles (Sóc Nhỏ BMI Nhỏ)", "bmi_asc"),
+    ("🦶 The Ambidextrous (2 Chân Như 1)", "ambidextrous"),
+    ("🟣 Form Is Temporary (Full POTW)", "potw_only"),
+    ("🌍 United Nations (Đa Nation)", "united_nations"),
+    ("🦒 Tallest XI (Cao nhất)", "height_desc"),
+    ("🐜 Shortest XI (Thấp nhất)", "height_asc"),
+    ("⚖️ Heaviest XI (Nặng nhất)", "weight_desc"),
+    ("🪶 Lightest XI (Nhẹ nhất)", "weight_asc"),
+    ("👶 Youngest XI (Trẻ nhất)", "age_asc"),
+    ("👴 Oldest XI (Già nhất)", "age_desc")
+]
+GENERIC_SQUAD_FIELDS = [
+    ("Rating", "rating"),
+    ("Height", "height"),
+    ("Weight", "weight"),
+    ("Age", "age"),
+    ("BMI", "bmi"),
+]
+GENERIC_SORT_DIRECTIONS = [
+    ("Highest first", "desc"),
+    ("Lowest first", "asc"),
+]
+MAX_GENERIC_FIELD_VALUES = {
+    'height': 250,
+    'weight': 150,
+    'age': 100,
+    'rating': 150,
+}
+
 
 def inject_modern_ui_theme():
     """Inject modern UI tokens, typography and component styling (Compact Version)."""
@@ -1842,6 +1874,26 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             ptype = str(row.get('Player Type', '')).upper()
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
             return (10000 if is_potw else 0) + eff_rating
+        elif '_' in sort_mode:
+            field, direction = sort_mode.split('_', 1)
+            field = field.lower()
+            direction = direction.lower()
+            if field == 'bmi':
+                h_m = row['Height_num'] / 100.0
+                w = row['Weight_num']
+                if h_m < 1.0 or w < 30:
+                    return ERROR_SCORE
+                bmi = w / (h_m ** 2)
+                if direction == 'desc':
+                    return (bmi * 1000) + rating_bonus
+                return ((100 - bmi) * 1000) + rating_bonus
+            if field == 'rating':
+                return eff_rating if direction == 'desc' else -eff_rating
+            if field in MAX_GENERIC_FIELD_VALUES:
+                val = row.get(f"{field.capitalize()}_num", 0.0)
+                if direction == 'desc':
+                    return val + rating_bonus
+                return (MAX_GENERIC_FIELD_VALUES[field] - val) + rating_bonus
         return eff_rating
 
     # 4. CHỌN ĐÁ CHÍNH + DỰ BỊ (đóng gói thành hàm để có thể lặp lại nhiều vòng)
@@ -2169,7 +2221,8 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     # --- 1. XỬ LÝ SORT MODE ---
     highlight_type = None
     is_reverse = True 
-    if 'height' in sort_mode: highlight_type = 'Height'; is_reverse = 'asc' not in sort_mode
+    if 'rating' in sort_mode: highlight_type = 'Rating'; is_reverse = 'asc' not in sort_mode
+    elif 'height' in sort_mode: highlight_type = 'Height'; is_reverse = 'asc' not in sort_mode
     elif 'weight' in sort_mode: highlight_type = 'Weight'; is_reverse = 'asc' not in sort_mode
     elif 'age' in sort_mode: highlight_type = 'Age'; is_reverse = 'asc' not in sort_mode
     elif 'bmi' in sort_mode: highlight_type = 'BMI'; is_reverse = 'asc' not in sort_mode
@@ -2246,6 +2299,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             a = get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
         elif highlight_type == 'Nation': val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
+        elif highlight_type == 'Rating': val_display = str(int(p.get('Rating', 0)))
 
         ptype = str(p['Type']).upper()
         if "POTW" in ptype or "TRENDING" in ptype: accent, shadow, stat_color = "#d946ef", "rgba(217, 70, 239, 0.4)", "#e879f9"
@@ -4547,35 +4601,37 @@ def main():
                             else:
                                 st.selectbox("Value:", ["-"], disabled=True)
                     elif build_mode == "By Stats":
-                        # Giao diện chọn Chỉ số
-                        stat_type = st.selectbox("Criteria:", [
-                            "⭐ Highest Rating (Mạnh nhất)", 
-                            "💪 The Tanks (Chiến Thần BMI Lớn)",     # Mới
-                            "⚡ The Agiles (Sóc Nhỏ BMI Nhỏ)",     # Mới
-                            "🦶 The Ambidextrous (2 Chân Như 1)",    # Mới
-                            "🟣 Form Is Temporary (Full POTW)",     # Mới
-                            "🌍 United Nations (Đa Nation)",      # Mới
-                            "🦒 Tallest XI (Cao nhất)", 
-                            "🐜 Shortest XI (Thấp nhất)",
-                            "⚖️ Heaviest XI (Nặng nhất)",
-                            "🪶 Lightest XI (Nhẹ nhất)",
-                            "👶 Youngest XI (Trẻ nhất)",
-                            "👴 Oldest XI (Già nhất)"
-                        ])
-                        
-                        # Mapping từ Label sang ID
-                        if "Rating" in stat_type: sort_mode = 'rating_desc'
-                        elif "Tanks" in stat_type: sort_mode = 'bmi_desc'      # Mới
-                        elif "Agiles" in stat_type: sort_mode = 'bmi_asc'      # Mới
-                        elif "Ambidextrous" in stat_type: sort_mode = 'ambidextrous' # Mới
-                        elif "POTW" in stat_type: sort_mode = 'potw_only'      # Mới
-                        elif "United Nations" in stat_type: sort_mode = 'united_nations' # Mới
-                        elif "Cao nhất" in stat_type: sort_mode = 'height_desc'
-                        elif "Thấp nhất" in stat_type: sort_mode = 'height_asc'
-                        elif "Nặng nhất" in stat_type: sort_mode = 'weight_desc'
-                        elif "Nhẹ nhất" in stat_type: sort_mode = 'weight_asc'
-                        elif "Trẻ nhất" in stat_type: sort_mode = 'age_asc'
-                        elif "Già nhất" in stat_type: sort_mode = 'age_desc'
+                        # Giao diện chọn loại Squad
+                        stat_category = st.radio(
+                            "Choose squad category:",
+                            ["Special Squads", "Stat + Direction"],
+                            horizontal=True,
+                            label_visibility="collapsed"
+                        )
+
+                        if stat_category == "Special Squads":
+                            stat_type = st.selectbox("Special squad criteria:", [label for label, _ in SPECIAL_SQUAD_OPTIONS])
+                            sort_mode = dict(SPECIAL_SQUAD_OPTIONS).get(stat_type, 'rating_desc')
+                            stat_field = None
+                            stat_direction = None
+                        else:
+                            col_a, col_b = st.columns([2, 1])
+                            with col_a:
+                                stat_field = st.selectbox(
+                                    "Stat field:",
+                                    [label for label, _ in GENERIC_SQUAD_FIELDS],
+                                    label_visibility="collapsed"
+                                )
+                            with col_b:
+                                stat_direction = st.selectbox(
+                                    "Direction:",
+                                    [label for label, _ in GENERIC_SORT_DIRECTIONS],
+                                    label_visibility="collapsed"
+                                )
+                            direction = 'desc' if stat_direction == 'Highest first' else 'asc'
+                            stat_key = dict(GENERIC_SQUAD_FIELDS).get(stat_field, 'rating')
+                            sort_mode = f"{stat_key}_{direction}"
+                            stat_type = f"{stat_field} ({stat_direction})"
 
             # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
             
@@ -4643,7 +4699,24 @@ def main():
                         try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
                         except: return 0
 
-                    if "Tanks" in stat_type or "Agiles" in stat_type:
+                    if stat_category == "Stat + Direction":
+                        if stat_field == "BMI":
+                            bmis = []
+                            for p in all_valid_players:
+                                try:
+                                    h = get_val(p, 'Height') / 100.0
+                                    w = get_val(p, 'Weight')
+                                    if h > 0: bmis.append(w/(h**2))
+                                except: pass
+                            avg = sum(bmis) / len(bmis) if bmis else 0
+                            custom_label = "BMI Trung bình"
+                            custom_value = f"{avg:.1f}"
+                        else:
+                            vals = [get_val(p, stat_field) for p in all_valid_players]
+                            avg = sum(vals) / len(vals) if vals else 0
+                            custom_label = f"{stat_field} TB (23)"
+                            custom_value = f"{avg:.1f}"
+                    elif "Tanks" in stat_type or "Agiles" in stat_type:
                         # Tính BMI trung bình
                         bmis = []
                         for p in all_valid_players:
@@ -4730,34 +4803,33 @@ def main():
                 metric_to_show = None
                 
                 if build_mode == "By Stats":
-                    # Height
-                    if "Cao" in stat_type or "Thấp" in stat_type or "Tallest" in stat_type or "Shortest" in stat_type: 
-                        metric_to_show = 'Height'
-                    
-                    # Weight
-                    elif "Nặng" in stat_type or "Nhẹ" in stat_type or "Heaviest" in stat_type or "Lightest" in stat_type: 
-                        metric_to_show = 'Weight'
-                    
-                    # Age
-                    elif "Trẻ" in stat_type or "Già" in stat_type or "Youngest" in stat_type or "Oldest" in stat_type: 
-                        metric_to_show = 'Age'
-                    
-                    # BMI (Tanks / Agiles)
-                    elif "Tanks" in stat_type or "Agiles" in stat_type or "BMI" in stat_type:
-                        metric_to_show = 'BMI'
-                    
-                    # Preferred Foot (Ambidextrous)
-                    elif "Ambidextrous" in stat_type or "Chân" in stat_type: 
-                        metric_to_show = 'Ambidextrous'
-                    
-                    # Nation (United Nations)
-                    elif "United Nations" in stat_type or "Nation" in stat_type:
-                        metric_to_show = 'Nation'
-                    
-                    # Card Type (POTW / Epic)
-                    elif "POTW" in stat_type or "Epic" in stat_type:
-                        metric_to_show = 'Type'
-
+                    if stat_category == "Stat + Direction":
+                        if stat_field == "BMI":
+                            metric_to_show = 'BMI'
+                        else:
+                            metric_to_show = stat_field
+                    else:
+                        # Height
+                        if "Cao" in stat_type or "Thấp" in stat_type or "Tallest" in stat_type or "Shortest" in stat_type: 
+                            metric_to_show = 'Height'
+                        # Weight
+                        elif "Nặng" in stat_type or "Nhẹ" in stat_type or "Heaviest" in stat_type or "Lightest" in stat_type: 
+                            metric_to_show = 'Weight'
+                        # Age
+                        elif "Trẻ" in stat_type or "Già" in stat_type or "Youngest" in stat_type or "Oldest" in stat_type: 
+                            metric_to_show = 'Age'
+                        # BMI (Tanks / Agiles)
+                        elif "Tanks" in stat_type or "Agiles" in stat_type or "BMI" in stat_type:
+                            metric_to_show = 'BMI'
+                        # Preferred Foot (Ambidextrous)
+                        elif "Ambidextrous" in stat_type or "Chân" in stat_type: 
+                            metric_to_show = 'Ambidextrous'
+                        # Nation (United Nations)
+                        elif "United Nations" in stat_type or "Nation" in stat_type:
+                            metric_to_show = 'Nation'
+                        # Card Type (POTW / Epic)
+                        elif "POTW" in stat_type or "Epic" in stat_type:
+                            metric_to_show = 'Type'
                 # ... (Phần code tính toán logic metric_to_show ở trên giữ nguyên) ...
 
                 # --- BẮT ĐẦU THAY ĐỔI TỪ ĐÂY ---
