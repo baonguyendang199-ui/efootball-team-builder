@@ -3159,7 +3159,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         if not current_val or current_val == 'nan':
                             appearance_key = PESDATA_APPEARANCE_KEY_MAP_REVERSE.get(field, '')
                             new_val = appearance.get(appearance_key, '') if appearance_key else ''
-                            if new_val:
+                            if new_val is not None and str(new_val).strip() != '':
                                 state['df_snapshot'].at[idx, field] = new_val
                                 row_updated = True
 
