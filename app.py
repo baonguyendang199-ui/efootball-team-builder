@@ -2443,6 +2443,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             raw_val = get_data_value(highlight_type)
             val_display = str(raw_val) if raw_val not in [None, ''] else ''
 
+<<<<<<< HEAD
         def build_multi_metric_display():
             entries = []
             if isinstance(sort_mode, list):
@@ -2491,6 +2492,8 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             val_display = metric_html
             metric_label = ''
 
+=======
+>>>>>>> parent of c5824b2 (Update app.py)
         ptype = str(p['Type']).upper()
         if "POTW" in ptype or "TRENDING" in ptype: accent, shadow, stat_color = "#d946ef", "rgba(217, 70, 239, 0.4)", "#e879f9"
         elif "EPIC" in ptype and "NON" not in ptype: accent, shadow, stat_color = "#fbbf24", "rgba(251, 191, 36, 0.4)", "#fbbf24"
