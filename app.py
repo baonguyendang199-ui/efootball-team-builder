@@ -1170,41 +1170,59 @@ def apply_club_league_booster(df: pd.DataFrame) -> pd.DataFrame:
 
 def apply_squad_national_boosters(squad, nation_build=False, filter_col=None):
     """
-    Show effective rating on pitch cards based on the ACTUAL nation depth
+    Show effective rating on pitch cards based on the ACTUAL squad depth
     within the built 23-man squad (starters + bench) - not the whole player pool.
+    This supports National, Club, and League booster types.
     """
-    # 1. Đếm số cầu thủ theo từng quốc tịch ĐANG CÓ trong squad vừa build
     nation_count_in_squad = {}
-    for p in squad:
-        if p.get('Player') and p['Player'] != '---':
-            nation = str(p.get('Data', {}).get('Nation', '')).strip()
-            if nation:
-                nation_count_in_squad[nation] = nation_count_in_squad.get(nation, 0) + 1
+    club_count_in_squad = {}
+    league_count_in_squad = {}
 
-    # 2. Gán lại rating cho từng cầu thủ có National Booster dựa trên depth THỰC TẾ
     for p in squad:
         if p.get('Player') and p['Player'] != '---':
             data = p.get('Data', {})
-            booster_type = str(data.get('Booster Type', 'None')).strip().title()
-            if booster_type != 'National':
+            nation = str(data.get('Nation', '')).strip()
+            club = str(data.get('Club', '')).strip()
+            league = str(data.get('League', '')).strip()
+            if nation:
+                nation_count_in_squad[nation] = nation_count_in_squad.get(nation, 0) + 1
+            if club and nation:
+                club_count_in_squad[(club, nation)] = club_count_in_squad.get((club, nation), 0) + 1
+            if league and nation:
+                league_count_in_squad[(league, nation)] = league_count_in_squad.get((league, nation), 0) + 1
+
+    def _tier_value(data_dict, depth):
+        if depth <= 7:
+            val = data_dict.get('Booster Rating 1-7', 0)
+        elif depth <= 10:
+            val = data_dict.get('Booster Rating 8-10', 0)
+        else:
+            val = data_dict.get('Booster Rating 11-23', 0)
+        try:
+            val = int(val)
+        except (TypeError, ValueError):
+            val = 0
+        base = data_dict.get('Rating', 0)
+        return val if val > 0 else int(base)
+
+    for p in squad:
+        if p.get('Player') and p['Player'] != '---':
+            data = p.get('Data', {})
+            booster_type = _normalize_booster_type(data.get('Booster Type', 'None'))
+            if booster_type == 'None':
                 continue
 
             nation = str(data.get('Nation', '')).strip()
-            depth = nation_count_in_squad.get(nation, 0)
-
-            if depth <= 7:
-                val = data.get('Booster Rating 1-7', 0)
-            elif depth <= 10:
-                val = data.get('Booster Rating 8-10', 0)
+            if booster_type == 'National':
+                depth = nation_count_in_squad.get(nation, 0)
+            elif booster_type == 'Club':
+                depth = club_count_in_squad.get((str(data.get('Club', '')).strip(), nation), 0)
+            elif booster_type == 'League':
+                depth = league_count_in_squad.get((str(data.get('League', '')).strip(), nation), 0)
             else:
-                val = data.get('Booster Rating 11-23', 0)
+                depth = 0
 
-            try:
-                val = int(val)
-            except (TypeError, ValueError):
-                val = 0
-
-            p['Rating'] = val if val > 0 else int(data.get('Rating', p['Rating']))
+            p['Rating'] = _tier_value(data, depth)
     return squad
 
 
@@ -1942,19 +1960,29 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     # ==========================================================
     # 5. VÒNG LẶP HỘI TỤ (FIXED-POINT ITERATION)
-    #    Build thử -> tính depth quốc tịch THẬT trong squad vừa build ->
-    #    cập nhật lại _build_rating cho cầu thủ có National Booster theo
-    #    đúng tier -> build lại. Lặp đến khi đội hình không đổi nữa
-    #    (hoặc tối đa MAX_ITER vòng, để chống dao động vô hạn).
+    #    Build thử -> tính depth thực tế trong squad vừa build ->
+    #    cập nhật lại _build_rating cho Booster Type National/Club/League
+    #    rồi build lại. Lặp đến khi đội hình không đổi nữa.
     # ==========================================================
-    def _nation_depth_of(fsquad):
-        depth = {}
+    def _depth_maps_of(fsquad):
+        nation_depth = {}
+        club_depth = {}
+        league_depth = {}
         for p in fsquad:
             if p.get('Player') and p['Player'] != '---':
-                nation = str(p.get('Data', {}).get('Nation', '')).strip()
+                data = p.get('Data', {})
+                nation = str(data.get('Nation', '')).strip()
+                club = str(data.get('Club', '')).strip()
+                league = str(data.get('League', '')).strip()
+
                 if nation:
-                    depth[nation] = depth.get(nation, 0) + 1
-        return depth
+                    nation_depth[nation] = nation_depth.get(nation, 0) + 1
+                if club and nation:
+                    club_depth[(club, nation)] = club_depth.get((club, nation), 0) + 1
+                if league and nation:
+                    league_depth[(league, nation)] = league_depth.get((league, nation), 0) + 1
+
+        return nation_depth, club_depth, league_depth
 
     def _tier_value(data_dict, depth):
         if depth <= 7:
@@ -1969,6 +1997,18 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             val = 0
         base = data_dict.get('Rating', 0)
         return val if val > 0 else base
+
+    def _refresh_build_rating(row, nation_depth, club_depth, league_depth):
+        booster_type = _normalize_booster_type(row.get('Booster Type', 'None'))
+        if booster_type == 'National':
+            depth = nation_depth.get(str(row.get('Nation', '')).strip(), 0)
+        elif booster_type == 'Club':
+            depth = club_depth.get((str(row.get('Club', '')).strip(), str(row.get('Nation', '')).strip()), 0)
+        elif booster_type == 'League':
+            depth = league_depth.get((str(row.get('League', '')).strip(), str(row.get('Nation', '')).strip()), 0)
+        else:
+            return row.get('_build_rating', row.get('Rating', 0))
+        return _tier_value(row.to_dict(), depth)
 
     MAX_ITER = 8
     prev_signature = None
@@ -1986,25 +2026,17 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         ))
 
         if signature == prev_signature:
-            break  # 2 vòng liên tiếp ra cùng 1 đội hình -> đã hội tụ
+            break
         if signature in seen_signatures:
-            break  # phát hiện dao động lặp lại -> dừng an toàn
+            break
         seen_signatures.add(signature)
         prev_signature = signature
 
-        # Cập nhật _build_rating theo depth THẬT vừa quan sát, cho vòng kế tiếp
-        if 'National Booster' in pool_df.columns:
-            depth_map = _nation_depth_of(final_squad)
-
-            def _refresh_build_rating(row):
-                if not _parse_bool(row.get('National Booster', False)):
-                    return row.get('_build_rating', row['Rating'])
-                nation = str(row.get('Nation', '')).strip()
-                depth = depth_map.get(nation, 0)
-                return _tier_value(row.to_dict(), depth)
-
-            pool_df = pool_df.copy()
-            pool_df['_build_rating'] = pool_df.apply(_refresh_build_rating, axis=1)
+        pool_df = pool_df.copy()
+        nation_depth, club_depth, league_depth = _depth_maps_of(final_squad)
+        pool_df['_build_rating'] = pool_df.apply(
+            lambda r: _refresh_build_rating(r, nation_depth, club_depth, league_depth), axis=1
+        )
 
     return apply_squad_national_boosters(final_squad, filter_col=filter_col)
 
@@ -2147,11 +2179,11 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             if eff_col in data:
                 eff_rating = max(eff_rating, int(data.get(eff_col, base_rating) or base_rating))
         booster_badge = ""
-        if data.get('National Booster', False) and eff_rating > base_rating:
+        if _normalize_booster_type(data.get('Booster Type', 'None')) != 'None' and eff_rating > base_rating:
             booster_badge = (
                 f'<div style="position:absolute; top:2px; left:2px; background:#7c3aed; '
                 f'color:white; font-size:7px; font-weight:bold; padding:1px 4px; '
-                f'border-radius:3px; z-index:21;">⚡</div>'
+                f'border-radius:3px; z-index:21;'>⚡</div>'
             )
         
         # Logic Stat Tag
