@@ -2238,15 +2238,28 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
 
     # --- 1. XỬ LÝ SORT MODE ---
     highlight_type = None
-    is_reverse = True 
-    if 'rating' in sort_mode: highlight_type = 'Rating'; is_reverse = 'asc' not in sort_mode
-    elif 'height' in sort_mode: highlight_type = 'Height'; is_reverse = 'asc' not in sort_mode
-    elif 'weight' in sort_mode: highlight_type = 'Weight'; is_reverse = 'asc' not in sort_mode
-    elif 'age' in sort_mode: highlight_type = 'Age'; is_reverse = 'asc' not in sort_mode
-    elif 'bmi' in sort_mode: highlight_type = 'BMI'; is_reverse = 'asc' not in sort_mode
-    elif 'potw' in sort_mode: highlight_type = 'Type'
-    elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous'
-    elif 'united_nations' in sort_mode: highlight_type = 'Nation'
+    is_reverse = True
+    if sort_mode.startswith('rating'):
+        highlight_type = 'Rating'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('height'):
+        highlight_type = 'Height'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('weight'):
+        highlight_type = 'Weight'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('age'):
+        highlight_type = 'Age'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('bmi'):
+        highlight_type = 'BMI'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode == 'potw_only':
+        highlight_type = 'Type'
+    elif sort_mode == 'ambidextrous':
+        highlight_type = 'Ambidextrous'
+    elif sort_mode == 'united_nations':
+        highlight_type = 'Nation'
     elif '_' in sort_mode:
         highlight_type = sort_mode.rsplit('_', 1)[0].replace('_', ' ').title()
         is_reverse = 'asc' not in sort_mode
@@ -2311,15 +2324,12 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         if highlight_type == 'Height':
             raw = get_data_value('Height')
             val_display = f"{raw} cm" if raw not in [None, ''] else ''
-            metric_label = 'Height'
         elif highlight_type == 'Weight':
             raw = get_data_value('Weight')
             val_display = f"{raw} kg" if raw not in [None, ''] else ''
-            metric_label = 'Weight'
         elif highlight_type == 'Age':
             raw = get_data_value('Age')
             val_display = f"{raw} yrs" if raw not in [None, ''] else ''
-            metric_label = 'Age'
         elif highlight_type == 'BMI':
             try:
                 h = float(re.sub(r'[^\d.]', '', str(get_data_value('Height') or '0'))) / 100.0
@@ -2348,11 +2358,9 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         elif highlight_type == 'Rating':
             raw = get_data_value('Rating')
             val_display = str(int(raw or p.get('Rating', 0)))
-            metric_label = 'Rating'
         elif highlight_type:
             raw_val = get_data_value(highlight_type)
             val_display = str(raw_val) if raw_val not in [None, ''] else ''
-            metric_label = highlight_type
 
         ptype = str(p['Type']).upper()
         if "POTW" in ptype or "TRENDING" in ptype: accent, shadow, stat_color = "#d946ef", "rgba(217, 70, 239, 0.4)", "#e879f9"
