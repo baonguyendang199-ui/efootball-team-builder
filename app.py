@@ -763,12 +763,14 @@ def load_data_from_gsheet():
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
             "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions",
-            "National Booster", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23"
+            "National Booster", "Booster Type", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23"
         ]
         for col in required_cols:
             if col not in df.columns:
                 if col == "Rating":
                     df[col] = 0
+                elif col == "Booster Type":
+                    df[col] = "None"
                 else:
                     df[col] = ""
         
@@ -782,7 +784,7 @@ def load_data_from_gsheet():
             "Nation", "Club", "League",
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
-            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions"
+            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions", "Booster Type"
         ]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
@@ -808,6 +810,16 @@ def load_data_from_gsheet():
         for old_col, new_col in _legacy_cols.items():
             if old_col in df.columns and new_col not in df.columns:
                 df[new_col] = df[old_col]
+
+        if 'Booster Type' not in df.columns:
+            df['Booster Type'] = df['National Booster'].apply(lambda v: 'National' if _parse_bool(v) else 'None') if 'National Booster' in df.columns else 'None'
+        else:
+            df['Booster Type'] = df['Booster Type'].apply(_normalize_booster_type)
+            if 'National Booster' in df.columns:
+                df.loc[df['Booster Type'] == 'None', 'Booster Type'] = df.loc[df['Booster Type'] == 'None', 'National Booster'].apply(lambda v: 'National' if _parse_bool(v) else 'None')
+
+        df['Booster Type'] = df['Booster Type'].apply(_normalize_booster_type)
+        df['National Booster'] = df['Booster Type'].apply(lambda t: t == 'National')
 
         df = apply_national_booster(df)
         df = apply_club_league_booster(df)
@@ -1071,6 +1083,22 @@ def _parse_bool(val) -> bool:
     return str(val).strip().upper() in ("TRUE", "YES", "1", "Y")
 
 
+def _normalize_booster_type(val: str) -> str:
+    """Normalize booster type values from sheet or form inputs."""
+    if val is None:
+        return 'None'
+    text = str(val).strip().title()
+    if text in ['National', 'Club', 'League']:
+        return text
+    if 'club' in text.lower():
+        return 'Club'
+    if 'league' in text.lower():
+        return 'League'
+    if 'nation' in text.lower() or 'potw' in text.lower():
+        return 'National'
+    return 'None'
+
+
 def apply_national_booster(df: pd.DataFrame) -> pd.DataFrame:
     """
     Compute Effective_Nation_Rating for each player.
@@ -1094,7 +1122,7 @@ def apply_national_booster(df: pd.DataFrame) -> pd.DataFrame:
     nation_depth = df.groupby('Nation')['Player'].nunique()
 
     def _boosted_rating(row):
-        if not row['National Booster']:
+        if row.get('Booster Type', 'None') != 'National':
             return row['Rating']
         depth = int(nation_depth.get(row['Nation'], 0))
         if depth <= 7:
@@ -1120,8 +1148,8 @@ def apply_club_league_booster(df: pd.DataFrame) -> pd.DataFrame:
     club_depth   = df.groupby(['Club',   'Nation'])['Player'].nunique()
     league_depth = df.groupby(['League', 'Nation'])['Player'].nunique()
 
-    def _boosted(row, depth):
-        if not row['National Booster']:
+    def _boosted(row, depth, booster_type):
+        if row.get('Booster Type', 'None') != booster_type:
             return row['Rating']
         if depth <= 7:
             val = row['Booster Rating 1-7']
@@ -1132,10 +1160,10 @@ def apply_club_league_booster(df: pd.DataFrame) -> pd.DataFrame:
         return int(val) if val > 0 else row['Rating']
 
     df['Effective_Club_Rating'] = df.apply(
-        lambda r: _boosted(r, int(club_depth.get((r['Club'], r['Nation']), 0))), axis=1
+        lambda r: _boosted(r, int(club_depth.get((r['Club'], r['Nation']), 0)), 'Club'), axis=1
     )
     df['Effective_League_Rating'] = df.apply(
-        lambda r: _boosted(r, int(league_depth.get((r['League'], r['Nation']), 0))), axis=1
+        lambda r: _boosted(r, int(league_depth.get((r['League'], r['Nation']), 0)), 'League'), axis=1
     )
     return df
 
@@ -1157,8 +1185,8 @@ def apply_squad_national_boosters(squad, nation_build=False, filter_col=None):
     for p in squad:
         if p.get('Player') and p['Player'] != '---':
             data = p.get('Data', {})
-            has_booster = _parse_bool(data.get('National Booster', False))
-            if not has_booster:
+            booster_type = str(data.get('Booster Type', 'None')).strip().title()
+            if booster_type != 'National':
                 continue
 
             nation = str(data.get('Nation', '')).strip()
@@ -1222,8 +1250,8 @@ def build_squad_based_effective_ratings(df: pd.DataFrame, squad: list) -> pd.Dat
         base = data_dict.get('Rating', 0)
         return val if val > 0 else base
 
-    def _effective_for(row, group_col, depth_map):
-        if not _parse_bool(row.get('National Booster', False)):
+    def _effective_for(row, group_col, depth_map, booster_type):
+        if str(row.get('Booster Type', 'None')).strip().title() != booster_type:
             return row.get('Rating', 0)
         value = str(row.get(group_col, '')).strip()
         depth = int(depth_map.get(value, 0))
@@ -1234,13 +1262,13 @@ def build_squad_based_effective_ratings(df: pd.DataFrame, squad: list) -> pd.Dat
     league_depth = _depth_map_for('League')
 
     out_df['Effective_Nation_Rating'] = out_df.apply(
-        lambda r: _effective_for(r, 'Nation', nation_depth), axis=1
+        lambda r: _effective_for(r, 'Nation', nation_depth, 'National'), axis=1
     )
     out_df['Effective_Club_Rating'] = out_df.apply(
-        lambda r: _effective_for(r, 'Club', club_depth), axis=1
+        lambda r: _effective_for(r, 'Club', club_depth, 'Club'), axis=1
     )
     out_df['Effective_League_Rating'] = out_df.apply(
-        lambda r: _effective_for(r, 'League', league_depth), axis=1
+        lambda r: _effective_for(r, 'League', league_depth, 'League'), axis=1
     )
 
     return out_df
@@ -4576,6 +4604,7 @@ def main():
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': upgrade_url,
                                     'Player_ID': extract_ehub_player_id(upgrade_url),
+                                    'Booster Type': 'None',
                                     'National Booster': False,
                                     'Booster Rating 1-7': 0,
                                     'Booster Rating 8-10': 0,
@@ -4637,6 +4666,7 @@ def main():
                                     'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                     'Player_URL': pesdb_url,
                                     'Player_ID': extract_ehub_player_id(pesdb_url),
+                                    'Booster Type': 'None',
                                     'National Booster': False,
                                     'Booster Rating 1-7': 0,
                                     'Booster Rating 8-10': 0,
@@ -4823,33 +4853,36 @@ def main():
                     )
                     
                     st.divider()
-                    st.subheader("🚀 National Booster (POTW)")
-                    national_booster = st.checkbox(
-                        "This card has a National Booster",
-                        value=bool(data.get('National Booster', False)),
-                        help="Enable for National Booster POTW cards. The boosted rating applies ONLY to Nation squad ranking, not Club or League."
+                    st.subheader("🚀 Booster Type")
+                    current_booster_type = _normalize_booster_type(data.get('Booster Type', 'National' if data.get('National Booster', False) else 'None'))
+                    booster_type = st.selectbox(
+                        "Booster Type",
+                        ["None", "National", "Club", "League"],
+                        index=["None", "National", "Club", "League"].index(current_booster_type),
+                        help="Choose the booster scope. Only one type can be active at a time. The ratings apply for the selected group."
                     )
+                    booster_enabled = booster_type != 'None'
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         booster_1_7 = st.number_input(
-                            "Boosted Rating (1–7 compatriots)",
+                            "Boosted Rating (1–7 team mates)",
                             min_value=1, max_value=150,
                             value=int(data.get('Booster Rating 1-7', 0) or data.get('Rating', 90)),
-                            help="Effective Nation Rating when you own 1–7 players of this nationality"
+                            help="Effective boosted Rating when you own 1–7 players in the selected group"
                         )
                     with col2:
                         booster_8_10 = st.number_input(
-                            "Boosted Rating (8–10 compatriots)",
+                            "Boosted Rating (8–10 team mates)",
                             min_value=1, max_value=150,
                             value=int(data.get('Booster Rating 8-10', 0) or data.get('Rating', 90)),
-                            help="Effective Nation Rating when you own 8–10 players of this nationality"
+                            help="Effective boosted Rating when you own 8–10 players in the selected group"
                         )
                     with col3:
                         booster_11_23 = st.number_input(
-                            "Boosted Rating (11–23 compatriots)",
+                            "Boosted Rating (11–23 team mates)",
                             min_value=1, max_value=150,
                             value=int(data.get('Booster Rating 11-23', 0) or data.get('Rating', 90)),
-                            help="Effective Nation Rating when you own 11–23 players of this nationality"
+                            help="Effective boosted Rating when you own 11–23 players in the selected group"
                         )
 
                     st.divider()
@@ -4909,10 +4942,11 @@ def main():
                                     new_df.at[old_idx, 'Skills'] = skills
                                     new_df.at[old_idx, 'Added Skills'] = ""
                                     new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type_norm == "EPIC" else 1
-                                    new_df.at[old_idx, 'National Booster'] = national_booster
-                                    new_df.at[old_idx, 'Booster Rating 1-7'] = booster_1_7 if national_booster else 0
-                                    new_df.at[old_idx, 'Booster Rating 8-10'] = booster_8_10 if national_booster else 0
-                                    new_df.at[old_idx, 'Booster Rating 11-23'] = booster_11_23 if national_booster else 0
+                                    new_df.at[old_idx, 'National Booster'] = booster_type == 'National'
+                                    new_df.at[old_idx, 'Booster Type'] = booster_type
+                                    new_df.at[old_idx, 'Booster Rating 1-7'] = booster_1_7 if booster_enabled else 0
+                                    new_df.at[old_idx, 'Booster Rating 8-10'] = booster_8_10 if booster_enabled else 0
+                                    new_df.at[old_idx, 'Booster Rating 11-23'] = booster_11_23 if booster_enabled else 0
                                     
                                     try:
                                         if save_data_to_gsheet(new_df):
@@ -4959,79 +4993,30 @@ def main():
                                         "Skills": skills,
                                         "Added Skills": "",
                                         "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
-                                        "National Booster": national_booster,
-                                        "Booster Rating 1-7": booster_1_7 if national_booster else 0,
-                                        "Booster Rating 8-10": booster_8_10 if national_booster else 0,
-                                        "Booster Rating 11-23": booster_11_23 if national_booster else 0,
+                                        "National Booster": booster_type == 'National',
+                                        "Booster Type": booster_type,
+                                        "Booster Rating 1-7": booster_1_7 if booster_enabled else 0,
+                                        "Booster Rating 8-10": booster_8_10 if booster_enabled else 0,
+                                        "Booster Rating 11-23": booster_11_23 if booster_enabled else 0,
                                     }
                                     
                                     new_df = pd.concat([new_df, pd.DataFrame([new_player])], ignore_index=True)
                                     
                                     try:
                                         if save_data_to_gsheet(new_df):
-                                            st.success(f"✅ Added new version: **{player_name}** {rating} | {club} | {nation} | {league}")
-                                            
+                                            st.success(f"✅ Successfully added player **{player_name}**!")
+
                                             st.session_state.add_preview_data = None
                                             st.session_state.add_show_form = False
                                             st.cache_data.clear()
                                             st.balloons()
-                                            
-                                            time.sleep(1.5)
+
+                                            time.sleep(1)
                                             st.rerun()
                                         else:
-                                            st.error("❌ Could not save data!")
+                                            st.error("❌ Could not save data to Google Sheets!")
                                     except Exception as e:
-                                        st.error(f"❌ Error: {e}")
-                            
-                            # CHẾ ĐỘ THÊM MỚI
-                            else:
-                                new_player = {
-                                    "Player": player_name,
-                                    "Rating": int(rating),
-                                    "Position": position,
-                                    "Position Style": position_style,
-                                    "Secondary Positions": secondary_pos, # LƯU VỊ TRÍ PHỤ
-                                    "Player Type": player_type_norm,
-                                    "Nation": nation,
-                                    "Club": club,
-                                    "League": league,
-                                    "Region": region_val,
-                                    "Height": height_val,
-                                    "Weight": weight_val,
-                                    "Age": age_val,
-                                    "Foot": foot_val,
-                                    "Weak Foot Usage": wf_usage_val,
-                                    "Weak Foot Accuracy": wf_acc_val,
-                                    "Form": form_val,
-                                    "Injury Resistance": injury_val,
-                                    "Player URL": data.get('Player_URL', ''),
-                                    "Player ID": data.get('Player_ID', ''),
-                                    "Skills": skills,
-                                    "Added Skills": "",
-                                    "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
-                                    "National Booster": national_booster,
-                                    "Booster Rating 1-7": booster_1_7 if national_booster else 0,
-                                    "Booster Rating 8-10": booster_8_10 if national_booster else 0,
-                                    "Booster Rating 11-23": booster_11_23 if national_booster else 0,
-                                }
-                                
-                                new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
-                                
-                                try:
-                                    if save_data_to_gsheet(new_df):
-                                        st.success(f"✅ Successfully added player **{player_name}**!")
-
-                                        st.session_state.add_preview_data = None
-                                        st.session_state.add_show_form = False
-                                        st.cache_data.clear()
-                                        st.balloons()
-
-                                        time.sleep(1)
-                                        st.rerun()
-                                    else:
-                                        st.error("❌ Could not save data to Google Sheets!")
-                                except Exception as e:
-                                    st.error(f"❌ Error saving: {e}")
+                                        st.error(f"❌ Error saving: {e}")
             
     elif current_tab == 'inventory':
         st.header("📦 Skill Inventory Management")
