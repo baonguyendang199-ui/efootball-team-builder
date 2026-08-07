@@ -2443,6 +2443,51 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             raw_val = get_data_value(highlight_type)
             val_display = str(raw_val) if raw_val not in [None, ''] else ''
 
+        def build_multi_metric_display():
+            entries = []
+            if isinstance(sort_mode, list):
+                metric_list = sort_mode
+            elif isinstance(sort_mode_str, str) and '_' in sort_mode_str:
+                fld, dir = sort_mode_str.rsplit('_', 1)
+                metric_list = [(fld, dir)]
+            else:
+                metric_list = [(sort_mode_str.lower(), 'desc')]
+
+            for field, direction in metric_list:
+                key = field.lower()
+                label = key.replace('_', ' ').title()
+                value = ''
+                if key == 'rating':
+                    raw = get_data_value('Rating')
+                    value = str(int(raw or p.get('Rating', 0)))
+                elif key in ['height', 'weight', 'age']:
+                    raw = get_data_value(label)
+                    try:
+                        num = float(re.sub(r'[^
+\d.]', '', str(raw or '')))
+                        if key == 'height':
+                            value = f"{int(num)} cm"
+                        elif key == 'weight':
+                            value = f"{int(num)} kg"
+                        else:
+                            value = f"{int(num)} yrs"
+                    except:
+                        value = ''
+                elif key == 'bmi':
+                    try:
+                        h = float(re.sub(r'[^
+\d.]', '', str(get_data_value('Height') or '0'))) / 100.0
+                        w = float(re.sub(r'[^
+                if value:
+                    entries.append(f"<div style='margin:0; font-size:9px; line-height:1.2;'>"
+                                   f"<span style='color:#94a3b8;'>{label}:</span> {value}</div>")
+            return ''.join(entries)
+
+        metric_html = build_multi_metric_display()
+        if metric_html:
+            val_display = metric_html
+            metric_label = ''
+
         ptype = str(p['Type']).upper()
         if "POTW" in ptype or "TRENDING" in ptype: accent, shadow, stat_color = "#d946ef", "rgba(217, 70, 239, 0.4)", "#e879f9"
         elif "EPIC" in ptype and "NON" not in ptype: accent, shadow, stat_color = "#fbbf24", "rgba(251, 191, 36, 0.4)", "#fbbf24"
