@@ -236,6 +236,22 @@ GENERIC_SQUAD_FIELDS = [
     ("Weight", "weight"),
     ("Age", "age"),
     ("BMI", "bmi"),
+    ("Arm Length", "arm_length"),
+    ("Shoulder Width", "shoulder_width"),
+    ("Neck Length", "neck_length"),
+    ("Chest Measurement", "chest_measurement"),
+    ("Neck Size", "neck_size"),
+    ("Shoulder Height", "shoulder_height"),
+    ("Leg Length", "leg_length"),
+    ("Thigh Size", "thigh_size"),
+    ("Waist Size", "waist_size"),
+    ("Arm Size", "arm_size"),
+    ("Calf Size", "calf_size"),
+    ("Leg Coverage Radius", "leg_coverage_radius"),
+    ("Arm Coverage Radius", "arm_coverage_radius"),
+    ("Jumping Height", "jumping_height"),
+    ("Torso Collision", "torso_collision"),
+    ("Leg Length Based Height", "leg_length_based_height"),
 ]
 GENERIC_SORT_DIRECTIONS = [
     ("Highest first", "desc"),
@@ -1875,7 +1891,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
             return (10000 if is_potw else 0) + eff_rating
         elif '_' in sort_mode:
-            field, direction = sort_mode.split('_', 1)
+            field, direction = sort_mode.rsplit('_', 1)
             field = field.lower()
             direction = direction.lower()
             if field == 'bmi':
@@ -1889,14 +1905,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 return ((100 - bmi) * 1000) + rating_bonus
             if field == 'rating':
                 return eff_rating if direction == 'desc' else -eff_rating
-            if field in MAX_GENERIC_FIELD_VALUES:
-                val = row.get(f"{field.capitalize()}_num", 0.0)
-                if direction == 'desc':
-                    return val + rating_bonus
-                return (MAX_GENERIC_FIELD_VALUES[field] - val) + rating_bonus
-        return eff_rating
-
-    # 4. CHỌN ĐÁ CHÍNH + DỰ BỊ (đóng gói thành hàm để có thể lặp lại nhiều vòng)
+            if field != 'bmi':
+                label = field.replace('_', ' ').title()
+                if field in ['height', 'weight', 'age']:
+                    val = row.get(f"{label}_num", 0.0)
+                else:
+                    raw_val = row.get(label, row.get('Data', {}).get(label, 0.0))
+                    try:
+                        val = float(re.sub(r'[^
     required_positions = FORMATIONS.get(formation_name, [])
     unique_formation_positions = set(required_positions)
 
@@ -2229,6 +2245,9 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     elif 'potw' in sort_mode: highlight_type = 'Type'
     elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous'
     elif 'united_nations' in sort_mode: highlight_type = 'Nation'
+    elif '_' in sort_mode:
+        highlight_type = sort_mode.rsplit('_', 1)[0].replace('_', ' ').title()
+        is_reverse = 'asc' not in sort_mode
 
     # --- 2. TÁCH ĐÁ CHÍNH & DỰ BỊ ---
     starters = squad_list[:11]
@@ -2248,6 +2267,8 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             return w / (h**2) if h > 0 else 0
         subs = sorted(raw_subs, key=get_bmi, reverse=is_reverse)
     elif highlight_type == 'Ambidextrous': subs = sorted(raw_subs, key=lambda x: x.get('Score', 0), reverse=True)
+    elif highlight_type not in ['Type', 'Nation', None]:
+        subs = sorted(raw_subs, key=lambda x: get_sort_value(x, highlight_type), reverse=is_reverse)
     else: subs = sorted(raw_subs, key=lambda x: x.get('Rating', 0), reverse=True)
 
     # --- 4. HTML GENERATOR ---
@@ -2300,6 +2321,11 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             val_display = f"🦶{u} | 🎯{a}"
         elif highlight_type == 'Nation': val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
         elif highlight_type == 'Rating': val_display = str(int(p.get('Rating', 0)))
+        elif highlight_type:
+            raw_val = p.get(highlight_type, None)
+            if raw_val is None and isinstance(p.get('Data', None), dict):
+                raw_val = p['Data'].get(highlight_type, '')
+            val_display = str(raw_val) if raw_val not in [None, ''] else ''
 
         ptype = str(p['Type']).upper()
         if "POTW" in ptype or "TRENDING" in ptype: accent, shadow, stat_color = "#d946ef", "rgba(217, 70, 239, 0.4)", "#e879f9"
