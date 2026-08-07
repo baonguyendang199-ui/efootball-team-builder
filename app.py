@@ -217,18 +217,9 @@ APP_THEME = {
 }
 
 SPECIAL_SQUAD_OPTIONS = [
-    ("⭐ Highest Rating (Mạnh nhất)", "rating_desc"),
-    ("💪 The Tanks (Chiến Thần BMI Lớn)", "bmi_desc"),
-    ("⚡ The Agiles (Sóc Nhỏ BMI Nhỏ)", "bmi_asc"),
     ("🦶 The Ambidextrous (2 Chân Như 1)", "ambidextrous"),
     ("🟣 Form Is Temporary (Full POTW)", "potw_only"),
     ("🌍 United Nations (Đa Nation)", "united_nations"),
-    ("🦒 Tallest XI (Cao nhất)", "height_desc"),
-    ("🐜 Shortest XI (Thấp nhất)", "height_asc"),
-    ("⚖️ Heaviest XI (Nặng nhất)", "weight_desc"),
-    ("🪶 Lightest XI (Nhẹ nhất)", "weight_asc"),
-    ("👶 Youngest XI (Trẻ nhất)", "age_asc"),
-    ("👴 Oldest XI (Già nhất)", "age_desc")
 ]
 GENERIC_SQUAD_FIELDS = [
     ("Rating", "rating"),
@@ -2238,15 +2229,28 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
 
     # --- 1. XỬ LÝ SORT MODE ---
     highlight_type = None
-    is_reverse = True 
-    if 'rating' in sort_mode: highlight_type = 'Rating'; is_reverse = 'asc' not in sort_mode
-    elif 'height' in sort_mode: highlight_type = 'Height'; is_reverse = 'asc' not in sort_mode
-    elif 'weight' in sort_mode: highlight_type = 'Weight'; is_reverse = 'asc' not in sort_mode
-    elif 'age' in sort_mode: highlight_type = 'Age'; is_reverse = 'asc' not in sort_mode
-    elif 'bmi' in sort_mode: highlight_type = 'BMI'; is_reverse = 'asc' not in sort_mode
-    elif 'potw' in sort_mode: highlight_type = 'Type'
-    elif 'ambidextrous' in sort_mode: highlight_type = 'Ambidextrous'
-    elif 'united_nations' in sort_mode: highlight_type = 'Nation'
+    is_reverse = True
+    if sort_mode.startswith('rating'):
+        highlight_type = 'Rating'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('height'):
+        highlight_type = 'Height'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('weight'):
+        highlight_type = 'Weight'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('age'):
+        highlight_type = 'Age'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode.startswith('bmi'):
+        highlight_type = 'BMI'
+        is_reverse = 'asc' not in sort_mode
+    elif sort_mode == 'potw_only':
+        highlight_type = 'Type'
+    elif sort_mode == 'ambidextrous':
+        highlight_type = 'Ambidextrous'
+    elif sort_mode == 'united_nations':
+        highlight_type = 'Nation'
     elif '_' in sort_mode:
         highlight_type = sort_mode.rsplit('_', 1)[0].replace('_', ' ').title()
         is_reverse = 'asc' not in sort_mode
@@ -2257,7 +2261,10 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
 
     # --- 3. SORT DỰ BỊ ---
     def get_sort_value(p, key):
-        try: return float(re.sub(r'[^\d.]', '', str(p.get(key, '0'))))
+        raw = p.get(key, None)
+        if raw is None and isinstance(p.get('Data', None), dict):
+            raw = p['Data'].get(key, None)
+        try: return float(re.sub(r'[^\d.]', '', str(raw or '0')))
         except: return 0
 
     if highlight_type == 'Height': subs = sorted(raw_subs, key=lambda x: get_sort_value(x, 'Height'), reverse=is_reverse)
@@ -2299,34 +2306,51 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         # Logic Stat Tag
         val_display = ""
         metric_label = ""
-        if highlight_type == 'Height': val_display = f"{p.get('Height', '-')} cm"
-        elif highlight_type == 'Weight': val_display = f"{p.get('Weight', '-')} kg"
-        elif highlight_type == 'Age': val_display = f"{p.get('Age', '-')} yrs"
+        def get_data_value(key):
+            raw = p.get(key, None)
+            if raw is None and isinstance(data, dict):
+                raw = data.get(key, None)
+            return raw
+
+        if highlight_type == 'Height':
+            raw = get_data_value('Height')
+            val_display = f"{raw} cm" if raw not in [None, ''] else ''
+        elif highlight_type == 'Weight':
+            raw = get_data_value('Weight')
+            val_display = f"{raw} kg" if raw not in [None, ''] else ''
+        elif highlight_type == 'Age':
+            raw = get_data_value('Age')
+            val_display = f"{raw} yrs" if raw not in [None, ''] else ''
         elif highlight_type == 'BMI':
             try:
-                h = float(re.sub(r'[^\d.]', '', str(p.get('Height', '0')))) / 100.0
-                w = float(re.sub(r'[^\d.]', '', str(p.get('Weight', '0'))))
-                if h > 0: val_display = f"{(w/(h**2)):.1f}"; metric_label = "BMI"
-            except: pass
+                h = float(re.sub(r'[^\d.]', '', str(get_data_value('Height') or '0'))) / 100.0
+                w = float(re.sub(r'[^\d.]', '', str(get_data_value('Weight') or '0')))
+                if h > 0:
+                    val_display = f"{(w/(h**2)):.1f}"
+                    metric_label = 'BMI'
+            except:
+                pass
         elif highlight_type == 'Ambidextrous':
-            d = p.get('Data', {})
-            # --- CẬP NHẬT LOGIC HIỂN THỊ TRÊN THẺ ---
-            def get_wf_num(text): 
+            d = data or {}
+            def get_wf_num(text):
                 t = str(text).strip().lower()
                 if any(k in t for k in ['very high', 'regularly', '4']): return '4'
                 if any(k in t for k in ['high', 'occasionally', '3']): return '3'
                 if any(k in t for k in ['medium', 'rarely', '2']): return '2'
                 return '1'
-
             u = get_wf_num(d.get('Weak Foot Usage', ''))
             a = get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
-        elif highlight_type == 'Nation': val_display = str(p.get('Data', {}).get('Nation', ''))[:3].upper()
-        elif highlight_type == 'Rating': val_display = str(int(p.get('Rating', 0)))
+            metric_label = 'Ambidextrous'
+        elif highlight_type == 'Nation':
+            raw = get_data_value('Nation')
+            val_display = str(raw)[:3].upper() if raw not in [None, ''] else ''
+            metric_label = 'Nation'
+        elif highlight_type == 'Rating':
+            raw = get_data_value('Rating')
+            val_display = str(int(raw or p.get('Rating', 0)))
         elif highlight_type:
-            raw_val = p.get(highlight_type, None)
-            if raw_val is None and isinstance(p.get('Data', None), dict):
-                raw_val = p['Data'].get(highlight_type, '')
+            raw_val = get_data_value(highlight_type)
             val_display = str(raw_val) if raw_val not in [None, ''] else ''
 
         ptype = str(p['Type']).upper()
