@@ -2917,37 +2917,20 @@ def extract_full_player_info(player_url: str) -> dict:
 
     try:
         normalized_url = str(player_url).strip()
-        pesdata_mode = normalized_url.isdigit() or 'pesdata.net' in normalized_url or 'player/detail/' in normalized_url
-        if pesdata_mode:
-            pesdata_data = fetch_pesdata_player_json(normalized_url)
-            if pesdata_data:
-                info = default_info.copy()
-                info['Player'] = pesdata_data.get('playerName') or pesdata_data.get('player_english_name') or pesdata_data.get('player_chinese_name') or ''
-                info['Rating'] = int(pesdata_data.get('overall') or 0)
-                info['Position'] = pesdata_data.get('position') or ''
-                info['Nation'] = pesdata_data.get('country_english_name') or pesdata_data.get('country_chinese_name') or pesdata_data.get('nationality') or ''
-                info['Club'] = pesdata_data.get('club_english_name') or pesdata_data.get('club_chinese_name') or pesdata_data.get('club') or ''
-                info['League'] = pesdata_data.get('competition_name') or pesdata_data.get('League') or ''
-                info['Height'] = str(pesdata_data.get('height') or '')
-                info['Weight'] = str(pesdata_data.get('weight') or '')
-                info['Age'] = str(pesdata_data.get('age') or '')
-                info['Foot'] = pesdata_data.get('Foot') or ''
-                info['Weak Foot Usage'] = pesdata_data.get('WeakFootUsage_cn') or str(pesdata_data.get('WeakFootUsage') or '')
-                info['Weak Foot Accuracy'] = pesdata_data.get('WeakFootAcc_cn') or str(pesdata_data.get('WeakFootAcc') or '')
-                info['Form'] = pesdata_data.get('Form_cn') or str(pesdata_data.get('Form') or '')
-                info['Injury Resistance'] = pesdata_data.get('InjuryResistance_cn') or str(pesdata_data.get('InjuryResistance') or '')
-                info['Skills'] = ', '.join(pesdata_data.get('Skills') or [])
-                info['Player_Type'] = normalize_player_type(pesdata_data.get('CardTypeCN') or pesdata_data.get('CardStyle') or pesdata_data.get('cardType') or '')
-                appearance = pesdata_data.get('appearance') or {}
-                for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                    if field_name in info:
-                        info[field_name] = appearance.get(json_key, '')
-                return info
+        pesdata_id = _extract_pesdata_player_id(normalized_url) if 'pesdata.net' in normalized_url or 'player/detail/' in normalized_url else None
+        pesdb_url = None
 
-        if not player_url or not str(player_url).startswith('http'):
+        if pesdata_id:
+            pesdb_url = f"https://pesdb.net/efootball/?id={pesdata_id}"
+        elif normalized_url.isdigit():
+            pesdb_url = f"https://pesdb.net/efootball/?id={normalized_url}"
+        else:
+            pesdb_url = normalized_url
+
+        if not pesdb_url or not str(pesdb_url).startswith('http'):
             return default_info
 
-        html = fetch_ehub_raw_html(player_url)
+        html = fetch_ehub_raw_html(pesdb_url)
         if not html:
             return default_info
 
@@ -2989,13 +2972,21 @@ def extract_full_player_info(player_url: str) -> dict:
 
         # Lấy vị trí phụ từ sơ đồ sân bóng
         info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
-        info['Skills'] = extract_player_skills(player_url)
+        info['Skills'] = extract_player_skills(pesdb_url)
         info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
         info['Rating'] = extract_max_level_rating(
-            player_url,
+            pesdb_url,
             card_type=info.get('Player_Type'),
             base_html=html
         )
+
+        # Nếu là link pesdata.net, lấy thêm body model từ PESDATA API
+        if pesdata_id:
+            pesdata_data = fetch_pesdata_player_json(normalized_url)
+            appearance = pesdata_data.get('appearance') or {}
+            for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
+                info[field_name] = appearance.get(json_key, '')
+
         return info
 
     except Exception as e:
@@ -4727,9 +4718,9 @@ def main():
                     if upgrade_input and upgrade_input != st.session_state.get('last_upgrade_input', ''):
                         st.session_state.last_upgrade_input = upgrade_input
                         
-                        # Xử lý input: nếu chỉ là số, thêm prefix
+                        # Xử lý input: chỉ link pesdata.net dùng để lấy Body model; số thường vẫn dùng PESDB
                         if upgrade_input.isdigit():
-                            upgrade_url = f"https://www.pesdata.net/player/detail/{upgrade_input}"
+                            upgrade_url = f"https://pesdb.net/efootball/?id={upgrade_input}"
                         elif "pesdata.net" in upgrade_input or "player/detail/" in upgrade_input:
                             upgrade_url = upgrade_input
                         elif "efhub.com" in upgrade_input:
@@ -4792,9 +4783,9 @@ def main():
                     if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
                         st.session_state.last_pesdb_input = pesdb_input
                         
-                        # Xử lý input: nếu chỉ là số, thêm prefix
+                        # Xử lý input: số hoặc efhub dùng PESDB cũ; chỉ pesdata.net mới dùng link mới
                         if pesdb_input.isdigit():
-                            pesdb_url = f"https://www.pesdata.net/player/detail/{pesdb_input}"
+                            pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
                         elif "pesdata.net" in pesdb_input or "player/detail/" in pesdb_input:
                             pesdb_url = pesdb_input
                         elif "efhub.com" in pesdb_input:
