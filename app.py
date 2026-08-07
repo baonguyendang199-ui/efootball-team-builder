@@ -1920,7 +1920,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                         val = float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
                     except ValueError:
                         val = 0.0
-                    return -val + rating_bonus
+                return val + rating_bonus if direction == 'desc' else -val + rating_bonus
 
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
 
