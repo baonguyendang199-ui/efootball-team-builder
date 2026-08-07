@@ -3000,12 +3000,12 @@ def extract_full_player_info(player_url: str) -> dict:
 
         # Nếu có PESDATA ID, lấy thêm body model từ PESDATA API
         if pesdata_id:
-            pesdata_data = fetch_pesdata_player_json(normalized_url)
+            pesdata_data = fetch_pesdata_player_json(pesdata_id)
             appearance = pesdata_data.get('appearance') or {}
             for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
                 info[field_name] = appearance.get(json_key, '')
         else:
-            # Nếu URL là PESDB nhưng có thể extract PESDATA ID từ Player ID, thử lấy body model bằng ID đó
+            # Nếu URL/PID khác dạng, thử extract ID và lấy body model
             player_id = extract_ehub_player_id(normalized_url)
             if player_id:
                 pesdata_data = fetch_pesdata_player_json(player_id)
@@ -3053,7 +3053,14 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         has_url = df['Player URL'].astype(str).str.startswith('http')
         missing_body = df[PESDATA_BODY_MODEL_FIELDS].fillna('').astype(str).applymap(lambda x: str(x).strip() == '').any(axis=1)
         
-        needs_extraction = df[has_url & missing_body]
+        eligible_players = df[has_url]
+        needs_extraction = eligible_players[missing_body.loc[eligible_players.index]]
+        missing_url_count = len(df[~has_url])
+        missing_body_count = len(needs_extraction)
+
+        st.info(f"🔍 Players with valid URL: {len(eligible_players)} | Missing body model: {missing_body_count} | No URL: {missing_url_count}")
+        if missing_url_count > 0:
+            st.warning(f"⚠️ {missing_url_count} player(s) have no valid Player URL and cannot be auto-updated.")
         
         if needs_extraction.empty:
             st.success("✅ All existing players already have PESDATA Body Model info.")
