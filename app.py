@@ -217,18 +217,9 @@ APP_THEME = {
 }
 
 SPECIAL_SQUAD_OPTIONS = [
-    ("⭐ Highest Rating (Mạnh nhất)", "rating_desc"),
-    ("💪 The Tanks (Chiến Thần BMI Lớn)", "bmi_desc"),
-    ("⚡ The Agiles (Sóc Nhỏ BMI Nhỏ)", "bmi_asc"),
     ("🦶 The Ambidextrous (2 Chân Như 1)", "ambidextrous"),
     ("🟣 Form Is Temporary (Full POTW)", "potw_only"),
     ("🌍 United Nations (Đa Nation)", "united_nations"),
-    ("🦒 Tallest XI (Cao nhất)", "height_desc"),
-    ("🐜 Shortest XI (Thấp nhất)", "height_asc"),
-    ("⚖️ Heaviest XI (Nặng nhất)", "weight_desc"),
-    ("🪶 Lightest XI (Nhẹ nhất)", "weight_asc"),
-    ("👶 Youngest XI (Trẻ nhất)", "age_asc"),
-    ("👴 Oldest XI (Già nhất)", "age_desc")
 ]
 GENERIC_SQUAD_FIELDS = [
     ("Rating", "rating"),
