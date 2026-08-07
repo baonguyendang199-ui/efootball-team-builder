@@ -5017,6 +5017,55 @@ def main():
                                             st.error("❌ Could not save data to Google Sheets!")
                                     except Exception as e:
                                         st.error(f"❌ Error saving: {e}")
+                            else:
+                                new_player = {
+                                    "Player": player_name,
+                                    "Rating": int(rating),
+                                    "Position": position,
+                                    "Position Style": position_style,
+                                    "Secondary Positions": secondary_pos,
+                                    "Player Type": player_type_norm,
+                                    "Nation": nation,
+                                    "Club": club,
+                                    "League": league,
+                                    "Region": region_val,
+                                    "Height": height_val,
+                                    "Weight": weight_val,
+                                    "Age": age_val,
+                                    "Foot": foot_val,
+                                    "Weak Foot Usage": wf_usage_val,
+                                    "Weak Foot Accuracy": wf_acc_val,
+                                    "Form": form_val,
+                                    "Injury Resistance": injury_val,
+                                    "Player URL": data.get('Player_URL', ''),
+                                    "Player ID": data.get('Player_ID', ''),
+                                    "Skills": skills,
+                                    "Added Skills": "",
+                                    "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
+                                    "National Booster": booster_type == 'National',
+                                    "Booster Type": booster_type,
+                                    "Booster Rating 1-7": booster_1_7 if booster_enabled else 0,
+                                    "Booster Rating 8-10": booster_8_10 if booster_enabled else 0,
+                                    "Booster Rating 11-23": booster_11_23 if booster_enabled else 0,
+                                }
+
+                                new_df = pd.concat([df, pd.DataFrame([new_player])], ignore_index=True)
+
+                                try:
+                                    if save_data_to_gsheet(new_df):
+                                        st.success(f"✅ Successfully added player **{player_name}**!")
+
+                                        st.session_state.add_preview_data = None
+                                        st.session_state.add_show_form = False
+                                        st.cache_data.clear()
+                                        st.balloons()
+
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Could not save data to Google Sheets!")
+                                except Exception as e:
+                                    st.error(f"❌ Error saving: {e}")
             
     elif current_tab == 'inventory':
         st.header("📦 Skill Inventory Management")
