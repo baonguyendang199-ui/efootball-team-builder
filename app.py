@@ -1913,15 +1913,10 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                     raw_val = row.get(label, row.get('Data', {}).get(label, 0.0))
                     try:
                         val = float(re.sub(r'[^
-    required_positions = FORMATIONS.get(formation_name, [])
-    unique_formation_positions = set(required_positions)
+                return -val + rating_bonus
+        return eff_rating
 
-    def _select_squad(pdf):
-        """Chạy 1 lượt build: tính Build_Score -> chọn đá chính (Hungarian) -> chọn dự bị (Draft).
-        Trả về (final_squad, pdf_đã_có_Build_Score)."""
-        pdf = pdf.copy()
-        pdf['Build_Score'] = pdf.apply(calculate_score, axis=1)
-        pdf = pdf.reset_index(drop=True)
+    # 4. CHỌN ĐÁ CHÍNH + DỰ BỊ (đóng gói thành hàm để có thể lặp lại nhiều vòng)
 
         num_players = len(pdf)
         num_slots = len(required_positions)
