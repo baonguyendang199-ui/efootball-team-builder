@@ -3158,6 +3158,21 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         'url': row.get('Player URL', ''),
                         'pid': extract_ehub_player_id(row.get('Player URL', '')),
                         'reason': 'Invalid URL or PESDATA API returned empty'
+                    })
+            except Exception as e:
+                print(f"Lỗi {player_name}: {e}")
+
+            state['current_idx_ptr'] += 1
+            if state['current_idx_ptr'] >= total:
+                break
+
+        if processed_in_batch > 0:
+            save_data_to_gsheet(state['df_snapshot'])
+            st.success(f"💾 Saved batch of {processed_in_batch} player(s). Updated {updated_in_batch} new player(s) in this batch.")
+            if state['failed']:
+                st.warning(f"⚠️ {len(state['failed'])} player(s) could not be updated in this run. See the failed list at the end.")
+            time.sleep(1)
+            st.rerun()
     else:
         # 4. HOÀN TẤT
         st.success(f"✅ Finished updating {total} cầu thủ!")
