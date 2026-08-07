@@ -217,10 +217,9 @@ APP_THEME = {
 }
 
 SPECIAL_SQUAD_OPTIONS = [
-    ("👽 ALIEN", "alien"),
-    ("🦏 SUPER TANK", "super_tank"),
-    ("🗿 TITAN", "titan"),
-    ("🏛️ GOLDEN RATIO", "golden_ratio"),
+    ("🦶 The Ambidextrous (2 Chân Như 1)", "ambidextrous"),
+    ("🟣 Form Is Temporary (Full POTW)", "potw_only"),
+    ("🌍 United Nations (Đa Nation)", "united_nations"),
 ]
 GENERIC_SQUAD_FIELDS = [
     ("Rating", "rating"),
@@ -1821,60 +1820,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
     pool_df = pool_df.reset_index(drop=True)
 
-    # --- SPECIAL SQUAD PHYSICAL MEASUREMENT HELPERS ---
-    physical_measurements = [
-        'Height', 'Weight', 'Age', 'Arm Length', 'Shoulder Width', 'Neck Length',
-        'Chest Measurement', 'Neck Size', 'Shoulder Height', 'Leg Length',
-        'Thigh Size', 'Waist Size', 'Arm Size', 'Calf Size',
-        'Leg Coverage Radius', 'Arm Coverage Radius', 'Jumping Height',
-        'Torso Collision', 'Leg Length Based Height'
-    ]
-
-    for field in physical_measurements:
-        if field in pool_df.columns:
-            pool_df[f"{field}_num"] = pool_df[field].apply(clean_and_to_num)
-        else:
-            pool_df[f"{field}_num"] = pool_df.apply(
-                lambda row, f=field: clean_and_to_num(row.get('Data', {}).get(f, 0)),
-                axis=1
-            )
-
-    measurement_stats = {}
-    for field in physical_measurements:
-        values = pool_df[f"{field}_num"].astype(float)
-        mean_val = float(values.mean()) if len(values) > 0 else 0.0
-        std_val = float(values.std(ddof=0)) if len(values) > 0 else 0.0
-        if std_val <= 0 or np.isnan(std_val):
-            std_val = 1.0
-        measurement_stats[field] = (mean_val, std_val)
-
-    phi = 1.61803398875
-    golden_ratio_specs = [
-        ('Arm Length', 'Height', 'phi', 1.0),
-        ('Leg Length', 'Height', 'phi', 1.2),
-        ('Shoulder Width', 'Height', 'phi', 1.1),
-        ('Chest Measurement', 'Height', 'phi', 1.1),
-        ('Thigh Size', 'Height', 'phi', 1.0),
-        ('Arm Size', 'Height', 'phi', 1.0),
-        ('Calf Size', 'Height', 'phi', 1.0),
-        ('Arm Coverage Radius', 'Height', 'median', 0.8),
-        ('Leg Coverage Radius', 'Height', 'median', 0.8),
-        ('Shoulder Height', 'Height', 'median', 0.8),
-        ('Shoulder Width', 'Waist Size', 'phi', 1.3),
-        ('Chest Measurement', 'Waist Size', 'phi', 1.3),
-    ]
-    golden_ratio_targets = {}
-    for num_field, den_field, target_type, _weight in golden_ratio_specs:
-        num_vals = pool_df[f"{num_field}_num"].astype(float)
-        den_vals = pool_df[f"{den_field}_num"].astype(float)
-        valid = den_vals > 0
-        ratios = np.where(valid, num_vals / den_vals, np.nan)
-        if target_type == 'phi':
-            golden_ratio_targets[(num_field, den_field)] = phi
-        else:
-            median_val = float(np.nanmedian(ratios)) if np.any(~np.isnan(ratios)) else 1.0
-            golden_ratio_targets[(num_field, den_field)] = median_val if median_val > 0 else 1.0
-
 # --- LOGIC MỚI CHO UNITED NATIONS (DÒNG 844) ---
     if sort_mode == 'united_nations':
         # BƯỚC 1: Sort toàn bộ theo Rating
@@ -1915,56 +1860,13 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         elif sort_mode == 'weight_asc': return (150 - row['Weight_num']) + rating_bonus
         elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
         elif sort_mode == 'age_asc': return (100 - row['Age_num']) + rating_bonus
-        elif sort_mode == 'alien':
-            alien_fields = [
-                'Height', 'Weight', 'Arm Length', 'Shoulder Width', 'Neck Length',
-                'Chest Measurement', 'Neck Size', 'Shoulder Height', 'Leg Length',
-                'Thigh Size', 'Waist Size', 'Arm Size', 'Calf Size',
-                'Leg Coverage Radius', 'Arm Coverage Radius', 'Jumping Height',
-                'Torso Collision', 'Leg Length Based Height'
-            ]
-            alien_score = 0.0
-            for field in alien_fields:
-                val = row.get(f"{field}_num", 0.0)
-                mean_val, std_val = measurement_stats.get(field, (0.0, 1.0))
-                alien_score += abs((val - mean_val) / std_val)
-            return alien_score + rating_bonus * 0.001
-        elif sort_mode == 'super_tank':
-            tank_fields = [
-                'Weight', 'Shoulder Width', 'Chest Measurement', 'Neck Size',
-                'Thigh Size', 'Arm Size', 'Calf Size', 'Torso Collision'
-            ]
-            tank_score = 0.0
-            for field in tank_fields:
-                val = row.get(f"{field}_num", 0.0)
-                mean_val, std_val = measurement_stats.get(field, (0.0, 1.0))
-                z = (val - mean_val) / std_val
-                tank_score += max(z, 0.0)
-            return tank_score + rating_bonus * 0.001
-        elif sort_mode == 'titan':
-            titan_fields = [
-                'Height', 'Weight', 'Arm Length', 'Shoulder Width', 'Chest Measurement',
-                'Leg Length', 'Thigh Size', 'Arm Size', 'Calf Size'
-            ]
-            pos_zs = []
-            for field in titan_fields:
-                val = row.get(f"{field}_num", 0.0)
-                mean_val, std_val = measurement_stats.get(field, (0.0, 1.0))
-                pos_zs.append(max((val - mean_val) / std_val, 0.0))
-            base_score = sum(pos_zs)
-            consistency_bonus = sum(1 for z in pos_zs if z > 0) * 0.08
-            return base_score * (1.0 + consistency_bonus) + rating_bonus * 0.001
-        elif sort_mode == 'golden_ratio':
-            total_error = 0.0
-            for num_field, den_field, _target_type, weight in golden_ratio_specs:
-                denom = row.get(f"{den_field}_num", 0.0)
-                if denom <= 0:
-                    continue
-                actual_ratio = row.get(f"{num_field}_num", 0.0) / denom
-                target_ratio = golden_ratio_targets.get((num_field, den_field), phi)
-                total_error += abs(actual_ratio - target_ratio) * weight
-            return -total_error * 1000.0 + rating_bonus * 0.001
         elif 'bmi' in sort_mode:
+            h_m = row['Height_num'] / 100.0; w = row['Weight_num']
+            if h_m < 1.0 or w < 30: return ERROR_SCORE
+            bmi = w / (h_m ** 2)
+            if sort_mode == 'bmi_desc': return (bmi * 1000) + rating_bonus
+            else: return ((100 - bmi) * 1000) + rating_bonus
+        elif sort_mode == 'ambidextrous':
             def get_wf_val(text):
                 t = str(text).strip().lower()
                 if any(k in t for k in ['regularly', 'very high', '4']): return 4
@@ -2347,8 +2249,6 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         highlight_type = 'Type'
     elif sort_mode == 'ambidextrous':
         highlight_type = 'Ambidextrous'
-    elif sort_mode in ['alien', 'super_tank', 'titan', 'golden_ratio']:
-        highlight_type = 'Score'
     elif sort_mode == 'united_nations':
         highlight_type = 'Nation'
     elif '_' in sort_mode:
@@ -4918,22 +4818,6 @@ def main():
                         
                         custom_label = "Nation count"
                         custom_value = f"{len(nations)}"
-                    elif "ALIEN" in stat_type:
-                        avg = sum(p.get('Score', 0) for p in all_valid_players) / len(all_valid_players) if all_valid_players else 0
-                        custom_label = "Alien Score TB"
-                        custom_value = f"{avg:.1f}"
-                    elif "SUPER TANK" in stat_type:
-                        avg = sum(p.get('Score', 0) for p in all_valid_players) / len(all_valid_players) if all_valid_players else 0
-                        custom_label = "Super Tank Score TB"
-                        custom_value = f"{avg:.1f}"
-                    elif "TITAN" in stat_type:
-                        avg = sum(p.get('Score', 0) for p in all_valid_players) / len(all_valid_players) if all_valid_players else 0
-                        custom_label = "Titan Score TB"
-                        custom_value = f"{avg:.1f}"
-                    elif "GOLDEN RATIO" in stat_type:
-                        avg = sum(p.get('Score', 0) for p in all_valid_players) / len(all_valid_players) if all_valid_players else 0
-                        custom_label = "Golden Ratio Score TB"
-                        custom_value = f"{avg:.1f}"
                     
                     elif "POTW" in stat_type:
                         potw_c = sum(1 for p in all_valid_players if 'POTW' in str(p['Type']).upper() or 'TRENDING' in str(p['Type']).upper())
