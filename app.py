@@ -1920,7 +1920,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                         val = float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
                     except ValueError:
                         val = 0.0
-                    return -val + rating_bonus
+                return val + rating_bonus if direction == 'desc' else -val + rating_bonus
+
+    pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
 
     def _select_squad(pdf):
         num_players = len(pdf)
@@ -4722,8 +4724,13 @@ def main():
 
                 if build_mode == "By Stats":
                     def get_val(p, key):
-                        try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
-                        except: return 0
+                        try:
+                            raw = p.get(key, None)
+                            if raw is None and isinstance(p.get('Data', None), dict):
+                                raw = p['Data'].get(key, None)
+                            return float(re.sub(r'[^\d.]', '', str(raw))) if raw not in [None, ''] else 0
+                        except:
+                            return 0
 
                     if stat_category == "Stat + Direction":
                         if stat_field == "BMI":
