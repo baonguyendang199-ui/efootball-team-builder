@@ -1848,38 +1848,113 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
 
+    def parse_raw_field(field_key, row):
+        field = field_key.lower()
+        if field == 'rating':
+            return row['_build_rating']
+        if field == 'height':
+            return row['Height_num']
+        if field == 'weight':
+            return row['Weight_num']
+        if field == 'age':
+            return row['Age_num']
+        if field == 'bmi':
+            h_m = row['Height_num'] / 100.0
+            w = row['Weight_num']
+            if h_m < 1.0 or w < 30:
+                return None
+            return w / (h_m ** 2)
+        label = field.replace('_', ' ').title()
+        raw_val = row.get(label, None)
+        if raw_val is None and isinstance(row.get('Data', None), dict):
+            raw_val = row['Data'].get(label, None)
+        if raw_val is None:
+            return 0.0
+        try:
+            return float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
+        except ValueError:
+            return 0.0
+
+    def sort_mode_fields():
+        if isinstance(sort_mode, list):
+            return {field for field, _ in sort_mode}
+        if isinstance(sort_mode, str) and '_' in sort_mode:
+            return {sort_mode.rsplit('_', 1)[0]}
+        return {sort_mode}
+
+    def normalize_field_score(field, direction, row):
+        raw = parse_raw_field(field, row)
+        if raw is None:
+            return None
+        max_val = MAX_GENERIC_FIELD_VALUES.get(field, 100.0)
+        if max_val <= 0:
+            max_val = 100.0
+        norm = max(0.0, min(abs(raw) / max_val, 1.0))
+        if direction == 'asc':
+            norm = 1.0 - norm
+        return norm
+
     def calculate_score(row):
         eff_rating = row['_build_rating']
-        rating_bonus = eff_rating / 100000.0 
-        
-        if sort_mode == 'rating_desc': 
+        rating_bonus = eff_rating / 100000.0
+
+        if isinstance(sort_mode, list):
+            if not sort_mode:
+                return eff_rating
+            total = 0.0
+            base = 1000.0
+            for index, (field, direction) in enumerate(sort_mode):
+                score = normalize_field_score(field, direction, row)
+                if score is None:
+                    return ERROR_SCORE
+                total += score * (base ** (len(sort_mode) - index - 1))
+            return total + rating_bonus
+
+        if sort_mode == 'rating_desc':
             return eff_rating
-        elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
-        elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus 
-        elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
-        elif sort_mode == 'weight_asc': return (150 - row['Weight_num']) + rating_bonus
-        elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
-        elif sort_mode == 'age_asc': return (100 - row['Age_num']) + rating_bonus
+        elif sort_mode == 'height_desc':
+            return row['Height_num'] + rating_bonus
+        elif sort_mode == 'height_asc':
+            return (250 - row['Height_num']) + rating_bonus
+        elif sort_mode == 'weight_desc':
+            return row['Weight_num'] + rating_bonus
+        elif sort_mode == 'weight_asc':
+            return (150 - row['Weight_num']) + rating_bonus
+        elif sort_mode == 'age_desc':
+            return row['Age_num'] + rating_bonus
+        elif sort_mode == 'age_asc':
+            return (100 - row['Age_num']) + rating_bonus
         elif 'bmi' in sort_mode:
-            h_m = row['Height_num'] / 100.0; w = row['Weight_num']
-            if h_m < 1.0 or w < 30: return ERROR_SCORE
+            h_m = row['Height_num'] / 100.0
+            w = row['Weight_num']
+            if h_m < 1.0 or w < 30:
+                return ERROR_SCORE
             bmi = w / (h_m ** 2)
-            if sort_mode == 'bmi_desc': return (bmi * 1000) + rating_bonus
-            else: return ((100 - bmi) * 1000) + rating_bonus
+            if sort_mode == 'bmi_desc':
+                return (bmi * 1000) + rating_bonus
+            else:
+                return ((100 - bmi) * 1000) + rating_bonus
         elif sort_mode == 'ambidextrous':
             def get_wf_val(text):
                 t = str(text).strip().lower()
-                if any(k in t for k in ['regularly', 'very high', '4']): return 4
-                if any(k in t for k in ['occasionally', 'high', '3']): return 3
-                if any(k in t for k in ['medium', 'rarely', '2']): return 2
+                if any(k in t for k in ['regularly', 'very high', '4']):
+                    return 4
+                if any(k in t for k in ['occasionally', 'high', '3']):
+                    return 3
+                if any(k in t for k in ['medium', 'rarely', '2']):
+                    return 2
                 return 1
             u_val = get_wf_val(row.get('Weak Foot Usage', ''))
             a_val = get_wf_val(row.get('Weak Foot Accuracy', ''))
             tier_score = 0
-            if a_val == 4 and u_val == 4: tier_score = 50000
-            elif a_val == 4: tier_score = 40000
-            elif a_val == 3: tier_score = 30000
-            elif a_val == 2: tier_score = 20000
+            if a_val == 4 and u_val == 4:
+                tier_score = 50000
+            elif a_val == 4:
+                tier_score = 40000
+            elif a_val == 3:
+                tier_score = 30000
+            elif a_val == 2:
+                tier_score = 20000
             sub_tier_bonus = u_val * 100
             return eff_rating + tier_score + sub_tier_bonus
         elif sort_mode == 'potw_only':
@@ -1908,9 +1983,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 else:
                     raw_val = row.get(label, row.get('Data', {}).get(label, 0.0))
                     try:
-                        val = float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
-                    except ValueError:
-                        val = 0.0
+                        val = float(re.sub(r'[^
                 return val + rating_bonus if direction == 'desc' else -val + rating_bonus
 
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
@@ -1987,7 +2060,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         remaining_pool['_fits_formation'] = remaining_pool.apply(_can_fit_formation, axis=1)
         remaining_pool['_fit_bonus'] = remaining_pool['_pos'].apply(lambda p: 0.2 if p in unique_formation_positions else 0.0)
 
-        if sort_mode in ['height_desc', 'weight_desc']:
+        mode_fields = sort_mode_fields()
+        if mode_fields.intersection({'height', 'weight'}):
             _useful = {'LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF'}
             def _is_cb_versatile(row):
                 secs = {s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()}
@@ -2005,7 +2079,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             if gk_on_bench_count >= 1:
                 mask = mask & (remaining_pool['_pos'] != 'GK')
 
-            if sort_mode in ['height_desc', 'weight_desc']:
+            if mode_fields.intersection({'height', 'weight'}):
                 cb_count = bench_pos_counts.get('CB', 0)
                 if cb_count >= max_cb_subs_allowed:
                     mask = mask & ~((remaining_pool['_pos'] == 'CB') & ~remaining_pool['_cb_versatile'])
@@ -2177,11 +2251,13 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
             current_total_score = current_rating_score
             
             # Bonus đặc biệt cho Rating mode (Ưu tiên DMF) chỉ áp dụng khi đủ người
-            if sort_mode == 'rating_desc':
+            if sort_mode == 'rating_desc' or sort_mode == [('rating', 'desc')]:
                 has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
                 needs_dmf = "DMF" in FORMATIONS[form_name]
-                if has_dmf: current_total_score += 50000 
-                elif needs_dmf: current_total_score -= 20000
+                if has_dmf:
+                    current_total_score += 50000
+                elif needs_dmf:
+                    current_total_score -= 20000
         else:
             # Trường hợp THIẾU NGƯỜI: 
             # Điểm = (Điểm của cầu thủ có sẵn) - (Số người thiếu * 1 Tỷ)
@@ -2230,30 +2306,42 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     # --- 1. XỬ LÝ SORT MODE ---
     highlight_type = None
     is_reverse = True
-    if sort_mode.startswith('rating'):
-        highlight_type = 'Rating'
-        is_reverse = 'asc' not in sort_mode
-    elif sort_mode.startswith('height'):
-        highlight_type = 'Height'
-        is_reverse = 'asc' not in sort_mode
-    elif sort_mode.startswith('weight'):
-        highlight_type = 'Weight'
-        is_reverse = 'asc' not in sort_mode
-    elif sort_mode.startswith('age'):
-        highlight_type = 'Age'
-        is_reverse = 'asc' not in sort_mode
-    elif sort_mode.startswith('bmi'):
-        highlight_type = 'BMI'
-        is_reverse = 'asc' not in sort_mode
-    elif sort_mode == 'potw_only':
-        highlight_type = 'Type'
-    elif sort_mode == 'ambidextrous':
-        highlight_type = 'Ambidextrous'
-    elif sort_mode == 'united_nations':
-        highlight_type = 'Nation'
-    elif '_' in sort_mode:
-        highlight_type = sort_mode.rsplit('_', 1)[0].replace('_', ' ').title()
-        is_reverse = 'asc' not in sort_mode
+    sort_mode_str = sort_mode
+    if isinstance(sort_mode, list):
+        if sort_mode:
+            first_field, first_dir = sort_mode[0]
+            highlight_type = first_field.replace('_', ' ').title()
+            is_reverse = first_dir == 'desc'
+            sort_mode_str = f"{first_field}_{first_dir}"
+        else:
+            sort_mode_str = 'rating_desc'
+            highlight_type = 'Rating'
+            is_reverse = True
+    if isinstance(sort_mode_str, str):
+        if sort_mode_str.startswith('rating'):
+            highlight_type = 'Rating'
+            is_reverse = 'asc' not in sort_mode_str
+        elif sort_mode_str.startswith('height'):
+            highlight_type = 'Height'
+            is_reverse = 'asc' not in sort_mode_str
+        elif sort_mode_str.startswith('weight'):
+            highlight_type = 'Weight'
+            is_reverse = 'asc' not in sort_mode_str
+        elif sort_mode_str.startswith('age'):
+            highlight_type = 'Age'
+            is_reverse = 'asc' not in sort_mode_str
+        elif sort_mode_str.startswith('bmi'):
+            highlight_type = 'BMI'
+            is_reverse = 'asc' not in sort_mode_str
+        elif sort_mode_str == 'potw_only':
+            highlight_type = 'Type'
+        elif sort_mode_str == 'ambidextrous':
+            highlight_type = 'Ambidextrous'
+        elif sort_mode_str == 'united_nations':
+            highlight_type = 'Nation'
+        elif '_' in sort_mode_str:
+            highlight_type = sort_mode_str.rsplit('_', 1)[0].replace('_', ' ').title()
+            is_reverse = 'asc' not in sort_mode_str
 
     # --- 2. TÁCH ĐÁ CHÍNH & DỰ BỊ ---
     starters = squad_list[:11]
@@ -4667,23 +4755,35 @@ def main():
                             stat_field = None
                             stat_direction = None
                         else:
-                            col_a, col_b = st.columns([2, 1])
-                            with col_a:
-                                stat_field = st.selectbox(
-                                    "Stat field:",
-                                    [label for label, _ in GENERIC_SQUAD_FIELDS],
+                            selected_stats = st.multiselect(
+                                "Stat fields:",
+                                [label for label, _ in GENERIC_SQUAD_FIELDS],
+                                default=["Rating"],
+                                label_visibility="collapsed"
+                            )
+                            stat_directions = {}
+                            for field in selected_stats:
+                                stat_directions[field] = st.selectbox(
+                                    f"{field} direction:",
+                                    ["Highest first", "Lowest first"],
+                                    key=f"dir_{field}",
                                     label_visibility="collapsed"
                                 )
-                            with col_b:
-                                stat_direction = st.selectbox(
-                                    "Direction:",
-                                    [label for label, _ in GENERIC_SORT_DIRECTIONS],
-                                    label_visibility="collapsed"
+
+                            if not selected_stats:
+                                selected_stats = ["Rating"]
+                                stat_directions["Rating"] = "Highest first"
+
+                            sort_mode = [
+                                (
+                                    dict(GENERIC_SQUAD_FIELDS).get(field, 'rating'),
+                                    'desc' if stat_directions[field] == 'Highest first' else 'asc'
                                 )
-                            direction = 'desc' if stat_direction == 'Highest first' else 'asc'
-                            stat_key = dict(GENERIC_SQUAD_FIELDS).get(stat_field, 'rating')
-                            sort_mode = f"{stat_key}_{direction}"
-                            stat_type = f"{stat_field} ({stat_direction})"
+                                for field in selected_stats
+                            ]
+                            stat_type = " + ".join(
+                                f"{field} ({stat_directions[field]})" for field in selected_stats
+                            )
 
             # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
             
