@@ -2477,6 +2477,12 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
                         h = float(re.sub(r'[^
 \d.]', '', str(get_data_value('Height') or '0'))) / 100.0
                         w = float(re.sub(r'[^
+\d.]', '', str(get_data_value('Weight') or '0')))
+                        if h > 0:
+                            bmi = w / (h * h)
+                            value = f"{bmi:.1f}"
+                    except:
+                        value = ''
                 if value:
                     entries.append(f"<div style='margin:0; font-size:9px; line-height:1.2;'>"
                                    f"<span style='color:#94a3b8;'>{label}:</span> {value}</div>")
