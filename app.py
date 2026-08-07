@@ -4756,6 +4756,7 @@ def main():
                             sort_mode = dict(SPECIAL_SQUAD_OPTIONS).get(stat_type, 'rating_desc')
                             stat_field = None
                             stat_direction = None
+                            selected_stats = []
                         else:
                             selected_stats = st.multiselect(
                                 "Stat fields:",
@@ -4786,6 +4787,8 @@ def main():
                             stat_type = " + ".join(
                                 f"{field} ({stat_directions[field]})" for field in selected_stats
                             )
+                            stat_field = selected_stats[0]
+                            stat_direction = stat_directions.get(stat_field, 'Highest first')
 
             # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
             
