@@ -1988,7 +1988,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                         val = 0.0
                 return val + rating_bonus if direction == 'desc' else -val + rating_bonus
 
-    def _select_squad(pdf):
         num_players = len(pdf)
         num_slots = len(required_positions)
         BIG_PENALTY = 1e9
