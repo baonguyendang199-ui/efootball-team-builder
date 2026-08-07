@@ -3141,35 +3141,23 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         state['updated_count'] += 1
                         updated_in_batch += 1
                     else:
+                        failed_reason = 'No body model returned or all values still missing'
+                        if any(str(info.get(field, '')).strip() for field in PESDATA_BODY_MODEL_FIELDS):
+                            failed_reason = 'Body model fetched but no new values were applied'
                         state['failed'].append({
                             'idx': idx,
                             'name': player_name,
                             'url': row.get('Player URL', ''),
-                            'pid': extract_ehub_player_id(row.get('Player URL', ''))
+                            'pid': extract_ehub_player_id(row.get('Player URL', '')),
+                            'reason': failed_reason
                         })
                 else:
                     state['failed'].append({
                         'idx': idx,
                         'name': player_name,
                         'url': row.get('Player URL', ''),
-                        'pid': extract_ehub_player_id(row.get('Player URL', ''))
-                    })
-
-            except Exception as e:
-                print(f"Lỗi {player_name}: {e}")
-
-            state['current_idx_ptr'] += 1
-            if state['current_idx_ptr'] >= total:
-                break
-
-        if processed_in_batch > 0:
-            save_data_to_gsheet(state['df_snapshot'])
-            st.success(f"💾 Saved batch of {processed_in_batch} player(s). Updated {updated_in_batch} new player(s) in this batch.")
-            if state['failed']:
-                st.warning(f"⚠️ {len(state['failed'])} player(s) could not be updated in this run. See the failed list at the end.")
-            time.sleep(1)
-            st.rerun()
-
+                        'pid': extract_ehub_player_id(row.get('Player URL', '')),
+                        'reason': 'Invalid URL or PESDATA API returned empty'
     else:
         # 4. HOÀN TẤT
         st.success(f"✅ Finished updating {total} cầu thủ!")
@@ -3178,9 +3166,19 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         final_df = state['df_snapshot']
         if state['failed']:
             st.warning(f"⚠️ Update finished but {len(state['failed'])} player(s) still have missing Body Model values.")
-            failed_table = pd.DataFrame(state['failed'])[['name', 'url', 'pid']]
-            failed_table = failed_table.rename(columns={'name': 'Player', 'url': 'Player URL', 'pid': 'Extracted ID'})
+            failed_table = pd.DataFrame(state['failed'])[['name', 'url', 'pid', 'reason']]
+            failed_table = failed_table.rename(columns={
+                'name': 'Player',
+                'url': 'Player URL',
+                'pid': 'Extracted ID',
+                'reason': 'Failure Reason'
+            })
             st.dataframe(failed_table, use_container_width=True)
+
+            reason_counts = failed_table['Failure Reason'].value_counts().reset_index()
+            reason_counts.columns = ['Failure Reason', 'Count']
+            st.markdown("**Failure summary:**")
+            st.table(reason_counts)
         else:
             st.success("✅ All eligible players were updated successfully.")
 
