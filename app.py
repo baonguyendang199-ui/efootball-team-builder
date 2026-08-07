@@ -1250,9 +1250,22 @@ def build_squad_based_effective_ratings(df: pd.DataFrame, squad: list) -> pd.Dat
             if not p.get('Player') or p['Player'] == '---':
                 continue
             data = p.get('Data', {})
+            nation = str(data.get('Nation', '')).strip()
             value = str(data.get(group_col, '')).strip()
-            if value:
-                depth[value] = depth.get(value, 0) + 1
+            if not value:
+                continue
+
+            if group_col == 'Nation':
+                key = nation
+            elif group_col == 'Club':
+                key = (value, nation)
+            elif group_col == 'League':
+                key = (value, nation)
+            else:
+                key = value
+
+            if key:
+                depth[key] = depth.get(key, 0) + 1
         return depth
 
     def _tier_value(data_dict, depth):
@@ -2174,14 +2187,10 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
         data = p.get('Data', {})
         base_rating = int(data.get('Rating', p['Rating']) or p['Rating'])
         booster_type = _normalize_booster_type(data.get('Booster Type', 'None'))
-        eff_rating = base_rating
-        for eff_col in ['Effective_Nation_Rating', 'Effective_Club_Rating', 'Effective_League_Rating']:
-            if eff_col in data:
-                eff_rating = max(eff_rating, int(data.get(eff_col, base_rating) or base_rating))
+        rating = int(p.get('Rating', base_rating) or base_rating)
 
-        rating = eff_rating
         booster_badge = ""
-        if booster_type != 'None' and eff_rating > base_rating:
+        if booster_type != 'None' and rating > base_rating:
             booster_badge = (
                 '<div style="position:absolute; top:2px; left:2px; background:#7c3aed; '
                 'color:white; font-size:7px; font-weight:bold; padding:1px 4px; '
