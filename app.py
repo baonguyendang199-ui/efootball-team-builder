@@ -4724,8 +4724,13 @@ def main():
 
                 if build_mode == "By Stats":
                     def get_val(p, key):
-                        try: return float(re.sub(r'[^\d.]', '', str(p.get(key, 0))))
-                        except: return 0
+                        try:
+                            raw = p.get(key, None)
+                            if raw is None and isinstance(p.get('Data', None), dict):
+                                raw = p['Data'].get(key, None)
+                            return float(re.sub(r'[^\d.]', '', str(raw))) if raw not in [None, ''] else 0
+                        except:
+                            return 0
 
                     if stat_category == "Stat + Direction":
                         if stat_field == "BMI":
