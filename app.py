@@ -1849,6 +1849,11 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         # ✅ FIX: GHI ĐÈ pool_df để Hungarian Algorithm sử dụng
         pool_df = pool_df_nations.reset_index(drop=True)
 
+    required_positions = FORMATIONS.get(formation_name, [])
+    if not required_positions:
+        return []
+    unique_formation_positions = set(required_positions)
+
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
 
