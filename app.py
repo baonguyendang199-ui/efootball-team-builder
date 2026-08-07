@@ -2183,7 +2183,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             booster_badge = (
                 f'<div style="position:absolute; top:2px; left:2px; background:#7c3aed; '
                 f'color:white; font-size:7px; font-weight:bold; padding:1px 4px; '
-                f'border-radius:3px; z-index:21;'>⚡</div>'
+                f'border-radius:3px; z-index:21;'>&#9889;</div>'
             )
         
         # Logic Stat Tag
