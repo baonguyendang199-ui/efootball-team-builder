@@ -3074,6 +3074,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             'current_idx_ptr': 0,                       # Con trỏ hiện tại
             'df_snapshot': df.copy(),                   # Bản sao DF để sửa đổi
             'updated_count': 0,
+            'failed': [],
             'started_at': time.time(),
         }
         st.rerun() # Refresh để bắt đầu giao diện xử lý
@@ -3139,6 +3140,20 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                     if row_updated:
                         state['updated_count'] += 1
                         updated_in_batch += 1
+                    else:
+                        state['failed'].append({
+                            'idx': idx,
+                            'name': player_name,
+                            'url': row.get('Player URL', ''),
+                            'pid': extract_ehub_player_id(row.get('Player URL', ''))
+                        })
+                else:
+                    state['failed'].append({
+                        'idx': idx,
+                        'name': player_name,
+                        'url': row.get('Player URL', ''),
+                        'pid': extract_ehub_player_id(row.get('Player URL', ''))
+                    })
 
             except Exception as e:
                 print(f"Lỗi {player_name}: {e}")
@@ -3150,6 +3165,8 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         if processed_in_batch > 0:
             save_data_to_gsheet(state['df_snapshot'])
             st.success(f"💾 Saved batch of {processed_in_batch} player(s). Updated {updated_in_batch} new player(s) in this batch.")
+            if state['failed']:
+                st.warning(f"⚠️ {len(state['failed'])} player(s) could not be updated in this run. See the failed list at the end.")
             time.sleep(1)
             st.rerun()
 
@@ -3159,6 +3176,14 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         save_data_to_gsheet(state['df_snapshot'])
 
         final_df = state['df_snapshot']
+        if state['failed']:
+            st.warning(f"⚠️ Update finished but {len(state['failed'])} player(s) still have missing Body Model values.")
+            failed_table = pd.DataFrame(state['failed'])[['name', 'url', 'pid']]
+            failed_table = failed_table.rename(columns={'name': 'Player', 'url': 'Player URL', 'pid': 'Extracted ID'})
+            st.dataframe(failed_table, use_container_width=True)
+        else:
+            st.success("✅ All eligible players were updated successfully.")
+
         del st.session_state.sync_state # Dọn dẹp
 
         # Trả về DF để Main App hiển thị nút tải xuống
