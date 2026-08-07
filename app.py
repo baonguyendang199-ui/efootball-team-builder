@@ -3106,64 +3106,61 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         time.sleep(1)
         st.rerun()
 
-    # 3. XỬ LÝ DỮ LIỆU (Batch Size = 1 để UI mượt nhất)
+    # 3. XỬ LÝ DỮ LIỆU (Batch Size = 10 để lưu mỗi 10 cầu thủ)
     if current_ptr < total:
-        idx = state['indices'][current_ptr]
-        row = state['df_snapshot'].loc[idx]
-        player_name = str(row.get('Player', 'Unknown'))
-        
-        # Status Box nhỏ
-        st.info(f"📡 Loading data for: **{player_name}**...")
+        batch_size = min(10, total - current_ptr)
+        updated_in_batch = 0
+        processed_in_batch = 0
 
-        try:
-            # Gọi hàm crawl dữ liệu
-            info = extract_full_player_info(row['Player URL'])
-            
-            if info and info.get('Player'):
-                # Cập nhật vào bản sao DF trong Session State
-                row_updated = False
-                state['df_snapshot'].at[idx, 'Secondary Positions'] = info.get('Secondary Positions', '')
-                
-                # Cập nhật các cột khác nếu thiếu
-                cols_to_check = [
-                    'Region', 'Height', 'Weight', 'Age', 'Foot',
-                    'Weak Foot Usage', 'Weak Foot Accuracy', 'Form', 'Injury Resistance', 'Skills'
-                ]
-                for col in cols_to_check:
-                    current_val = str(state['df_snapshot'].at[idx, col]).strip()
-                    if not current_val or current_val == 'nan':
-                        new_val = info.get(col, '')
-                        if new_val:
-                            state['df_snapshot'].at[idx, col] = new_val
-                            row_updated = True
+        for _ in range(batch_size):
+            idx = state['indices'][state['current_idx_ptr']]
+            row = state['df_snapshot'].loc[idx]
+            player_name = str(row.get('Player', 'Unknown'))
+            processed_in_batch += 1
 
-                # Cập nhật các cột PESDATA Body Model nếu còn thiếu
-                for field in PESDATA_BODY_MODEL_FIELDS:
-                    current_val = str(state['df_snapshot'].at[idx, field]).strip()
-                    if not current_val or current_val == 'nan':
-                        new_val = info.get(field, '')
-                        if new_val:
-                            state['df_snapshot'].at[idx, field] = new_val
-                            row_updated = True
+            # Status Box nhỏ
+            st.info(f"📡 Loading data for: **{player_name}** ({state['current_idx_ptr'] + 1}/{total})...")
 
-                if row_updated:
-                    state['updated_count'] += 1
-                
-        except Exception as e:
-            print(f"Lỗi {player_name}: {e}")
-        
-        # Tăng con trỏ và Rerun để xử lý người tiếp theo
-        state['current_idx_ptr'] += 1
-        st.rerun()
-        
+            try:
+                info = extract_full_player_info(row['Player URL'])
+                if info and info.get('Player'):
+                    row_updated = False
+                    state['df_snapshot'].at[idx, 'Secondary Positions'] = info.get('Secondary Positions', '')
+
+                    # Cập nhật các cột PESDATA Body Model nếu còn thiếu
+                    for field in PESDATA_BODY_MODEL_FIELDS:
+                        current_val = str(state['df_snapshot'].at[idx, field]).strip()
+                        if not current_val or current_val == 'nan':
+                            new_val = info.get(field, '')
+                            if new_val:
+                                state['df_snapshot'].at[idx, field] = new_val
+                                row_updated = True
+
+                    if row_updated:
+                        state['updated_count'] += 1
+                        updated_in_batch += 1
+
+            except Exception as e:
+                print(f"Lỗi {player_name}: {e}")
+
+            state['current_idx_ptr'] += 1
+            if state['current_idx_ptr'] >= total:
+                break
+
+        if processed_in_batch > 0:
+            save_data_to_gsheet(state['df_snapshot'])
+            st.success(f"💾 Saved batch of {processed_in_batch} player(s). Updated {updated_in_batch} new player(s) in this batch.")
+            time.sleep(1)
+            st.rerun()
+
     else:
         # 4. HOÀN TẤT
         st.success(f"✅ Finished updating {total} cầu thủ!")
         save_data_to_gsheet(state['df_snapshot'])
-        
+
         final_df = state['df_snapshot']
         del st.session_state.sync_state # Dọn dẹp
-        
+
         # Trả về DF để Main App hiển thị nút tải xuống
         return final_df
 
