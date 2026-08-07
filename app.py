@@ -2519,6 +2519,7 @@ PESDATA_APPEARANCE_KEY_MAP = {
     'TorsoCollision': 'Torso Collision',
     'LegLengthBasedHeight': 'Leg Length Based Height'
 }
+PESDATA_APPEARANCE_KEY_MAP_REVERSE = {v: k for k, v in PESDATA_APPEARANCE_KEY_MAP.items()}
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -2552,7 +2553,16 @@ def _extract_pesdata_player_id(value: str) -> str:
     if not value:
         return ""
     text = str(value).strip()
-    m = re.search(r"(?:player/detail/)?(\d{12,})", text)
+    # First match query parameter id= in URLs like ?id=123...
+    m = re.search(r"[?&]id=(\d{12,})", text)
+    if m:
+        return m.group(1)
+    # Then match pesdata player/detail/<id> URLs
+    m = re.search(r"player/detail/(\d{12,})", text)
+    if m:
+        return m.group(1)
+    # Fallback to any trailing 12+ digit sequence
+    m = re.search(r"(\d{12,})", text)
     return m.group(1) if m else ""
 
 
@@ -3050,20 +3060,27 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             df['Secondary Positions'] = ""
 
         # Lọc danh sách cần cập nhật chỉ dựa trên Body Model thiếu
-        has_url = df['Player URL'].astype(str).str.startswith('http')
+        player_urls = df['Player URL'].astype(str).str.strip()
+        has_url = player_urls.str.startswith('http')
         missing_body = df[PESDATA_BODY_MODEL_FIELDS].fillna('').astype(str).applymap(lambda x: str(x).strip() == '').any(axis=1)
-        
-        eligible_players = df[has_url]
-        needs_extraction = eligible_players[missing_body.loc[eligible_players.index]]
-        missing_url_count = len(df[~has_url])
-        missing_body_count = len(needs_extraction)
 
-        st.info(f"🔍 Players with valid URL: {len(eligible_players)} | Missing body model: {missing_body_count} | No URL: {missing_url_count}")
+        valid_id = player_urls[has_url].apply(lambda x: bool(_extract_pesdata_player_id(x)))
+        valid_id_count = int(valid_id.sum())
+        invalid_id_count = len(player_urls[has_url]) - valid_id_count
+        missing_body_count = int(missing_body[has_url].sum())
+        missing_url_count = int((~has_url).sum())
+
+        st.info(f"🔍 URLs: {len(player_urls[has_url])}, valid PESDATA ID: {valid_id_count}, invalid ID: {invalid_id_count}, missing body model: {missing_body_count}, no URL: {missing_url_count}")
         if missing_url_count > 0:
             st.warning(f"⚠️ {missing_url_count} player(s) have no valid Player URL and cannot be auto-updated.")
-        
+        if invalid_id_count > 0:
+            st.warning(f"⚠️ {invalid_id_count} player(s) have a Player URL but no valid PESDATA ID could be extracted.")
+
+        eligible_players = df[has_url & missing_body]
+        needs_extraction = eligible_players[eligible_players['Player URL'].apply(lambda x: bool(_extract_pesdata_player_id(str(x).strip())))]
+
         if needs_extraction.empty:
-            st.success("✅ All existing players already have PESDATA Body Model info.")
+            st.success("✅ All existing players already have PESDATA Body Model info or no valid PESDATA IDs.")
             st.session_state.run_pesdb_sync = False # Tắt cờ chạy
             return df
 
@@ -3123,16 +3140,25 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             st.info(f"📡 Loading data for: **{player_name}** ({state['current_idx_ptr'] + 1}/{total})...")
 
             try:
-                info = extract_full_player_info(row['Player URL'])
-                if info and info.get('Player'):
+                pesdata_id = _extract_pesdata_player_id(row.get('Player URL', ''))
+                if not pesdata_id:
+                    state['failed'].append({
+                        'idx': idx,
+                        'name': player_name,
+                        'url': row.get('Player URL', ''),
+                        'pid': '',
+                        'reason': 'No valid PESDATA ID extracted from Player URL'
+                    })
+                else:
+                    pesdata_data = fetch_pesdata_player_json(pesdata_id)
+                    appearance = pesdata_data.get('appearance') or {}
                     row_updated = False
-                    state['df_snapshot'].at[idx, 'Secondary Positions'] = info.get('Secondary Positions', '')
 
-                    # Cập nhật các cột PESDATA Body Model nếu còn thiếu
                     for field in PESDATA_BODY_MODEL_FIELDS:
                         current_val = str(state['df_snapshot'].at[idx, field]).strip()
                         if not current_val or current_val == 'nan':
-                            new_val = info.get(field, '')
+                            appearance_key = PESDATA_APPEARANCE_KEY_MAP_REVERSE.get(field, '')
+                            new_val = appearance.get(appearance_key, '') if appearance_key else ''
                             if new_val:
                                 state['df_snapshot'].at[idx, field] = new_val
                                 row_updated = True
@@ -3141,26 +3167,24 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         state['updated_count'] += 1
                         updated_in_batch += 1
                     else:
-                        failed_reason = 'No body model returned or all values still missing'
-                        if any(str(info.get(field, '')).strip() for field in PESDATA_BODY_MODEL_FIELDS):
-                            failed_reason = 'Body model fetched but no new values were applied'
+                        failure_text = 'PESDATA API returned nothing useful for body model'
+                        if appearance:
+                            failure_text = 'PESDATA API returned data but no missing fields were filled'
                         state['failed'].append({
                             'idx': idx,
                             'name': player_name,
                             'url': row.get('Player URL', ''),
-                            'pid': extract_ehub_player_id(row.get('Player URL', '')),
-                            'reason': failed_reason
+                            'pid': pesdata_id,
+                            'reason': failure_text
                         })
-                else:
-                    state['failed'].append({
-                        'idx': idx,
-                        'name': player_name,
-                        'url': row.get('Player URL', ''),
-                        'pid': extract_ehub_player_id(row.get('Player URL', '')),
-                        'reason': 'Invalid URL or PESDATA API returned empty'
-                    })
             except Exception as e:
-                print(f"Lỗi {player_name}: {e}")
+                state['failed'].append({
+                    'idx': idx,
+                    'name': player_name,
+                    'url': row.get('Player URL', ''),
+                    'pid': '',
+                    'reason': f'Exception while fetching PESDATA: {e}'
+                })
 
             state['current_idx_ptr'] += 1
             if state['current_idx_ptr'] >= total:
