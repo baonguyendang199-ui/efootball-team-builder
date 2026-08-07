@@ -1988,6 +1988,12 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                         val = 0.0
                 return val + rating_bonus if direction == 'desc' else -val + rating_bonus
 
+    def _select_squad(pdf):
+        num_players = len(pdf)
+        num_slots = len(required_positions)
+        BIG_PENALTY = 1e9
+        cost_matrix = np.full((num_players, num_slots), BIG_PENALTY)
+
         for p_idx, row in pdf.iterrows():
             p_main_pos = str(row['Position']).strip().upper()
             p_sec_pos_list = [s.strip() for s in str(row['Secondary Positions']).split(',') if s.strip()]
