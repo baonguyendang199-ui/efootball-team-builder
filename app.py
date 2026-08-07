@@ -2476,8 +2476,6 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
                     try:
                         h = float(re.sub(r'[^-\d.]', '', str(get_data_value('Height') or '0'))) / 100.0
                         w = float(re.sub(r'[^-\d.]', '', str(get_data_value('Weight') or '0')))
-                        w = float(re.sub(r'[^
-\d.]', '', str(get_data_value('Weight') or '0')))
                         if h > 0:
                             bmi = w / (h * h)
                             value = f"{bmi:.1f}"
