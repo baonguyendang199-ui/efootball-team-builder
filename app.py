@@ -3040,16 +3040,14 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         if 'Secondary Positions' not in df.columns:
             df['Secondary Positions'] = ""
 
-        # Lọc danh sách cần cập nhật
+        # Lọc danh sách cần cập nhật chỉ dựa trên Body Model thiếu
         has_url = df['Player URL'].astype(str).str.startswith('http')
-        missing_sec_pos = df['Secondary Positions'].astype(str).str.strip() == ''
-        missing_skills = df['Skills'].astype(str).str.strip() == ''
-        missing_height = df['Height'].astype(str).str.strip() == ''
+        missing_body = df[PESDATA_BODY_MODEL_FIELDS].fillna('').astype(str).applymap(lambda x: str(x).strip() == '').any(axis=1)
         
-        needs_extraction = df[has_url & (missing_sec_pos | missing_skills | missing_height)]
+        needs_extraction = df[has_url & missing_body]
         
         if needs_extraction.empty:
-            st.success("✅ Data is complete! No further scanning required.")
+            st.success("✅ All existing players already have PESDATA Body Model info.")
             st.session_state.run_pesdb_sync = False # Tắt cờ chạy
             return df
 
@@ -3059,7 +3057,8 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             'total': len(needs_extraction),             # Tổng số
             'current_idx_ptr': 0,                       # Con trỏ hiện tại
             'df_snapshot': df.copy(),                   # Bản sao DF để sửa đổi
-            'updated_count': 0
+            'updated_count': 0,
+            'started_at': time.time(),
         }
         st.rerun() # Refresh để bắt đầu giao diện xử lý
 
@@ -3070,7 +3069,10 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
     
     # Display progress bar & status
     progress = min(1.0, current_ptr / total)
+    elapsed = int(time.time() - state.get('started_at', time.time()))
     st.progress(progress, text=f"🚀 Updating: {current_ptr}/{total} players")
+    st.caption(f"⏱ Elapsed: {elapsed}s • Processed: {current_ptr}/{total} • Updated: {state['updated_count']}")
+    st.markdown(f"**Current target:** {current_ptr + 1}/{total}")
     
     # --- NÚT DỪNG CẬP NHẬT ---
     # Vì dùng st.rerun(), nút này sẽ luôn phản hồi được ngay lập tức
@@ -3103,6 +3105,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             
             if info and info.get('Player'):
                 # Cập nhật vào bản sao DF trong Session State
+                row_updated = False
                 state['df_snapshot'].at[idx, 'Secondary Positions'] = info.get('Secondary Positions', '')
                 
                 # Cập nhật các cột khác nếu thiếu
@@ -3113,9 +3116,22 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                 for col in cols_to_check:
                     current_val = str(state['df_snapshot'].at[idx, col]).strip()
                     if not current_val or current_val == 'nan':
-                        state['df_snapshot'].at[idx, col] = info.get(col, '')
-                
-                state['updated_count'] += 1
+                        new_val = info.get(col, '')
+                        if new_val:
+                            state['df_snapshot'].at[idx, col] = new_val
+                            row_updated = True
+
+                # Cập nhật các cột PESDATA Body Model nếu còn thiếu
+                for field in PESDATA_BODY_MODEL_FIELDS:
+                    current_val = str(state['df_snapshot'].at[idx, field]).strip()
+                    if not current_val or current_val == 'nan':
+                        new_val = info.get(field, '')
+                        if new_val:
+                            state['df_snapshot'].at[idx, field] = new_val
+                            row_updated = True
+
+                if row_updated:
+                    state['updated_count'] += 1
                 
         except Exception as e:
             print(f"Lỗi {player_name}: {e}")
@@ -3148,6 +3164,10 @@ def main():
             st.cache_data.clear()
             st.cache_resource.clear()
             st.session_state.manual_reload_triggered = True
+            st.rerun()
+
+        if st.button("🧲 Auto update old players", use_container_width=True, help="Update all existing players with missing PESDATA body model and PESDB info."):
+            st.session_state.run_pesdb_sync = True
             st.rerun()
 
         st.divider()
