@@ -520,6 +520,15 @@ def show_player_modal(row):
     for s in added_skills: skills_html += f'<span class="pf-skill added" title="Added Skill">+{s}</span>'
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">No skills yet</span>'
 
+    # --- 2.5 BODY MODEL ---
+    body_items = []
+    for field in PESDATA_BODY_MODEL_FIELDS:
+        txt = str(row.get(field, '') or '').strip()
+        if not txt:
+            txt = '-'
+        body_items.append(f'<div class="model-item"><div class="model-label">{field}</div><div class="model-value">{txt}</div></div>')
+    body_model_html = '<div class="pf-section-title">Body Model</div><div class="model-grid">' + ''.join(body_items) + '</div>'
+
     # --- 3. REASONS BLOCK ---
     action_bg = "rgba(34, 197, 94, 0.2)" if "KEEP" in action else "rgba(239, 68, 68, 0.2)"
     action_border = "#22c55e" if "KEEP" in action else "#ef4444"
@@ -590,6 +599,7 @@ def show_player_modal(row):
 <div style="margin-bottom:20px; font-weight:600; font-size:1.1rem; color:{accent_color}">{style}</div>
 <div class="pf-section-title">Skill List</div>
 <div class="skill-container">{skills_html}</div>
+{body_model_html}
 <div style="margin-top:25px; padding:12px; background:rgba(59, 130, 246, 0.1); border-radius:8px; border-left:3px solid {accent_color};">
 <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">REGION / LEAGUE</div>
 <div style="font-size:0.9rem; font-weight:500;">{row.get('League','-')}</div>
@@ -4833,7 +4843,7 @@ def main():
                     
                     # Nút nhập tay nếu cần
                     if st.button("✍️ Enter manually instead", use_container_width=True):
-                            st.session_state.add_preview_data = {
+                            manual_preview = {
                                 'Player': '',
                                 'Rating': 90,
                                 'Position': 'CF',
@@ -4859,6 +4869,9 @@ def main():
                                 'Booster Rating 8-10': 0,
                                 'Booster Rating 11-23': 0,
                             }
+                            for field in PESDATA_BODY_MODEL_FIELDS:
+                                manual_preview[field] = ''
+                            st.session_state.add_preview_data = manual_preview
                             st.session_state.add_show_form = True
                             st.rerun()
                     
@@ -5102,6 +5115,8 @@ def main():
                                     new_df.at[old_idx, 'Player ID'] = data.get('Player_ID', '')
                                     new_df.at[old_idx, 'Skills'] = skills
                                     new_df.at[old_idx, 'Added Skills'] = ""
+                                    for field in PESDATA_BODY_MODEL_FIELDS:
+                                        new_df.at[old_idx, field] = data.get(field, '')
                                     new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type_norm == "EPIC" else 1
                                     new_df.at[old_idx, 'National Booster'] = booster_type == 'National'
                                     new_df.at[old_idx, 'Booster Type'] = booster_type
@@ -5153,6 +5168,7 @@ def main():
                                         "Player ID": data.get('Player_ID', ''),
                                         "Skills": skills,
                                         "Added Skills": "",
+                                        **{field: data.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
                                         "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
                                         "National Booster": booster_type == 'National',
                                         "Booster Type": booster_type,
@@ -5202,6 +5218,7 @@ def main():
                                     "Player ID": data.get('Player_ID', ''),
                                     "Skills": skills,
                                     "Added Skills": "",
+                                    **{field: data.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
                                     "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
                                     "National Booster": booster_type == 'National',
                                     "Booster Type": booster_type,
