@@ -2463,8 +2463,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
                 elif key in ['height', 'weight', 'age']:
                     raw = get_data_value(label)
                     try:
-                        num = float(re.sub(r'[^
-\d.]', '', str(raw or '')))
+                        num = float(re.sub(r'[^\d.]', '', str(raw or '')))
                         if key == 'height':
                             value = f"{int(num)} cm"
                         elif key == 'weight':
