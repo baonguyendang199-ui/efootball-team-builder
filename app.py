@@ -1912,11 +1912,10 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 else:
                     raw_val = row.get(label, row.get('Data', {}).get(label, 0.0))
                     try:
-                        val = float(re.sub(r'[^
-                return -val + rating_bonus
-        return eff_rating
-
-    # 4. CHỌN ĐÁ CHÍNH + DỰ BỊ (đóng gói thành hàm để có thể lặp lại nhiều vòng)
+                        val = float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
+                    except ValueError:
+                        val = 0.0
+                    return -val + rating_bonus
 
         num_players = len(pdf)
         num_slots = len(required_positions)
