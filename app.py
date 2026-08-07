@@ -2935,7 +2935,7 @@ def extract_full_player_info(player_url: str) -> dict:
 
     try:
         normalized_url = str(player_url).strip()
-        pesdata_id = _extract_pesdata_player_id(normalized_url) if 'pesdata.net' in normalized_url or 'player/detail/' in normalized_url else None
+        pesdata_id = _extract_pesdata_player_id(normalized_url)
         pesdb_url = None
 
         if pesdata_id:
@@ -2998,12 +2998,21 @@ def extract_full_player_info(player_url: str) -> dict:
             base_html=html
         )
 
-        # Nếu là link pesdata.net, lấy thêm body model từ PESDATA API
+        # Nếu có PESDATA ID, lấy thêm body model từ PESDATA API
         if pesdata_id:
             pesdata_data = fetch_pesdata_player_json(normalized_url)
             appearance = pesdata_data.get('appearance') or {}
             for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
                 info[field_name] = appearance.get(json_key, '')
+        else:
+            # Nếu URL là PESDB nhưng có thể extract PESDATA ID từ Player ID, thử lấy body model bằng ID đó
+            player_id = extract_ehub_player_id(normalized_url)
+            if player_id:
+                pesdata_data = fetch_pesdata_player_json(player_id)
+                appearance = pesdata_data.get('appearance') or {}
+                for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
+                    if not info.get(field_name):
+                        info[field_name] = appearance.get(json_key, '')
 
         return info
 
