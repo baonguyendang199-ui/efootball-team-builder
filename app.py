@@ -3404,7 +3404,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         return final_df
 
 def analyze_body_build(df):
-    """Return a lightweight physical-profile analysis for each player."""
+    """Return a multi-layer physical-profile analysis for each player."""
     work_df = df.copy()
     if work_df.empty:
         return work_df
@@ -3423,27 +3423,51 @@ def analyze_body_build(df):
             return 50
         return int(round((values.le(value).mean()) * 100))
 
-    def body_type_from_scores(overall_score, build_score, limb_score):
-        if overall_score >= 85 and limb_score >= 75:
-            return "Powerful / Reach"
-        if overall_score >= 78 and build_score >= 70:
-            return "Physical / Duel"
-        if limb_score >= 75 and overall_score >= 70:
-            return "Long-limbed / Aerial"
+    def classify_body_type(overall_score, build_score, limb_score, height_score, weight_score):
+        if overall_score >= 88 and limb_score >= 78:
+            return "Elite power / reach"
+        if overall_score >= 82 and build_score >= 72:
+            return "Heavy physical build"
+        if limb_score >= 80 and height_score >= 70:
+            return "Long-limbed / aerial"
         if overall_score <= 55:
-            return "Lean / Agile"
-        return "Balanced / All-round"
+            return "Lean / agile"
+        if weight_score >= 75 and build_score >= 68:
+            return "Stocky / robust"
+        if height_score >= 80 and weight_score <= 45:
+            return "Tall / lightweight"
+        return "Balanced / all-round"
 
-    def best_fit_from_scores(overall_score, build_score, limb_score):
-        if overall_score >= 85 and limb_score >= 75:
-            return "Best for aerial or physical roles"
-        if build_score >= 75:
-            return "Best for strength-heavy duels"
-        if limb_score >= 75:
-            return "Best for reach and mobility"
+    def classify_role_fit(overall_score, build_score, limb_score, height_score, weight_score):
+        if overall_score >= 88 and limb_score >= 78:
+            return "Aerial + physical dominant"
+        if build_score >= 74 and weight_score >= 65:
+            return "Strength-heavy duel role"
+        if limb_score >= 80 and height_score >= 70:
+            return "Reach / aerial role"
         if overall_score <= 55:
-            return "Best for light and agile profiles"
-        return "Best for balanced all-round use"
+            return "Agility / quick transition role"
+        if build_score >= 68 and weight_score >= 60:
+            return "Box-to-box physical role"
+        return "Balanced role"
+
+    def classify_stability(overall_score, build_score, limb_score):
+        if overall_score >= 85 and build_score >= 70 and limb_score >= 70:
+            return "Very stable"
+        if overall_score >= 72:
+            return "Stable"
+        if overall_score >= 60:
+            return "Moderate"
+        return "Fragile"
+
+    def classify_density(height_score, weight_score, limb_score):
+        if height_score >= 78 and weight_score >= 72 and limb_score >= 72:
+            return "Dense physical frame"
+        if height_score >= 70 and weight_score <= 55:
+            return "Tall and light"
+        if weight_score >= 78 and limb_score >= 70:
+            return "Massive frame"
+        return "Standard frame"
 
     height_series = pd.to_numeric(work_df['Height'], errors='coerce').dropna() if 'Height' in work_df.columns else pd.Series(dtype=float)
     weight_series = pd.to_numeric(work_df['Weight'], errors='coerce').dropna() if 'Weight' in work_df.columns else pd.Series(dtype=float)
@@ -3480,7 +3504,7 @@ def analyze_body_build(df):
                 limb_scores.append(percentile_score(limb_series_map[col], limb_value))
 
         limb_score = int(round(sum(limb_scores) / len(limb_scores))) if limb_scores else 50
-        overall_score = int(round((height_score * 0.35) + (build_score * 0.35) + (limb_score * 0.30)))
+        overall_score = int(round((height_score * 0.30) + (build_score * 0.35) + (limb_score * 0.35)))
 
         rows.append({
             'Player': row.get('Player', ''),
@@ -3489,8 +3513,10 @@ def analyze_body_build(df):
             'Arm Size': row.get('Arm Size', ''),
             'Leg Size': row.get('Leg Size', ''),
             '_body_score': overall_score,
-            '_body_type': body_type_from_scores(overall_score, build_score, limb_score),
-            '_best_fit': best_fit_from_scores(overall_score, build_score, limb_score),
+            '_body_type': classify_body_type(overall_score, build_score, limb_score, height_score, weight_score),
+            '_role_fit': classify_role_fit(overall_score, build_score, limb_score, height_score, weight_score),
+            '_stability': classify_stability(overall_score, build_score, limb_score),
+            '_frame_density': classify_density(height_score, weight_score, limb_score),
             '_build_score': int(round(build_score)),
             '_limb_score': limb_score,
             '_height_score': height_score,
@@ -4379,17 +4405,18 @@ def main():
                     selected_profile = body_profile_df[body_profile_df['Player'].astype(str) == selected_player_name]
                     if not selected_profile.empty:
                         selected_profile = selected_profile.iloc[0]
-                        b1, b2, b3 = st.columns(3)
+                        b1, b2, b3, b4 = st.columns(4)
                         b1.metric("Body score", f"{int(selected_profile['_body_score'])}/100")
                         b2.metric("Body type", selected_profile['_body_type'])
-                        b3.metric("Best fit", selected_profile['_best_fit'])
+                        b3.metric("Role fit", selected_profile['_role_fit'])
+                        b4.metric("Stability", selected_profile['_stability'])
                         st.progress(min(100, max(0, int(selected_profile['_body_score']))) / 100)
-                        st.caption(f"Height signal: {int(selected_profile['_height_score'])}/100 • Build signal: {int(selected_profile['_build_score'])}/100 • Limb signal: {int(selected_profile['_limb_score'])}/100")
+                        st.caption(f"Height signal: {int(selected_profile['_height_score'])}/100 • Build signal: {int(selected_profile['_build_score'])}/100 • Limb signal: {int(selected_profile['_limb_score'])}/100 • Frame: {selected_profile['_frame_density']}")
 
-                top_profiles = body_profile_df.sort_values('_body_score', ascending=False).head(10)
-                display_cols = ['Player', 'Height', 'Weight', 'Arm Size', 'Leg Size', '_body_score', '_body_type', '_best_fit']
+                top_profiles = body_profile_df.sort_values('_body_score', ascending=False).head(15)
+                display_cols = ['Player', 'Height', 'Weight', 'Arm Size', 'Leg Size', '_body_score', '_body_type', '_role_fit', '_stability', '_frame_density']
                 display_cols = [c for c in display_cols if c in top_profiles.columns]
-                st.dataframe(top_profiles[display_cols].rename(columns={'_body_score': 'Body Score', '_body_type': 'Body Type', '_best_fit': 'Best Fit'}), use_container_width=True, hide_index=True)
+                st.dataframe(top_profiles[display_cols].rename(columns={'_body_score': 'Body Score', '_body_type': 'Body Type', '_role_fit': 'Role Fit', '_stability': 'Stability', '_frame_density': 'Frame Density'}), use_container_width=True, hide_index=True)
 
         # 5. PLAYER DETAIL INSPECTOR
         if not filtered_df.empty:
