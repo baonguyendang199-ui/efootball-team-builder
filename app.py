@@ -3143,6 +3143,77 @@ def get_unique_values(df: pd.DataFrame, column: str) -> list:
         return sorted(vals)
     return []
 
+
+# ------------------- Body Clustering Utilities -------------------
+BODY_FEATURE_COLUMNS = [
+    'Height', 'Weight', 'Arm Length', 'Shoulder Width', 'Neck Length',
+    'Chest Measurement', 'Neck Size', 'Shoulder Height', 'Leg Length',
+    'Thigh Size', 'Waist Size', 'Arm Size', 'Calf Size'
+]
+
+
+def check_body_columns(df: pd.DataFrame) -> list:
+    """Return list of missing required body feature columns."""
+    missing = [c for c in BODY_FEATURE_COLUMNS if c not in df.columns]
+    return missing
+
+
+@st.cache_data(ttl=300)
+def compute_pca_and_scale(df: pd.DataFrame, feature_cols: list, n_components: int = None):
+    """
+    Scale features (z-score) and compute PCA.
+    Returns: scaled array, pca object, explained_variance_ratio_
+    """
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.decomposition import PCA
+
+    X = df[feature_cols].copy()
+    # Ensure numeric and fillna
+    for c in feature_cols:
+        X[c] = pd.to_numeric(X[c], errors='coerce').fillna(0.0)
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X.values)
+
+    # Auto choose components if not provided (keep all then user can pick)
+    pca = PCA(n_components=n_components if n_components else min(len(feature_cols), X_scaled.shape[0]))
+    X_pca = pca.fit_transform(X_scaled)
+
+    return X_scaled, X_pca, pca, scaler
+
+
+@st.cache_data(ttl=300)
+def compute_kmeans(X_for_clustering, k: int, random_state: int = 42):
+    """Run KMeans and return labels, model and inertia."""
+    from sklearn.cluster import KMeans
+
+    km = KMeans(n_clusters=k, random_state=random_state, n_init='auto')
+    labels = km.fit_predict(X_for_clustering)
+    return labels, km, km.inertia_
+
+
+@st.cache_data(ttl=300)
+def evaluate_k_range(X_for_clustering, k_min: int = 2, k_max: int = 8):
+    """Compute inertia and silhouette for range of k. Returns dicts."""
+    from sklearn.metrics import silhouette_score
+    inertias = {}
+    silhouettes = {}
+    for k in range(k_min, k_max + 1):
+        try:
+            labels, km, inertia = compute_kmeans(X_for_clustering, k)
+            inertias[k] = float(inertia)
+            # silhouette requires at least 2 clusters and less than n_samples
+            if len(set(labels)) > 1 and len(labels) > k:
+                silhouettes[k] = float(silhouette_score(X_for_clustering, labels))
+            else:
+                silhouettes[k] = None
+        except Exception:
+            inertias[k] = None
+            silhouettes[k] = None
+    return inertias, silhouettes
+
+# ------------------- end utilities -------------------
+
 def initialize_session_state():
     defaults = {
         'manual_reload_triggered': False,
@@ -3356,7 +3427,7 @@ def main():
         # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills"],
+            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills", "🏋️ Phân tích thể hình"],
             index=0
         )
 
@@ -3391,6 +3462,9 @@ def main():
                 st.session_state.current_tab = "inventory"
             else:
                 st.session_state.current_tab = "skills"
+
+        elif main_menu == "🏋️ Phân tích thể hình":
+            st.session_state.current_tab = "body"
 
         # Tools removed
 
@@ -3771,6 +3845,193 @@ def main():
         with l_c3.container(border=True):
             st.markdown(f"**🏆 Top Leagues**")
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
+
+    elif current_tab == 'body':
+        st.header("🏋️ Phân tích thể hình")
+
+        # 1. Kiểm tra tồn tại các cột cần thiết
+        missing_cols = check_body_columns(df)
+        if missing_cols:
+            st.error("⚠️ Thiếu cột thể hình cần thiết trong dữ liệu: " + ", ".join(missing_cols))
+        else:
+            # Panel điều khiển
+            with st.expander("Bộ lọc & Thiết lập", expanded=True):
+                col1, col2, col3 = st.columns([2, 2, 2])
+                group_level = col1.selectbox("Nhóm vị trí để phân cụm", ["Position Style", "Position"], index=0)
+                if group_level == "Position":
+                    positions = get_unique_values(df, 'Position')
+                    chosen_position = col1.selectbox("Chọn Position", ['(All)'] + positions, index=0)
+                else:
+                    styles = get_unique_values(df, 'Position Style')
+                    chosen_style = col1.selectbox("Chọn Position Style", ['(All)'] + styles, index=0)
+
+                # PCA components selection placeholder (will compute suggestions)
+                inertia_display = col2.empty()
+                silhouette_display = col2.empty()
+                run_button = col3.button("Chạy phân cụm")
+
+            # Lọc dữ liệu theo bộ lọc đã chọn
+            if group_level == 'Position' and chosen_position and chosen_position != '(All)':
+                sub_df = df[df['Position'].astype(str) == chosen_position].copy()
+            elif group_level == 'Position Style' and chosen_style and chosen_style != '(All)':
+                sub_df = df[df['Position Style'].astype(str) == chosen_style].copy()
+            else:
+                sub_df = df.copy()
+
+            n_players = len(sub_df)
+            if n_players < 10:
+                st.info(f"Số cầu thủ trong nhóm quá ít để phân cụm (cần ít nhất 10). Hiện có: {n_players}")
+            else:
+                # Chuẩn bị dữ liệu features
+                feature_cols = BODY_FEATURE_COLUMNS.copy()
+                for c in feature_cols:
+                    sub_df[c] = pd.to_numeric(sub_df.get(c, 0), errors='coerce').fillna(0.0)
+
+                # Compute PCA (all components) to show explained variance
+                X_scaled, X_pca_full, pca_obj, scaler = compute_pca_and_scale(sub_df, feature_cols, n_components=min(len(feature_cols), max(1, n_players)))
+                evr = list(pca_obj.explained_variance_ratio_)
+                cum_evr = np.cumsum(evr)
+                # Default n_components: >=80% variance or min 3
+                default_n_comp = int(next((i+1 for i,v in enumerate(cum_evr) if v >= 0.8), min(3, len(evr))))
+                max_comp = min(len(evr), 10)
+
+                # UI: choose number of PCs used for clustering
+                pcs_col1, pcs_col2 = st.columns([3,2])
+                pcs_col1.markdown("**Explained variance (per PC)**")
+                ev_df = pd.DataFrame({ 'PC': [f'PC{i+1}' for i in range(len(evr))], 'Explained': [float(x) for x in evr], 'Cumulative': [float(x) for x in cum_evr] })
+                fig_e = px.bar(ev_df, x='PC', y='Explained', title='Explained Variance by PC')
+                fig_e.add_scatter(x=ev_df['PC'], y=ev_df['Cumulative'], mode='lines+markers', name='Cumulative')
+                apply_plotly_theme(fig_e)
+                pcs_col1.plotly_chart(fig_e, use_container_width=True, config={'displayModeBar': False})
+
+                n_pcs = pcs_col2.slider("Số PC dùng cho clustering", min_value=2, max_value=max_comp, value=default_n_comp)
+
+                # Prepare data for clustering: use first n_pcs of PCA (but still keep PC1/PC2 for visualization)
+                X_for_cluster = X_pca_full[:, :n_pcs]
+
+                # Auto determine best K
+                with st.spinner('Tính K đề xuất (Elbow + Silhouette)...'):
+                    inertias, silhouettes = evaluate_k_range(X_for_cluster, 2, min(8, max(2, n_players-1)))
+
+                # Suggest K by highest silhouette (if available)
+                suggested_k = 3
+                valid_sil = {k:v for k,v in silhouettes.items() if v is not None}
+                if valid_sil:
+                    suggested_k = max(valid_sil, key=valid_sil.get)
+                else:
+                    # fallback: choose k with largest decrease in inertia
+                    prev = None; best_k = 3
+                    for k in sorted(inertias.keys()):
+                        if prev is not None and inertias[k] is not None and prev is not None:
+                            pass
+                        prev = inertias[k]
+                    suggested_k = best_k
+
+                k_choice = st.slider("Số cluster K", min_value=2, max_value=8, value=int(suggested_k))
+
+                # Run KMeans with chosen K when user click run or always run
+                labels, kmodel, inertia_val = compute_kmeans(X_for_cluster, int(k_choice))
+
+                # Attach PC1, PC2 and cluster to DataFrame
+                pcs = X_pca_full
+                sub_df = sub_df.reset_index(drop=True)
+                sub_df['PC1'] = pcs[:,0]
+                sub_df['PC2'] = pcs[:,1] if pcs.shape[1] > 1 else 0.0
+                sub_df['Cluster'] = labels.astype(int)
+
+                # Derive cluster descriptive names (suggestions)
+                # Use mean z-score (X_scaled) per cluster
+                df_scaled = pd.DataFrame(X_scaled, columns=feature_cols)
+                df_scaled['Cluster'] = labels
+                cluster_summaries = {}
+                for cl in sorted(df_scaled['Cluster'].unique()):
+                    means = df_scaled[df_scaled['Cluster']==cl].mean()
+                    # pick top 2 features by absolute mean
+                    top_feats = means.abs().sort_values(ascending=False).head(2).index.tolist()
+                    desc_parts = []
+                    for f in top_feats:
+                        val = means[f]
+                        arrow = '↑' if val > 0 else '↓'
+                        desc_parts.append(f"{f} {arrow}")
+                    suggested_name = ", ".join(desc_parts)
+                    cluster_summaries[cl] = suggested_name
+
+                # Let user edit cluster names
+                st.markdown("**Tên cụm (gợi ý)**")
+                cluster_name_map = {}
+                for cl in sorted(cluster_summaries.keys()):
+                    default_name = f"Cluster {cl}: {cluster_summaries[cl]}"
+                    new_name = st.text_input(f"Tên cụm #{cl}", value=default_name, key=f"cluster_name_{cl}")
+                    cluster_name_map[cl] = new_name
+
+                # Map cluster names
+                sub_df['Cluster Name'] = sub_df['Cluster'].map(cluster_name_map)
+
+                # Scatter plot PC1 vs PC2 colored by cluster
+                fig = px.scatter(sub_df, x='PC1', y='PC2', color='Cluster Name', hover_data=['Player','Position','Rating'], title='PC1 vs PC2 (colored by cluster)')
+                apply_plotly_theme(fig)
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+                # Filters & result table
+                st.markdown("**Bộ lọc kết quả**")
+                c1, c2, c3 = st.columns([3,2,2])
+                clusters_available = sorted(sub_df['Cluster'].unique())
+                sel_clusters = c1.multiselect("Chọn cụm", options=clusters_available, default=clusters_available)
+                pos_options = get_unique_values(sub_df, 'Position')
+                sel_positions = c2.multiselect("Position", options=pos_options, default=pos_options)
+                min_rating = int(sub_df['Rating'].min()) if 'Rating' in sub_df.columns else 0
+                max_rating = int(sub_df['Rating'].max()) if 'Rating' in sub_df.columns else 100
+                sel_rating = c3.slider("Rating", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
+
+                filtered = sub_df[sub_df['Cluster'].isin(sel_clusters) & sub_df['Position'].isin(sel_positions) & sub_df['Rating'].between(sel_rating[0], sel_rating[1])].copy()
+
+                display_cols = ['Player','Position','Rating','Cluster','Cluster Name'] + feature_cols
+                st.dataframe(filtered[display_cols].sort_values(['Cluster','Rating'], ascending=[True, False]), use_container_width=True)
+
+                # Team basket (independent)
+                if 'body_basket' not in st.session_state:
+                    st.session_state['body_basket'] = []
+
+                st.markdown("**Giỏ đội hình (độc lập)**")
+                pick_col1, pick_col2 = st.columns([3,1])
+                pick_list = pick_col1.multiselect("Chọn cầu thủ để thêm vào giỏ", options=filtered['Player'].tolist())
+                if pick_col2.button("Thêm vào giỏ"):
+                    for p in pick_list:
+                        if p not in st.session_state['body_basket']:
+                            st.session_state['body_basket'].append(p)
+
+                if st.session_state['body_basket']:
+                    st.markdown(f"**Đang có {len(st.session_state['body_basket'])} cầu thủ trong giỏ**")
+                    st.write(st.session_state['body_basket'])
+                    if st.button("Xóa giỏ" ):
+                        st.session_state['body_basket'] = []
+
+                    # Imbalance warning
+                    basket_df = sub_df[sub_df['Player'].isin(st.session_state['body_basket'])].copy()
+                    if not basket_df.empty:
+                        # Map to style group
+                        basket_df['Style Group'] = basket_df['Position'].map(lambda p: POSITIONS.get(p, 'Other'))
+                        for style in ['Defender','Midfielder','Forward']:
+                            grp = basket_df[basket_df['Style Group']==style]
+                            if len(grp) >= 3:
+                                top_cluster = grp['Cluster'].value_counts(normalize=True).max()
+                                if top_cluster >= 0.7:
+                                    st.warning(f"⚠️ Hàng {style} nghiêng nhiều về một cụm ({top_cluster*100:.0f}%): cân nhắc bổ sung đa dạng thể hình.")
+
+                # Export XLSX
+                to_export = filtered.copy()
+                to_export['Cluster Name'] = to_export['Cluster Name'].astype(str)
+                to_export = to_export[display_cols]
+                to_export_bytes = BytesIO()
+                with pd.ExcelWriter(to_export_bytes, engine='openpyxl') as writer:
+                    # write full sheet
+                    to_export.to_excel(writer, index=False, sheet_name='Filtered')
+                    # also sheet per cluster
+                    for cl in sorted(to_export['Cluster'].unique()):
+                        to_export[to_export['Cluster']==cl].to_excel(writer, index=False, sheet_name=f'Cluster_{cl}')
+                    writer.save()
+                to_export_bytes.seek(0)
+                st.download_button('📥 Xuất Excel (Filtered + per-cluster)', data=to_export_bytes, file_name='body_clustering.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
     elif current_tab == 'players':
         st.header("👥 Players")
