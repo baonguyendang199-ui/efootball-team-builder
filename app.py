@@ -3876,9 +3876,13 @@ def main():
         scout_df['Height_num'] = pd.to_numeric(scout_df['Height'], errors='coerce')
         scout_df['Weight_num'] = pd.to_numeric(scout_df['Weight'], errors='coerce')
 
-        position_options = ["All"] + sorted([p for p in scout_df['Position'].dropna().astype(str).unique() if p])
-        player_type_options = ["All"] + sorted([p for p in scout_df['Player Type'].dropna().astype(str).unique() if p])
-        action_options = ["All"] + sorted([a for a in scout_df['Action'].dropna().astype(str).unique() if a])
+        position_col = 'Position' if 'Position' in scout_df.columns else None
+        player_type_col = 'Player Type' if 'Player Type' in scout_df.columns else None
+        action_col = 'Action' if 'Action' in scout_df.columns else None
+
+        position_options = ["All"] + sorted([p for p in scout_df[position_col].dropna().astype(str).unique() if p]) if position_col else ["All"]
+        player_type_options = ["All"] + sorted([p for p in scout_df[player_type_col].dropna().astype(str).unique() if p]) if player_type_col else ["All"]
+        action_options = ["All"] + sorted([a for a in scout_df[action_col].dropna().astype(str).unique() if a]) if action_col else ["All"]
 
         filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
         with filter_col1:
@@ -3890,20 +3894,24 @@ def main():
         with filter_col4:
             min_rating = st.slider("Min OVR", min_value=70, max_value=105, value=80, step=1, key="intel_min_rating")
 
-        if selected_position != "All":
-            scout_df = scout_df[scout_df['Position'].astype(str) == selected_position]
-        if selected_type != "All":
-            scout_df = scout_df[scout_df['Player Type'].astype(str) == selected_type]
-        if selected_action != "All":
-            scout_df = scout_df[scout_df['Action'].astype(str) == selected_action]
+        if position_col and selected_position != "All":
+            scout_df = scout_df[scout_df[position_col].astype(str) == selected_position]
+        if player_type_col and selected_type != "All":
+            scout_df = scout_df[scout_df[player_type_col].astype(str) == selected_type]
+        if action_col and selected_action != "All":
+            scout_df = scout_df[scout_df[action_col].astype(str) == selected_action]
         scout_df = scout_df[scout_df['Rating_num'] >= min_rating]
 
         scout_df = scout_df.sort_values(['Rating_num', 'Player'], ascending=[False, True])
 
+        sell_risk_count = 0
+        if action_col:
+            sell_risk_count = len(scout_df[scout_df[action_col].astype(str).str.contains('SELL', case=False, na=False)])
+
         m1, m2, m3 = st.columns(3)
         m1.metric("Candidates", len(scout_df))
         m2.metric("Top rated", clean_value(scout_df['Player'].iloc[0]) if not scout_df.empty else "-")
-        m3.metric("Sell risk", len(scout_df[scout_df['Action'].astype(str).str.contains('SELL', case=False, na=False)]))
+        m3.metric("Sell risk", sell_risk_count)
 
         if scout_df.empty:
             st.info("No candidates match these filters. Try widening the range.")
