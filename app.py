@@ -4160,12 +4160,12 @@ def main():
         results = results[results['Archetype_Tags'].apply(lambda tags: any(tag in tags for tag in selected_tags))]
 
         results['Tag_Display'] = results['Archetype_Tags'].apply(lambda tags: ' '.join(tags) if tags else '—')
-        results = results.sort_values(['Rating', 'Physicality', 'Reach'], ascending=[False, False, False])
+        results = results.sort_values(['Rating', 'Power', 'Reach'], ascending=[False, False, False])
 
         tag_counts = {tag: results['Archetype_Tags'].apply(lambda tags: tag in tags).sum() for tag in tag_labels}
 
         results['Tag_Display'] = results['Archetype_Tags'].apply(lambda tags: ' '.join(tags) if tags else '—')
-        results = results.sort_values(['Rating', 'Physicality', 'Reach'], ascending=[False, False, False])
+        results = results.sort_values(['Rating', 'Power', 'Reach'], ascending=[False, False, False])
 
         tag_counts = {tag: results['Archetype_Tags'].apply(lambda tags: tag in tags).sum() for tag in tag_labels}
 
@@ -4185,7 +4185,7 @@ def main():
                          f"<div style='font-size:0.85rem;color:#94a3b8;margin-top:8px'>{desc}</div>"
                          f"</div>", unsafe_allow_html=True)
 
-        sort_mode = st.radio('Sắp xếp top candidate theo:', ['Rating', 'Physicality', 'Reach', 'Aerial', 'Stability'], horizontal=True)
+        sort_mode = st.radio('Sắp xếp top candidate theo:', ['Rating', 'Power', 'Reach', 'Aerial', 'Stability'], horizontal=True)
         if sort_mode in results.columns:
             results = results.sort_values(sort_mode, ascending=False)
 
@@ -4212,7 +4212,7 @@ def main():
                              f"<div style='font-size:0.9rem;color:#94a3b8;margin-bottom:8px'>{row['Position']} • {row['Club']} • {row['Nation']}</div>"
                              f"<div style='font-size:2rem;font-weight:700;color:#f59e0b;margin-bottom:8px'>OVR {row['Rating']}</div>"
                              f"<div style='margin-bottom:10px'>{tag_html}</div>"
-                             f"<div style='font-size:0.85rem;color:#cbd5e1;margin-bottom:8px'>Phys {int(row['Physicality'])} • Reach {int(row['Reach'])} • Aerial {int(row['Aerial'])}</div>"
+                             f"<div style='font-size:0.85rem;color:#cbd5e1;margin-bottom:8px'>Power {int(row['Power'])} • Reach {int(row['Reach'])} • Aerial {int(row['Aerial'])}</div>"
                              f"</div>", unsafe_allow_html=True)
                 if col.button('Thêm vào giỏ', key=f'add_{idx}'):
                     player_name = row['Player']
