@@ -3427,7 +3427,7 @@ def main():
         # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills", "🏋️ Phân tích thể hình"],
+            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills", "🏋️ Phân tích thể hình", "🏋️ Hồ sơ Thể chất"],
             index=0
         )
 
@@ -3465,6 +3465,8 @@ def main():
 
         elif main_menu == "🏋️ Phân tích thể hình":
             st.session_state.current_tab = "body"
+        elif main_menu == "🏋️ Hồ sơ Thể chất":
+            st.session_state.current_tab = "profile_map"
 
         # Tools removed
 
@@ -4056,6 +4058,167 @@ def main():
                         to_export[to_export['Cluster']==cl].to_excel(writer, index=False, sheet_name=f'Cluster_{cl}')
                 to_export_bytes.seek(0)
                 st.download_button('📥 Xuất Excel (Filtered + per-cluster)', data=to_export_bytes, file_name='body_clustering.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    elif current_tab == 'profile_map':
+        st.header("🏋️ Hồ sơ Thể chất")
+
+        # Helper: safe numeric conversion
+        def _to_numeric_fill(df, cols):
+            for c in cols:
+                if c in df.columns:
+                    df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+                else:
+                    df[c] = 0.0
+            return df
+
+        # Archetype feature groups (may not exist in sheet; handle missing)
+        archetype_features = {
+            'wall': ['Torso Collision', 'Shoulder Width', 'Chest Measurement', 'Waist Size'],
+            'spider_leg': ['Leg Length', 'Leg Coverage Radius'],
+            'aerial': ['Height', 'Jumping Height', 'Shoulder Height'],
+            'stability': ['Weight', 'Thigh Size', 'Calf Size'],
+            'keeper': ['Arm Length', 'Arm Coverage Radius', 'Arm Size']
+        }
+
+        # Ensure columns exist and numeric
+        all_feat_cols = []
+        for v in archetype_features.values():
+            all_feat_cols += v
+        all_feat_cols = list(dict.fromkeys(all_feat_cols))
+        df_local = df.copy()
+        df_local = _to_numeric_fill(df_local, all_feat_cols)
+
+        # Compute percentiles per position
+        pct_df = df_local.copy()
+        for col in all_feat_cols:
+            pct_df[col + '_pct'] = pct_df.groupby('Position')[col].transform(lambda x: x.rank(pct=True, method='max') * 100 if not x.empty else 0)
+
+        # Compute archetype tags per player
+        def compute_tags(row):
+            tags = []
+            try:
+                # Wall
+                wall_cols = [c + '_pct' for c in archetype_features['wall'] if c in df_local.columns]
+                if wall_cols:
+                    wall_mean = row[wall_cols].mean()
+                    if wall_mean >= 80:
+                        tags.append('🛡️ Bức Tường Thép')
+                # Spider leg
+                leg_cols = [c + '_pct' for c in archetype_features['spider_leg'] if c in df_local.columns]
+                if leg_cols:
+                    leg_mean = row[leg_cols].mean()
+                    if leg_mean >= 80:
+                        tags.append('🕷️ Sải Chân Nhện')
+                # Aerial
+                air_cols = [c + '_pct' for c in archetype_features['aerial'] if c in df_local.columns]
+                if air_cols:
+                    air_mean = row[air_cols].mean()
+                    if air_mean >= 80:
+                        tags.append('✈️ Quái Vật Không Chiến')
+                # Stability
+                stab_cols = [c + '_pct' for c in archetype_features['stability'] if c in df_local.columns]
+                if stab_cols:
+                    stab_mean = row[stab_cols].mean()
+                    if stab_mean >= 80:
+                        tags.append('🧱 Xe Lu Thăng Bằng')
+                # Keeper (only GK)
+                if str(row.get('Position','')).upper() == 'GK':
+                    k_cols = [c + '_pct' for c in archetype_features['keeper'] if c in df_local.columns]
+                    if k_cols:
+                        k_mean = row[k_cols].mean()
+                        if k_mean >= 80:
+                            tags.append('🧤 Người Nhện')
+            except Exception:
+                pass
+            return tags
+
+        pct_df['Archetype_Tags'] = pct_df.apply(compute_tags, axis=1)
+
+        # Radar axes: compute 5 axis scores as mean percentile of mapped features
+        def axis_score(row, cols):
+            cols_pct = [c + '_pct' for c in cols if c in df_local.columns]
+            if not cols_pct:
+                return 0
+            return float(row[cols_pct].mean())
+
+        pct_df['Axis_Physicality'] = pct_df.apply(lambda r: axis_score(r, ['Chest Measurement', 'Waist Size', 'Torso Collision']), axis=1)
+        pct_df['Axis_Reach'] = pct_df.apply(lambda r: axis_score(r, ['Leg Length', 'Arm Length']), axis=1)
+        pct_df['Axis_Aerial'] = pct_df.apply(lambda r: axis_score(r, ['Height', 'Jumping Height', 'Shoulder Height']), axis=1)
+        pct_df['Axis_Stability'] = pct_df.apply(lambda r: axis_score(r, ['Weight', 'Thigh Size', 'Calf Size']), axis=1)
+        pct_df['Axis_GK'] = pct_df.apply(lambda r: axis_score(r, ['Arm Length', 'Arm Coverage Radius']), axis=1)
+
+        # Sidebar: quick search presets
+        with st.sidebar:
+            st.markdown('**Bạn đang cần tìm mẫu cầu thủ nào?**')
+            preset = st.selectbox('Mẫu tìm kiếm', [
+                '(None)',
+                'Trung vệ càn lướt & tì đè',
+                'Tiền đạo/Tiền vệ bám trụ tốt',
+                'Máy quét xoạc bóng'
+            ])
+            st.divider()
+
+        # Apply preset filters
+        filtered_df = pct_df.copy()
+        if preset == 'Trung vệ càn lướt & tì đè':
+            filtered_df = filtered_df[filtered_df['Position'].isin(['CB'])]
+            filtered_df = filtered_df[filtered_df['Archetype_Tags'].apply(lambda tags: '🛡️ Bức Tường Thép' in tags)]
+        elif preset == 'Tiền đạo/Tiền vệ bám trụ tốt':
+            filtered_df = filtered_df[filtered_df['Position'].isin(['ST','MF','CM','AM','LM','RM'])]
+            filtered_df = filtered_df[filtered_df['Archetype_Tags'].apply(lambda tags: '🧱 Xe Lu Thăng Bằng' in tags)]
+        elif preset == 'Máy quét xoạc bóng':
+            filtered_df = filtered_df[filtered_df['Position'].isin(['DMF','CB'])]
+            filtered_df = filtered_df[filtered_df['Archetype_Tags'].apply(lambda tags: '🕷️ Sải Chân Nhện' in tags)]
+
+        # Result controls and table
+        st.markdown('**Kết quả tìm kiếm**')
+        result_cols = ['Player','Position','Rating','Club','Nation','Archetype_Tags']
+        if 'Rating' not in filtered_df.columns:
+            filtered_df['Rating'] = filtered_df.get('OVR Rating', 0)
+        display_df = filtered_df[result_cols].copy()
+        display_df['Archetype'] = display_df['Archetype_Tags'].apply(lambda t: ', '.join(t) if isinstance(t, list) else '')
+        st.dataframe(display_df[['Player','Position','Rating','Club','Nation','Archetype']].sort_values(['Rating'], ascending=False), use_container_width=True)
+
+        # Player detail: select one player to view radar and tags
+        sel_player = st.selectbox('Xem hồ sơ cầu thủ', options=['(None)'] + display_df['Player'].tolist())
+        if sel_player and sel_player != '(None)':
+            p_row = filtered_df[filtered_df['Player']==sel_player].iloc[0]
+            st.markdown(f"### {p_row['Player']} — {p_row['Position']} | OVR: {int(p_row.get('Rating',0))}")
+            tags = p_row['Archetype_Tags']
+            if tags:
+                tag_html = ' '.join([f"<span style='background:#eee;padding:4px 8px;border-radius:12px;margin-right:6px'>{t}</span>" for t in tags])
+                st.markdown(tag_html, unsafe_allow_html=True)
+
+            # Radar chart
+            axes = ['Physicality','Reach','Aerial','Stability']
+            values = [
+                int(p_row['Axis_Physicality'] or 0),
+                int(p_row['Axis_Reach'] or 0),
+                int(p_row['Axis_Aerial'] or 0),
+                int(p_row['Axis_Stability'] or 0)
+            ]
+            if str(p_row.get('Position','')).upper() == 'GK':
+                axes.append('Goalkeeping')
+                values.append(int(p_row['Axis_GK'] or 0))
+
+            radar_df = pd.DataFrame({'axis': axes, 'value': values})
+            try:
+                fig = px.line_polar(radar_df, r='value', theta='axis', line_close=True, range_r=[0,100], title=f"Hồ sơ thể chất: {p_row['Player']}")
+                fig.update_traces(fill='toself')
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            except Exception as e:
+                st.error(f"Không thể vẽ biểu đồ: {e}")
+
+        # Export filtered results to Excel
+        try:
+            export_df = display_df[['Player','Position','Rating','Club','Nation','Archetype']].copy()
+            export_bytes = BytesIO()
+            with pd.ExcelWriter(export_bytes, engine='openpyxl') as writer:
+                export_df.to_excel(writer, index=False, sheet_name='Results')
+            export_bytes.seek(0)
+            st.download_button('📥 Xuất danh sách ra Excel', data=export_bytes, file_name='physical_profile_results.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        except Exception as e:
+            st.error(f"Lỗi khi xuất Excel: {e}")
 
     elif current_tab == 'players':
         st.header("👥 Players")
