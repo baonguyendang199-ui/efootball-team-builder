@@ -4209,25 +4209,35 @@ def main():
         top_results = results.head(top_n).copy()
 
         if not top_results.empty:
-            fig = px.scatter(
-                top_results,
-                x=x_axis,
-                y=y_axis,
-                color='Archetype',
-                size='Rating',
-                symbol='Position',
-                hover_data=['Player', 'Position', 'Club', 'Nation', 'Rating', 'Tag_Display'],
-                title=f'Top {top_n} candidates: {x_axis} vs {y_axis}'
+            show_labels = st.checkbox('Show player names on plot', value=False)
+            plot_args = {
+                'x': x_axis,
+                'y': y_axis,
+                'color': 'Archetype',
+                'size': 'Rating',
+                'size_max': 40,
+                'hover_name': 'Player',
+                'hover_data': ['Position', 'Club', 'Nation', 'Rating', 'Tag_Display'],
+                'title': f'Top {top_n} candidates: {x_axis} vs {y_axis}'
+            }
+            if show_labels:
+                plot_args['text'] = 'Player'
+
+            fig = px.scatter(top_results, **plot_args)
+            fig.update_traces(
+                marker=dict(opacity=0.86, line=dict(width=1, color='rgba(255,255,255,0.8)')),
+                textposition='top center' if show_labels else None
             )
             fig.update_layout(
                 template='plotly_dark',
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(gridcolor='rgba(148,163,184,0.24)'),
-                yaxis=dict(gridcolor='rgba(148,163,184,0.24)'),
-                legend=dict(title='Archetype', orientation='h', y=-0.2, x=0.5, xanchor='center'),
-                margin=dict(l=20, r=20, t=40, b=20)
+                xaxis=dict(gridcolor='rgba(148,163,184,0.24)', zerolinecolor='rgba(148,163,184,0.24)'),
+                yaxis=dict(gridcolor='rgba(148,163,184,0.24)', zerolinecolor='rgba(148,163,184,0.24)'),
+                legend=dict(title='Archetype', orientation='h', y=-0.25, x=0.5, xanchor='center'),
+                margin=dict(l=20, r=20, t=45, b=20)
             )
+            st.markdown('**Visual key:** Bubble size = Rating, color = Archetype, position = selected axes values.')
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True})
 
             st.markdown('**Top candidates detail**')
