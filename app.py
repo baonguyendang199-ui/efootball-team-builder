@@ -4196,64 +4196,56 @@ def main():
             st.session_state['profile_basket'] = []
 
         st.markdown('---')
-        st.markdown('#### 🔥 Candidate scatter plot')
+        st.markdown('#### 🔥 Ranked candidate shortlist')
 
-        plot_axes = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
-        axis_col1, axis_col2, axis_col3 = st.columns([2,2,2])
-        x_axis = axis_col1.selectbox('X axis', options=plot_axes, index=0)
-        y_axis = axis_col2.selectbox('Y axis', options=plot_axes, index=1)
-        top_n = axis_col3.slider('Show top players', min_value=6, max_value=30, value=12, step=1)
-
+        top_n = st.slider('Show top candidates', min_value=6, max_value=20, value=10, step=1)
         results = results.copy()
-        results['Archetype'] = results['Archetype_Tags'].apply(lambda tags: tags[0] if tags else 'No archetype')
         top_results = results.head(top_n).copy()
 
         if not top_results.empty:
-            show_labels = st.checkbox('Show player names on plot', value=False)
-            plot_args = {
-                'x': x_axis,
-                'y': y_axis,
-                'color': 'Archetype',
-                'size': 'Rating',
-                'size_max': 40,
-                'hover_name': 'Player',
-                'hover_data': ['Position', 'Club', 'Nation', 'Rating', 'Tag_Display'],
-                'title': f'Top {top_n} candidates: {x_axis} vs {y_axis}'
-            }
-            if show_labels:
-                plot_args['text'] = 'Player'
+            shortlist_col, detail_col = st.columns([2.2, 1.2])
 
-            fig = px.scatter(top_results, **plot_args)
-            fig.update_traces(
-                marker=dict(opacity=0.86, line=dict(width=1, color='rgba(255,255,255,0.8)')),
-                textposition='top center' if show_labels else None
-            )
-            fig.update_layout(
-                template='plotly_dark',
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(gridcolor='rgba(148,163,184,0.24)', zerolinecolor='rgba(148,163,184,0.24)'),
-                yaxis=dict(gridcolor='rgba(148,163,184,0.24)', zerolinecolor='rgba(148,163,184,0.24)'),
-                legend=dict(title='Archetype', orientation='h', y=-0.25, x=0.5, xanchor='center'),
-                margin=dict(l=20, r=20, t=45, b=20)
-            )
-            st.markdown('**Visual key:** Bubble size = Rating, color = Archetype, position = selected axes values.')
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True})
+            with shortlist_col:
+                st.caption('Ranked by your selected scoring mode')
+                for idx, row in top_results.iterrows():
+                    with st.container(border=True):
+                        head_col, action_col = st.columns([4, 1])
+                        head_col.markdown(f"**{idx + 1}. {row['Player']}**")
+                        head_col.caption(f"{row['Position']} • {row['Club']} • {row['Nation']}")
+                        if action_col.button('Add', key=f'add_rank_{idx}'):
+                            if row['Player'] not in st.session_state['profile_basket']:
+                                st.session_state['profile_basket'].append(row['Player'])
+                                st.success(f'Added {row["Player"]} to basket')
 
-            st.markdown('**Top candidates detail**')
-            st.dataframe(
-                top_results[['Player', 'Position', 'Club', 'Nation', 'Rating', x_axis, y_axis, 'Tag_Display']]
-                .rename(columns={'Tag_Display': 'Archetype'}),
-                use_container_width=True
-            )
+                        metric_names = ['Power', 'Reach', 'Aerial', 'Stability']
+                        metric_cols = st.columns(4)
+                        for metric_col, metric_name in zip(metric_cols, metric_names):
+                            metric_col.markdown(f"**{metric_name}**")
+                            metric_col.progress(int(row[metric_name]) / 100)
+                            metric_col.caption(int(row[metric_name]))
 
-            add_players = st.multiselect('Select players to add to basket', options=top_results['Player'].tolist())
-            if st.button('Add selected to basket'):
-                for player_name in add_players:
-                    if player_name not in st.session_state['profile_basket']:
-                        st.session_state['profile_basket'].append(player_name)
-                if add_players:
-                    st.success(f'Added {len(add_players)} player(s) to basket')
+                        st.caption(f"Archetype: {', '.join(row['Archetype_Tags']) if row['Archetype_Tags'] else 'None'}")
+
+            with detail_col:
+                selected_player = st.selectbox('Inspect candidate', options=['(None)'] + top_results['Player'].tolist())
+                if selected_player and selected_player != '(None)':
+                    player_row = top_results[top_results['Player'] == selected_player].iloc[0]
+                    st.markdown(f"### {player_row['Player']}")
+                    st.markdown(f"**{player_row['Position']} • OVR {player_row['Rating']}**")
+                    st.caption(f"{player_row['Club']} • {player_row['Nation']}")
+                    st.markdown(f"**Archetype:** {', '.join(player_row['Archetype_Tags']) if player_row['Archetype_Tags'] else 'None'}")
+
+                    metric_names = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
+                    for metric_name in metric_names:
+                        st.markdown(f"{metric_name}: {int(player_row[metric_name])}")
+                        st.progress(int(player_row[metric_name]) / 100)
+
+                    if st.button('Add inspected player to basket'):
+                        if selected_player not in st.session_state['profile_basket']:
+                            st.session_state['profile_basket'].append(selected_player)
+                            st.success(f'Added {selected_player} to basket')
+                else:
+                    st.info('Select a candidate from the list to inspect its profile.')
         else:
             st.info('No candidates found for the current filters.')
 
