@@ -3847,8 +3847,50 @@ def main():
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
     elif current_tab == 'ultimate':
-        st.header("⚡ Ultimate Scout")
-        st.caption("Start with a scouting mission. The app will surface players that are interesting, underrated, or physically special.")
+        st.markdown("""
+        <style>
+        .scout-hero {
+            background: linear-gradient(135deg, rgba(124,58,237,0.22), rgba(34,211,238,0.12));
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 20px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 0.9rem;
+        }
+        .scout-card {
+            background: rgba(15,23,42,0.72);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 16px;
+            padding: 0.9rem 1rem;
+            margin-bottom: 0.75rem;
+        }
+        .scout-pill {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            margin: 0.2rem 0.3rem 0.2rem 0;
+            border-radius: 999px;
+            background: rgba(124,58,237,0.16);
+            border: 1px solid rgba(124,58,237,0.24);
+            color: #e2e8f0;
+            font-size: 0.8rem;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="scout-hero">
+            <h2 style="margin:0 0 0.3rem 0;">⚡ Ultimate Scout</h2>
+            <div style="color:#cbd5e1; font-size:1rem;">Discover underrated profiles, physical twins, or role specialists in one clean flow.</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        hero_col1, hero_col2 = st.columns([2.2, 1.2])
+        with hero_col1:
+            st.markdown('<div class="scout-card"><b>What you get</b><br>• Hidden gems that beat their OVR<br>• Physical twins for players you already like<br>• Role-ready picks for real pitch jobs</div>', unsafe_allow_html=True)
+        with hero_col2:
+            st.markdown('<div class="scout-card"><b>How to use it</b><br>1. Pick a mission<br>2. Refine lightly<br>3. Act on the result</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="scout-pill">Fast discovery</div><div class="scout-pill">Smart scoring</div><div class="scout-pill">Role-ready results</div>', unsafe_allow_html=True)
+        st.markdown("---")
 
         missing_cols = check_body_columns(df)
         if missing_cols:
@@ -4133,15 +4175,22 @@ def main():
         st.markdown("### Scout verdict")
         verdict = 'HIGHLY RECOMMENDED' if top_results.iloc[0]['Scout Score'] >= 85 else 'PROMISING'
         verdict_color = '🟢' if verdict == 'HIGHLY RECOMMENDED' else '🟡'
-        st.markdown(f"{verdict_color} **{verdict}**")
-        st.caption(
-            f"Physical profile: {int(top_results.iloc[0]['Power']) if not top_results.empty else 0} • "
-            f"Role fit: {int(top_results.iloc[0]['Reach']) if not top_results.empty else 0} • "
-            f"Rarity: {int(top_results.iloc[0]['Aerial']) if not top_results.empty else 0} • "
-            f"OVR efficiency: {int(top_results.iloc[0]['Stability']) if not top_results.empty else 0}"
+        st.markdown(
+            f"""
+            <div class="scout-card">
+                <div style="font-size:1.05rem; font-weight:700;">{verdict_color} {verdict}</div>
+                <div style="color:#cbd5e1; margin-top:0.3rem;">
+                    Physical profile: {int(top_results.iloc[0]['Power']) if not top_results.empty else 0} •
+                    Role fit: {int(top_results.iloc[0]['Reach']) if not top_results.empty else 0} •
+                    Rarity: {int(top_results.iloc[0]['Aerial']) if not top_results.empty else 0} •
+                    OVR efficiency: {int(top_results.iloc[0]['Stability']) if not top_results.empty else 0}
+                </div>
+                <div style="margin-top:0.45rem;"><b>Why?</b> {top_results.iloc[0]['Why']}</div>
+                <div style="margin-top:0.35rem;"><b>Scout score:</b> {top_results.iloc[0]['Scout Score']:.0f}/100</div>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
-        st.markdown(f"**Why?** {top_results.iloc[0]['Why']}")
-        st.markdown(f"**Scout score:** {top_results.iloc[0]['Scout Score']:.0f}/100")
 
         discover_tab, body_map_tab = st.tabs(["🔎 Discovery", "📍 Explore body map"])
 
