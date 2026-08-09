@@ -4134,33 +4134,33 @@ def main():
         profile_df['Core'] = profile_df.apply(lambda r: score_axis(r, ['Torso Collision', 'Chest Measurement', 'Waist Size']), axis=1)
         profile_df['Goalkeeping'] = profile_df.apply(lambda r: score_axis(r, ['Arm Length', 'Arm Coverage Radius']), axis=1)
 
-        preset = st.sidebar.selectbox('Bạn đang cần tìm mẫu cầu thủ nào?', [
+        preset = st.sidebar.selectbox('What player profile are you looking for?', [
             '(None)',
-            'Trung vệ càn lướt & tì đè',
-            'Tiền đạo/Tiền vệ bám trụ tốt',
-            'Máy quét xoạc bóng'
+            'Strong dueler & wall defender',
+            'Hold-up forward/midfielder',
+            'Sweep tackler'
         ])
         st.sidebar.markdown('---')
-        selected_positions = st.sidebar.multiselect('Chọn vị trí', sorted(profile_df['Position'].dropna().unique()), default=sorted(profile_df['Position'].dropna().unique()))
-        selected_tags = st.sidebar.multiselect('Chọn tag phong cách', tag_labels, default=tag_labels)
-        show_raw = st.sidebar.checkbox('Hiện số liệu chi tiết (mở rộng)', value=False)
+        selected_positions = st.sidebar.multiselect('Select positions', sorted(profile_df['Position'].dropna().unique()), default=sorted(profile_df['Position'].dropna().unique()))
+        selected_tags = st.sidebar.multiselect('Select archetype tags', tag_labels, default=tag_labels)
+        show_raw = st.sidebar.checkbox('Show detailed raw stats', value=False)
 
         filter_col_left, filter_col_right = st.columns([3,1])
-        selected_type = filter_col_right.selectbox('Lọc theo type thể hình', ['Tất cả'] + tag_labels, index=0)
+        selected_type = filter_col_right.selectbox('Filter by body type', ['All'] + tag_labels, index=0)
 
         results = profile_df.copy()
-        if preset == 'Trung vệ càn lướt & tì đè':
+        if preset == 'Strong dueler & wall defender':
             results = results[results['Position'].isin(['CB'])]
             results = results[results['Archetype_Tags'].apply(lambda tags: '🛡️ Bức Tường Thép' in tags)]
-        elif preset == 'Tiền đạo/Tiền vệ bám trụ tốt':
+        elif preset == 'Hold-up forward/midfielder':
             results = results[results['Position'].isin(['ST', 'MF', 'CM', 'AM', 'LM', 'RM'])]
             results = results[results['Archetype_Tags'].apply(lambda tags: '🧱 Xe Lu Thăng Bằng' in tags)]
-        elif preset == 'Máy quét xoạc bóng':
+        elif preset == 'Sweep tackler':
             results = results[results['Position'].isin(['DMF', 'CB'])]
             results = results[results['Archetype_Tags'].apply(lambda tags: '🕷️ Sải Chân Nhện' in tags)]
 
         results = results[results['Position'].isin(selected_positions)]
-        if selected_type != 'Tất cả':
+        if selected_type != 'All':
             results = results[results['Archetype_Tags'].apply(lambda tags: selected_type in tags)]
         results = results[results['Archetype_Tags'].apply(lambda tags: any(tag in tags for tag in selected_tags))]
 
@@ -4174,7 +4174,7 @@ def main():
 
         tag_counts = {tag: results['Archetype_Tags'].apply(lambda tags: tag in tags).sum() for tag in tag_labels}
 
-        st.markdown('#### 🎯 Tổng quan Archetype')
+        st.markdown('#### 🎯 Archetype Overview')
         c1, c2, c3, c4, c5 = st.columns(5)
         card_data = [
             ('🛡️ Bức Tường Thép', tag_counts['🛡️ Bức Tường Thép'], 'Tì đè, càn lướt, thân trâu', c1),
@@ -4190,14 +4190,14 @@ def main():
                          f"<div style='font-size:0.85rem;color:#94a3b8;margin-top:8px'>{desc}</div>"
                          f"</div>", unsafe_allow_html=True)
 
-        sort_mode = st.radio('Sắp xếp top candidate theo:', ['Rating', 'Power', 'Reach', 'Aerial', 'Stability'], horizontal=True)
+        sort_mode = st.radio('Sort top candidates by:', ['Rating', 'Power', 'Reach', 'Aerial', 'Stability'], horizontal=True)
         if sort_mode in results.columns:
             results = results.sort_values(sort_mode, ascending=False)
 
         if 'profile_basket' not in st.session_state:
             st.session_state['profile_basket'] = []
 
-        view_mode = st.radio('Hiển thị kết quả dưới dạng:', ['Table', 'Card Grid'], horizontal=True)
+        view_mode = st.radio('Display results as:', ['Table', 'Card Grid'], horizontal=True)
 
         st.markdown('---')
         st.markdown('#### 🔥 Top candidates')
@@ -4206,7 +4206,7 @@ def main():
         if view_mode == 'Table':
             display_table = top_results[['Player', 'Position', 'Rating', 'Club', 'Nation', 'Tag_Display']].copy()
             display_table['Tag_Display'] = display_table['Tag_Display'].str.replace(', ', ' | ')
-            st.dataframe(display_table.rename(columns={'Tag_Display': 'Phong cách'}), use_container_width=True)
+            st.dataframe(display_table.rename(columns={'Tag_Display': 'Style'}), use_container_width=True)
         else:
             card_cols = st.columns(3)
             for idx, row in top_results.iterrows():
@@ -4219,27 +4219,27 @@ def main():
                              f"<div style='margin-bottom:10px'>{tag_html}</div>"
                              f"<div style='font-size:0.85rem;color:#cbd5e1;margin-bottom:8px'>Power {int(row['Power'])} • Reach {int(row['Reach'])} • Aerial {int(row['Aerial'])}</div>"
                              f"</div>", unsafe_allow_html=True)
-                if col.button('Thêm vào giỏ', key=f'add_{idx}'):
+                if col.button('Add to basket', key=f'add_{idx}'):
                     player_name = row['Player']
                     if player_name not in st.session_state['profile_basket']:
                         st.session_state['profile_basket'].append(player_name)
-                        st.success(f'Đã thêm {player_name} vào giỏ')
+                        st.success(f'Added {player_name} to basket')
 
         st.markdown('---')
-        st.markdown('#### 🧺 Giỏ tuyển chọn')
+        st.markdown('#### 🧺 Selection Basket')
         if st.session_state['profile_basket']:
             for i, player_name in enumerate(st.session_state['profile_basket']):
                 remove_col, name_col = st.columns([1, 9])
                 name_col.markdown(f"- {player_name}")
-                if remove_col.button('Xóa', key=f'remove_{i}'):
+                if remove_col.button('Remove', key=f'remove_{i}'):
                     st.session_state['profile_basket'].remove(player_name)
                     st.experimental_rerun()
         else:
-            st.info('Chưa có cầu thủ nào trong giỏ. Bấm Thêm vào giỏ trên card để lưu.')
+            st.info('No players in basket yet. Click Add to basket on a card to save.')
 
         st.markdown('---')
-        st.markdown('#### 🔍 Chi tiết cầu thủ')
-        sel_player = st.selectbox('Chọn cầu thủ để xem hồ sơ:', options=['(None)'] + results['Player'].tolist())
+        st.markdown('#### 🔍 Player Details')
+        sel_player = st.selectbox('Select player to view profile:', options=['(None)'] + results['Player'].tolist())
         if sel_player and sel_player != '(None)':
             player_row = results[results['Player'] == sel_player].iloc[0]
             st.markdown(f"### {player_row['Player']} — {player_row['Position']} | OVR {player_row['Rating']}")
@@ -4297,35 +4297,35 @@ def main():
                 margin=dict(l=0, r=0, t=20, b=0)
             )
 
-            st.markdown('**Radar profile**: so sánh cầu thủ với mẫu archetype phù hợp nhất.')
+            st.markdown('**Radar profile**: compare the player with the best-matching archetype.')
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
             st.markdown(
-                "**Giải thích Radar:**<br>"
-                "- **Power**: lực càn, va chạm và kích thước thân trên.<br>"
-                "- **Reach**: tầm vươn tay/chân, khoảng cách với đối thủ và không gian kiểm soát.<br>"
-                "- **Aerial**: khả năng không chiến, bật nhảy và chạm bóng trên cao.<br>"
-                "- **Stability**: cân bằng, giữ chân và chống trượt trong va chạm.<br>"
-                "- **Length**: chiều dài thân/trụ và tầm với người, giúp kiểm soát không gian.<br>"
-                "- **Core**: sức mạnh trung tâm, khả năng chống đẩy và giữ cự ly khi va chạm."
+                "**Radar notes:**<br>"
+                "- **Power**: upper-body force, collision impact, and physical presence.<br>"
+                "- **Reach**: limb extension, space coverage, and stretch range.<br>"
+                "- **Aerial**: jumping strength, high-ball control, and aerial dominance.<br>"
+                "- **Stability**: balance, body control, and resistance to being pushed off.<br>"
+                "- **Length**: overall reach and body span for covering space.<br>"
+                "- **Core**: torso strength, bracing power, and contact stability."
                 , unsafe_allow_html=True)
 
             if show_raw:
                 raw_cols = [c for c in all_feat_cols if c in profile_df.columns]
                 raw_rows = player_row[raw_cols].to_frame(name='Value')
-                st.markdown('**Chi tiết số liệu thô**')
+                st.markdown('**Raw stat details**')
                 st.dataframe(raw_rows, use_container_width=True)
 
         if results.empty:
-            st.warning('Không tìm thấy cầu thủ phù hợp với bộ lọc hiện tại. Thử chọn tag khác hoặc bỏ preset.')
+            st.warning('No players match the current filters. Try different tags or reset the preset.')
 
         try:
-            export_df = results[['Player', 'Position', 'Rating', 'Club', 'Nation', 'Tag_Display']].rename(columns={'Tag_Display': 'Phong cách'})
+            export_df = results[['Player', 'Position', 'Rating', 'Club', 'Nation', 'Tag_Display']].rename(columns={'Tag_Display': 'Archetype'})
             export_bytes = BytesIO()
             with pd.ExcelWriter(export_bytes, engine='openpyxl') as writer:
                 export_df.to_excel(writer, index=False, sheet_name='Results')
             export_bytes.seek(0)
-            st.download_button('📥 Xuất danh sách ra Excel', data=export_bytes, file_name='physical_profile_results.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            st.download_button('📥 Download results to Excel', data=export_bytes, file_name='physical_profile_results.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         except Exception as e:
             st.error(f'Lỗi khi xuất Excel: {e}')
 
