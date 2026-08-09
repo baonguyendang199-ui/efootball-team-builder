@@ -3463,10 +3463,8 @@ def main():
             else:
                 st.session_state.current_tab = "skills"
 
-        elif main_menu == "🏋️ Body Analysis":
-            st.session_state.current_tab = "body"
-        elif main_menu == "🏋️ Physical Profile":
-            st.session_state.current_tab = "profile_map"
+        elif main_menu == "⚡ Ultimate Scout":
+            st.session_state.current_tab = "ultimate"
 
         # Tools removed
 
@@ -3848,188 +3846,13 @@ def main():
             st.markdown(f"**🏆 Top Leagues**")
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
-    elif current_tab == 'body':
-        st.header("🏋️ Body Analysis")
+    elif current_tab == 'ultimate':
+        st.header("⚡ Ultimate Scout")
+        st.caption("One view that combines body shape, physical archetype, and match quality. This is built to help you understand who truly fits your target role.")
 
-        # 1. Ensure required body columns exist
         missing_cols = check_body_columns(df)
         if missing_cols:
-            st.error("⚠️ Required body measurement columns are missing from the data: " + ", ".join(missing_cols))
-        else:
-            # Panel điều khiển
-            with st.expander("Filters & settings", expanded=True):
-                col1, col2, col3 = st.columns([2, 2, 2])
-                group_level = col1.selectbox("Group positions for clustering", ["Position Style", "Position"], index=0)
-                if group_level == "Position":
-                    positions = get_unique_values(df, 'Position')
-                    chosen_position = col1.selectbox("Choose Position", ['(All)'] + positions, index=0)
-                else:
-                    styles = get_unique_values(df, 'Position Style')
-                    chosen_style = col1.selectbox("Choose Position Style", ['(All)'] + styles, index=0)
-
-                # PCA components selection placeholder (will compute suggestions)
-                inertia_display = col2.empty()
-                silhouette_display = col2.empty()
-                run_button = col3.button("Run clustering")
-
-            # Lọc dữ liệu theo bộ lọc đã chọn
-            if group_level == 'Position' and chosen_position and chosen_position != '(All)':
-                sub_df = df[df['Position'].astype(str) == chosen_position].copy()
-            elif group_level == 'Position Style' and chosen_style and chosen_style != '(All)':
-                sub_df = df[df['Position Style'].astype(str) == chosen_style].copy()
-            else:
-                sub_df = df.copy()
-
-            n_players = len(sub_df)
-            if n_players < 10:
-                st.info(f"The selected group has too few players for clustering (need at least 10). Current count: {n_players}")
-            else:
-                # Chuẩn bị dữ liệu features
-                feature_cols = BODY_FEATURE_COLUMNS.copy()
-                for c in feature_cols:
-                    sub_df[c] = pd.to_numeric(sub_df.get(c, 0), errors='coerce').fillna(0.0)
-
-                # Compute PCA (all components) to show explained variance
-                X_scaled, X_pca_full, pca_obj, scaler = compute_pca_and_scale(sub_df, feature_cols, n_components=min(len(feature_cols), max(1, n_players)))
-                evr = list(pca_obj.explained_variance_ratio_)
-                cum_evr = np.cumsum(evr)
-                # Default n_components: >=80% variance or min 3
-                default_n_comp = int(next((i+1 for i,v in enumerate(cum_evr) if v >= 0.8), min(3, len(evr))))
-                max_comp = min(len(evr), 10)
-
-                # UI: choose number of PCs used for clustering
-                pcs_col1, pcs_col2 = st.columns([3,2])
-                pcs_col1.markdown("**Explained variance (per PC)**")
-                ev_df = pd.DataFrame({ 'PC': [f'PC{i+1}' for i in range(len(evr))], 'Explained': [float(x) for x in evr], 'Cumulative': [float(x) for x in cum_evr] })
-                fig_e = px.bar(ev_df, x='PC', y='Explained', title='Explained Variance by PC')
-                fig_e.add_scatter(x=ev_df['PC'], y=ev_df['Cumulative'], mode='lines+markers', name='Cumulative')
-                apply_plotly_theme(fig_e)
-                pcs_col1.plotly_chart(fig_e, use_container_width=True, config={'displayModeBar': False})
-
-                n_pcs = pcs_col2.slider("Number of PCs for clustering", min_value=2, max_value=max_comp, value=default_n_comp)
-
-                # Prepare data for clustering: use first n_pcs of PCA (but still keep PC1/PC2 for visualization)
-                X_for_cluster = X_pca_full[:, :n_pcs]
-
-                # Auto determine best K
-                with st.spinner('Estimating recommended K (Elbow + Silhouette)...'):
-                    inertias, silhouettes = evaluate_k_range(X_for_cluster, 2, min(8, max(2, n_players-1)))
-
-                # Suggest K by highest silhouette (if available)
-                suggested_k = 3
-                valid_sil = {k:v for k,v in silhouettes.items() if v is not None}
-                if valid_sil:
-                    suggested_k = max(valid_sil, key=valid_sil.get)
-                else:
-                    # fallback: choose k with largest decrease in inertia
-                    prev = None; best_k = 3
-                    for k in sorted(inertias.keys()):
-                        if prev is not None and inertias[k] is not None and prev is not None:
-                            pass
-                        prev = inertias[k]
-                    suggested_k = best_k
-
-                # Quick user help and one-click presets
-                with st.expander("Quick guide: 3 steps", expanded=False):
-                    st.write("1) Choose filters (optional). 2) Select K or use a preset. 3) View clusters and add to basket/sync.")
-
-                preset_cols = st.columns([1,1,1,2])
-                with preset_cols[0]:
-                    if st.button("Preset: Defensive (K=4)"):
-                        st.session_state['body_preset_k'] = 4
-                        st.session_state['body_preset_mode'] = 'defensive'
-                with preset_cols[1]:
-                    if st.button("Preset: Balanced (K=5)"):
-                        st.session_state['body_preset_k'] = 5
-                        st.session_state['body_preset_mode'] = 'balanced'
-                with preset_cols[2]:
-                    if st.button("Preset: Attack (K=3)"):
-                        st.session_state['body_preset_k'] = 3
-                        st.session_state['body_preset_mode'] = 'attack'
-                with preset_cols[3]:
-                    mode = st.session_state.get('body_preset_mode', '(none)')
-                    kval = st.session_state.get('body_preset_k', '-')
-                    st.markdown(f"**Preset active:** {mode} — K={kval}")
-
-                k_default = st.session_state.get('body_preset_k', int(suggested_k))
-                k_choice = st.slider("Số cluster K", min_value=2, max_value=8, value=int(k_default))
-
-                # Run KMeans with chosen K when user click run or always run
-                labels, kmodel, inertia_val = compute_kmeans(X_for_cluster, int(k_choice))
-
-                # Attach PC1, PC2 and cluster to DataFrame
-                pcs = X_pca_full
-                sub_df = sub_df.reset_index(drop=True)
-                sub_df['PC1'] = pcs[:,0]
-                sub_df['PC2'] = pcs[:,1] if pcs.shape[1] > 1 else 0.0
-                sub_df['Cluster'] = labels.astype(int)
-
-                # Derive cluster descriptive names (suggestions)
-                # Use mean z-score (X_scaled) per cluster
-                df_scaled = pd.DataFrame(X_scaled, columns=feature_cols)
-                df_scaled['Cluster'] = labels
-                cluster_summaries = {}
-                for cl in sorted(df_scaled['Cluster'].unique()):
-                    means = df_scaled[df_scaled['Cluster']==cl].mean()
-                    # exclude the Cluster column itself when picking top features
-                    means = means.drop(labels=['Cluster'], errors='ignore')
-                    # pick top 2 features by absolute mean
-                    top_feats = means.abs().sort_values(ascending=False).head(2).index.tolist()
-                    desc_parts = []
-                    for f in top_feats:
-                        val = means[f]
-                        arrow = '↑' if val > 0 else '↓'
-                        desc_parts.append(f"{f} {arrow}")
-                    suggested_name = ", ".join(desc_parts)
-                    cluster_summaries[cl] = suggested_name
-
-                # Let user edit cluster names
-                st.markdown("**Cluster names (suggested)**")
-                cluster_name_map = {}
-                for cl in sorted(cluster_summaries.keys()):
-                    default_name = f"Cluster {cl}: {cluster_summaries[cl]}"
-                    new_name = st.text_input(f"Cluster name #{cl}", value=default_name, key=f"cluster_name_{cl}")
-                    cluster_name_map[cl] = new_name
-
-                # Map cluster names
-                sub_df['Cluster Name'] = sub_df['Cluster'].map(cluster_name_map)
-
-                # Scatter plot PC1 vs PC2 colored by cluster
-                fig = px.scatter(sub_df, x='PC1', y='PC2', color='Cluster Name', hover_data=['Player','Position','Rating'], title='PC1 vs PC2 (colored by cluster)')
-                apply_plotly_theme(fig)
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-                # Filters & result table
-                st.markdown("**Result filters**")
-                c1, c2, c3 = st.columns([3,2,2])
-                clusters_available = sorted(sub_df['Cluster'].unique())
-                sel_clusters = c1.multiselect("Select clusters", options=clusters_available, default=clusters_available)
-                pos_options = get_unique_values(sub_df, 'Position')
-                sel_positions = c2.multiselect("Position", options=pos_options, default=pos_options)
-                min_rating = int(sub_df['Rating'].min()) if 'Rating' in sub_df.columns else 0
-                max_rating = int(sub_df['Rating'].max()) if 'Rating' in sub_df.columns else 100
-                sel_rating = c3.slider("Rating", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
-
-                filtered = sub_df[sub_df['Cluster'].isin(sel_clusters) & sub_df['Position'].isin(sel_positions) & sub_df['Rating'].between(sel_rating[0], sel_rating[1])].copy()
-
-                display_cols = ['Player','Position','Rating','Cluster','Cluster Name'] + feature_cols
-                st.dataframe(filtered[display_cols].sort_values(['Cluster','Rating'], ascending=[True, False]), use_container_width=True)
-
-                to_export = filtered.copy()
-                to_export['Cluster Name'] = to_export['Cluster Name'].astype(str)
-                to_export = to_export[display_cols]
-                to_export_bytes = BytesIO()
-                with pd.ExcelWriter(to_export_bytes, engine='openpyxl') as writer:
-                    # write full sheet
-                    to_export.to_excel(writer, index=False, sheet_name='Filtered')
-                    # also sheet per cluster
-                    for cl in sorted(to_export['Cluster'].unique()):
-                        to_export[to_export['Cluster']==cl].to_excel(writer, index=False, sheet_name=f'Cluster_{cl}')
-                to_export_bytes.seek(0)
-                st.download_button('📥 Download Excel (Filtered + per-cluster)', data=to_export_bytes, file_name='body_clustering.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-    elif current_tab == 'profile_map':
-        st.header("🏋️ Physical Profile")
+            st.warning("⚠️ Some body measurement columns are missing, so clustering is limited: " + ", ".join(missing_cols))
 
         def _to_numeric_fill(df_obj, cols):
             for c in cols:
@@ -4052,14 +3875,91 @@ def main():
             all_feat_cols.extend(group)
         all_feat_cols = list(dict.fromkeys(all_feat_cols))
 
-        profile_df = df.copy()
+        with st.sidebar:
+            st.subheader("🎯 Scout intent")
+            scout_goal = st.selectbox(
+                "What kind of player are you looking for?",
+                [
+                    "Balanced all-rounder",
+                    "Strong defender",
+                    "Aerial target",
+                    "Ball-winning midfielder",
+                    "Goalkeeper with reach"
+                ],
+                index=0
+            )
+            st.caption("The ranking below mixes rating, archetype, and body profile into one simple fit score.")
+            st.markdown("---")
+
+            positions = sorted(get_unique_values(df, 'Position'))
+            selected_positions = st.multiselect("Positions", positions, default=positions)
+            min_rating = st.slider("Minimum overall rating", min_value=0, max_value=100, value=70)
+            selected_tags = st.multiselect(
+                "Archetypes to include",
+                ['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper'],
+                default=['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper']
+            )
+            st.markdown("---")
+            body_group_mode = st.radio("Body grouping", ["Position", "Position Style"], horizontal=True)
+            if body_group_mode == "Position":
+                group_options = ['(All)'] + sorted(get_unique_values(df, 'Position'))
+                chosen_group = st.selectbox("Focus on", group_options, index=0)
+            else:
+                group_options = ['(All)'] + sorted(get_unique_values(df, 'Position Style'))
+                chosen_group = st.selectbox("Focus on", group_options, index=0)
+
+        if body_group_mode == "Position" and chosen_group and chosen_group != '(All)':
+            sub_df = df[df['Position'].astype(str) == chosen_group].copy()
+        elif body_group_mode == "Position Style" and chosen_group and chosen_group != '(All)':
+            sub_df = df[df['Position Style'].astype(str) == chosen_group].copy()
+        else:
+            sub_df = df.copy()
+
+        sub_df = sub_df.copy()
+        feature_cols = BODY_FEATURE_COLUMNS.copy()
+        for c in feature_cols:
+            sub_df[c] = pd.to_numeric(sub_df.get(c, 0), errors='coerce').fillna(0.0)
+
+        if len(sub_df) >= 10:
+            X_scaled, X_pca_full, pca_obj, _ = compute_pca_and_scale(sub_df, feature_cols, n_components=min(len(feature_cols), max(1, len(sub_df))))
+            evr = list(pca_obj.explained_variance_ratio_)
+            cum_evr = np.cumsum(evr)
+            default_n_comp = int(next((i + 1 for i, v in enumerate(cum_evr) if v >= 0.8), min(3, len(evr))))
+            n_pcs = min(6, max(2, default_n_comp))
+            cluster_count = min(6, max(3, min(6, len(sub_df) // 4)))
+            labels, _, _ = compute_kmeans(X_pca_full[:, :n_pcs], cluster_count)
+            sub_df = sub_df.reset_index(drop=True)
+            sub_df['PC1'] = X_pca_full[:, 0]
+            sub_df['PC2'] = X_pca_full[:, 1] if X_pca_full.shape[1] > 1 else 0.0
+            sub_df['Cluster'] = labels.astype(int)
+
+            df_scaled = pd.DataFrame(X_scaled, columns=feature_cols)
+            df_scaled['Cluster'] = labels
+            cluster_summaries = {}
+            for cl in sorted(df_scaled['Cluster'].unique()):
+                means = df_scaled[df_scaled['Cluster'] == cl].mean().drop(labels=['Cluster'], errors='ignore')
+                top_feats = means.abs().sort_values(ascending=False).head(2).index.tolist()
+                desc_parts = []
+                for f in top_feats:
+                    val = means[f]
+                    arrow = '↑' if val > 0 else '↓'
+                    desc_parts.append(f"{f} {arrow}")
+                cluster_summaries[cl] = ", ".join(desc_parts)
+
+            cluster_name_map = {}
+            for cl in sorted(cluster_summaries.keys()):
+                cluster_name_map[cl] = f"Cluster {cl}: {cluster_summaries[cl]}"
+
+            sub_df['Body Cluster'] = sub_df['Cluster'].map(cluster_name_map)
+        else:
+            sub_df['PC1'] = 0.0
+            sub_df['PC2'] = 0.0
+            sub_df['Body Cluster'] = 'Limited sample'
+
+        profile_df = sub_df.copy()
         profile_df = _to_numeric_fill(profile_df, all_feat_cols)
         profile_df['Position'] = profile_df['Position'].fillna('(Unknown)')
         profile_df['Rating'] = pd.to_numeric(profile_df.get('Rating', profile_df.get('OVR Rating', 0)), errors='coerce').fillna(0).astype(int)
-
-        if profile_df.empty:
-            st.error('No player data available for display.')
-            return
 
         for col in all_feat_cols:
             profile_df[f'{col}_pct'] = profile_df.groupby('Position')[col].transform(lambda x: x.rank(pct=True, method='max') * 100 if len(x) else 0)
@@ -4067,9 +3967,8 @@ def main():
         def make_tag_list(row):
             tags = []
             wall_cols = [f'{c}_pct' for c in archetype_features['wall']]
-            if profile_df.columns.tolist() and all(c in row.index for c in wall_cols):
-                if row[wall_cols].mean() >= 80:
-                    tags.append('🛡️ Wall Defender')
+            if all(c in row.index for c in wall_cols) and row[wall_cols].mean() >= 80:
+                tags.append('🛡️ Wall Defender')
             spider_cols = [f'{c}_pct' for c in archetype_features['spider_leg']]
             if all(c in row.index for c in spider_cols) and row[spider_cols].mean() >= 80:
                 tags.append('🕷️ Spider Legs')
@@ -4086,7 +3985,6 @@ def main():
             return tags
 
         profile_df['Archetype_Tags'] = profile_df.apply(make_tag_list, axis=1)
-        tag_labels = ['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper']
 
         def score_axis(row, cols):
             cols_pct = [f'{c}_pct' for c in cols]
@@ -4103,83 +4001,60 @@ def main():
         profile_df['Core'] = profile_df.apply(lambda r: score_axis(r, ['Torso Collision', 'Chest Measurement', 'Waist Size']), axis=1)
         profile_df['Goalkeeping'] = profile_df.apply(lambda r: score_axis(r, ['Arm Length', 'Arm Coverage Radius']), axis=1)
 
-        preset = st.sidebar.selectbox('What player profile are you looking for?', [
-            '(None)',
-            'Strong dueler & wall defender',
-            'Hold-up forward/midfielder',
-            'Sweep tackler'
-        ])
-        st.sidebar.markdown('---')
-        selected_positions = st.sidebar.multiselect('Select positions', sorted(profile_df['Position'].dropna().unique()), default=sorted(profile_df['Position'].dropna().unique()))
-        selected_tags = st.sidebar.multiselect('Select archetype tags', tag_labels, default=tag_labels)
-        show_raw = st.sidebar.checkbox('Show detailed raw stats', value=False)
-
-        filter_col_left, filter_col_right = st.columns([3,1])
-        selected_type = filter_col_right.selectbox('Filter by body type', ['All'] + tag_labels, index=0)
+        goal_metric_map = {
+            'Balanced all-rounder': ['Power', 'Reach', 'Aerial', 'Stability'],
+            'Strong defender': ['Power', 'Stability', 'Core'],
+            'Aerial target': ['Aerial', 'Length', 'Power'],
+            'Ball-winning midfielder': ['Stability', 'Reach', 'Power'],
+            'Goalkeeper with reach': ['Goalkeeping', 'Reach', 'Length']
+        }
 
         results = profile_df.copy()
-        if preset == 'Strong dueler & wall defender':
-            results = results[results['Position'].isin(['CB'])]
-            results = results[results['Archetype_Tags'].apply(lambda tags: '🛡️ Wall Defender' in tags)]
-        elif preset == 'Hold-up forward/midfielder':
-            results = results[results['Position'].isin(['ST', 'MF', 'CM', 'AM', 'LM', 'RM'])]
-            results = results[results['Archetype_Tags'].apply(lambda tags: '🧱 Bulldozer' in tags)]
-        elif preset == 'Sweep tackler':
-            results = results[results['Position'].isin(['DMF', 'CB'])]
-            results = results[results['Archetype_Tags'].apply(lambda tags: '🕷️ Spider Legs' in tags)]
-
         results = results[results['Position'].isin(selected_positions)]
-        if selected_type != 'All':
-            results = results[results['Archetype_Tags'].apply(lambda tags: selected_type in tags)]
+        results = results[results['Rating'] >= min_rating]
         results = results[results['Archetype_Tags'].apply(lambda tags: any(tag in tags for tag in selected_tags))]
 
-        results['Tag_Display'] = results['Archetype_Tags'].apply(lambda tags: ' '.join(tags) if tags else '—')
-        results = results.sort_values(['Rating', 'Power', 'Reach'], ascending=[False, False, False])
+        if results.empty:
+            st.info("No players match these filters yet. Try widening the range or selecting different archetypes.")
+            return
 
-        tag_counts = {tag: results['Archetype_Tags'].apply(lambda tags: tag in tags).sum() for tag in tag_labels}
+        selected_metrics = goal_metric_map[scout_goal]
+        results['Fit Score'] = results.apply(
+            lambda row: round(0.6 * row['Rating'] + 0.4 * np.mean([row[m] for m in selected_metrics]), 1),
+            axis=1
+        )
+        results['Why'] = results.apply(
+            lambda row: ", ".join([
+                f"{', '.join(row['Archetype_Tags'])}" if row['Archetype_Tags'] else "no special archetype",
+                "strong in the air" if row['Aerial'] >= 85 else "solid aerial base",
+                "excellent reach" if row['Reach'] >= 85 else "good reach",
+                "very stable" if row['Stability'] >= 85 else "balanced body",
+            ])[:140],
+            axis=1
+        )
+        results = results.sort_values(['Fit Score', 'Rating', 'Power'], ascending=[False, False, False]).reset_index(drop=True)
 
-        results['Tag_Display'] = results['Archetype_Tags'].apply(lambda tags: ' '.join(tags) if tags else '—')
-        results = results.sort_values(['Rating', 'Power', 'Reach'], ascending=[False, False, False])
+        top_results = results.head(6).copy()
 
-        tag_counts = {tag: results['Archetype_Tags'].apply(lambda tags: tag in tags).sum() for tag in tag_labels}
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Best fit", top_results.iloc[0]['Player'] if not top_results.empty else '—', f"{top_results.iloc[0]['Fit Score']:.0f}/100" if not top_results.empty else '—')
+        c2.metric("Most common archetype", top_results.iloc[0]['Archetype_Tags'][0] if not top_results.empty and top_results.iloc[0]['Archetype_Tags'] else '—', f"{len(top_results[top_results['Archetype_Tags'].apply(lambda tags: bool(tags))])} players")
+        c3.metric("Top body group", top_results.iloc[0]['Body Cluster'] if not top_results.empty else '—', 'clustered by build')
+        c4.metric("Average rating", f"{results['Rating'].mean():.0f}", 'in current shortlist')
 
-        st.markdown('#### 🎯 Archetype Overview')
-        c1, c2, c3, c4, c5 = st.columns(5)
-        card_data = [
-            ('🛡️ Wall Defender', tag_counts['🛡️ Wall Defender'], 'Physical wall, strong contact, hold the line', c1),
-            ('🕷️ Spider Legs', tag_counts['🕷️ Spider Legs'], 'Tackles, range, interception coverage', c2),
-            ('✈️ Air Beast', tag_counts['✈️ Air Beast'], 'Aerial wins, jump, high ball control', c3),
-            ('🧱 Bulldozer', tag_counts['🧱 Bulldozer'], 'Stability, body strength, anchor play', c4),
-            ('🧤 Spider Keeper', tag_counts['🧤 Spider Keeper'], 'GK reach, arm span, shot coverage', c5),
-        ]
-        for title, count, desc, col in card_data:
-            col.markdown(f"<div style='background:#111827;padding:16px;border-radius:16px;border:1px solid rgba(255,255,255,0.08);'>"
-                         f"<div style='font-size:1rem;font-weight:700;margin-bottom:6px'>{title}</div>"
-                         f"<div style='font-size:2rem;font-weight:800;color:#60a5fa'>{count}</div>"
-                         f"<div style='font-size:0.85rem;color:#94a3b8;margin-top:8px'>{desc}</div>"
-                         f"</div>", unsafe_allow_html=True)
+        overview_tab, body_map_tab = st.tabs(["🎯 Smart shortlist", "📍 Body map"])
 
-        sort_mode = st.radio('Sort top candidates by:', ['Rating', 'Power', 'Reach', 'Aerial', 'Stability'], horizontal=True)
-        if sort_mode in results.columns:
-            results = results.sort_values(sort_mode, ascending=False)
-
-        st.markdown('---')
-        st.markdown('#### 🔥 Ranked candidate shortlist')
-
-        top_n = st.slider('Show top candidates', min_value=6, max_value=20, value=10, step=1)
-        results = results.copy()
-        top_results = results.head(top_n).copy()
-
-        if not top_results.empty:
+        with overview_tab:
             shortlist_col, detail_col = st.columns([2.2, 1.2])
-
             with shortlist_col:
-                st.caption('Ranked by your selected scoring mode')
+                st.caption("Players are ranked by how well they match your target role, not just by raw OVR.")
                 for idx, row in top_results.iterrows():
                     with st.container(border=True):
                         st.markdown(f"**{idx + 1}. {row['Player']}**")
-                        st.caption(f"{row['Position']} • {row['Club']} • {row['Nation']}")
-
+                        st.caption(f"{row['Position']} • {row['Club']} • {row['Nation']} • OVR {row['Rating']}")
+                        st.markdown(f"**Fit:** {row['Fit Score']:.0f}/100")
+                        st.caption(f"Why: {row['Why']}")
+                        st.caption(f"Archetype: {', '.join(row['Archetype_Tags']) if row['Archetype_Tags'] else 'None'} • Body: {row['Body Cluster']}")
                         metric_names = ['Power', 'Reach', 'Aerial', 'Stability']
                         metric_cols = st.columns(4)
                         for metric_col, metric_name in zip(metric_cols, metric_names):
@@ -4187,117 +4062,39 @@ def main():
                             metric_col.progress(int(row[metric_name]) / 100)
                             metric_col.caption(int(row[metric_name]))
 
-                        st.caption(f"Archetype: {', '.join(row['Archetype_Tags']) if row['Archetype_Tags'] else 'None'}")
-
             with detail_col:
-                selected_player = st.selectbox('Inspect candidate', options=['(None)'] + top_results['Player'].tolist())
+                selected_player = st.selectbox("Inspect player", options=['(None)'] + top_results['Player'].tolist())
                 if selected_player and selected_player != '(None)':
                     player_row = top_results[top_results['Player'] == selected_player].iloc[0]
                     st.markdown(f"### {player_row['Player']}")
                     st.markdown(f"**{player_row['Position']} • OVR {player_row['Rating']}**")
                     st.caption(f"{player_row['Club']} • {player_row['Nation']}")
                     st.markdown(f"**Archetype:** {', '.join(player_row['Archetype_Tags']) if player_row['Archetype_Tags'] else 'None'}")
-
-                    metric_names = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
-                    for metric_name in metric_names:
+                    st.markdown(f"**Body group:** {player_row['Body Cluster']}")
+                    for metric_name in ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']:
                         st.markdown(f"{metric_name}: {int(player_row[metric_name])}")
                         st.progress(int(player_row[metric_name]) / 100)
                 else:
-                    st.info('Select a candidate from the list to inspect its profile.')
-        else:
-            st.info('No candidates found for the current filters.')
+                    st.info("Pick a player from the shortlist to see a quick deep dive.")
 
-        st.markdown('---')
-        st.markdown('#### 🔍 Player Details')
-        sel_player = st.selectbox('Select player to view profile:', options=['(None)'] + results['Player'].tolist())
-        if sel_player and sel_player != '(None)':
-            player_row = results[results['Player'] == sel_player].iloc[0]
-            st.markdown(f"### {player_row['Player']} — {player_row['Position']} | OVR {player_row['Rating']}")
-            if player_row['Archetype_Tags']:
-                badges = ' '.join([f"<span style='background:#1f2937;color:#f8fafc;padding:6px 10px;border-radius:999px;margin-right:6px;font-size:0.9rem'>{tag}</span>" for tag in player_row['Archetype_Tags']])
-                st.markdown(badges, unsafe_allow_html=True)
-
-            radar_axes = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
-            radar_values = [
-                int(player_row['Power']),
-                int(player_row['Reach']),
-                int(player_row['Aerial']),
-                int(player_row['Stability']),
-                int(player_row['Length']),
-                int(player_row['Core'])
-            ]
-            if str(player_row['Position']).upper() == 'GK':
-                radar_axes.append('Goalkeeping')
-                radar_values.append(int(player_row['Goalkeeping']))
-
-            profile_radar_df = pd.DataFrame({'axis': radar_axes, 'value': radar_values})
-
-            archetype_ideal = {
-                '🛡️ Wall Defender': {'Power': 95, 'Reach': 90, 'Aerial': 85, 'Stability': 92, 'Length': 80, 'Core': 88, 'Goalkeeping': 0},
-                '🕷️ Spider Legs': {'Power': 80, 'Reach': 95, 'Aerial': 82, 'Stability': 88, 'Length': 94, 'Core': 75, 'Goalkeeping': 0},
-                '✈️ Air Beast': {'Power': 85, 'Reach': 88, 'Aerial': 98, 'Stability': 80, 'Length': 85, 'Core': 82, 'Goalkeeping': 0},
-                '🧱 Bulldozer': {'Power': 88, 'Reach': 78, 'Aerial': 80, 'Stability': 95, 'Length': 78, 'Core': 92, 'Goalkeeping': 0},
-                '🧤 Spider Keeper': {'Power': 70, 'Reach': 96, 'Aerial': 80, 'Stability': 88, 'Length': 90, 'Core': 78, 'Goalkeeping': 96},
-            }
-
-            selected_tags = [tag for tag in player_row['Archetype_Tags'] if tag in archetype_ideal]
-            if selected_tags:
-                ideal_values = {axis: np.mean([archetype_ideal[tag].get(axis, 0) for tag in selected_tags]) for axis in radar_axes}
-            else:
-                ideal_values = {axis: 65 for axis in radar_axes}
-
-            archetype_radar_df = pd.DataFrame({
-                'axis': radar_axes * 2,
-                'value': [ideal_values[a] for a in radar_axes] + radar_values,
-                'type': ['Archetype Ideal'] * len(radar_axes) + ['Player Profile'] * len(radar_axes)
-            })
-
-            fig = px.line_polar(archetype_radar_df, r='value', theta='axis', color='type', line_close=True, template='plotly_dark')
-            fig.update_traces(fill='toself', selector=dict(name='Player Profile'), marker=dict(size=8), line=dict(width=2))
-            fig.update_traces(fill='none', selector=dict(name='Archetype Ideal'), marker=dict(size=6), line=dict(dash='dash', width=2))
-            fig.update_layout(
-                polar=dict(
-                    bgcolor='rgba(17,24,39,0.8)',
-                    radialaxis=dict(gridcolor='rgba(148,163,184,0.24)', tickfont=dict(color='#cbd5e1')),
-                    angularaxis=dict(tickfont=dict(color='#e2e8f0'))
-                ),
-                legend=dict(orientation='h', y=-0.1, x=0.5, xanchor='center', font=dict(color='#cbd5e1')),
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='#e2e8f0',
-                margin=dict(l=0, r=0, t=20, b=0)
+        with body_map_tab:
+            st.caption("This body map groups similar physical profiles together so you can quickly spot patterns.")
+            fig = px.scatter(
+                sub_df,
+                x='PC1',
+                y='PC2',
+                color='Body Cluster',
+                hover_data=['Player', 'Position', 'Rating'],
+                size='Rating',
+                title='Body map of the current scout pool'
             )
-
-            st.markdown('**Radar profile**: compare the player with the best-matching archetype.')
+            apply_plotly_theme(fig)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-            st.markdown(
-                "**Radar notes:**<br>"
-                "- **Power**: upper-body force, collision impact, and physical presence.<br>"
-                "- **Reach**: limb extension, space coverage, and stretch range.<br>"
-                "- **Aerial**: jumping strength, high-ball control, and aerial dominance.<br>"
-                "- **Stability**: balance, body control, and resistance to being pushed off.<br>"
-                "- **Length**: overall reach and body span for covering space.<br>"
-                "- **Core**: torso strength, bracing power, and contact stability."
-                , unsafe_allow_html=True)
-
-            if show_raw:
-                raw_cols = [c for c in all_feat_cols if c in profile_df.columns]
-                raw_rows = player_row[raw_cols].to_frame(name='Value')
-                st.markdown('**Raw stat details**')
-                st.dataframe(raw_rows, use_container_width=True)
-
-        if results.empty:
-            st.warning('No players match the current filters. Try different tags or reset the preset.')
-
-        try:
-            export_df = results[['Player', 'Position', 'Rating', 'Club', 'Nation', 'Tag_Display']].rename(columns={'Tag_Display': 'Archetype'})
-            export_bytes = BytesIO()
-            with pd.ExcelWriter(export_bytes, engine='openpyxl') as writer:
-                export_df.to_excel(writer, index=False, sheet_name='Results')
-            export_bytes.seek(0)
-            st.download_button('📥 Download results to Excel', data=export_bytes, file_name='physical_profile_results.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        except Exception as e:
-            st.error(f'Error exporting Excel: {e}')
+            st.markdown("**Body groups in this view**")
+            cluster_counts = sub_df['Body Cluster'].value_counts().reset_index()
+            cluster_counts.columns = ['Body Group', 'Players']
+            st.dataframe(cluster_counts, use_container_width=True, hide_index=True)
 
     elif current_tab == 'players':
         st.header("👥 Players")
