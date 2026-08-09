@@ -3927,7 +3927,30 @@ def main():
                         prev = inertias[k]
                     suggested_k = best_k
 
-                k_choice = st.slider("Số cluster K", min_value=2, max_value=8, value=int(suggested_k))
+                # Quick user help and one-click presets
+                with st.expander("HƯỚNG DẪN NGẮN: 3 bước sử dụng nhanh", expanded=False):
+                    st.write("1) Chọn bộ lọc (tuỳ chọn). 2) Chọn K hoặc dùng preset. 3) Xem cụm và thêm vào giỏ / đồng bộ.")
+
+                preset_cols = st.columns([1,1,1,2])
+                with preset_cols[0]:
+                    if st.button("Preset: Defensive (K=4)"):
+                        st.session_state['body_preset_k'] = 4
+                        st.session_state['body_preset_mode'] = 'defensive'
+                with preset_cols[1]:
+                    if st.button("Preset: Balanced (K=5)"):
+                        st.session_state['body_preset_k'] = 5
+                        st.session_state['body_preset_mode'] = 'balanced'
+                with preset_cols[2]:
+                    if st.button("Preset: Attack (K=3)"):
+                        st.session_state['body_preset_k'] = 3
+                        st.session_state['body_preset_mode'] = 'attack'
+                with preset_cols[3]:
+                    mode = st.session_state.get('body_preset_mode', '(none)')
+                    kval = st.session_state.get('body_preset_k', '-')
+                    st.markdown(f"**Preset active:** {mode} — K={kval}")
+
+                k_default = st.session_state.get('body_preset_k', int(suggested_k))
+                k_choice = st.slider("Số cluster K", min_value=2, max_value=8, value=int(k_default))
 
                 # Run KMeans with chosen K when user click run or always run
                 labels, kmodel, inertia_val = compute_kmeans(X_for_cluster, int(k_choice))
