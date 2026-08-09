@@ -4015,35 +4015,6 @@ def main():
                 display_cols = ['Player','Position','Rating','Cluster','Cluster Name'] + feature_cols
                 st.dataframe(filtered[display_cols].sort_values(['Cluster','Rating'], ascending=[True, False]), use_container_width=True)
 
-                # Team basket (independent)
-                if 'body_basket' not in st.session_state:
-                    st.session_state['body_basket'] = []
-
-                st.markdown("**Team basket (independent)**")
-                pick_col1, pick_col2 = st.columns([3,1])
-                pick_list = pick_col1.multiselect("Select players to add to basket", options=filtered['Player'].tolist())
-                if pick_col2.button("Add to basket"):
-                    for p in pick_list:
-                        if p not in st.session_state['body_basket']:
-                            st.session_state['body_basket'].append(p)
-
-                if st.session_state['body_basket']:
-                    st.markdown(f"**Currently {len(st.session_state['body_basket'])} players in basket**")
-                    st.write(st.session_state['body_basket'])
-                    if st.button("Clear basket" ):
-                        st.session_state['body_basket'] = []
-
-                    # Imbalance warning
-                    basket_df = sub_df[sub_df['Player'].isin(st.session_state['body_basket'])].copy()
-                    if not basket_df.empty:
-                        # Map to style group
-                        basket_df['Style Group'] = basket_df['Position'].map(lambda p: POSITIONS.get(p, 'Other'))
-                        for style in ['Defender','Midfielder','Forward']:
-                            grp = basket_df[basket_df['Style Group']==style]
-                            if len(grp) >= 3:
-                                top_cluster = grp['Cluster'].value_counts(normalize=True).max()
-                                if top_cluster >= 0.7:
-                                    st.warning(f"⚠️ The {style} group is heavily skewed to one cluster ({top_cluster*100:.0f}%). Consider adding more physical diversity.")
                 to_export = filtered.copy()
                 to_export['Cluster Name'] = to_export['Cluster Name'].astype(str)
                 to_export = to_export[display_cols]
@@ -4192,9 +4163,6 @@ def main():
         if sort_mode in results.columns:
             results = results.sort_values(sort_mode, ascending=False)
 
-        if 'profile_basket' not in st.session_state:
-            st.session_state['profile_basket'] = []
-
         st.markdown('---')
         st.markdown('#### 🔥 Ranked candidate shortlist')
 
@@ -4209,13 +4177,8 @@ def main():
                 st.caption('Ranked by your selected scoring mode')
                 for idx, row in top_results.iterrows():
                     with st.container(border=True):
-                        head_col, action_col = st.columns([4, 1])
-                        head_col.markdown(f"**{idx + 1}. {row['Player']}**")
-                        head_col.caption(f"{row['Position']} • {row['Club']} • {row['Nation']}")
-                        if action_col.button('Add', key=f'add_rank_{idx}'):
-                            if row['Player'] not in st.session_state['profile_basket']:
-                                st.session_state['profile_basket'].append(row['Player'])
-                                st.success(f'Added {row["Player"]} to basket')
+                        st.markdown(f"**{idx + 1}. {row['Player']}**")
+                        st.caption(f"{row['Position']} • {row['Club']} • {row['Nation']}")
 
                         metric_names = ['Power', 'Reach', 'Aerial', 'Stability']
                         metric_cols = st.columns(4)
@@ -4239,27 +4202,10 @@ def main():
                     for metric_name in metric_names:
                         st.markdown(f"{metric_name}: {int(player_row[metric_name])}")
                         st.progress(int(player_row[metric_name]) / 100)
-
-                    if st.button('Add inspected player to basket'):
-                        if selected_player not in st.session_state['profile_basket']:
-                            st.session_state['profile_basket'].append(selected_player)
-                            st.success(f'Added {selected_player} to basket')
                 else:
                     st.info('Select a candidate from the list to inspect its profile.')
         else:
             st.info('No candidates found for the current filters.')
-
-        st.markdown('---')
-        st.markdown('#### 🧺 Selection Basket')
-        if st.session_state['profile_basket']:
-            for i, player_name in enumerate(st.session_state['profile_basket']):
-                remove_col, name_col = st.columns([1, 9])
-                name_col.markdown(f"- {player_name}")
-                if remove_col.button('Remove', key=f'remove_{i}'):
-                    st.session_state['profile_basket'].remove(player_name)
-                    st.experimental_rerun()
-        else:
-            st.info('No players in basket yet. Click Add to basket on a card to save.')
 
         st.markdown('---')
         st.markdown('#### 🔍 Player Details')
