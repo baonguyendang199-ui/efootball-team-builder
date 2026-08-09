@@ -3579,42 +3579,42 @@ def main():
     
         # 3. Menu điều hướng
         main_menu = st.radio(
-            "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🦴 Body Build", "🎮 Manage Skills"],
+            "Menu",
+            ["Overview", "Players", "Body", "Skills"],
             index=0
         )
 
         # Điều hướng chi tiết
-        if main_menu == "📊 Overview":
+        if main_menu == "Overview":
             st.session_state.current_tab = "overview"
 
-        elif main_menu == "🦴 Body Build":
+        elif main_menu == "Body":
             st.session_state.current_tab = "body_build"
 
-        elif main_menu == "👥 Manage Players":
+        elif main_menu == "Players":
             sub_menu = st.radio(
-                "⚽ Player",
-                ["Player List", "Squad", "Add Player"],
+                "Player",
+                ["List", "Squad", "Add"],
                 index=0
             )
-            if sub_menu == "Player List":
+            if sub_menu == "List":
                 st.session_state.current_tab = "players"
             elif sub_menu == "Squad":
                 st.session_state.current_tab = "squad"
-            elif sub_menu == "Add Player":
+            elif sub_menu == "Add":
                 st.session_state.current_tab = "add"
             else:
                 st.session_state.current_tab = "players"
 
-        elif main_menu == "🎮 Manage Skills":
+        elif main_menu == "Skills":
             sub_menu = st.radio(
-                "🛠️ Skills",
-                ["Manage", "Skill Inventory"],
+                "Skills",
+                ["Manage", "Inventory"],
                 index=0
             )
             if sub_menu == "Manage":
                 st.session_state.current_tab = "skills"
-            elif sub_menu == "Skill Inventory":
+            elif sub_menu == "Inventory":
                 st.session_state.current_tab = "inventory"
             else:
                 st.session_state.current_tab = "skills"
@@ -4004,8 +4004,8 @@ def main():
 
 
     elif current_tab == 'body_build':
-        st.header("🦴 Body Build Analyzer")
-        st.caption("Physical profile scoring with body type suggestions for each player.")
+        st.header("Body Build")
+        st.caption("Body profile and fit insights.")
 
         body_profile_df = analyze_body_build(df)
         if body_profile_df.empty:
@@ -4018,7 +4018,7 @@ def main():
             st.dataframe(top_profiles[display_cols].rename(columns={'_body_score': 'Body Score', '_body_type': 'Body Type', '_best_fit': 'Best Fit'}), use_container_width=True, hide_index=True)
 
     elif current_tab == 'players':
-        st.header("👥 Players")
+        st.header("Players")
 
         SQUAD_SIZE = 23  # Số cầu thủ mỗi team
 
@@ -4427,8 +4427,8 @@ def main():
         body_profile_df = analyze_body_build(filtered_df)
         if not body_profile_df.empty:
             with st.container(border=True):
-                st.markdown("#### 🦴 Body build analyzer")
-                st.caption("Quick physical profile scoring based on height, weight, and limb measurements.")
+                st.markdown("#### Body profile")
+                st.caption("Compact physical profile for the current list.")
 
                 if selected_player_name and selected_player_name != "(None)":
                     selected_profile = body_profile_df[body_profile_df['Player'].astype(str) == selected_player_name]
@@ -4450,7 +4450,7 @@ def main():
         # 5. PLAYER DETAIL INSPECTOR
         if not filtered_df.empty:
             with st.container(border=True):
-                st.markdown("#### 🧭 Player intelligence snapshot")
+                st.markdown("#### Player snapshot")
                 detail_col1, detail_col2 = st.columns([2.5, 1.0])
                 with detail_col1:
                     player_options = ["(None)"] + filtered_df['Player'].astype(str).tolist()
