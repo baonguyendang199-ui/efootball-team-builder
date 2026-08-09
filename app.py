@@ -3916,8 +3916,24 @@ def main():
         if scout_df.empty:
             st.info("No candidates match these filters. Try widening the range.")
         else:
-            shortlist = scout_df[['Player', 'Position', 'Club', 'Nation', 'Rating', 'Player Type', 'Action', 'Reasons']].head(20).copy()
-            shortlist.columns = ['Player', 'Position', 'Club', 'Nation', 'OVR', 'Type', 'Action', 'Reason']
+            shortlist_columns = ['Player']
+            if position_col:
+                shortlist_columns.append(position_col)
+            if 'Club' in scout_df.columns:
+                shortlist_columns.append('Club')
+            if 'Nation' in scout_df.columns:
+                shortlist_columns.append('Nation')
+            if 'Rating' in scout_df.columns:
+                shortlist_columns.append('Rating')
+            if player_type_col:
+                shortlist_columns.append(player_type_col)
+            if action_col:
+                shortlist_columns.append(action_col)
+            if 'Reasons' in scout_df.columns:
+                shortlist_columns.append('Reasons')
+
+            shortlist = scout_df[shortlist_columns].head(20).copy()
+            shortlist = shortlist.rename(columns={'Rating': 'OVR', 'Reasons': 'Reason'})
             st.dataframe(shortlist, use_container_width=True, hide_index=True)
 
             player_names = [str(x) for x in scout_df['Player'].astype(str).tolist()]
@@ -3940,10 +3956,12 @@ def main():
                     st.markdown(f"**Why it stands out:** {reason_text}")
 
             decision = "Target"
-            action_text = str(detail_row.get('Action', '')).upper()
+            action_text = str(detail_row.get('Action', '')).upper() if action_col else ""
             if 'SELL' in action_text:
                 decision = "Avoid"
-            elif str(detail_row.get('Player Type', '')).upper() in ['EPIC', 'POTW'] or int(detail_row.get('Rating', 0)) >= 90:
+            elif player_type_col and str(detail_row.get(player_type_col, '')).upper() in ['EPIC', 'POTW']:
+                decision = "Target"
+            elif int(detail_row.get('Rating', 0)) >= 90:
                 decision = "Target"
             else:
                 decision = "Watch"
