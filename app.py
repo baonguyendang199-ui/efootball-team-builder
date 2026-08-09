@@ -3427,13 +3427,16 @@ def main():
         # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills"],
+            ["📊 Overview", "👥 Manage Players", "🧭 Player Intelligence", "🎮 Manage Skills"],
             index=0
         )
 
         # Điều hướng chi tiết
         if main_menu == "📊 Overview":
             st.session_state.current_tab = "overview"
+
+        elif main_menu == "🧭 Player Intelligence":
+            st.session_state.current_tab = "intelligence"
 
         elif main_menu == "👥 Manage Players":
             sub_menu = st.radio(
