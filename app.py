@@ -3427,7 +3427,7 @@ def main():
         # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills", "🏋️ Body Analysis", "🏋️ Physical Profile"],
+            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills", "⚡ Ultimate Scout"],
             index=0
         )
 
@@ -3850,6 +3850,26 @@ def main():
         st.header("⚡ Ultimate Scout")
         st.caption("One view that combines body shape, physical archetype, and match quality. This is built to help you understand who truly fits your target role.")
 
+        action_col1, action_col2, action_col3 = st.columns([1.2, 1.2, 2.2])
+        with action_col1:
+            scout_now = st.button("🔎 Scout now", use_container_width=True)
+        with action_col2:
+            reset_filters = st.button("🔄 Reset filters", use_container_width=True)
+        with action_col3:
+            show_full_matches = st.button("📋 Show full list", use_container_width=True)
+
+        if scout_now:
+            st.session_state['ultimate_scouted'] = True
+            st.success("Scouting profile refreshed.")
+
+        if reset_filters:
+            for key in ['ultimate_goal', 'ultimate_positions', 'ultimate_min_rating', 'ultimate_tags', 'ultimate_body_group_mode', 'ultimate_group', 'ultimate_show_full', 'ultimate_scouted']:
+                st.session_state.pop(key, None)
+            st.success("Filters reset.")
+
+        if show_full_matches:
+            st.session_state['ultimate_show_full'] = True
+
         missing_cols = check_body_columns(df)
         if missing_cols:
             st.warning("⚠️ Some body measurement columns are missing, so clustering is limited: " + ", ".join(missing_cols))
@@ -3886,27 +3906,29 @@ def main():
                     "Ball-winning midfielder",
                     "Goalkeeper with reach"
                 ],
-                index=0
+                index=0,
+                key='ultimate_goal'
             )
             st.caption("The ranking below mixes rating, archetype, and body profile into one simple fit score.")
             st.markdown("---")
 
             positions = sorted(get_unique_values(df, 'Position'))
-            selected_positions = st.multiselect("Positions", positions, default=positions)
-            min_rating = st.slider("Minimum overall rating", min_value=0, max_value=100, value=70)
+            selected_positions = st.multiselect("Positions", positions, default=positions, key='ultimate_positions')
+            min_rating = st.slider("Minimum overall rating", min_value=0, max_value=100, value=70, key='ultimate_min_rating')
             selected_tags = st.multiselect(
                 "Archetypes to include",
                 ['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper'],
-                default=['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper']
+                default=['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper'],
+                key='ultimate_tags'
             )
             st.markdown("---")
-            body_group_mode = st.radio("Body grouping", ["Position", "Position Style"], horizontal=True)
+            body_group_mode = st.radio("Body grouping", ["Position", "Position Style"], horizontal=True, key='ultimate_body_group_mode')
             if body_group_mode == "Position":
                 group_options = ['(All)'] + sorted(get_unique_values(df, 'Position'))
-                chosen_group = st.selectbox("Focus on", group_options, index=0)
+                chosen_group = st.selectbox("Focus on", group_options, index=0, key='ultimate_group')
             else:
                 group_options = ['(All)'] + sorted(get_unique_values(df, 'Position Style'))
-                chosen_group = st.selectbox("Focus on", group_options, index=0)
+                chosen_group = st.selectbox("Focus on", group_options, index=0, key='ultimate_group')
 
         if body_group_mode == "Position" and chosen_group and chosen_group != '(All)':
             sub_df = df[df['Position'].astype(str) == chosen_group].copy()
@@ -4034,7 +4056,8 @@ def main():
         )
         results = results.sort_values(['Fit Score', 'Rating', 'Power'], ascending=[False, False, False]).reset_index(drop=True)
 
-        top_results = results.head(6).copy()
+        show_full = st.session_state.get('ultimate_show_full', False)
+        top_results = results.head(20 if show_full else 6).copy()
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Best fit", top_results.iloc[0]['Player'] if not top_results.empty else '—', f"{top_results.iloc[0]['Fit Score']:.0f}/100" if not top_results.empty else '—')
