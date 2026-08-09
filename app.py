@@ -3854,41 +3854,69 @@ def main():
 
     elif current_tab == 'intelligence':
         st.header("🧭 Player Intelligence")
-        st.caption("Focused scouting-style profile view for individual players.")
+        st.caption("A practical scouting workspace: filter candidates, review shortlist, and get a fast recommendation.")
 
-        search_term = st.text_input("Search player, club or nation", placeholder="Type a name or club...")
-        work_df = df.copy()
-        if search_term:
-            mask = (
-                work_df['Player'].astype(str).str.contains(search_term, case=False, na=False) |
-                work_df['Club'].astype(str).str.contains(search_term, case=False, na=False) |
-                work_df['Nation'].astype(str).str.contains(search_term, case=False, na=False)
-            )
-            work_df = work_df[mask]
+        def clean_value(value, default="-"):
+            if value is None:
+                return default
+            if isinstance(value, (float, int)) and pd.isna(value):
+                return default
+            text = str(value).strip()
+            return text if text else default
 
-        if work_df.empty:
-            st.info("No matching players found.")
+        def fmt_metric(value):
+            if value is None:
+                return "-"
+            if isinstance(value, (float, int)) and pd.isna(value):
+                return "-"
+            return f"{value:.2f}" if isinstance(value, float) else str(value)
+
+        scout_df = df.copy()
+        scout_df['Rating_num'] = pd.to_numeric(scout_df['Rating'], errors='coerce')
+        scout_df['Height_num'] = pd.to_numeric(scout_df['Height'], errors='coerce')
+        scout_df['Weight_num'] = pd.to_numeric(scout_df['Weight'], errors='coerce')
+
+        position_options = ["All"] + sorted([p for p in scout_df['Position'].dropna().astype(str).unique() if p])
+        player_type_options = ["All"] + sorted([p for p in scout_df['Player Type'].dropna().astype(str).unique() if p])
+        action_options = ["All"] + sorted([a for a in scout_df['Action'].dropna().astype(str).unique() if a])
+
+        filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
+        with filter_col1:
+            selected_position = st.selectbox("Position", position_options, key="intel_position")
+        with filter_col2:
+            selected_type = st.selectbox("Type", player_type_options, key="intel_type")
+        with filter_col3:
+            selected_action = st.selectbox("Action", action_options, key="intel_action")
+        with filter_col4:
+            min_rating = st.slider("Min OVR", min_value=70, max_value=105, value=80, step=1, key="intel_min_rating")
+
+        if selected_position != "All":
+            scout_df = scout_df[scout_df['Position'].astype(str) == selected_position]
+        if selected_type != "All":
+            scout_df = scout_df[scout_df['Player Type'].astype(str) == selected_type]
+        if selected_action != "All":
+            scout_df = scout_df[scout_df['Action'].astype(str) == selected_action]
+        scout_df = scout_df[scout_df['Rating_num'] >= min_rating]
+
+        scout_df = scout_df.sort_values(['Rating_num', 'Player'], ascending=[False, True])
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Candidates", len(scout_df))
+        m2.metric("Top rated", clean_value(scout_df['Player'].iloc[0]) if not scout_df.empty else "-")
+        m3.metric("Sell risk", len(scout_df[scout_df['Action'].astype(str).str.contains('SELL', case=False, na=False)]))
+
+        if scout_df.empty:
+            st.info("No candidates match these filters. Try widening the range.")
         else:
-            player_names = [str(x) for x in work_df['Player'].astype(str).tolist()]
-            selected_player_name = st.selectbox("Select a player", player_names, key="intel_player_select")
-            detail_row = work_df.loc[work_df['Player'].astype(str) == selected_player_name].iloc[0]
+            shortlist = scout_df[['Player', 'Position', 'Club', 'Nation', 'Rating', 'Player Type', 'Action', 'Reasons']].head(20).copy()
+            shortlist.columns = ['Player', 'Position', 'Club', 'Nation', 'OVR', 'Type', 'Action', 'Reason']
+            st.dataframe(shortlist, use_container_width=True, hide_index=True)
+
+            player_names = [str(x) for x in scout_df['Player'].astype(str).tolist()]
+            selected_player_name = st.selectbox("Inspect a candidate", player_names, key="intel_player_select")
+            detail_row = scout_df.loc[scout_df['Player'].astype(str) == selected_player_name].iloc[0]
 
             detail_img = f"https://pesdb.net/assets/img/card/f{str(detail_row.get('Player ID', '')).strip()}.png" if str(detail_row.get('Player ID', '')).strip() else "https://pesdb.net/assets/img/card/f0.png"
-
-            def clean_value(value, default="-"):
-                if value is None:
-                    return default
-                if isinstance(value, (float, int)) and pd.isna(value):
-                    return default
-                text = str(value).strip()
-                return text if text else default
-
-            def fmt_metric(value):
-                if value is None:
-                    return "-"
-                if isinstance(value, (float, int)) and pd.isna(value):
-                    return "-"
-                return f"{value:.2f}" if isinstance(value, float) else str(value)
 
             st.markdown("---")
             info_col, image_col = st.columns([2.2, 1.0])
@@ -3902,6 +3930,19 @@ def main():
                 reason_text = clean_value(detail_row.get('Reasons'))
                 if reason_text != "-":
                     st.markdown(f"**Why it stands out:** {reason_text}")
+
+            decision = "Target"
+            action_text = str(detail_row.get('Action', '')).upper()
+            if 'SELL' in action_text:
+                decision = "Avoid"
+            elif str(detail_row.get('Player Type', '')).upper() in ['EPIC', 'POTW'] or int(detail_row.get('Rating', 0)) >= 90:
+                decision = "Target"
+            else:
+                decision = "Watch"
+
+            with st.container(border=True):
+                st.markdown(f"**Fast decision:** {decision}")
+                st.caption("Use this as a quick scouting verdict before deeper review.")
 
             metric_cols = st.columns(4)
             with metric_cols[0]:
@@ -3935,10 +3976,7 @@ def main():
                     skill_html.append(f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(74, 222, 128, 0.12); color:#4ade80; border:1px solid rgba(74, 222, 128, 0.22); border-radius:999px; font-size:0.86rem;'>+ {s}</span>")
                 st.markdown(" ".join(skill_html), unsafe_allow_html=True)
 
-        if st.button("Open full profile", use_container_width=True, key="intel_full_profile") and not work_df.empty:
-            selected_player_name = st.session_state.get('intel_player_select')
-            if selected_player_name:
-                detail_row = work_df.loc[work_df['Player'].astype(str) == selected_player_name].iloc[0]
+            if st.button("Open full profile", use_container_width=True, key="intel_full_profile"):
                 show_player_modal(detail_row)
 
     elif current_tab == 'players':
