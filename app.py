@@ -4043,7 +4043,7 @@ def main():
                             if len(grp) >= 3:
                                 top_cluster = grp['Cluster'].value_counts(normalize=True).max()
                                 if top_cluster >= 0.7:
-                            st.warning(f"⚠️ The {style} group is heavily skewed to one cluster ({top_cluster*100:.0f}%). Consider adding more physical diversity.")
+                                    st.warning(f"⚠️ The {style} group is heavily skewed to one cluster ({top_cluster*100:.0f}%). Consider adding more physical diversity.")
                 to_export = filtered.copy()
                 to_export['Cluster Name'] = to_export['Cluster Name'].astype(str)
                 to_export = to_export[display_cols]
