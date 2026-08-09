@@ -3403,6 +3403,104 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         # Trả về DF để Main App hiển thị nút tải xuống
         return final_df
 
+def analyze_body_build(df):
+    """Return a lightweight physical-profile analysis for each player."""
+    work_df = df.copy()
+    if work_df.empty:
+        return work_df
+
+    def to_number(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return np.nan
+
+    def percentile_score(series, value):
+        values = pd.to_numeric(series, errors='coerce').dropna()
+        if values.empty or pd.isna(value):
+            return 50
+        if len(values) < 2:
+            return 50
+        return int(round((values.le(value).mean()) * 100))
+
+    def body_type_from_scores(overall_score, build_score, limb_score):
+        if overall_score >= 85 and limb_score >= 75:
+            return "Powerful / Reach"
+        if overall_score >= 78 and build_score >= 70:
+            return "Physical / Duel"
+        if limb_score >= 75 and overall_score >= 70:
+            return "Long-limbed / Aerial"
+        if overall_score <= 55:
+            return "Lean / Agile"
+        return "Balanced / All-round"
+
+    def best_fit_from_scores(overall_score, build_score, limb_score):
+        if overall_score >= 85 and limb_score >= 75:
+            return "Best for aerial or physical roles"
+        if build_score >= 75:
+            return "Best for strength-heavy duels"
+        if limb_score >= 75:
+            return "Best for reach and mobility"
+        if overall_score <= 55:
+            return "Best for light and agile profiles"
+        return "Best for balanced all-round use"
+
+    height_series = pd.to_numeric(work_df['Height'], errors='coerce').dropna() if 'Height' in work_df.columns else pd.Series(dtype=float)
+    weight_series = pd.to_numeric(work_df['Weight'], errors='coerce').dropna() if 'Weight' in work_df.columns else pd.Series(dtype=float)
+
+    limb_candidates = []
+    for col in ['Arm Size', 'Leg Size', 'Arm Length', 'Leg Length', 'Shoulder Width', 'Chest Measurement', 'Calf Size']:
+        if col in work_df.columns:
+            limb_candidates.append(col)
+
+    limb_series_map = {col: pd.to_numeric(work_df[col], errors='coerce').dropna() for col in limb_candidates}
+
+    rows = []
+    for _, row in work_df.iterrows():
+        height = to_number(row.get('Height'))
+        weight = to_number(row.get('Weight'))
+
+        height_score = percentile_score(height_series, height) if 'Height' in work_df.columns else 50
+        weight_score = percentile_score(weight_series, weight) if 'Weight' in work_df.columns else 50
+
+        build_score = 50
+        if height and weight and height > 0:
+            bmi = weight / ((height / 100) ** 2)
+            if bmi >= 24:
+                build_score = 70 + min(20, int((bmi - 24) * 8))
+            elif bmi <= 20:
+                build_score = 55 - min(20, int((20 - bmi) * 6))
+            else:
+                build_score = 60
+
+        limb_scores = []
+        for col in limb_candidates:
+            limb_value = to_number(row.get(col))
+            if pd.notna(limb_value):
+                limb_scores.append(percentile_score(limb_series_map[col], limb_value))
+
+        limb_score = int(round(sum(limb_scores) / len(limb_scores))) if limb_scores else 50
+        overall_score = int(round((height_score * 0.35) + (build_score * 0.35) + (limb_score * 0.30)))
+
+        rows.append({
+            'Player': row.get('Player', ''),
+            'Height': row.get('Height', ''),
+            'Weight': row.get('Weight', ''),
+            'Arm Size': row.get('Arm Size', ''),
+            'Leg Size': row.get('Leg Size', ''),
+            '_body_score': overall_score,
+            '_body_type': body_type_from_scores(overall_score, build_score, limb_score),
+            '_best_fit': best_fit_from_scores(overall_score, build_score, limb_score),
+            '_build_score': int(round(build_score)),
+            '_limb_score': limb_score,
+            '_height_score': height_score,
+            '_weight_score': weight_score,
+        })
+
+    result = pd.DataFrame(rows)
+    return result
+
+
 # --- MAIN APP ---
 def main():
     initialize_session_state()
@@ -4255,6 +4353,28 @@ def main():
         m4.metric("POTW count", len(filtered_df[filtered_df['Player Type'] == 'POTW']))
         m5.metric("Recommended SELL", len(filtered_df[filtered_df['Action'] == '❌ SELL']))
         st.markdown("---")
+
+        body_profile_df = analyze_body_build(filtered_df)
+        if not body_profile_df.empty:
+            with st.container(border=True):
+                st.markdown("#### 🦴 Body build analyzer")
+                st.caption("Quick physical profile scoring based on height, weight, and limb measurements.")
+
+                if selected_player_name and selected_player_name != "(None)":
+                    selected_profile = body_profile_df[body_profile_df['Player'].astype(str) == selected_player_name]
+                    if not selected_profile.empty:
+                        selected_profile = selected_profile.iloc[0]
+                        b1, b2, b3 = st.columns(3)
+                        b1.metric("Body score", f"{int(selected_profile['_body_score'])}/100")
+                        b2.metric("Body type", selected_profile['_body_type'])
+                        b3.metric("Best fit", selected_profile['_best_fit'])
+                        st.progress(min(100, max(0, int(selected_profile['_body_score']))) / 100)
+                        st.caption(f"Height signal: {int(selected_profile['_height_score'])}/100 • Build signal: {int(selected_profile['_build_score'])}/100 • Limb signal: {int(selected_profile['_limb_score'])}/100")
+
+                top_profiles = body_profile_df.sort_values('_body_score', ascending=False).head(10)
+                display_cols = ['Player', 'Height', 'Weight', 'Arm Size', 'Leg Size', '_body_score', '_body_type', '_best_fit']
+                display_cols = [c for c in display_cols if c in top_profiles.columns]
+                st.dataframe(top_profiles[display_cols].rename(columns={'_body_score': 'Body Score', '_body_type': 'Body Type', '_best_fit': 'Best Fit'}), use_container_width=True, hide_index=True)
 
         # 5. PLAYER DETAIL INSPECTOR
         if not filtered_df.empty:
