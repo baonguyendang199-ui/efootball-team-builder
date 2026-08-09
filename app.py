@@ -4254,7 +4254,95 @@ def main():
         m5.metric("Recommended SELL", len(filtered_df[filtered_df['Action'] == '❌ SELL']))
         st.markdown("---")
 
-        # 5. HIỂN THỊ DỮ LIỆU
+        # 5. PLAYER DETAIL INSPECTOR
+        if not filtered_df.empty:
+            with st.container(border=True):
+                st.markdown("#### 🧭 Player intelligence snapshot")
+                detail_col1, detail_col2 = st.columns([2.5, 1.0])
+                with detail_col1:
+                    player_options = ["(None)"] + filtered_df['Player'].astype(str).tolist()
+                    selected_player_name = st.selectbox(
+                        "Select a player",
+                        options=player_options,
+                        index=0,
+                        key="player_detail_select"
+                    )
+                with detail_col2:
+                    if selected_player_name and selected_player_name != "(None)":
+                        if st.button("Open full profile", use_container_width=True, key="open_detail_profile"):
+                            detail_row = filtered_df.loc[filtered_df['Player'].astype(str) == selected_player_name].iloc[0]
+                            show_player_modal(detail_row)
+
+                if selected_player_name and selected_player_name != "(None)":
+                    detail_row = filtered_df.loc[filtered_df['Player'].astype(str) == selected_player_name].iloc[0]
+                    detail_img = f"https://pesdb.net/assets/img/card/f{str(detail_row.get('Player ID', '')).strip()}.png" if str(detail_row.get('Player ID', '')).strip() else "https://pesdb.net/assets/img/card/f0.png"
+
+                    def clean_value(value, default="-"):
+                        if value is None:
+                            return default
+                        if isinstance(value, (float, int)):
+                            if pd.isna(value):
+                                return default
+                            return value
+                        text = str(value).strip()
+                        return text if text else default
+
+                    def fmt_metric(value):
+                        if isinstance(value, (float, int)):
+                            if pd.isna(value):
+                                return "-"
+                            return f"{value:.2f}" if isinstance(value, float) else str(value)
+                        return str(value)
+
+                    detail_cols = st.columns([1.0, 2.2])
+                    with detail_cols[0]:
+                        st.image(detail_img, width=150)
+                    with detail_cols[1]:
+                        st.markdown(f"### {clean_value(detail_row.get('Player'))}")
+                        st.caption(f"{clean_value(detail_row.get('Position'))} • {clean_value(detail_row.get('Club'))} • {clean_value(detail_row.get('Nation'))}")
+                        st.markdown(f"**Profile type:** {clean_value(detail_row.get('Player Type'))}")
+                        st.markdown(f"**Recommendation:** {clean_value(detail_row.get('Action'))}")
+                        reason_text = clean_value(detail_row.get('Reasons'))
+                        if reason_text != "-":
+                            st.markdown(f"**Why it stands out:** {reason_text}")
+
+                    metric_cols = st.columns(4)
+                    with metric_cols[0]:
+                        st.metric("OVR", fmt_metric(detail_row.get('Rating', '-')))
+                    with metric_cols[1]:
+                        bmi_val = detail_row.get('_num_BMI')
+                        st.metric("BMI", fmt_metric(bmi_val) if bmi_val not in [None, ''] else "-")
+                    with metric_cols[2]:
+                        height_val = detail_row.get('Height')
+                        st.metric("Height", fmt_metric(height_val) if height_val not in [None, ''] else "-")
+                    with metric_cols[3]:
+                        weight_val = detail_row.get('Weight')
+                        st.metric("Weight", fmt_metric(weight_val) if weight_val not in [None, ''] else "-")
+
+                    body_fields = [f for f in PESDATA_BODY_MODEL_FIELDS if str(detail_row.get(f, '') or '').strip()]
+                    if body_fields:
+                        st.markdown("**Body model snapshot**")
+                        body_html = " ".join(
+                            [f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:999px; font-size:0.86rem;'>{field}: {clean_value(detail_row.get(field))}</span>" for field in body_fields[:6]]
+                        )
+                        st.markdown(body_html, unsafe_allow_html=True)
+
+                    skill_list = [s.strip() for s in str(detail_row.get('Skills', '')).split(',') if s.strip()]
+                    added_skills = [s.strip() for s in str(detail_row.get('Added Skills', '')).split(',') if s.strip()]
+                    if skill_list or added_skills:
+                        st.markdown("**Skill profile**")
+                        skill_html = []
+                        for s in skill_list:
+                            skill_html.append(f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.12); border-radius:999px; font-size:0.86rem;'>⭐ {s}</span>")
+                        for s in added_skills:
+                            skill_html.append(f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(74, 222, 128, 0.12); color:#4ade80; border:1px solid rgba(74, 222, 128, 0.22); border-radius:999px; font-size:0.86rem;'>+ {s}</span>")
+                        st.markdown(" ".join(skill_html), unsafe_allow_html=True)
+                else:
+                    st.info("Select a player to view a structured profile summary.")
+
+        st.markdown("---")
+
+        # 6. HIỂN THỊ DỮ LIỆU
         if view_mode == "📋 Table":
             table_df = filtered_df.copy()
             def get_img_link(row):
