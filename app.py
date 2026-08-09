@@ -4195,33 +4195,57 @@ def main():
         if 'profile_basket' not in st.session_state:
             st.session_state['profile_basket'] = []
 
-        view_mode = st.radio('Display results as:', ['Table', 'Card Grid'], horizontal=True)
-
         st.markdown('---')
-        st.markdown('#### 🔥 Top candidates')
-        top_results = results.head(12).copy()
+        st.markdown('#### 🔥 Candidate scatter plot')
 
-        if view_mode == 'Table':
-            display_table = top_results[['Player', 'Position', 'Rating', 'Club', 'Nation', 'Tag_Display']].copy()
-            display_table['Tag_Display'] = display_table['Tag_Display'].str.replace(', ', ' | ')
-            st.dataframe(display_table.rename(columns={'Tag_Display': 'Style'}), use_container_width=True)
-        else:
-            card_cols = st.columns(3)
-            for idx, row in top_results.iterrows():
-                col = card_cols[idx % 3]
-                tag_html = ' '.join([f"<span style='background:#111827;color:#f8fafc;padding:5px 8px;border-radius:12px;margin-right:4px;font-size:0.8rem'>{tag}</span>" for tag in row['Archetype_Tags']])
-                col.markdown(f"<div style='background:#111827;padding:16px;border-radius:18px;border:1px solid rgba(255,255,255,0.1);margin-bottom:18px;'>"
-                             f"<div style='font-size:1.1rem;font-weight:700;margin-bottom:4px'>{row['Player']}</div>"
-                             f"<div style='font-size:0.9rem;color:#94a3b8;margin-bottom:8px'>{row['Position']} • {row['Club']} • {row['Nation']}</div>"
-                             f"<div style='font-size:2rem;font-weight:700;color:#f59e0b;margin-bottom:8px'>OVR {row['Rating']}</div>"
-                             f"<div style='margin-bottom:10px'>{tag_html}</div>"
-                             f"<div style='font-size:0.85rem;color:#cbd5e1;margin-bottom:8px'>Power {int(row['Power'])} • Reach {int(row['Reach'])} • Aerial {int(row['Aerial'])}</div>"
-                             f"</div>", unsafe_allow_html=True)
-                if col.button('Add to basket', key=f'add_{idx}'):
-                    player_name = row['Player']
+        plot_axes = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
+        axis_col1, axis_col2, axis_col3 = st.columns([2,2,2])
+        x_axis = axis_col1.selectbox('X axis', options=plot_axes, index=0)
+        y_axis = axis_col2.selectbox('Y axis', options=plot_axes, index=1)
+        top_n = axis_col3.slider('Show top players', min_value=6, max_value=30, value=12, step=1)
+
+        results = results.copy()
+        results['Archetype'] = results['Archetype_Tags'].apply(lambda tags: tags[0] if tags else 'No archetype')
+        top_results = results.head(top_n).copy()
+
+        if not top_results.empty:
+            fig = px.scatter(
+                top_results,
+                x=x_axis,
+                y=y_axis,
+                color='Archetype',
+                size='Rating',
+                symbol='Position',
+                hover_data=['Player', 'Position', 'Club', 'Nation', 'Rating', 'Tag_Display'],
+                title=f'Top {top_n} candidates: {x_axis} vs {y_axis}'
+            )
+            fig.update_layout(
+                template='plotly_dark',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(gridcolor='rgba(148,163,184,0.24)'),
+                yaxis=dict(gridcolor='rgba(148,163,184,0.24)'),
+                legend=dict(title='Archetype', orientation='h', y=-0.2, x=0.5, xanchor='center'),
+                margin=dict(l=20, r=20, t=40, b=20)
+            )
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True})
+
+            st.markdown('**Top candidates detail**')
+            st.dataframe(
+                top_results[['Player', 'Position', 'Club', 'Nation', 'Rating', x_axis, y_axis, 'Tag_Display']]
+                .rename(columns={'Tag_Display': 'Archetype'}),
+                use_container_width=True
+            )
+
+            add_players = st.multiselect('Select players to add to basket', options=top_results['Player'].tolist())
+            if st.button('Add selected to basket'):
+                for player_name in add_players:
                     if player_name not in st.session_state['profile_basket']:
                         st.session_state['profile_basket'].append(player_name)
-                        st.success(f'Added {player_name} to basket')
+                if add_players:
+                    st.success(f'Added {len(add_players)} player(s) to basket')
+        else:
+            st.info('No candidates found for the current filters.')
 
         st.markdown('---')
         st.markdown('#### 🧺 Selection Basket')
