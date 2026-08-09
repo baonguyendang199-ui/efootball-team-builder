@@ -3946,6 +3946,8 @@ def main():
                 cluster_summaries = {}
                 for cl in sorted(df_scaled['Cluster'].unique()):
                     means = df_scaled[df_scaled['Cluster']==cl].mean()
+                    # exclude the Cluster column itself when picking top features
+                    means = means.drop(labels=['Cluster'], errors='ignore')
                     # pick top 2 features by absolute mean
                     top_feats = means.abs().sort_values(ascending=False).head(2).index.tolist()
                     desc_parts = []
