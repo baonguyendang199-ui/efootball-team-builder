@@ -4029,7 +4029,6 @@ def main():
                     # also sheet per cluster
                     for cl in sorted(to_export['Cluster'].unique()):
                         to_export[to_export['Cluster']==cl].to_excel(writer, index=False, sheet_name=f'Cluster_{cl}')
-                    writer.save()
                 to_export_bytes.seek(0)
                 st.download_button('📥 Xuất Excel (Filtered + per-cluster)', data=to_export_bytes, file_name='body_clustering.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
