@@ -3427,7 +3427,7 @@ def main():
         # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills", "🏋️ Phân tích thể hình", "🏋️ Hồ sơ Thể chất"],
+            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills", "🏋️ Body Analysis", "🏋️ Physical Profile"],
             index=0
         )
 
@@ -3463,9 +3463,9 @@ def main():
             else:
                 st.session_state.current_tab = "skills"
 
-        elif main_menu == "🏋️ Phân tích thể hình":
+        elif main_menu == "🏋️ Body Analysis":
             st.session_state.current_tab = "body"
-        elif main_menu == "🏋️ Hồ sơ Thể chất":
+        elif main_menu == "🏋️ Physical Profile":
             st.session_state.current_tab = "profile_map"
 
         # Tools removed
@@ -3744,23 +3744,23 @@ def main():
         """, unsafe_allow_html=True)
         
         r1c1, r1c2, r1c3, r1c4 = st.columns(4)
-        stat_card(r1c1, "Tổng Cầu Thủ", f"{total_players:,}", "Total Players", "👥", "grad-blue")
-        stat_card(r1c2, "Club", f"{total_clubs}", "Unique Clubs", "🛡️", "grad-blue")
-        stat_card(r1c3, "Nation", f"{total_nations}", "Nations", "🌍", "grad-blue")
-        stat_card(r1c4, "League", f"{total_leagues}", "Leagues", "🏆", "grad-blue")
+        stat_card(r1c1, "Total Players", f"{total_players:,}", "Total Players", "👥", "grad-blue")
+        stat_card(r1c2, "Clubs", f"{total_clubs}", "Unique Clubs", "🛡️", "grad-blue")
+        stat_card(r1c3, "Nations", f"{total_nations}", "Nations", "🌍", "grad-blue")
+        stat_card(r1c4, "Leagues", f"{total_leagues}", "Leagues", "🏆", "grad-blue")
 
         # --- ROW 2: META STATS ---
         st.markdown("""
         <div class="section-header">
-            <span>🔥 CHỈ SỐ META & ĐẶC BIỆT</span>
+            <span>🔥 META & SPECIAL METRICS</span>
             <span class="header-pill">KEY METRICS</span>
         </div>
         """, unsafe_allow_html=True)
         
         r2c1, r2c2, r2c3, r2c4 = st.columns(4)
-        stat_card(r2c1, "Unwavering", f"{unwavering_cnt}", "Phong độ ổn định", "📈", "grad-green")
-        stat_card(r2c2, "2 Chân Như 1", f"{ambi_cnt}", "Ambidextrous", "🦶", "grad-gold")
-        stat_card(r2c3, "Epic cards", f"{epic_cnt}", "Huyền thoại", "✨", "grad-gold")
+        stat_card(r2c1, "Unwavering", f"{unwavering_cnt}", "Stable form", "📈", "grad-green")
+        stat_card(r2c2, "Ambidextrous", f"{ambi_cnt}", "Two-footed", "🦶", "grad-gold")
+        stat_card(r2c3, "Epic cards", f"{epic_cnt}", "Legendary cards", "✨", "grad-gold")
         stat_card(r2c4, "POTW cards", f"{potw_cnt}", "Trending / POTW", "⚡", "grad-purple")
 
         # --- ROW 3: PHYSICAL AVERAGES ---
@@ -3781,7 +3781,7 @@ def main():
         # --- ROW 4: TOP 10 LEADERBOARDS (WITH CHARTS) ---
         st.markdown("""
         <div class="section-header">
-            <span>🏅 BẢNG XẾP HẠNG TOP 10</span>
+            <span>🏅 TOP 10 RANKINGS</span>
             <span class="header-pill">RANKINGS</span>
         </div>
         """, unsafe_allow_html=True)
@@ -3849,28 +3849,28 @@ def main():
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
     elif current_tab == 'body':
-        st.header("🏋️ Phân tích thể hình")
+        st.header("🏋️ Body Analysis")
 
-        # 1. Kiểm tra tồn tại các cột cần thiết
+        # 1. Ensure required body columns exist
         missing_cols = check_body_columns(df)
         if missing_cols:
-            st.error("⚠️ Thiếu cột thể hình cần thiết trong dữ liệu: " + ", ".join(missing_cols))
+            st.error("⚠️ Required body measurement columns are missing from the data: " + ", ".join(missing_cols))
         else:
             # Panel điều khiển
-            with st.expander("Bộ lọc & Thiết lập", expanded=True):
+            with st.expander("Filters & settings", expanded=True):
                 col1, col2, col3 = st.columns([2, 2, 2])
-                group_level = col1.selectbox("Nhóm vị trí để phân cụm", ["Position Style", "Position"], index=0)
+                group_level = col1.selectbox("Group positions for clustering", ["Position Style", "Position"], index=0)
                 if group_level == "Position":
                     positions = get_unique_values(df, 'Position')
-                    chosen_position = col1.selectbox("Chọn Position", ['(All)'] + positions, index=0)
+                    chosen_position = col1.selectbox("Choose Position", ['(All)'] + positions, index=0)
                 else:
                     styles = get_unique_values(df, 'Position Style')
-                    chosen_style = col1.selectbox("Chọn Position Style", ['(All)'] + styles, index=0)
+                    chosen_style = col1.selectbox("Choose Position Style", ['(All)'] + styles, index=0)
 
                 # PCA components selection placeholder (will compute suggestions)
                 inertia_display = col2.empty()
                 silhouette_display = col2.empty()
-                run_button = col3.button("Chạy phân cụm")
+                run_button = col3.button("Run clustering")
 
             # Lọc dữ liệu theo bộ lọc đã chọn
             if group_level == 'Position' and chosen_position and chosen_position != '(All)':
@@ -3882,7 +3882,7 @@ def main():
 
             n_players = len(sub_df)
             if n_players < 10:
-                st.info(f"Số cầu thủ trong nhóm quá ít để phân cụm (cần ít nhất 10). Hiện có: {n_players}")
+                st.info(f"The selected group has too few players for clustering (need at least 10). Current count: {n_players}")
             else:
                 # Chuẩn bị dữ liệu features
                 feature_cols = BODY_FEATURE_COLUMNS.copy()
@@ -3906,13 +3906,13 @@ def main():
                 apply_plotly_theme(fig_e)
                 pcs_col1.plotly_chart(fig_e, use_container_width=True, config={'displayModeBar': False})
 
-                n_pcs = pcs_col2.slider("Số PC dùng cho clustering", min_value=2, max_value=max_comp, value=default_n_comp)
+                n_pcs = pcs_col2.slider("Number of PCs for clustering", min_value=2, max_value=max_comp, value=default_n_comp)
 
                 # Prepare data for clustering: use first n_pcs of PCA (but still keep PC1/PC2 for visualization)
                 X_for_cluster = X_pca_full[:, :n_pcs]
 
                 # Auto determine best K
-                with st.spinner('Tính K đề xuất (Elbow + Silhouette)...'):
+                with st.spinner('Estimating recommended K (Elbow + Silhouette)...'):
                     inertias, silhouettes = evaluate_k_range(X_for_cluster, 2, min(8, max(2, n_players-1)))
 
                 # Suggest K by highest silhouette (if available)
@@ -3930,8 +3930,8 @@ def main():
                     suggested_k = best_k
 
                 # Quick user help and one-click presets
-                with st.expander("HƯỚNG DẪN NGẮN: 3 bước sử dụng nhanh", expanded=False):
-                    st.write("1) Chọn bộ lọc (tuỳ chọn). 2) Chọn K hoặc dùng preset. 3) Xem cụm và thêm vào giỏ / đồng bộ.")
+                with st.expander("Quick guide: 3 steps", expanded=False):
+                    st.write("1) Choose filters (optional). 2) Select K or use a preset. 3) View clusters and add to basket/sync.")
 
                 preset_cols = st.columns([1,1,1,2])
                 with preset_cols[0]:
@@ -3984,11 +3984,11 @@ def main():
                     cluster_summaries[cl] = suggested_name
 
                 # Let user edit cluster names
-                st.markdown("**Tên cụm (gợi ý)**")
+                st.markdown("**Cluster names (suggested)**")
                 cluster_name_map = {}
                 for cl in sorted(cluster_summaries.keys()):
                     default_name = f"Cluster {cl}: {cluster_summaries[cl]}"
-                    new_name = st.text_input(f"Tên cụm #{cl}", value=default_name, key=f"cluster_name_{cl}")
+                    new_name = st.text_input(f"Cluster name #{cl}", value=default_name, key=f"cluster_name_{cl}")
                     cluster_name_map[cl] = new_name
 
                 # Map cluster names
@@ -4000,10 +4000,10 @@ def main():
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
                 # Filters & result table
-                st.markdown("**Bộ lọc kết quả**")
+                st.markdown("**Result filters**")
                 c1, c2, c3 = st.columns([3,2,2])
                 clusters_available = sorted(sub_df['Cluster'].unique())
-                sel_clusters = c1.multiselect("Chọn cụm", options=clusters_available, default=clusters_available)
+                sel_clusters = c1.multiselect("Select clusters", options=clusters_available, default=clusters_available)
                 pos_options = get_unique_values(sub_df, 'Position')
                 sel_positions = c2.multiselect("Position", options=pos_options, default=pos_options)
                 min_rating = int(sub_df['Rating'].min()) if 'Rating' in sub_df.columns else 0
@@ -4019,18 +4019,18 @@ def main():
                 if 'body_basket' not in st.session_state:
                     st.session_state['body_basket'] = []
 
-                st.markdown("**Giỏ đội hình (độc lập)**")
+                st.markdown("**Team basket (independent)**")
                 pick_col1, pick_col2 = st.columns([3,1])
-                pick_list = pick_col1.multiselect("Chọn cầu thủ để thêm vào giỏ", options=filtered['Player'].tolist())
-                if pick_col2.button("Thêm vào giỏ"):
+                pick_list = pick_col1.multiselect("Select players to add to basket", options=filtered['Player'].tolist())
+                if pick_col2.button("Add to basket"):
                     for p in pick_list:
                         if p not in st.session_state['body_basket']:
                             st.session_state['body_basket'].append(p)
 
                 if st.session_state['body_basket']:
-                    st.markdown(f"**Đang có {len(st.session_state['body_basket'])} cầu thủ trong giỏ**")
+                    st.markdown(f"**Currently {len(st.session_state['body_basket'])} players in basket**")
                     st.write(st.session_state['body_basket'])
-                    if st.button("Xóa giỏ" ):
+                    if st.button("Clear basket" ):
                         st.session_state['body_basket'] = []
 
                     # Imbalance warning
@@ -4043,9 +4043,7 @@ def main():
                             if len(grp) >= 3:
                                 top_cluster = grp['Cluster'].value_counts(normalize=True).max()
                                 if top_cluster >= 0.7:
-                                    st.warning(f"⚠️ Hàng {style} nghiêng nhiều về một cụm ({top_cluster*100:.0f}%): cân nhắc bổ sung đa dạng thể hình.")
-
-                # Export XLSX
+                            st.warning(f"⚠️ The {style} group is heavily skewed to one cluster ({top_cluster*100:.0f}%). Consider adding more physical diversity.")
                 to_export = filtered.copy()
                 to_export['Cluster Name'] = to_export['Cluster Name'].astype(str)
                 to_export = to_export[display_cols]
@@ -4057,10 +4055,10 @@ def main():
                     for cl in sorted(to_export['Cluster'].unique()):
                         to_export[to_export['Cluster']==cl].to_excel(writer, index=False, sheet_name=f'Cluster_{cl}')
                 to_export_bytes.seek(0)
-                st.download_button('📥 Xuất Excel (Filtered + per-cluster)', data=to_export_bytes, file_name='body_clustering.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                st.download_button('📥 Download Excel (Filtered + per-cluster)', data=to_export_bytes, file_name='body_clustering.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
     elif current_tab == 'profile_map':
-        st.header("🏋️ Hồ sơ Thể chất")
+        st.header("🏋️ Physical Profile")
 
         def _to_numeric_fill(df_obj, cols):
             for c in cols:
@@ -4089,7 +4087,7 @@ def main():
         profile_df['Rating'] = pd.to_numeric(profile_df.get('Rating', profile_df.get('OVR Rating', 0)), errors='coerce').fillna(0).astype(int)
 
         if profile_df.empty:
-            st.error('Không có dữ liệu cầu thủ để hiển thị.')
+            st.error('No player data available for display.')
             return
 
         for col in all_feat_cols:
@@ -4100,24 +4098,24 @@ def main():
             wall_cols = [f'{c}_pct' for c in archetype_features['wall']]
             if profile_df.columns.tolist() and all(c in row.index for c in wall_cols):
                 if row[wall_cols].mean() >= 80:
-                    tags.append('🛡️ Bức Tường Thép')
+                    tags.append('🛡️ Wall Defender')
             spider_cols = [f'{c}_pct' for c in archetype_features['spider_leg']]
             if all(c in row.index for c in spider_cols) and row[spider_cols].mean() >= 80:
-                tags.append('🕷️ Sải Chân Nhện')
+                tags.append('🕷️ Spider Legs')
             aerial_cols = [f'{c}_pct' for c in archetype_features['aerial']]
             if all(c in row.index for c in aerial_cols) and row[aerial_cols].mean() >= 80:
-                tags.append('✈️ Quái Vật Không Chiến')
+                tags.append('✈️ Air Beast')
             stability_cols = [f'{c}_pct' for c in archetype_features['stability']]
             if all(c in row.index for c in stability_cols) and row[stability_cols].mean() >= 80:
-                tags.append('🧱 Xe Lu Thăng Bằng')
+                tags.append('🧱 Bulldozer')
             if str(row.get('Position', '')).upper() == 'GK':
                 keeper_cols = [f'{c}_pct' for c in archetype_features['keeper']]
                 if all(c in row.index for c in keeper_cols) and row[keeper_cols].mean() >= 80:
-                    tags.append('🧤 Người Nhện')
+                    tags.append('🧤 Spider Keeper')
             return tags
 
         profile_df['Archetype_Tags'] = profile_df.apply(make_tag_list, axis=1)
-        tag_labels = ['🛡️ Bức Tường Thép', '🕷️ Sải Chân Nhện', '✈️ Quái Vật Không Chiến', '🧱 Xe Lu Thăng Bằng', '🧤 Người Nhện']
+        tag_labels = ['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper']
 
         def score_axis(row, cols):
             cols_pct = [f'{c}_pct' for c in cols]
@@ -4151,13 +4149,13 @@ def main():
         results = profile_df.copy()
         if preset == 'Strong dueler & wall defender':
             results = results[results['Position'].isin(['CB'])]
-            results = results[results['Archetype_Tags'].apply(lambda tags: '🛡️ Bức Tường Thép' in tags)]
+            results = results[results['Archetype_Tags'].apply(lambda tags: '🛡️ Wall Defender' in tags)]
         elif preset == 'Hold-up forward/midfielder':
             results = results[results['Position'].isin(['ST', 'MF', 'CM', 'AM', 'LM', 'RM'])]
-            results = results[results['Archetype_Tags'].apply(lambda tags: '🧱 Xe Lu Thăng Bằng' in tags)]
+            results = results[results['Archetype_Tags'].apply(lambda tags: '🧱 Bulldozer' in tags)]
         elif preset == 'Sweep tackler':
             results = results[results['Position'].isin(['DMF', 'CB'])]
-            results = results[results['Archetype_Tags'].apply(lambda tags: '🕷️ Sải Chân Nhện' in tags)]
+            results = results[results['Archetype_Tags'].apply(lambda tags: '🕷️ Spider Legs' in tags)]
 
         results = results[results['Position'].isin(selected_positions)]
         if selected_type != 'All':
@@ -4177,11 +4175,11 @@ def main():
         st.markdown('#### 🎯 Archetype Overview')
         c1, c2, c3, c4, c5 = st.columns(5)
         card_data = [
-            ('🛡️ Bức Tường Thép', tag_counts['🛡️ Bức Tường Thép'], 'Tì đè, càn lướt, thân trâu', c1),
-            ('🕷️ Sải Chân Nhện', tag_counts['🕷️ Sải Chân Nhện'], 'Đánh chặn, bao quát', c2),
-            ('✈️ Quái Vật Không Chiến', tag_counts['✈️ Quái Vật Không Chiến'], 'Không chiến, bật nhảy', c3),
-            ('🧱 Xe Lu Thăng Bằng', tag_counts['🧱 Xe Lu Thăng Bằng'], 'Trụ vững, bền bỉ', c4),
-            ('🧤 Người Nhện', tag_counts['🧤 Người Nhện'], 'GK cover tay', c5),
+            ('🛡️ Wall Defender', tag_counts['🛡️ Wall Defender'], 'Physical wall, strong contact, hold the line', c1),
+            ('🕷️ Spider Legs', tag_counts['🕷️ Spider Legs'], 'Tackles, range, interception coverage', c2),
+            ('✈️ Air Beast', tag_counts['✈️ Air Beast'], 'Aerial wins, jump, high ball control', c3),
+            ('🧱 Bulldozer', tag_counts['🧱 Bulldozer'], 'Stability, body strength, anchor play', c4),
+            ('🧤 Spider Keeper', tag_counts['🧤 Spider Keeper'], 'GK reach, arm span, shot coverage', c5),
         ]
         for title, count, desc, col in card_data:
             col.markdown(f"<div style='background:#111827;padding:16px;border-radius:16px;border:1px solid rgba(255,255,255,0.08);'>"
@@ -4263,11 +4261,11 @@ def main():
             profile_radar_df = pd.DataFrame({'axis': radar_axes, 'value': radar_values})
 
             archetype_ideal = {
-                '🛡️ Bức Tường Thép': {'Power': 95, 'Reach': 90, 'Aerial': 85, 'Stability': 92, 'Length': 80, 'Core': 88, 'Goalkeeping': 0},
-                '🕷️ Sải Chân Nhện': {'Power': 80, 'Reach': 95, 'Aerial': 82, 'Stability': 88, 'Length': 94, 'Core': 75, 'Goalkeeping': 0},
-                '✈️ Quái Vật Không Chiến': {'Power': 85, 'Reach': 88, 'Aerial': 98, 'Stability': 80, 'Length': 85, 'Core': 82, 'Goalkeeping': 0},
-                '🧱 Xe Lu Thăng Bằng': {'Power': 88, 'Reach': 78, 'Aerial': 80, 'Stability': 95, 'Length': 78, 'Core': 92, 'Goalkeeping': 0},
-                '🧤 Người Nhện': {'Power': 70, 'Reach': 96, 'Aerial': 80, 'Stability': 88, 'Length': 90, 'Core': 78, 'Goalkeeping': 96},
+                '🛡️ Wall Defender': {'Power': 95, 'Reach': 90, 'Aerial': 85, 'Stability': 92, 'Length': 80, 'Core': 88, 'Goalkeeping': 0},
+                '🕷️ Spider Legs': {'Power': 80, 'Reach': 95, 'Aerial': 82, 'Stability': 88, 'Length': 94, 'Core': 75, 'Goalkeeping': 0},
+                '✈️ Air Beast': {'Power': 85, 'Reach': 88, 'Aerial': 98, 'Stability': 80, 'Length': 85, 'Core': 82, 'Goalkeeping': 0},
+                '🧱 Bulldozer': {'Power': 88, 'Reach': 78, 'Aerial': 80, 'Stability': 95, 'Length': 78, 'Core': 92, 'Goalkeeping': 0},
+                '🧤 Spider Keeper': {'Power': 70, 'Reach': 96, 'Aerial': 80, 'Stability': 88, 'Length': 90, 'Core': 78, 'Goalkeeping': 96},
             }
 
             selected_tags = [tag for tag in player_row['Archetype_Tags'] if tag in archetype_ideal]
@@ -4327,7 +4325,7 @@ def main():
             export_bytes.seek(0)
             st.download_button('📥 Download results to Excel', data=export_bytes, file_name='physical_profile_results.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         except Exception as e:
-            st.error(f'Lỗi khi xuất Excel: {e}')
+            st.error(f'Error exporting Excel: {e}')
 
     elif current_tab == 'players':
         st.header("👥 Players")
