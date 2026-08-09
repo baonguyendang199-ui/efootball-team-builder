@@ -4162,6 +4162,11 @@ def main():
 
         tag_counts = {tag: results['Archetype_Tags'].apply(lambda tags: tag in tags).sum() for tag in tag_labels}
 
+        results['Tag_Display'] = results['Archetype_Tags'].apply(lambda tags: ' '.join(tags) if tags else '—')
+        results = results.sort_values(['Rating', 'Physicality', 'Reach'], ascending=[False, False, False])
+
+        tag_counts = {tag: results['Archetype_Tags'].apply(lambda tags: tag in tags).sum() for tag in tag_labels}
+
         st.markdown('#### 🎯 Tổng quan Archetype')
         c1, c2, c3, c4, c5 = st.columns(5)
         card_data = [
@@ -4178,12 +4183,55 @@ def main():
                          f"<div style='font-size:0.85rem;color:#94a3b8;margin-top:8px'>{desc}</div>"
                          f"</div>", unsafe_allow_html=True)
 
+        sort_mode = st.radio('Sắp xếp top candidate theo:', ['Rating', 'Physicality', 'Reach', 'Aerial', 'Stability'], horizontal=True)
+        if sort_mode in results.columns:
+            results = results.sort_values(sort_mode, ascending=False)
+
+        if 'profile_basket' not in st.session_state:
+            st.session_state['profile_basket'] = []
+
+        view_mode = st.radio('Hiển thị kết quả dưới dạng:', ['Table', 'Card Grid'], horizontal=True)
+
         st.markdown('---')
         st.markdown('#### 🔥 Top candidates')
-        top5 = results.head(8)[['Player', 'Position', 'Rating', 'Club', 'Nation', 'Tag_Display']].copy()
-        top5['Tag_Display'] = top5['Tag_Display'].str.replace(', ', ' | ')
-        st.dataframe(top5.rename(columns={'Tag_Display': 'Phong cách'}), use_container_width=True)
+        top_results = results.head(12).copy()
 
+        if view_mode == 'Table':
+            display_table = top_results[['Player', 'Position', 'Rating', 'Club', 'Nation', 'Tag_Display']].copy()
+            display_table['Tag_Display'] = display_table['Tag_Display'].str.replace(', ', ' | ')
+            st.dataframe(display_table.rename(columns={'Tag_Display': 'Phong cách'}), use_container_width=True)
+        else:
+            card_cols = st.columns(3)
+            for idx, row in top_results.iterrows():
+                col = card_cols[idx % 3]
+                tag_html = ' '.join([f"<span style='background:#111827;color:#f8fafc;padding:5px 8px;border-radius:12px;margin-right:4px;font-size:0.8rem'>{tag}</span>" for tag in row['Archetype_Tags']])
+                col.markdown(f"<div style='background:#111827;padding:16px;border-radius:18px;border:1px solid rgba(255,255,255,0.1);margin-bottom:18px;'>"
+                             f"<div style='font-size:1.1rem;font-weight:700;margin-bottom:4px'>{row['Player']}</div>"
+                             f"<div style='font-size:0.9rem;color:#94a3b8;margin-bottom:8px'>{row['Position']} • {row['Club']} • {row['Nation']}</div>"
+                             f"<div style='font-size:2rem;font-weight:700;color:#f59e0b;margin-bottom:8px'>OVR {row['Rating']}</div>"
+                             f"<div style='margin-bottom:10px'>{tag_html}</div>"
+                             f"<div style='font-size:0.85rem;color:#cbd5e1;margin-bottom:8px'>Phys {int(row['Physicality'])} • Reach {int(row['Reach'])} • Aerial {int(row['Aerial'])}</div>"
+                             f"</div>", unsafe_allow_html=True)
+                if col.button('Thêm vào giỏ', key=f'add_{idx}'):
+                    player_name = row['Player']
+                    if player_name not in st.session_state['profile_basket']:
+                        st.session_state['profile_basket'].append(player_name)
+                        st.success(f'Đã thêm {player_name} vào giỏ')
+
+        st.markdown('---')
+        st.markdown('#### 🧺 Giỏ tuyển chọn')
+        if st.session_state['profile_basket']:
+            for i, player_name in enumerate(st.session_state['profile_basket']):
+                remove_col, name_col = st.columns([1, 9])
+                name_col.markdown(f"- {player_name}")
+                if remove_col.button('Xóa', key=f'remove_{i}'):
+                    st.session_state['profile_basket'].remove(player_name)
+                    st.experimental_rerun()
+        else:
+            st.info('Chưa có cầu thủ nào trong giỏ. Bấm Thêm vào giỏ trên card để lưu.')
+
+        st.markdown('---')
+        st.markdown('#### 🔍 Chi tiết cầu thủ')
         sel_player = st.selectbox('Chọn cầu thủ để xem hồ sơ:', options=['(None)'] + results['Player'].tolist())
         if sel_player and sel_player != '(None)':
             player_row = results[results['Player'] == sel_player].iloc[0]
