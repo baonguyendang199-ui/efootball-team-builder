@@ -3848,31 +3848,11 @@ def main():
 
     elif current_tab == 'ultimate':
         st.header("⚡ Ultimate Scout")
-        st.caption("One view that combines body shape, physical archetype, and match quality. This is built to help you understand who truly fits your target role.")
-
-        action_col1, action_col2, action_col3 = st.columns([1.2, 1.2, 2.2])
-        with action_col1:
-            scout_now = st.button("🔎 Scout now", use_container_width=True)
-        with action_col2:
-            reset_filters = st.button("🔄 Reset filters", use_container_width=True)
-        with action_col3:
-            show_full_matches = st.button("📋 Show full list", use_container_width=True)
-
-        if scout_now:
-            st.session_state['ultimate_scouted'] = True
-            st.success("Scouting profile refreshed.")
-
-        if reset_filters:
-            for key in ['ultimate_goal', 'ultimate_positions', 'ultimate_min_rating', 'ultimate_tags', 'ultimate_body_group_mode', 'ultimate_group', 'ultimate_show_full', 'ultimate_scouted']:
-                st.session_state.pop(key, None)
-            st.success("Filters reset.")
-
-        if show_full_matches:
-            st.session_state['ultimate_show_full'] = True
+        st.caption("Start with a scouting mission. The app will surface players that are interesting, underrated, or physically special.")
 
         missing_cols = check_body_columns(df)
         if missing_cols:
-            st.warning("⚠️ Some body measurement columns are missing, so clustering is limited: " + ", ".join(missing_cols))
+            st.warning("⚠️ Some body measurement columns are missing, so body-driven discovery is partially limited: " + ", ".join(missing_cols))
 
         def _to_numeric_fill(df_obj, cols):
             for c in cols:
@@ -3896,20 +3876,15 @@ def main():
         all_feat_cols = list(dict.fromkeys(all_feat_cols))
 
         with st.sidebar:
-            st.subheader("🎯 Scout intent")
-            scout_goal = st.selectbox(
-                "What kind of player are you looking for?",
-                [
-                    "Balanced all-rounder",
-                    "Strong defender",
-                    "Aerial target",
-                    "Ball-winning midfielder",
-                    "Goalkeeper with reach"
-                ],
+            st.subheader("🎯 Scout mission")
+            mission = st.radio(
+                "Choose what you want to discover",
+                ["Hidden Gems", "Physical Freaks", "Best by Role", "Similar Player"],
+                horizontal=True,
                 index=0,
-                key='ultimate_goal'
+                key='ultimate_mission'
             )
-            st.caption("The ranking below mixes rating, archetype, and body profile into one simple fit score.")
+            st.caption("This is a scouting tool, not just a filter. The ranking is built around discovery.")
             st.markdown("---")
 
             positions = sorted(get_unique_values(df, 'Position'))
@@ -3922,33 +3897,34 @@ def main():
                 key='ultimate_tags'
             )
             st.markdown("---")
-            body_group_mode = st.radio("Body grouping", ["Position", "Position Style"], horizontal=True, key='ultimate_body_group_mode')
-            if body_group_mode == "Position":
-                group_options = ['(All)'] + sorted(get_unique_values(df, 'Position'))
-                chosen_group = st.selectbox("Focus on", group_options, index=0, key='ultimate_group')
-            else:
-                group_options = ['(All)'] + sorted(get_unique_values(df, 'Position Style'))
-                chosen_group = st.selectbox("Focus on", group_options, index=0, key='ultimate_group')
 
-        if body_group_mode == "Position" and chosen_group and chosen_group != '(All)':
-            sub_df = df[df['Position'].astype(str) == chosen_group].copy()
-        elif body_group_mode == "Position Style" and chosen_group and chosen_group != '(All)':
-            sub_df = df[df['Position Style'].astype(str) == chosen_group].copy()
+            role = st.selectbox(
+                "Role focus",
+                ["Defensive monster", "Aerial beast", "Recovery specialist", "Ball carrier", "Goalkeeper reach"],
+                index=0,
+                key='ultimate_role'
+            )
+            reference_player = st.selectbox(
+                "Find similar to",
+                options=['(None)'] + sorted(df['Player'].dropna().astype(str).tolist()),
+                index=0,
+                key='ultimate_reference'
+            )
+
+        if mission == "Similar Player" and reference_player and reference_player != '(None)':
+            reference_row = df[df['Player'].astype(str) == reference_player].iloc[0] if not df.empty else None
         else:
-            sub_df = df.copy()
+            reference_row = None
 
-        sub_df = sub_df.copy()
+        sub_df = df.copy()
         feature_cols = BODY_FEATURE_COLUMNS.copy()
         for c in feature_cols:
             sub_df[c] = pd.to_numeric(sub_df.get(c, 0), errors='coerce').fillna(0.0)
 
         if len(sub_df) >= 10:
             X_scaled, X_pca_full, pca_obj, _ = compute_pca_and_scale(sub_df, feature_cols, n_components=min(len(feature_cols), max(1, len(sub_df))))
-            evr = list(pca_obj.explained_variance_ratio_)
-            cum_evr = np.cumsum(evr)
-            default_n_comp = int(next((i + 1 for i, v in enumerate(cum_evr) if v >= 0.8), min(3, len(evr))))
-            n_pcs = min(6, max(2, default_n_comp))
-            cluster_count = min(6, max(3, min(6, len(sub_df) // 4)))
+            n_pcs = min(4, max(2, int(next((i + 1 for i, v in enumerate(np.cumsum(pca_obj.explained_variance_ratio_)) if v >= 0.8), 3))))
+            cluster_count = min(5, max(3, min(5, len(sub_df) // 4)))
             labels, _, _ = compute_kmeans(X_pca_full[:, :n_pcs], cluster_count)
             sub_df = sub_df.reset_index(drop=True)
             sub_df['PC1'] = X_pca_full[:, 0]
@@ -3968,10 +3944,7 @@ def main():
                     desc_parts.append(f"{f} {arrow}")
                 cluster_summaries[cl] = ", ".join(desc_parts)
 
-            cluster_name_map = {}
-            for cl in sorted(cluster_summaries.keys()):
-                cluster_name_map[cl] = f"Cluster {cl}: {cluster_summaries[cl]}"
-
+            cluster_name_map = {cl: f"Cluster {cl}: {cluster_summaries[cl]}" for cl in sorted(cluster_summaries.keys())}
             sub_df['Body Cluster'] = sub_df['Cluster'].map(cluster_name_map)
         else:
             sub_df['PC1'] = 0.0
@@ -4023,12 +3996,12 @@ def main():
         profile_df['Core'] = profile_df.apply(lambda r: score_axis(r, ['Torso Collision', 'Chest Measurement', 'Waist Size']), axis=1)
         profile_df['Goalkeeping'] = profile_df.apply(lambda r: score_axis(r, ['Arm Length', 'Arm Coverage Radius']), axis=1)
 
-        goal_metric_map = {
-            'Balanced all-rounder': ['Power', 'Reach', 'Aerial', 'Stability'],
-            'Strong defender': ['Power', 'Stability', 'Core'],
-            'Aerial target': ['Aerial', 'Length', 'Power'],
-            'Ball-winning midfielder': ['Stability', 'Reach', 'Power'],
-            'Goalkeeper with reach': ['Goalkeeping', 'Reach', 'Length']
+        role_metric_map = {
+            'Defensive monster': ['Power', 'Stability', 'Core'],
+            'Aerial beast': ['Aerial', 'Length', 'Power'],
+            'Recovery specialist': ['Reach', 'Stability', 'Core'],
+            'Ball carrier': ['Reach', 'Power', 'Stability'],
+            'Goalkeeper reach': ['Goalkeeping', 'Reach', 'Length']
         }
 
         results = profile_df.copy()
@@ -4037,45 +4010,72 @@ def main():
         results = results[results['Archetype_Tags'].apply(lambda tags: any(tag in tags for tag in selected_tags))]
 
         if results.empty:
-            st.info("No players match these filters yet. Try widening the range or selecting different archetypes.")
+            st.info("No players matched this mission yet. Try widening the filters or changing the role.")
             return
 
-        selected_metrics = goal_metric_map[scout_goal]
-        results['Fit Score'] = results.apply(
-            lambda row: round(0.6 * row['Rating'] + 0.4 * np.mean([row[m] for m in selected_metrics]), 1),
-            axis=1
-        )
-        results['Why'] = results.apply(
-            lambda row: ", ".join([
-                f"{', '.join(row['Archetype_Tags'])}" if row['Archetype_Tags'] else "no special archetype",
-                "strong in the air" if row['Aerial'] >= 85 else "solid aerial base",
-                "excellent reach" if row['Reach'] >= 85 else "good reach",
-                "very stable" if row['Stability'] >= 85 else "balanced body",
-            ])[:140],
-            axis=1
-        )
-        results = results.sort_values(['Fit Score', 'Rating', 'Power'], ascending=[False, False, False]).reset_index(drop=True)
+        def build_scouting_score(row):
+            body_strength = float(np.mean([row['Power'], row['Reach'], row['Aerial'], row['Stability'], row['Length'], row['Core']]))
+            role_metrics = role_metric_map[role]
+            role_strength = float(np.mean([row[m] for m in role_metrics]))
+            if mission == 'Hidden Gems':
+                return round(0.65 * body_strength + 0.35 * row['Rating'], 1)
+            if mission == 'Physical Freaks':
+                return round(0.8 * body_strength + 0.2 * row['Rating'], 1)
+            if mission == 'Best by Role':
+                return round(0.6 * role_strength + 0.4 * row['Rating'], 1)
+            if mission == 'Similar Player' and reference_row is not None:
+                similarity_metrics = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
+                reference_values = {m: float(reference_row.get(m, 0)) for m in similarity_metrics}
+                player_values = {m: float(row.get(m, 0)) for m in similarity_metrics}
+                diff = np.mean([abs(player_values[m] - reference_values[m]) for m in similarity_metrics])
+                similarity = max(0, 100 - diff)
+                return round(0.7 * similarity + 0.3 * row['Rating'], 1)
+            return round(0.6 * body_strength + 0.4 * row['Rating'], 1)
 
-        show_full = st.session_state.get('ultimate_show_full', False)
-        top_results = results.head(20 if show_full else 6).copy()
+        results['Scout Score'] = results.apply(build_scouting_score, axis=1)
+
+        def build_why(row):
+            parts = []
+            if row['Archetype_Tags']:
+                parts.append('archetype: ' + ', '.join(row['Archetype_Tags']))
+            if row['Power'] >= 85:
+                parts.append('heavy physical presence')
+            if row['Reach'] >= 85:
+                parts.append('excellent reach')
+            if row['Aerial'] >= 85:
+                parts.append('strong in the air')
+            if row['Stability'] >= 85:
+                parts.append('very stable body')
+            if mission == 'Hidden Gems' and row['Rating'] < 90 and row['Scout Score'] >= 82:
+                parts.append('underrated by OVR')
+            if mission == 'Similar Player' and reference_row is not None:
+                parts.append('close physical twin to the reference player')
+            if not parts:
+                parts.append('solid all-round physical profile')
+            return '; '.join(parts[:4])
+
+        results['Why'] = results.apply(build_why, axis=1)
+        results = results.sort_values(['Scout Score', 'Rating', 'Power'], ascending=[False, False, False]).reset_index(drop=True)
+
+        top_results = results.head(8).copy()
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Best fit", top_results.iloc[0]['Player'] if not top_results.empty else '—', f"{top_results.iloc[0]['Fit Score']:.0f}/100" if not top_results.empty else '—')
-        c2.metric("Most common archetype", top_results.iloc[0]['Archetype_Tags'][0] if not top_results.empty and top_results.iloc[0]['Archetype_Tags'] else '—', f"{len(top_results[top_results['Archetype_Tags'].apply(lambda tags: bool(tags))])} players")
-        c3.metric("Top body group", top_results.iloc[0]['Body Cluster'] if not top_results.empty else '—', 'clustered by build')
-        c4.metric("Average rating", f"{results['Rating'].mean():.0f}", 'in current shortlist')
+        c1.metric("Top scout pick", top_results.iloc[0]['Player'] if not top_results.empty else '—', f"{top_results.iloc[0]['Scout Score']:.0f}/100" if not top_results.empty else '—')
+        c2.metric("Mission", mission, 'discovery mode')
+        c3.metric("Body cluster", top_results.iloc[0]['Body Cluster'] if not top_results.empty else '—', 'current shortlist')
+        c4.metric("Visible players", len(top_results), 'top picks')
 
-        overview_tab, body_map_tab = st.tabs(["🎯 Smart shortlist", "📍 Body map"])
+        discover_tab, body_map_tab = st.tabs(["🔎 Discovery", "📍 Body map"])
 
-        with overview_tab:
+        with discover_tab:
             shortlist_col, detail_col = st.columns([2.2, 1.2])
             with shortlist_col:
-                st.caption("Players are ranked by how well they match your target role, not just by raw OVR.")
+                st.caption("These are the strongest scouting candidates for the current mission, not just the tallest OVRs.")
                 for idx, row in top_results.iterrows():
                     with st.container(border=True):
                         st.markdown(f"**{idx + 1}. {row['Player']}**")
                         st.caption(f"{row['Position']} • {row['Club']} • {row['Nation']} • OVR {row['Rating']}")
-                        st.markdown(f"**Fit:** {row['Fit Score']:.0f}/100")
+                        st.markdown(f"**Scout score:** {row['Scout Score']:.0f}/100")
                         st.caption(f"Why: {row['Why']}")
                         st.caption(f"Archetype: {', '.join(row['Archetype_Tags']) if row['Archetype_Tags'] else 'None'} • Body: {row['Body Cluster']}")
                         metric_names = ['Power', 'Reach', 'Aerial', 'Stability']
@@ -4092,16 +4092,18 @@ def main():
                     st.markdown(f"### {player_row['Player']}")
                     st.markdown(f"**{player_row['Position']} • OVR {player_row['Rating']}**")
                     st.caption(f"{player_row['Club']} • {player_row['Nation']}")
+                    st.markdown(f"**Why this player?**")
+                    st.write(player_row['Why'])
                     st.markdown(f"**Archetype:** {', '.join(player_row['Archetype_Tags']) if player_row['Archetype_Tags'] else 'None'}")
                     st.markdown(f"**Body group:** {player_row['Body Cluster']}")
                     for metric_name in ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']:
                         st.markdown(f"{metric_name}: {int(player_row[metric_name])}")
                         st.progress(int(player_row[metric_name]) / 100)
                 else:
-                    st.info("Pick a player from the shortlist to see a quick deep dive.")
+                    st.info("Pick a player from the shortlist to inspect the profile.")
 
         with body_map_tab:
-            st.caption("This body map groups similar physical profiles together so you can quickly spot patterns.")
+            st.caption("This body map shows where similar physical profiles cluster together, so you can spot an archetype or outlier quickly.")
             fig = px.scatter(
                 sub_df,
                 x='PC1',
