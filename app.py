@@ -3438,11 +3438,13 @@ def main():
         elif main_menu == "👥 Manage Players":
             sub_menu = st.radio(
                 "⚽ Player",
-                ["Player List", "Squad", "Add Player"],
+                ["Player List", "Player Intelligence", "Squad", "Add Player"],
                 index=0
             )
             if sub_menu == "Player List":
                 st.session_state.current_tab = "players"
+            elif sub_menu == "Player Intelligence":
+                st.session_state.current_tab = "intelligence"
             elif sub_menu == "Squad":
                 st.session_state.current_tab = "squad"
             elif sub_menu == "Add Player":
@@ -3846,6 +3848,95 @@ def main():
             st.markdown(f"**🏆 Top Leagues**")
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
+
+    elif current_tab == 'intelligence':
+        st.header("🧭 Player Intelligence")
+        st.caption("Focused scouting-style profile view for individual players.")
+
+        search_term = st.text_input("Search player, club or nation", placeholder="Type a name or club...")
+        work_df = df.copy()
+        if search_term:
+            mask = (
+                work_df['Player'].astype(str).str.contains(search_term, case=False, na=False) |
+                work_df['Club'].astype(str).str.contains(search_term, case=False, na=False) |
+                work_df['Nation'].astype(str).str.contains(search_term, case=False, na=False)
+            )
+            work_df = work_df[mask]
+
+        if work_df.empty:
+            st.info("No matching players found.")
+        else:
+            player_names = [str(x) for x in work_df['Player'].astype(str).tolist()]
+            selected_player_name = st.selectbox("Select a player", player_names, key="intel_player_select")
+            detail_row = work_df.loc[work_df['Player'].astype(str) == selected_player_name].iloc[0]
+
+            detail_img = f"https://pesdb.net/assets/img/card/f{str(detail_row.get('Player ID', '')).strip()}.png" if str(detail_row.get('Player ID', '')).strip() else "https://pesdb.net/assets/img/card/f0.png"
+
+            def clean_value(value, default="-"):
+                if value is None:
+                    return default
+                if isinstance(value, (float, int)) and pd.isna(value):
+                    return default
+                text = str(value).strip()
+                return text if text else default
+
+            def fmt_metric(value):
+                if value is None:
+                    return "-"
+                if isinstance(value, (float, int)) and pd.isna(value):
+                    return "-"
+                return f"{value:.2f}" if isinstance(value, float) else str(value)
+
+            st.markdown("---")
+            info_col, image_col = st.columns([2.2, 1.0])
+            with image_col:
+                st.image(detail_img, width=180)
+            with info_col:
+                st.markdown(f"### {clean_value(detail_row.get('Player'))}")
+                st.caption(f"{clean_value(detail_row.get('Position'))} • {clean_value(detail_row.get('Club'))} • {clean_value(detail_row.get('Nation'))}")
+                st.markdown(f"**Profile type:** {clean_value(detail_row.get('Player Type'))}")
+                st.markdown(f"**Recommendation:** {clean_value(detail_row.get('Action'))}")
+                reason_text = clean_value(detail_row.get('Reasons'))
+                if reason_text != "-":
+                    st.markdown(f"**Why it stands out:** {reason_text}")
+
+            metric_cols = st.columns(4)
+            with metric_cols[0]:
+                st.metric("OVR", fmt_metric(detail_row.get('Rating', '-')))
+            with metric_cols[1]:
+                bmi_val = detail_row.get('_num_BMI')
+                st.metric("BMI", fmt_metric(bmi_val) if bmi_val not in [None, ''] else "-")
+            with metric_cols[2]:
+                height_val = detail_row.get('Height')
+                st.metric("Height", fmt_metric(height_val) if height_val not in [None, ''] else "-")
+            with metric_cols[3]:
+                weight_val = detail_row.get('Weight')
+                st.metric("Weight", fmt_metric(weight_val) if weight_val not in [None, ''] else "-")
+
+            body_fields = [f for f in PESDATA_BODY_MODEL_FIELDS if str(detail_row.get(f, '') or '').strip()]
+            if body_fields:
+                st.markdown("**Body model snapshot**")
+                body_html = " ".join(
+                    [f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:999px; font-size:0.86rem;'>{field}: {clean_value(detail_row.get(field))}</span>" for field in body_fields[:6]]
+                )
+                st.markdown(body_html, unsafe_allow_html=True)
+
+            skill_list = [s.strip() for s in str(detail_row.get('Skills', '')).split(',') if s.strip()]
+            added_skills = [s.strip() for s in str(detail_row.get('Added Skills', '')).split(',') if s.strip()]
+            if skill_list or added_skills:
+                st.markdown("**Skill profile**")
+                skill_html = []
+                for s in skill_list:
+                    skill_html.append(f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.12); border-radius:999px; font-size:0.86rem;'>⭐ {s}</span>")
+                for s in added_skills:
+                    skill_html.append(f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(74, 222, 128, 0.12); color:#4ade80; border:1px solid rgba(74, 222, 128, 0.22); border-radius:999px; font-size:0.86rem;'>+ {s}</span>")
+                st.markdown(" ".join(skill_html), unsafe_allow_html=True)
+
+        if st.button("Open full profile", use_container_width=True, key="intel_full_profile") and not work_df.empty:
+            selected_player_name = st.session_state.get('intel_player_select')
+            if selected_player_name:
+                detail_row = work_df.loc[work_df['Player'].astype(str) == selected_player_name].iloc[0]
+                show_player_modal(detail_row)
 
     elif current_tab == 'players':
         st.header("👥 Players")
