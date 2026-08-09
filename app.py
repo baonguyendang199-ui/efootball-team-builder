@@ -3525,7 +3525,7 @@ def main():
         # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills"],
+            ["📊 Overview", "👥 Manage Players", "🦴 Body Build", "🎮 Manage Skills"],
             index=0
         )
 
@@ -3533,16 +3533,17 @@ def main():
         if main_menu == "📊 Overview":
             st.session_state.current_tab = "overview"
 
+        elif main_menu == "🦴 Body Build":
+            st.session_state.current_tab = "body_build"
+
         elif main_menu == "👥 Manage Players":
             sub_menu = st.radio(
                 "⚽ Player",
-                ["Player List", "Player Intelligence", "Squad", "Add Player"],
+                ["Player List", "Squad", "Add Player"],
                 index=0
             )
             if sub_menu == "Player List":
                 st.session_state.current_tab = "players"
-            elif sub_menu == "Player Intelligence":
-                st.session_state.current_tab = "intelligence"
             elif sub_menu == "Squad":
                 st.session_state.current_tab = "squad"
             elif sub_menu == "Add Player":
@@ -3946,6 +3947,20 @@ def main():
             st.markdown(f"**🏆 Top Leagues**")
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
+
+    elif current_tab == 'body_build':
+        st.header("🦴 Body Build Analyzer")
+        st.caption("Physical profile scoring with body type suggestions for each player.")
+
+        body_profile_df = analyze_body_build(df)
+        if body_profile_df.empty:
+            st.info("No body profile data available.")
+        else:
+            body_profile_df = body_profile_df.sort_values('_body_score', ascending=False)
+            top_profiles = body_profile_df.head(50)
+            display_cols = ['Player', 'Height', 'Weight', 'Arm Size', 'Leg Size', '_body_score', '_body_type', '_best_fit']
+            display_cols = [c for c in display_cols if c in top_profiles.columns]
+            st.dataframe(top_profiles[display_cols].rename(columns={'_body_score': 'Body Score', '_body_type': 'Body Type', '_best_fit': 'Best Fit'}), use_container_width=True, hide_index=True)
 
     elif current_tab == 'players':
         st.header("👥 Players")
