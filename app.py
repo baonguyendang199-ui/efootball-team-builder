@@ -4145,6 +4145,9 @@ def main():
         selected_tags = st.sidebar.multiselect('Chọn tag phong cách', tag_labels, default=tag_labels)
         show_raw = st.sidebar.checkbox('Hiện số liệu chi tiết (mở rộng)', value=False)
 
+        filter_col_left, filter_col_right = st.columns([3,1])
+        selected_type = filter_col_right.selectbox('Lọc theo type thể hình', ['Tất cả'] + tag_labels, index=0)
+
         results = profile_df.copy()
         if preset == 'Trung vệ càn lướt & tì đè':
             results = results[results['Position'].isin(['CB'])]
@@ -4157,6 +4160,8 @@ def main():
             results = results[results['Archetype_Tags'].apply(lambda tags: '🕷️ Sải Chân Nhện' in tags)]
 
         results = results[results['Position'].isin(selected_positions)]
+        if selected_type != 'Tất cả':
+            results = results[results['Archetype_Tags'].apply(lambda tags: selected_type in tags)]
         results = results[results['Archetype_Tags'].apply(lambda tags: any(tag in tags for tag in selected_tags))]
 
         results['Tag_Display'] = results['Archetype_Tags'].apply(lambda tags: ' '.join(tags) if tags else '—')
@@ -4294,6 +4299,16 @@ def main():
 
             st.markdown('**Radar profile**: so sánh cầu thủ với mẫu archetype phù hợp nhất.')
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+            st.markdown(
+                "**Giải thích Radar:**<br>"
+                "- **Power**: lực càn, va chạm và kích thước thân trên.<br>"
+                "- **Reach**: tầm vươn tay/chân, khoảng cách với đối thủ và không gian kiểm soát.<br>"
+                "- **Aerial**: khả năng không chiến, bật nhảy và chạm bóng trên cao.<br>"
+                "- **Stability**: cân bằng, giữ chân và chống trượt trong va chạm.<br>"
+                "- **Length**: chiều dài thân/trụ và tầm với người, giúp kiểm soát không gian.<br>"
+                "- **Core**: sức mạnh trung tâm, khả năng chống đẩy và giữ cự ly khi va chạm."
+                , unsafe_allow_html=True)
 
             if show_raw:
                 raw_cols = [c for c in all_feat_cols if c in profile_df.columns]
