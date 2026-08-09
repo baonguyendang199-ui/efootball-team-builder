@@ -3472,12 +3472,15 @@ def analyze_body_build(df):
     height_series = pd.to_numeric(work_df['Height'], errors='coerce').dropna() if 'Height' in work_df.columns else pd.Series(dtype=float)
     weight_series = pd.to_numeric(work_df['Weight'], errors='coerce').dropna() if 'Weight' in work_df.columns else pd.Series(dtype=float)
 
-    limb_candidates = []
-    for col in ['Arm Size', 'Leg Size', 'Arm Length', 'Leg Length', 'Shoulder Width', 'Chest Measurement', 'Calf Size']:
-        if col in work_df.columns:
-            limb_candidates.append(col)
+    upper_body_candidates = [col for col in ['Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement', 'Neck Size', 'Shoulder Height', 'Arm Size', 'Arm Coverage Radius'] if col in work_df.columns]
+    lower_body_candidates = [col for col in ['Leg Length', 'Thigh Size', 'Waist Size', 'Calf Size', 'Leg Coverage Radius', 'Leg Length Based Height'] if col in work_df.columns]
+    torso_candidates = [col for col in ['Chest Measurement', 'Waist Size', 'Torso Collision', 'Neck Size'] if col in work_df.columns]
+    jump_candidates = [col for col in ['Jumping Height', 'Leg Length', 'Calf Size', 'Leg Coverage Radius'] if col in work_df.columns]
 
-    limb_series_map = {col: pd.to_numeric(work_df[col], errors='coerce').dropna() for col in limb_candidates}
+    upper_series_map = {col: pd.to_numeric(work_df[col], errors='coerce').dropna() for col in upper_body_candidates}
+    lower_series_map = {col: pd.to_numeric(work_df[col], errors='coerce').dropna() for col in lower_body_candidates}
+    torso_series_map = {col: pd.to_numeric(work_df[col], errors='coerce').dropna() for col in torso_candidates}
+    jump_series_map = {col: pd.to_numeric(work_df[col], errors='coerce').dropna() for col in jump_candidates}
 
     rows = []
     for _, row in work_df.iterrows():
@@ -3497,14 +3500,36 @@ def analyze_body_build(df):
             else:
                 build_score = 60
 
-        limb_scores = []
-        for col in limb_candidates:
-            limb_value = to_number(row.get(col))
-            if pd.notna(limb_value):
-                limb_scores.append(percentile_score(limb_series_map[col], limb_value))
+        upper_scores = []
+        for col in upper_body_candidates:
+            value = to_number(row.get(col))
+            if pd.notna(value):
+                upper_scores.append(percentile_score(upper_series_map[col], value))
+        upper_score = int(round(sum(upper_scores) / len(upper_scores))) if upper_scores else 50
 
-        limb_score = int(round(sum(limb_scores) / len(limb_scores))) if limb_scores else 50
-        overall_score = int(round((height_score * 0.30) + (build_score * 0.35) + (limb_score * 0.35)))
+        lower_scores = []
+        for col in lower_body_candidates:
+            value = to_number(row.get(col))
+            if pd.notna(value):
+                lower_scores.append(percentile_score(lower_series_map[col], value))
+        lower_score = int(round(sum(lower_scores) / len(lower_scores))) if lower_scores else 50
+
+        torso_scores = []
+        for col in torso_candidates:
+            value = to_number(row.get(col))
+            if pd.notna(value):
+                torso_scores.append(percentile_score(torso_series_map[col], value))
+        torso_score = int(round(sum(torso_scores) / len(torso_scores))) if torso_scores else 50
+
+        jump_scores = []
+        for col in jump_candidates:
+            value = to_number(row.get(col))
+            if pd.notna(value):
+                jump_scores.append(percentile_score(jump_series_map[col], value))
+        jump_score = int(round(sum(jump_scores) / len(jump_scores))) if jump_scores else 50
+
+        limb_score = int(round((upper_score * 0.4) + (lower_score * 0.4) + (torso_score * 0.2)))
+        overall_score = int(round((height_score * 0.25) + (build_score * 0.30) + (upper_score * 0.20) + (lower_score * 0.15) + (torso_score * 0.10)))
 
         rows.append({
             'Player': row.get('Player', ''),
@@ -3519,6 +3544,10 @@ def analyze_body_build(df):
             '_frame_density': classify_density(height_score, weight_score, limb_score),
             '_build_score': int(round(build_score)),
             '_limb_score': limb_score,
+            '_upper_score': upper_score,
+            '_lower_score': lower_score,
+            '_torso_score': torso_score,
+            '_jump_score': jump_score,
             '_height_score': height_score,
             '_weight_score': weight_score,
         })
@@ -4411,12 +4440,12 @@ def main():
                         b3.metric("Role fit", selected_profile['_role_fit'])
                         b4.metric("Stability", selected_profile['_stability'])
                         st.progress(min(100, max(0, int(selected_profile['_body_score']))) / 100)
-                        st.caption(f"Height signal: {int(selected_profile['_height_score'])}/100 • Build signal: {int(selected_profile['_build_score'])}/100 • Limb signal: {int(selected_profile['_limb_score'])}/100 • Frame: {selected_profile['_frame_density']}")
+                        st.caption(f"Height signal: {int(selected_profile['_height_score'])}/100 • Build signal: {int(selected_profile['_build_score'])}/100 • Upper signal: {int(selected_profile['_upper_score'])}/100 • Lower signal: {int(selected_profile['_lower_score'])}/100 • Torso signal: {int(selected_profile['_torso_score'])}/100 • Jump signal: {int(selected_profile['_jump_score'])}/100 • Frame: {selected_profile['_frame_density']}")
 
                 top_profiles = body_profile_df.sort_values('_body_score', ascending=False).head(15)
-                display_cols = ['Player', 'Height', 'Weight', 'Arm Size', 'Leg Size', '_body_score', '_body_type', '_role_fit', '_stability', '_frame_density']
+                display_cols = ['Player', 'Height', 'Weight', 'Arm Size', 'Leg Size', '_body_score', '_body_type', '_role_fit', '_stability', '_frame_density', '_upper_score', '_lower_score', '_torso_score', '_jump_score']
                 display_cols = [c for c in display_cols if c in top_profiles.columns]
-                st.dataframe(top_profiles[display_cols].rename(columns={'_body_score': 'Body Score', '_body_type': 'Body Type', '_role_fit': 'Role Fit', '_stability': 'Stability', '_frame_density': 'Frame Density'}), use_container_width=True, hide_index=True)
+                st.dataframe(top_profiles[display_cols].rename(columns={'_body_score': 'Body Score', '_body_type': 'Body Type', '_role_fit': 'Role Fit', '_stability': 'Stability', '_frame_density': 'Frame Density', '_upper_score': 'Upper Score', '_lower_score': 'Lower Score', '_torso_score': 'Torso Score', '_jump_score': 'Jump Score'}), use_container_width=True, hide_index=True)
 
         # 5. PLAYER DETAIL INSPECTOR
         if not filtered_df.empty:
