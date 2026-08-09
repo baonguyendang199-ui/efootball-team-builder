@@ -4126,10 +4126,12 @@ def main():
                 return 0
             return float(row[valid_cols].mean())
 
-        profile_df['Physicality'] = profile_df.apply(lambda r: score_axis(r, ['Chest Measurement', 'Waist Size', 'Torso Collision']), axis=1)
-        profile_df['Reach'] = profile_df.apply(lambda r: score_axis(r, ['Leg Length', 'Arm Length']), axis=1)
+        profile_df['Power'] = profile_df.apply(lambda r: score_axis(r, ['Chest Measurement', 'Shoulder Width', 'Weight', 'Thigh Size']), axis=1)
+        profile_df['Reach'] = profile_df.apply(lambda r: score_axis(r, ['Leg Length', 'Arm Length', 'Arm Coverage Radius']), axis=1)
         profile_df['Aerial'] = profile_df.apply(lambda r: score_axis(r, ['Height', 'Jumping Height', 'Shoulder Height']), axis=1)
-        profile_df['Stability'] = profile_df.apply(lambda r: score_axis(r, ['Weight', 'Thigh Size', 'Calf Size']), axis=1)
+        profile_df['Stability'] = profile_df.apply(lambda r: score_axis(r, ['Weight', 'Thigh Size', 'Calf Size', 'Leg Coverage Radius']), axis=1)
+        profile_df['Length'] = profile_df.apply(lambda r: score_axis(r, ['Leg Length', 'Arm Length', 'Shoulder Height', 'Jumping Height']), axis=1)
+        profile_df['Core'] = profile_df.apply(lambda r: score_axis(r, ['Torso Collision', 'Chest Measurement', 'Waist Size']), axis=1)
         profile_df['Goalkeeping'] = profile_df.apply(lambda r: score_axis(r, ['Arm Length', 'Arm Coverage Radius']), axis=1)
 
         preset = st.sidebar.selectbox('Bạn đang cần tìm mẫu cầu thủ nào?', [
@@ -4240,21 +4242,57 @@ def main():
                 badges = ' '.join([f"<span style='background:#1f2937;color:#f8fafc;padding:6px 10px;border-radius:999px;margin-right:6px;font-size:0.9rem'>{tag}</span>" for tag in player_row['Archetype_Tags']])
                 st.markdown(badges, unsafe_allow_html=True)
 
-            radar_axes = ['Physicality', 'Reach', 'Aerial', 'Stability']
+            radar_axes = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
             radar_values = [
-                int(player_row['Physicality']),
+                int(player_row['Power']),
                 int(player_row['Reach']),
                 int(player_row['Aerial']),
-                int(player_row['Stability'])
+                int(player_row['Stability']),
+                int(player_row['Length']),
+                int(player_row['Core'])
             ]
             if str(player_row['Position']).upper() == 'GK':
                 radar_axes.append('Goalkeeping')
                 radar_values.append(int(player_row['Goalkeeping']))
 
-            radar_df = pd.DataFrame({'axis': radar_axes, 'value': radar_values})
-            fig = px.line_polar(radar_df, r='value', theta='axis', line_close=True, range_r=[0,100])
-            fig.update_traces(fill='toself', marker=dict(color='#60a5fa'))
-            fig.update_layout(polar=dict(bgcolor='rgba(0,0,0,0)'), paper_bgcolor='rgba(0,0,0,0)', font_color='#e2e8f0')
+            profile_radar_df = pd.DataFrame({'axis': radar_axes, 'value': radar_values})
+
+            archetype_ideal = {
+                '🛡️ Bức Tường Thép': {'Power': 95, 'Reach': 90, 'Aerial': 85, 'Stability': 92, 'Length': 80, 'Core': 88, 'Goalkeeping': 0},
+                '🕷️ Sải Chân Nhện': {'Power': 80, 'Reach': 95, 'Aerial': 82, 'Stability': 88, 'Length': 94, 'Core': 75, 'Goalkeeping': 0},
+                '✈️ Quái Vật Không Chiến': {'Power': 85, 'Reach': 88, 'Aerial': 98, 'Stability': 80, 'Length': 85, 'Core': 82, 'Goalkeeping': 0},
+                '🧱 Xe Lu Thăng Bằng': {'Power': 88, 'Reach': 78, 'Aerial': 80, 'Stability': 95, 'Length': 78, 'Core': 92, 'Goalkeeping': 0},
+                '🧤 Người Nhện': {'Power': 70, 'Reach': 96, 'Aerial': 80, 'Stability': 88, 'Length': 90, 'Core': 78, 'Goalkeeping': 96},
+            }
+
+            selected_tags = [tag for tag in player_row['Archetype_Tags'] if tag in archetype_ideal]
+            if selected_tags:
+                ideal_values = {axis: np.mean([archetype_ideal[tag].get(axis, 0) for tag in selected_tags]) for axis in radar_axes}
+            else:
+                ideal_values = {axis: 65 for axis in radar_axes}
+
+            archetype_radar_df = pd.DataFrame({
+                'axis': radar_axes * 2,
+                'value': [ideal_values[a] for a in radar_axes] + radar_values,
+                'type': ['Archetype Ideal'] * len(radar_axes) + ['Player Profile'] * len(radar_axes)
+            })
+
+            fig = px.line_polar(archetype_radar_df, r='value', theta='axis', color='type', line_close=True, template='plotly_dark')
+            fig.update_traces(fill='toself', selector=dict(name='Player Profile'), marker=dict(size=8), line=dict(width=2))
+            fig.update_traces(fill='none', selector=dict(name='Archetype Ideal'), marker=dict(size=6), line=dict(dash='dash', width=2))
+            fig.update_layout(
+                polar=dict(
+                    bgcolor='rgba(17,24,39,0.8)',
+                    radialaxis=dict(gridcolor='rgba(148,163,184,0.24)', tickfont=dict(color='#cbd5e1')),
+                    angularaxis=dict(tickfont=dict(color='#e2e8f0'))
+                ),
+                legend=dict(orientation='h', y=-0.1, x=0.5, xanchor='center', font=dict(color='#cbd5e1')),
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='#e2e8f0',
+                margin=dict(l=0, r=0, t=20, b=0)
+            )
+
+            st.markdown('**Radar profile**: so sánh cầu thủ với mẫu archetype phù hợp nhất.')
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
             if show_raw:
