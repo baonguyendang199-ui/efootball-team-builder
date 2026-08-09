@@ -3875,43 +3875,89 @@ def main():
             all_feat_cols.extend(group)
         all_feat_cols = list(dict.fromkeys(all_feat_cols))
 
-        with st.sidebar:
-            st.subheader("🎯 Scout mission")
-            mission = st.radio(
-                "Choose what you want to discover",
-                ["Hidden Gems", "Physical Freaks", "Best by Role", "Similar Player"],
-                horizontal=True,
-                index=0,
-                key='ultimate_mission'
-            )
-            st.caption("This is a scouting tool, not just a filter. The ranking is built around discovery.")
-            st.markdown("---")
+        mission_options = {
+            'Hidden Gems': {
+                'title': '🔥 Hidden Gems',
+                'description': 'Find players whose profile looks stronger than their OVR suggests.'
+            },
+            'Physical Twin': {
+                'title': '🧬 Physical Twin',
+                'description': 'Find players physically similar to someone you already like.'
+            },
+            'Gameplay Role': {
+                'title': '🎯 Gameplay Role',
+                'description': 'Find the best player for a specific job on the pitch.'
+            }
+        }
 
-            positions = sorted(get_unique_values(df, 'Position'))
-            selected_positions = st.multiselect("Positions", positions, default=positions, key='ultimate_positions')
-            min_rating = st.slider("Minimum overall rating", min_value=0, max_value=100, value=70, key='ultimate_min_rating')
-            selected_tags = st.multiselect(
-                "Archetypes to include",
-                ['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper'],
-                default=['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper'],
-                key='ultimate_tags'
-            )
-            st.markdown("---")
+        if 'ultimate_selected_mission' not in st.session_state:
+            st.session_state['ultimate_selected_mission'] = 'Hidden Gems'
 
-            role = st.selectbox(
-                "Role focus",
-                ["Defensive monster", "Aerial beast", "Recovery specialist", "Ball carrier", "Goalkeeper reach"],
-                index=0,
-                key='ultimate_role'
-            )
-            reference_player = st.selectbox(
-                "Find similar to",
-                options=['(None)'] + sorted(df['Player'].dropna().astype(str).tolist()),
-                index=0,
-                key='ultimate_reference'
-            )
+        mission_cols = st.columns(3)
+        for idx, (mission_name, meta) in enumerate(mission_options.items()):
+            with mission_cols[idx]:
+                is_active = st.session_state['ultimate_selected_mission'] == mission_name
+                button_label = f"{meta['title']}"
+                if is_active:
+                    button_label = f"● {button_label}"
+                if st.button(button_label, use_container_width=True, help=meta['description']):
+                    st.session_state['ultimate_selected_mission'] = mission_name
 
-        if mission == "Similar Player" and reference_player and reference_player != '(None)':
+        mission = st.session_state['ultimate_selected_mission']
+        st.markdown("---")
+        st.subheader(f"{mission_options[mission]['title']}")
+        st.caption(mission_options[mission]['description'])
+
+        with st.expander("Refine this mission", expanded=True):
+            filter_cols = st.columns([1.2, 1.2, 1.2, 1.2])
+            with filter_cols[0]:
+                positions = sorted(get_unique_values(df, 'Position'))
+                selected_positions = st.multiselect("Positions", positions, default=positions, key='ultimate_positions')
+            with filter_cols[1]:
+                min_rating = st.slider("Minimum OVR", min_value=0, max_value=100, value=70, key='ultimate_min_rating')
+            with filter_cols[2]:
+                min_score = st.slider("Minimum score", min_value=0, max_value=100, value=80, key='ultimate_min_score')
+            with filter_cols[3]:
+                selected_tags = st.multiselect(
+                    "Archetypes",
+                    ['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper'],
+                    default=['🛡️ Wall Defender', '🕷️ Spider Legs', '✈️ Air Beast', '🧱 Bulldozer', '🧤 Spider Keeper'],
+                    key='ultimate_tags'
+                )
+
+            if mission == 'Physical Twin':
+                reference_player = st.selectbox(
+                    "Who do you want to match?",
+                    options=['(None)'] + sorted(df['Player'].dropna().astype(str).tolist()),
+                    index=0,
+                    key='ultimate_reference'
+                )
+                similarity_mode = st.radio(
+                    "Similarity type",
+                    ["Physical Twin", "Gameplay Twin", "Alternative"],
+                    horizontal=True,
+                    key='ultimate_similarity_mode'
+                )
+            elif mission == 'Gameplay Role':
+                role_group = st.selectbox(
+                    "Role family",
+                    ["Defending", "Attacking", "Midfield", "GK"],
+                    index=0,
+                    key='ultimate_role_group'
+                )
+                role_options = {
+                    'Defending': ['Defensive Monster', 'Recovery Specialist', 'Physical Duelist', 'Aerial Defender', 'Wide CB', 'Deep CB'],
+                    'Attacking': ['Speed Runner', 'Ball Carrier', 'Physical CF', 'Aerial CF', 'Box Presence'],
+                    'Midfield': ['Ball Winner', 'Physical DMF', 'Ball Carrier', 'Defensive Anchor'],
+                    'GK': ['Reach', 'Physical GK', 'Cross Dominator']
+                }
+                role = st.selectbox("Specific role", role_options[role_group], index=0, key='ultimate_role')
+            else:
+                role = None
+                similarity_mode = None
+                reference_player = None
+
+        if mission == 'Physical Twin' and reference_player and reference_player != '(None)':
             reference_row = df[df['Player'].astype(str) == reference_player].iloc[0] if not df.empty else None
         else:
             reference_row = None
@@ -3997,11 +4043,23 @@ def main():
         profile_df['Goalkeeping'] = profile_df.apply(lambda r: score_axis(r, ['Arm Length', 'Arm Coverage Radius']), axis=1)
 
         role_metric_map = {
-            'Defensive monster': ['Power', 'Stability', 'Core'],
-            'Aerial beast': ['Aerial', 'Length', 'Power'],
-            'Recovery specialist': ['Reach', 'Stability', 'Core'],
-            'Ball carrier': ['Reach', 'Power', 'Stability'],
-            'Goalkeeper reach': ['Goalkeeping', 'Reach', 'Length']
+            'Defensive Monster': ['Power', 'Stability', 'Core'],
+            'Recovery Specialist': ['Reach', 'Stability', 'Core'],
+            'Physical Duelist': ['Power', 'Stability', 'Aerial'],
+            'Aerial Defender': ['Aerial', 'Length', 'Core'],
+            'Wide CB': ['Reach', 'Stability', 'Power'],
+            'Deep CB': ['Core', 'Stability', 'Power'],
+            'Speed Runner': ['Reach', 'Power', 'Aerial'],
+            'Ball Carrier': ['Reach', 'Power', 'Stability'],
+            'Physical CF': ['Power', 'Aerial', 'Core'],
+            'Aerial CF': ['Aerial', 'Length', 'Power'],
+            'Box Presence': ['Power', 'Aerial', 'Stability'],
+            'Ball Winner': ['Stability', 'Power', 'Core'],
+            'Physical DMF': ['Power', 'Stability', 'Reach'],
+            'Defensive Anchor': ['Stability', 'Core', 'Power'],
+            'Reach': ['Reach', 'Length', 'Goalkeeping'],
+            'Physical GK': ['Goalkeeping', 'Stability', 'Power'],
+            'Cross Dominator': ['Reach', 'Length', 'Goalkeeping']
         }
 
         results = profile_df.copy()
@@ -4015,22 +4073,25 @@ def main():
 
         def build_scouting_score(row):
             body_strength = float(np.mean([row['Power'], row['Reach'], row['Aerial'], row['Stability'], row['Length'], row['Core']]))
-            role_metrics = role_metric_map[role]
-            role_strength = float(np.mean([row[m] for m in role_metrics]))
+            role_strength = float(np.mean([row[m] for m in role_metric_map[role]])) if mission == 'Gameplay Role' and role is not None else body_strength
             if mission == 'Hidden Gems':
-                return round(0.65 * body_strength + 0.35 * row['Rating'], 1)
-            if mission == 'Physical Freaks':
-                return round(0.8 * body_strength + 0.2 * row['Rating'], 1)
-            if mission == 'Best by Role':
-                return round(0.6 * role_strength + 0.4 * row['Rating'], 1)
-            if mission == 'Similar Player' and reference_row is not None:
+                expected_profile = body_strength
+                gap = max(0.0, expected_profile - float(row['Rating']))
+                return round(min(100.0, 0.6 * float(row['Rating']) + 0.4 * expected_profile + 0.3 * gap), 1)
+            if mission == 'Gameplay Role':
+                return round(0.7 * role_strength + 0.3 * float(row['Rating']), 1)
+            if mission == 'Physical Twin' and reference_row is not None:
                 similarity_metrics = ['Power', 'Reach', 'Aerial', 'Stability', 'Length', 'Core']
                 reference_values = {m: float(reference_row.get(m, 0)) for m in similarity_metrics}
                 player_values = {m: float(row.get(m, 0)) for m in similarity_metrics}
-                diff = np.mean([abs(player_values[m] - reference_values[m]) for m in similarity_metrics])
-                similarity = max(0, 100 - diff)
-                return round(0.7 * similarity + 0.3 * row['Rating'], 1)
-            return round(0.6 * body_strength + 0.4 * row['Rating'], 1)
+                distance = np.mean([abs(player_values[m] - reference_values[m]) for m in similarity_metrics])
+                similarity = max(0.0, min(100.0, 100.0 - distance))
+                if similarity_mode == 'Physical Twin':
+                    return round(similarity, 1)
+                if similarity_mode == 'Gameplay Twin':
+                    return round(0.7 * similarity + 0.3 * role_strength, 1)
+                return round(0.6 * similarity + 0.4 * max(0.0, 100.0 - float(row['Rating'])), 1)
+            return round(0.6 * body_strength + 0.4 * float(row['Rating']), 1)
 
         results['Scout Score'] = results.apply(build_scouting_score, axis=1)
 
@@ -4046,26 +4107,43 @@ def main():
                 parts.append('strong in the air')
             if row['Stability'] >= 85:
                 parts.append('very stable body')
-            if mission == 'Hidden Gems' and row['Rating'] < 90 and row['Scout Score'] >= 82:
-                parts.append('underrated by OVR')
-            if mission == 'Similar Player' and reference_row is not None:
-                parts.append('close physical twin to the reference player')
+            if mission == 'Hidden Gems':
+                if float(row['Rating']) < 90 and row['Scout Score'] >= 85:
+                    parts.append('OVR undersells the profile')
+                elif row['Scout Score'] >= 85:
+                    parts.append('physical profile beats the card')
+            if mission == 'Physical Twin' and reference_row is not None:
+                parts.append('close match to the reference profile')
+            if mission == 'Gameplay Role' and role is not None:
+                parts.append(f'good fit for {role.lower()}')
             if not parts:
                 parts.append('solid all-round physical profile')
             return '; '.join(parts[:4])
 
         results['Why'] = results.apply(build_why, axis=1)
         results = results.sort_values(['Scout Score', 'Rating', 'Power'], ascending=[False, False, False]).reset_index(drop=True)
+        results = results[results['Scout Score'] >= min_score]
+
+        if results.empty:
+            st.info("No players matched this mission yet. Try lowering the score threshold or changing the role.")
+            return
 
         top_results = results.head(8).copy()
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Top scout pick", top_results.iloc[0]['Player'] if not top_results.empty else '—', f"{top_results.iloc[0]['Scout Score']:.0f}/100" if not top_results.empty else '—')
-        c2.metric("Mission", mission, 'discovery mode')
-        c3.metric("Body cluster", top_results.iloc[0]['Body Cluster'] if not top_results.empty else '—', 'current shortlist')
-        c4.metric("Visible players", len(top_results), 'top picks')
+        st.markdown("### Scout verdict")
+        verdict = 'HIGHLY RECOMMENDED' if top_results.iloc[0]['Scout Score'] >= 85 else 'PROMISING'
+        verdict_color = '🟢' if verdict == 'HIGHLY RECOMMENDED' else '🟡'
+        st.markdown(f"{verdict_color} **{verdict}**")
+        st.caption(
+            f"Physical profile: {int(top_results.iloc[0]['Power']) if not top_results.empty else 0} • "
+            f"Role fit: {int(top_results.iloc[0]['Reach']) if not top_results.empty else 0} • "
+            f"Rarity: {int(top_results.iloc[0]['Aerial']) if not top_results.empty else 0} • "
+            f"OVR efficiency: {int(top_results.iloc[0]['Stability']) if not top_results.empty else 0}"
+        )
+        st.markdown(f"**Why?** {top_results.iloc[0]['Why']}")
+        st.markdown(f"**Scout score:** {top_results.iloc[0]['Scout Score']:.0f}/100")
 
-        discover_tab, body_map_tab = st.tabs(["🔎 Discovery", "📍 Body map"])
+        discover_tab, body_map_tab = st.tabs(["🔎 Discovery", "📍 Explore body map"])
 
         with discover_tab:
             shortlist_col, detail_col = st.columns([2.2, 1.2])
@@ -4103,7 +4181,7 @@ def main():
                     st.info("Pick a player from the shortlist to inspect the profile.")
 
         with body_map_tab:
-            st.caption("This body map shows where similar physical profiles cluster together, so you can spot an archetype or outlier quickly.")
+            st.caption("Body clustering is still available as an analytical layer underneath the scouting mission.")
             fig = px.scatter(
                 sub_df,
                 x='PC1',
