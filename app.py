@@ -3427,16 +3427,13 @@ def main():
         # 3. Menu điều hướng
         main_menu = st.radio(
             "📑 Navigation",
-            ["📊 Overview", "👥 Manage Players", "🧭 Player Intelligence", "🎮 Manage Skills"],
+            ["📊 Overview", "👥 Manage Players", "🎮 Manage Skills"],
             index=0
         )
 
         # Điều hướng chi tiết
         if main_menu == "📊 Overview":
             st.session_state.current_tab = "overview"
-
-        elif main_menu == "🧭 Player Intelligence":
-            st.session_state.current_tab = "intelligence"
 
         elif main_menu == "👥 Manage Players":
             sub_menu = st.radio(
@@ -3851,159 +3848,6 @@ def main():
             st.markdown(f"**🏆 Top Leagues**")
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
-
-    elif current_tab == 'intelligence':
-        st.header("🧭 Player Intelligence")
-        st.caption("A practical scouting workspace: filter candidates, review shortlist, and get a fast recommendation.")
-
-        def clean_value(value, default="-"):
-            if value is None:
-                return default
-            if isinstance(value, (float, int)) and pd.isna(value):
-                return default
-            text = str(value).strip()
-            return text if text else default
-
-        def fmt_metric(value):
-            if value is None:
-                return "-"
-            if isinstance(value, (float, int)) and pd.isna(value):
-                return "-"
-            return f"{value:.2f}" if isinstance(value, float) else str(value)
-
-        scout_df = df.copy()
-        scout_df['Rating_num'] = pd.to_numeric(scout_df['Rating'], errors='coerce')
-        scout_df['Height_num'] = pd.to_numeric(scout_df['Height'], errors='coerce')
-        scout_df['Weight_num'] = pd.to_numeric(scout_df['Weight'], errors='coerce')
-
-        position_col = 'Position' if 'Position' in scout_df.columns else None
-        player_type_col = 'Player Type' if 'Player Type' in scout_df.columns else None
-        action_col = 'Action' if 'Action' in scout_df.columns else None
-
-        position_options = ["All"] + sorted([p for p in scout_df[position_col].dropna().astype(str).unique() if p]) if position_col else ["All"]
-        player_type_options = ["All"] + sorted([p for p in scout_df[player_type_col].dropna().astype(str).unique() if p]) if player_type_col else ["All"]
-        action_options = ["All"] + sorted([a for a in scout_df[action_col].dropna().astype(str).unique() if a]) if action_col else ["All"]
-
-        filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
-        with filter_col1:
-            selected_position = st.selectbox("Position", position_options, key="intel_position")
-        with filter_col2:
-            selected_type = st.selectbox("Type", player_type_options, key="intel_type")
-        with filter_col3:
-            selected_action = st.selectbox("Action", action_options, key="intel_action")
-        with filter_col4:
-            min_rating = st.slider("Min OVR", min_value=70, max_value=105, value=80, step=1, key="intel_min_rating")
-
-        if position_col and selected_position != "All":
-            scout_df = scout_df[scout_df[position_col].astype(str) == selected_position]
-        if player_type_col and selected_type != "All":
-            scout_df = scout_df[scout_df[player_type_col].astype(str) == selected_type]
-        if action_col and selected_action != "All":
-            scout_df = scout_df[scout_df[action_col].astype(str) == selected_action]
-        scout_df = scout_df[scout_df['Rating_num'] >= min_rating]
-
-        scout_df = scout_df.sort_values(['Rating_num', 'Player'], ascending=[False, True])
-
-        sell_risk_count = 0
-        if action_col:
-            sell_risk_count = len(scout_df[scout_df[action_col].astype(str).str.contains('SELL', case=False, na=False)])
-
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Candidates", len(scout_df))
-        m2.metric("Top rated", clean_value(scout_df['Player'].iloc[0]) if not scout_df.empty else "-")
-        m3.metric("Sell risk", sell_risk_count)
-
-        if scout_df.empty:
-            st.info("No candidates match these filters. Try widening the range.")
-        else:
-            shortlist_columns = ['Player']
-            if position_col:
-                shortlist_columns.append(position_col)
-            if 'Club' in scout_df.columns:
-                shortlist_columns.append('Club')
-            if 'Nation' in scout_df.columns:
-                shortlist_columns.append('Nation')
-            if 'Rating' in scout_df.columns:
-                shortlist_columns.append('Rating')
-            if player_type_col:
-                shortlist_columns.append(player_type_col)
-            if action_col:
-                shortlist_columns.append(action_col)
-            if 'Reasons' in scout_df.columns:
-                shortlist_columns.append('Reasons')
-
-            shortlist = scout_df[shortlist_columns].head(20).copy()
-            shortlist = shortlist.rename(columns={'Rating': 'OVR', 'Reasons': 'Reason'})
-            st.dataframe(shortlist, use_container_width=True, hide_index=True)
-
-            player_names = [str(x) for x in scout_df['Player'].astype(str).tolist()]
-            selected_player_name = st.selectbox("Inspect a candidate", player_names, key="intel_player_select")
-            detail_row = scout_df.loc[scout_df['Player'].astype(str) == selected_player_name].iloc[0]
-
-            detail_img = f"https://pesdb.net/assets/img/card/f{str(detail_row.get('Player ID', '')).strip()}.png" if str(detail_row.get('Player ID', '')).strip() else "https://pesdb.net/assets/img/card/f0.png"
-
-            st.markdown("---")
-            info_col, image_col = st.columns([2.2, 1.0])
-            with image_col:
-                st.image(detail_img, width=180)
-            with info_col:
-                st.markdown(f"### {clean_value(detail_row.get('Player'))}")
-                st.caption(f"{clean_value(detail_row.get('Position'))} • {clean_value(detail_row.get('Club'))} • {clean_value(detail_row.get('Nation'))}")
-                st.markdown(f"**Profile type:** {clean_value(detail_row.get('Player Type'))}")
-                st.markdown(f"**Recommendation:** {clean_value(detail_row.get('Action'))}")
-                reason_text = clean_value(detail_row.get('Reasons'))
-                if reason_text != "-":
-                    st.markdown(f"**Why it stands out:** {reason_text}")
-
-            decision = "Target"
-            action_text = str(detail_row.get('Action', '')).upper() if action_col else ""
-            if 'SELL' in action_text:
-                decision = "Avoid"
-            elif player_type_col and str(detail_row.get(player_type_col, '')).upper() in ['EPIC', 'POTW']:
-                decision = "Target"
-            elif int(detail_row.get('Rating', 0)) >= 90:
-                decision = "Target"
-            else:
-                decision = "Watch"
-
-            with st.container(border=True):
-                st.markdown(f"**Fast decision:** {decision}")
-                st.caption("Use this as a quick scouting verdict before deeper review.")
-
-            metric_cols = st.columns(4)
-            with metric_cols[0]:
-                st.metric("OVR", fmt_metric(detail_row.get('Rating', '-')))
-            with metric_cols[1]:
-                bmi_val = detail_row.get('_num_BMI')
-                st.metric("BMI", fmt_metric(bmi_val) if bmi_val not in [None, ''] else "-")
-            with metric_cols[2]:
-                height_val = detail_row.get('Height')
-                st.metric("Height", fmt_metric(height_val) if height_val not in [None, ''] else "-")
-            with metric_cols[3]:
-                weight_val = detail_row.get('Weight')
-                st.metric("Weight", fmt_metric(weight_val) if weight_val not in [None, ''] else "-")
-
-            body_fields = [f for f in PESDATA_BODY_MODEL_FIELDS if str(detail_row.get(f, '') or '').strip()]
-            if body_fields:
-                st.markdown("**Body model snapshot**")
-                body_html = " ".join(
-                    [f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:999px; font-size:0.86rem;'>{field}: {clean_value(detail_row.get(field))}</span>" for field in body_fields[:6]]
-                )
-                st.markdown(body_html, unsafe_allow_html=True)
-
-            skill_list = [s.strip() for s in str(detail_row.get('Skills', '')).split(',') if s.strip()]
-            added_skills = [s.strip() for s in str(detail_row.get('Added Skills', '')).split(',') if s.strip()]
-            if skill_list or added_skills:
-                st.markdown("**Skill profile**")
-                skill_html = []
-                for s in skill_list:
-                    skill_html.append(f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.12); border-radius:999px; font-size:0.86rem;'>⭐ {s}</span>")
-                for s in added_skills:
-                    skill_html.append(f"<span style='display:inline-block; margin:4px 6px 4px 0; padding:4px 9px; background:rgba(74, 222, 128, 0.12); color:#4ade80; border:1px solid rgba(74, 222, 128, 0.22); border-radius:999px; font-size:0.86rem;'>+ {s}</span>")
-                st.markdown(" ".join(skill_html), unsafe_allow_html=True)
-
-            if st.button("Open full profile", use_container_width=True, key="intel_full_profile"):
-                show_player_modal(detail_row)
 
     elif current_tab == 'players':
         st.header("👥 Players")
