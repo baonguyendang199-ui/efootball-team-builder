@@ -3205,11 +3205,128 @@ def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chos
 
 
 # Minimal feature registry and position model weights (populated by user/config)
+# Feature registry and core features per v3 spec
 FEATURE_REGISTRY = BODY_FEATURE_COLUMNS + COVERAGE_FEATURES + ['Height', 'BMI', 'Body Size Composite', 'Jumping Height']
+CORE_FEATURES = [
+    'Height', 'Leg Length Ratio', 'Arm Length Ratio', 'Shoulder Width Ratio',
+    'Neck Length Ratio', 'Leg Coverage Ratio', 'Arm Coverage Ratio', 'Jumping Height'
+]
 # Toggle for including experimental Jumping Height in profiles
 JUMPING_HEIGHT_ENABLED = False
 # Placeholder POSITION_MODEL_WEIGHTS; users may replace with full v4 appendix
-POSITION_MODEL_WEIGHTS = {}
+POSITION_MODEL_WEIGHTS = {
+    "GK": [
+        {"feature": "Height",              "weight": 25, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 25, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 20, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 15, "direction": 1},
+        {"feature": "Jumping Height",      "weight": 15, "direction": 1, "experimental": True},
+    ],
+    "CB": [
+        {"feature": "Leg Coverage Ratio",  "weight": 16, "direction": 1},
+        {"feature": "Leg Length Ratio",    "weight": 16, "direction": 1},
+        {"feature": "Height",              "weight": 16, "direction": 1},
+        {"feature": "Jumping Height",      "weight": 12, "direction": 1, "experimental": True},
+        {"feature": "Shoulder Width Ratio","weight": 12, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 10, "direction": 1},
+        {"feature": "Body Size Composite", "weight": 8,  "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 6,  "direction": 1},
+        {"feature": "Neck Length Ratio",   "weight": 4,  "direction": 1},
+    ],
+    "LB": [
+        {"feature": "Leg Length Ratio",    "weight": 24, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 22, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
+        {"feature": "Height",              "weight": 12, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 10, "direction": 1},
+        {"feature": "Jumping Height",      "weight": 6,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 4,  "direction": 1},
+    ],
+    "RB": [
+        {"feature": "Leg Length Ratio",    "weight": 24, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 22, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
+        {"feature": "Height",              "weight": 12, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 10, "direction": 1},
+        {"feature": "Jumping Height",      "weight": 6,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 4,  "direction": 1},
+    ],
+    "DMF": [
+        {"feature": "Leg Coverage Ratio",  "weight": 22, "direction": 1},
+        {"feature": "Leg Length Ratio",    "weight": 16, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 14, "direction": 1},
+        {"feature": "Height",              "weight": 12, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 12, "direction": 1},
+        {"feature": "Body Size Composite", "weight": 8,  "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 8,  "direction": 1},
+        {"feature": "Jumping Height",      "weight": 5,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 3,  "direction": 1},
+    ],
+    "CMF": [
+        {"feature": "Leg Length Ratio",    "weight": 20, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 18, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 14, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 14, "direction": 1},
+        {"feature": "Height",              "weight": 12, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
+        {"feature": "Body Size Composite", "weight": 6,  "direction": 1},
+        {"feature": "Jumping Height",      "weight": 4,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 2,  "direction": 1},
+    ],
+    "AMF": [
+        {"feature": "Leg Length Ratio",    "weight": 28, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 20, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 12, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 12, "direction": 1},
+        {"feature": "Height",              "weight": 8,  "direction": 1},
+        {"feature": "Neck Length Ratio",   "weight": 4,  "direction": 1},
+        {"feature": "Jumping Height",      "weight": 4,  "direction": 1, "experimental": True},
+    ],
+    "LWF": [
+        {"feature": "Leg Length Ratio",    "weight": 34, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 18, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 14, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 10, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 8,  "direction": 1},
+        {"feature": "Height",              "weight": 8,  "direction": 1},
+        {"feature": "Jumping Height",      "weight": 6,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 2,  "direction": 1},
+    ],
+    "RWF": [
+        {"feature": "Leg Length Ratio",    "weight": 34, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 18, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 14, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 10, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 8,  "direction": 1},
+        {"feature": "Height",              "weight": 8,  "direction": 1},
+        {"feature": "Jumping Height",      "weight": 6,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 2,  "direction": 1},
+    ],
+    "SS": [
+        {"feature": "Leg Length Ratio",    "weight": 26, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 18, "direction": 1},
+        {"feature": "Height",              "weight": 14, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 10, "direction": 1},
+        {"feature": "Jumping Height",      "weight": 8,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 2,  "direction": 1},
+    ],
+    "CF": [
+        {"feature": "Height",              "weight": 18, "direction": 1},
+        {"feature": "Leg Length Ratio",    "weight": 14, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 14, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 14, "direction": 1},
+        {"feature": "Jumping Height",      "weight": 12, "direction": 1, "experimental": True},
+        {"feature": "Arm Coverage Ratio",  "weight": 10, "direction": 1},
+        {"feature": "Body Size Composite", "weight": 10, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 6,  "direction": 1},
+        {"feature": "Neck Length Ratio",   "weight": 2,  "direction": 1},
+    ],
+}
 
 
 def validate_position_model_weights(cfg: dict):
@@ -3306,13 +3423,60 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
         for e in profile:
             used_features.add(e['feature'])
 
-    # Map feature -> numeric column name
-    feat_to_col = {f: (f + '_num') if f not in ['BMI', 'Body Size Composite'] else ('BMI_num' if f == 'BMI' else f) for f in used_features}
+    # Prepare numeric columns for ratio features and core features per spec
+    # Derive ratio columns from existing numeric raw columns (created by _ensure_body_numerics)
+    ratio_map = {
+        'Leg Length Ratio': ('Leg Length_num', 'Height_num'),
+        'Arm Length Ratio': ('Arm Length_num', 'Height_num'),
+        'Shoulder Width Ratio': ('Shoulder Width_num', 'Height_num'),
+        'Neck Length Ratio': ('Neck Length_num', 'Height_num'),
+        'Chest Measurement Ratio': ('Chest Measurement_num', 'Height_num'),
+        'Neck Size Ratio': ('Neck Size_num', 'Height_num'),
+        'Shoulder Height Ratio': ('Shoulder Height_num', 'Height_num'),
+        'Thigh Size Ratio': ('Thigh Size_num', 'Height_num'),
+        'Waist Size Ratio': ('Waist Size_num', 'Height_num'),
+        'Arm Size Ratio': ('Arm Size_num', 'Height_num'),
+        'Calf Size Ratio': ('Calf Size_num', 'Height_num'),
+        'Leg Coverage Ratio': ('Leg Coverage Radius_num', 'Height_num'),
+        'Arm Coverage Ratio': ('Arm Coverage Radius_num', 'Height_num'),
+    }
+
+    # Ensure base numeric columns exist
+    for base_col in ['Height_num', 'BMI_num']:
+        if base_col not in df.columns:
+            df[base_col] = np.nan
+
+    # Compute ratio-derived numeric columns
+    for ratio_feat, (num_col, denom_col) in ratio_map.items():
+        target_col = ratio_feat + '_num'
+        if num_col not in df.columns:
+            df[num_col] = np.nan
+        if denom_col not in df.columns:
+            df[denom_col] = np.nan
+        # safe division
+        df[target_col] = df.apply(lambda r: (r[num_col] / r[denom_col]) if pd.notna(r[num_col]) and pd.notna(r[denom_col]) and r[denom_col] != 0 else np.nan, axis=1)
+
+    # Map feature -> numeric column name (except Body Size Composite which is derived from percentiles)
+    feat_to_col = {}
+    for f in used_features:
+        if f == 'BMI':
+            feat_to_col[f] = 'BMI_num'
+        elif f == 'Body Size Composite':
+            feat_to_col[f] = None
+        elif f in ratio_map:
+            feat_to_col[f] = f + '_num'
+        else:
+            # raw fields such as Height, Jumping Height, etc.
+            feat_to_col[f] = (f + '_num')
 
     # Imputation: compute missing ratios and medians per feature within df
     feature_stats = {}
     for f in used_features:
-        col = feat_to_col.get(f, f + '_num')
+        col = feat_to_col.get(f)
+        if col is None:
+            # Body Size Composite handled later
+            feature_stats[f] = {'col': None, 'missing_ratio': 1.0, 'median': np.nan}
+            continue
         if col not in df.columns:
             df[col] = np.nan
         non_na = df[col].notna().sum()
@@ -3323,18 +3487,34 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
 
     # Perform imputations where missing_ratio <= 0.3
     for f, s in feature_stats.items():
-        if s['missing_ratio'] <= 0.3 and pd.notna(s['median']):
-            df[s['col']] = df[s['col']].fillna(s['median'])
+        col = s.get('col')
+        if col and s['missing_ratio'] <= 0.3 and pd.notna(s['median']):
+            df[col] = df[col].fillna(s['median'])
 
-    # Compute percentiles per feature within df
+    # Compute percentiles per non-composite feature within df
     for f, s in feature_stats.items():
-        col = s['col']
+        col = s.get('col')
         pct_col = f + '_pct'
+        if col is None:
+            # skip composite
+            continue
         vals = df[col]
         if vals.dropna().nunique() <= 1:
             df[pct_col] = 50.0
         else:
             df[pct_col] = vals.rank(method='average', pct=True) * 100
+
+    # Compute Body Size Composite percentile as mean of component percentiles (if requested)
+    bsc_components = ['BMI', 'Chest Measurement Ratio', 'Thigh Size Ratio', 'Calf Size Ratio']
+    if 'Body Size Composite' in used_features:
+        comp_pcts = []
+        for comp in bsc_components:
+            if comp + '_pct' in df.columns:
+                comp_pcts.append(df[comp + '_pct'])
+        if comp_pcts:
+            df['Body Size Composite_pct'] = pd.concat(comp_pcts, axis=1).mean(axis=1)
+        else:
+            df['Body Size Composite_pct'] = 50.0
 
     # Now compute scores per player
     model_scores = []
@@ -3371,15 +3551,11 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             model_archetype.append('Unknown')
             continue
 
+        # Compute Model Score using profile weights (weights assumed renormalized to sum=100)
         total_weight = sum(float(p['weight']) for p in profile)
         if total_weight == 0:
             total_weight = 1.0
         score = 0.0
-        sorted_by_w = sorted(profile, key=lambda x: float(x['weight']), reverse=True)
-        cutoff = max(1, int(math.ceil(len(sorted_by_w) * 0.5)))
-        core_feats = [p['feature'] for p in sorted_by_w[:cutoff]]
-        z_squares = []
-
         for p in profile:
             f = p['feature']
             w = float(p['weight']) / total_weight
@@ -3390,38 +3566,84 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             val = pct if direction == 1 else (100.0 - pct)
             score += val * w
 
-        for cf in core_feats:
-            col = feature_stats.get(cf, {}).get('col', cf + '_num')
+        # Compute Uniqueness: RMS of z-scores across CORE_FEATURES (excluding Jumping Height if disabled)
+        z_squares = []
+        core_list = [f for f in CORE_FEATURES if f in used_features]
+        if not JUMPING_HEIGHT_ENABLED and 'Jumping Height' in core_list:
+            core_list = [f for f in core_list if f != 'Jumping Height']
+        for cf in core_list:
+            col = feature_stats.get(cf, {}).get('col')
+            if col is None:
+                # if composite or missing, skip
+                continue
             series = df[col]
-            if series.std(ddof=0) == 0 or np.isnan(series.std(ddof=0)):
+            std = series.std(ddof=0)
+            if std == 0 or np.isnan(std):
                 z = 0.0
             else:
-                z = (row.get(col, 0) - series.mean()) / series.std(ddof=0)
+                z = (row.get(col, 0) - series.mean()) / std
             z_squares.append(z * z)
-        if z_squares:
-            rms = math.sqrt(sum(z_squares) / len(z_squares))
-        else:
-            rms = 0.0
+        rms = math.sqrt(sum(z_squares) / len(z_squares)) if z_squares else 0.0
 
         model_scores.append(score)
         model_uniqueness.append(rms)
         data_status.append('OK')
 
-        groups = {
-            'Physical': ['Height', 'Jumping Height', 'Body Size Composite'],
-            'Coverage': ['Leg Coverage Ratio', 'Arm Coverage Ratio', 'Leg Coverage Ratio'],
-            'Size': ['Arm Length Ratio', 'Shoulder Width Ratio', 'Neck Length Ratio']
-        }
-        group_scores = {}
-        for gname, feats in groups.items():
-            vals = []
-            for f in feats:
-                pct = row.get(f + '_pct', np.nan)
-                if not pd.isna(pct):
-                    vals.append(pct)
-            group_scores[gname] = np.mean(vals) if vals else -1
+        # Compute Group Scores (percentile-based) for Archetype
+        def safe_get_pct(r, feature_name):
+            v = r.get(feature_name + '_pct', np.nan)
+            return v if not pd.isna(v) else None
 
-        arche = max(group_scores.items(), key=lambda x: x[1])[0] if group_scores else 'General'
+        group_scores = {}
+        # CoverageGroup
+        cov_vals = [safe_get_pct(row, 'Leg Coverage Ratio'), safe_get_pct(row, 'Arm Coverage Ratio')]
+        group_scores['Coverage'] = np.nanmean([v for v in cov_vals if v is not None]) if any(v is not None for v in cov_vals) else -1
+        # LegGroup
+        leg_vals = [safe_get_pct(row, 'Leg Length Ratio'), safe_get_pct(row, 'Leg Coverage Ratio')]
+        group_scores['Leg'] = np.nanmean([v for v in leg_vals if v is not None]) if any(v is not None for v in leg_vals) else -1
+        # ReachGroup
+        reach_vals = [safe_get_pct(row, 'Arm Length Ratio'), safe_get_pct(row, 'Arm Coverage Ratio')]
+        group_scores['Reach'] = np.nanmean([v for v in reach_vals if v is not None]) if any(v is not None for v in reach_vals) else -1
+        # PhysicalGroup
+        phys_vals = [safe_get_pct(row, 'Height'), safe_get_pct(row, 'Shoulder Width Ratio'), safe_get_pct(row, 'Body Size Composite')]
+        group_scores['Physical'] = np.nanmean([v for v in phys_vals if v is not None]) if any(v is not None for v in phys_vals) else -1
+        # AerialGroup
+        if JUMPING_HEIGHT_ENABLED:
+            aerial_vals = [safe_get_pct(row, 'Height'), safe_get_pct(row, 'Jumping Height')]
+            group_scores['Aerial'] = np.nanmean([v for v in aerial_vals if v is not None]) if any(v is not None for v in aerial_vals) else -1
+        else:
+            group_scores['Aerial'] = -1
+
+        # Archetype determination per spec
+        ELITE_THRESHOLD = 85
+        BALANCED_MIN_SCORE = 70
+        BALANCED_MAX_SPREAD = 12
+        UNIQUE_THRESHOLD = 90
+
+        qualified = [g for g, sc in group_scores.items() if sc >= ELITE_THRESHOLD]
+        arche = 'Standard Model'
+        if not qualified:
+            # Balanced check
+            valid_group_scores = [v for v in group_scores.values() if v >= 0]
+            if score >= BALANCED_MIN_SCORE and (np.std(valid_group_scores) if valid_group_scores else 0) < BALANCED_MAX_SPREAD:
+                arche = 'Balanced Model'
+            else:
+                # uniqueness percentile will be computed later; placeholder use raw rms for now
+                arche = 'Standard Model'
+        elif len(qualified) == 1:
+            q = qualified[0]
+            mapping = {'Coverage': 'Coverage Monster', 'Leg': 'Long-Leg Model', 'Reach': 'Reach Model', 'Physical': 'Physical Model', 'Aerial': 'Aerial Model'}
+            arche = mapping.get(q, 'Standard Model')
+        else:
+            # choose highest; tie-break order
+            best_score = max((group_scores[g] for g in qualified))
+            top_groups = [g for g in qualified if abs(group_scores[g] - best_score) < 1e-6]
+            priority = ['Coverage', 'Leg', 'Reach', 'Physical', 'Aerial']
+            for p in priority:
+                if p in top_groups:
+                    mapping = {'Coverage': 'Coverage Monster', 'Leg': 'Long-Leg Model', 'Reach': 'Reach Model', 'Physical': 'Physical Model', 'Aerial': 'Aerial Model'}
+                    arche = mapping.get(p, 'Standard Model')
+                    break
         model_archetype.append(arche)
 
     uniq_series = pd.Series(model_uniqueness)
@@ -3452,10 +3674,32 @@ def generate_strengths_weaknesses(df: pd.DataFrame) -> pd.DataFrame:
             if not pd.isna(pct):
                 pct_map[f] = pct
         sorted_feats = sorted(pct_map.items(), key=lambda x: x[1], reverse=True)
-        top = [f for f, _ in sorted_feats[:2]] if sorted_feats else []
-        bot = [f for f, _ in sorted_feats[-2:]] if sorted_feats else []
-        strengths.append(', '.join(top) if top else '')
-        weaknesses.append(', '.join(bot) if bot else '')
+        # Strengths: up to 2 features with pct >= 75
+        top_feats = [ (f,p) for f,p in sorted_feats if p >= 75 ]
+        top_feats = top_feats[:2]
+        str_labels = []
+        for f, p in top_feats:
+            if p >= 90:
+                str_labels.append(f"Elite {f}")
+            else:
+                str_labels.append(f"Above-average {f}")
+
+        # Weaknesses: up to 2 features with pct <= 25 (lowest percentiles)
+        sorted_low = sorted(pct_map.items(), key=lambda x: x[1])
+        bot_feats = [ (f,p) for f,p in sorted_low if p <= 25 ]
+        bot_feats = bot_feats[:2]
+        weak_labels = []
+        for f, p in bot_feats:
+            if p <= 10:
+                weak_labels.append(f"Poor {f}")
+            else:
+                weak_labels.append(f"Below-average {f}")
+
+        strengths.append(', '.join(str_labels) if str_labels else '')
+        if weak_labels:
+            weaknesses.append(', '.join(weak_labels))
+        else:
+            weaknesses.append('Không có điểm yếu rõ rệt')
     df['Strengths'] = strengths
     df['Weaknesses'] = weaknesses
     return df
@@ -4574,17 +4818,25 @@ def main():
                 # Prefer the computed model_df (new pipeline); fall back to legacy fit_df if present
                 if 'model_df' in locals() and not model_df.empty:
                     df_export = model_df.reset_index(drop=True).copy()
+                    # Rank within Position by Model Score descending
                     if 'Model Score' in df_export.columns:
-                        df_export = df_export.rename(columns={'Model Score': 'Fit Score'})
+                        df_export['Rank'] = df_export.groupby('Position')['Model Score'].rank(method='min', ascending=False).astype(int)
+                    else:
+                        df_export['Rank'] = 0
                     if 'model_data_status' in df_export.columns:
                         df_export = df_export.rename(columns={'model_data_status': 'data_status'})
-                    export_sheets['Fit_Score'] = df_export[['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status']]
+                    # collect per-feature percentile columns (those ending with _pct)
+                    feature_pct_cols = [c for c in df_export.columns if str(c).endswith('_pct')]
+                    cols = ['Rank', 'Player', 'Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype']
+                    cols += feature_pct_cols
+                    cols += ['Strengths', 'Weaknesses', 'data_status']
+                    export_sheets['Position_Model_Ranking'] = df_export[[c for c in cols if c in df_export.columns]]
                 elif 'fit_df' in locals() and not fit_df.empty:
                     df_export = fit_df.reset_index(drop=True).copy()
-                    df_export = df_export.rename(columns={'Model Score': 'Fit Score', 'model_data_status': 'data_status'})
+                    df_export = df_export.rename(columns={'Model Score': 'Model Score', 'model_data_status': 'data_status'})
                     # attempt to select export columns if they exist
-                    cols = [c for c in ['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status'] if c in df_export.columns]
-                    export_sheets['Fit_Score'] = df_export[cols]
+                    cols = [c for c in ['Player', 'Position', 'Rating', 'Model Score', 'Strengths', 'Weaknesses', 'data_status'] if c in df_export.columns]
+                    export_sheets['Position_Model_Ranking'] = df_export[cols]
                 if 'coverage_df' in locals() and not coverage_df.empty:
                     export_sheets['Coverage_Ranking'] = coverage_df[['Player', 'Position', 'Rating', 'Height_num', 'Coverage Value', 'Coverage Efficiency', 'Residual']].rename(columns={'Height_num': 'Height'})
                 # Export GK comparison using gk_model_df if available (maps Model Score → Fit Score)
