@@ -3966,12 +3966,16 @@ def _build_body_compare(df: pd.DataFrame, selected_players: list):
             values.append(pct if not pd.isna(pct) else 0)
         radar_data.append((player['Player'], values))
 
-    fig = px.line_polar(
-        r=[vals + [vals[0]] for _, vals in radar_data],
-        theta=categories + [categories[0]],
-        line_close=True,
-        names=[name for name, _ in radar_data]
-    )
+    fig = go.Figure()
+    theta = categories + [categories[0]]
+    for name, vals in radar_data:
+        fig.add_trace(go.Scatterpolar(
+            r=vals + [vals[0]],
+            theta=theta,
+            mode='lines+markers',
+            name=name,
+            fill='toself'
+        ))
     fig.update_layout(showlegend=True, polar=dict(radialaxis=dict(range=[0, 100])))
     apply_plotly_theme(fig)
 
