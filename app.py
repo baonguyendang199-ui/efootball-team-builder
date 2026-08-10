@@ -3235,7 +3235,909 @@ CORE_FEATURES = [
 ]
 # Toggle for including experimental Jumping Height in profiles
 JUMPING_HEIGHT_ENABLED = False
-# Placeholder POSITION_MODEL_WEIGHTS; users may replace with full v4 appendix
+
+RANGE_PRESETS = {
+    'HIGH': {
+        'ideal_min': 80,
+        'ideal_max': 100,
+        'acceptable_min': 60,
+        'acceptable_max': 100
+    },
+    'VERY_HIGH': {
+        'ideal_min': 85,
+        'ideal_max': 100,
+        'acceptable_min': 65,
+        'acceptable_max': 100
+    },
+    'MID_HIGH': {
+        'ideal_min': 70,
+        'ideal_max': 95,
+        'acceptable_min': 50,
+        'acceptable_max': 100
+    },
+    'BALANCED': {
+        'ideal_min': 55,
+        'ideal_max': 85,
+        'acceptable_min': 30,
+        'acceptable_max': 100
+    },
+    'MEDIUM': {
+        'ideal_min': 45,
+        'ideal_max': 75,
+        'acceptable_min': 20,
+        'acceptable_max': 95
+    }
+}
+
+BODY_SIZE_COMPOSITE_WEIGHTS = {
+    'BMI': 20,
+    'Chest Measurement Ratio': 20,
+    'Thigh Size Ratio': 15,
+    'Calf Size Ratio': 10,
+    'Torso Collision': 25,
+    'Leg Length Based Height': 10
+}
+
+MAX_COMPOSITE_COMPONENT_WEIGHT = 25
+VALID_UTILITY_MODES = {'maximize', 'minimize', 'target', 'range'}
+
+POSITION_ROLE_FAMILY = {
+    'LB': 'FULLBACK',
+    'RB': 'FULLBACK',
+    'LWF': 'WIDE_FORWARD',
+    'RWF': 'WIDE_FORWARD'
+}
+
+MODEL_PROFILES = {
+    'GK': {
+        'overall': {
+            'id': 'gk.overall',
+            'label': 'GK Overall',
+            'description': 'Goalkeeper physical model baseline.',
+            'features': [
+                {'feature': 'Height', 'weight': 25, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 25, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Arm Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Jumping Height', 'weight': 15, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'gk.traditional_reach_keeper',
+                'label': 'Traditional / Reach Keeper',
+                'description': 'Maximize frame and reach for traditional goalkeepers.',
+                'features': [
+                    {'feature': 'Height', 'weight': 25, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 25, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 15, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 5, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'gk.reactive_compact_keeper',
+                'label': 'Reactive / Compact Keeper',
+                'description': 'Balanced reach profile with compact frame.',
+                'features': [
+                    {'feature': 'Arm Coverage Ratio', 'weight': 25, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 15, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Leg Length Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'gk.commanding_physical_keeper',
+                'label': 'Commanding / Physical Keeper',
+                'description': 'Commanding frame with physical presence and reach.',
+                'features': [
+                    {'feature': 'Height', 'weight': 25, 'mode': 'maximize', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 15, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 15, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Torso Collision', 'weight': 10, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 5, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            }
+        ]
+    },
+    'CB': {
+        'overall': {
+            'id': 'cb.overall',
+            'label': 'CB Overall',
+            'description': 'Center back physical model baseline.',
+            'features': [
+                {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Leg Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Height', 'weight': 14, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Jumping Height', 'weight': 10, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Shoulder Width Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Body Size Composite', 'weight': 6, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Arm Length Ratio', 'weight': 5, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Neck Length Ratio', 'weight': 3, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Torso Collision', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Length Based Height', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'cb.stopper',
+                'label': 'Stopper',
+                'description': 'Coverage, frame and collision for stopper defenders.',
+                'features': [
+                    {'feature': 'Leg Coverage Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 14, 'mode': 'maximize', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Torso Collision', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Body Size Composite', 'weight': 8, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Length Ratio', 'weight': 5, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 7, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'cb.cover',
+                'label': 'Cover',
+                'description': 'Reach-oriented coverage for long-limbed defense.',
+                'features': [
+                    {'feature': 'Leg Coverage Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Length Based Height', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Torso Collision', 'weight': 3, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'cb.ball_playing_physical',
+                'label': 'Ball-Playing Physical Model',
+                'description': 'Balanced frame, reach and physical proportion.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 8, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'cb.physical',
+                'label': 'Physical CB',
+                'description': 'Physical frame with collision and coverage.',
+                'features': [
+                    {'feature': 'Height', 'weight': 15, 'mode': 'maximize', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 15, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 18, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 15, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Length Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 6, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 5, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 3, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            }
+        ]
+    },
+    'DMF': {
+        'overall': {
+            'id': 'dmf.overall',
+            'label': 'DMF Overall',
+            'description': 'Defensive midfield physical model baseline.',
+            'features': [
+                {'feature': 'Leg Coverage Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Leg Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Height', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Body Size Composite', 'weight': 8, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Arm Length Ratio', 'weight': 6, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Jumping Height', 'weight': 4, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Neck Length Ratio', 'weight': 3, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Torso Collision', 'weight': 8, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Length Based Height', 'weight': 5, 'mode': 'maximize', 'group': 'Leg'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'dmf.anchor',
+                'label': 'Anchor',
+                'description': 'Zone coverage and midfield physical presence.',
+                'features': [
+                    {'feature': 'Leg Coverage Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 10, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Length Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 5, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 7, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'dmf.destroyer',
+                'label': 'Destroyer',
+                'description': 'Physical midfield coverage with collision strength.',
+                'features': [
+                    {'feature': 'Leg Coverage Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Torso Collision', 'weight': 15, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 10, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Length Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'dmf.deep_controller',
+                'label': 'Deep Controller',
+                'description': 'Balanced long-reach midfielder physical model.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'dmf.ball_winner',
+                'label': 'Ball Winner',
+                'description': 'Midfielder built for coverage and physical dueling.',
+                'features': [
+                    {'feature': 'Leg Coverage Ratio', 'weight': 24, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Torso Collision', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 10, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Length Ratio', 'weight': 7, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            }
+        ]
+    },
+    'CMF': {
+        'overall': {
+            'id': 'cmf.overall',
+            'label': 'CMF Overall',
+            'description': 'Central midfield physical model baseline.',
+            'features': [
+                {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Height', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Body Size Composite', 'weight': 6, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Jumping Height', 'weight': 4, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Neck Length Ratio', 'weight': 2, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Torso Collision', 'weight': 6, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Length Based Height', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'cmf.balanced_8',
+                'label': 'Balanced 8',
+                'description': 'Balanced physical 8 midfielder.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'cmf.box_to_box',
+                'label': 'Box-to-Box',
+                'description': 'Long-limbed, balanced football midfielder.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'cmf.deep_controller',
+                'label': 'Deep Controller',
+                'description': 'Balanced, long-reach deep midfield physical model.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'cmf.physical_8',
+                'label': 'Physical 8',
+                'description': 'Physical central midfielder with size and coverage.',
+                'features': [
+                    {'feature': 'Body Size Composite', 'weight': 15, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Torso Collision', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Ratio', 'weight': 9, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 9, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 6, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 7, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            }
+        ]
+    },
+    'AMF': {
+        'overall': {
+            'id': 'amf.overall',
+            'label': 'AMF Overall',
+            'description': 'Attacking midfield physical model baseline.',
+            'features': [
+                {'feature': 'Leg Length Ratio', 'weight': 28, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Height', 'weight': 8, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Neck Length Ratio', 'weight': 4, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Jumping Height', 'weight': 4, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'amf.agile_creator',
+                'label': 'Agile Creator',
+                'description': 'Proportion and reach without extreme bulk.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 3, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'amf.second_wave',
+                'label': 'Second-Wave / Shadow',
+                'description': 'Balanced, long-limbed supporting attacker.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 7, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'amf.physical_creator',
+                'label': 'Physical Creator',
+                'description': 'Physical attacking midfielder with reach.',
+                'features': [
+                    {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            }
+        ]
+    },
+    'LWF': {
+        'overall': {
+            'id': 'lwf.overall',
+            'label': 'LWF Overall',
+            'description': 'Left wing forward physical model baseline.',
+            'features': [
+                {'feature': 'Leg Length Ratio', 'weight': 34, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Height', 'weight': 8, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Jumping Height', 'weight': 6, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Neck Length Ratio', 'weight': 2, 'mode': 'maximize', 'group': 'Upper Body'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'wf.wide_runner',
+                'label': 'Wide Runner',
+                'description': 'Wide runner with long limbs and coverage.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 24, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 2, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'wf.inside_forward',
+                'label': 'Inside Forward',
+                'description': 'Long-limbed inside forward with balanced profile.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'wf.creative_wide',
+                'label': 'Creative Wide',
+                'description': 'Reach-oriented wide playmaker with long limbs.',
+                'features': [
+                    {'feature': 'Arm Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 3, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'wf.physical_wide',
+                'label': 'Physical Wide',
+                'description': 'Wide player with size, coverage and physical frame.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 7, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 4, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            }
+        ]
+    },
+    'RWF': {
+        'overall': {
+            'id': 'rwf.overall',
+            'label': 'RWF Overall',
+            'description': 'Right wing forward physical model baseline.',
+            'features': [
+                {'feature': 'Leg Length Ratio', 'weight': 34, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Height', 'weight': 8, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Jumping Height', 'weight': 6, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Neck Length Ratio', 'weight': 2, 'mode': 'maximize', 'group': 'Upper Body'},
+            ]
+        },
+        'roles': []
+    },
+    'SS': {
+        'overall': {
+            'id': 'ss.overall',
+            'label': 'SS Overall',
+            'description': 'Second striker physical model baseline.',
+            'features': [
+                {'feature': 'Leg Length Ratio', 'weight': 26, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Height', 'weight': 14, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Jumping Height', 'weight': 8, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Neck Length Ratio', 'weight': 2, 'mode': 'maximize', 'group': 'Upper Body'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'ss.mobile_link_striker',
+                'label': 'Mobile / Link Striker',
+                'description': 'Long-reach and balanced striker proportions.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'ss.second_striker',
+                'label': 'Second Striker',
+                'description': 'Balanced second striker frame with useful reach.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 8, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'ss.poacher_like',
+                'label': 'Poacher-like Physical Model',
+                'description': 'Compact-to-medium striker frame with reach.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Body Size Composite', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 8, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'ss.physical_ss',
+                'label': 'Physical SS',
+                'description': 'Physical second striker with strong frame and reach.',
+                'features': [
+                    {'feature': 'Body Size Composite', 'weight': 16, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Torso Collision', 'weight': 13, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Length Ratio', 'weight': 9, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 9, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 7, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            }
+        ]
+    },
+    'CF': {
+        'overall': {
+            'id': 'cf.overall',
+            'label': 'CF Overall',
+            'description': 'Center forward physical model baseline.',
+            'features': [
+                {'feature': 'Height', 'weight': 18, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Arm Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Jumping Height', 'weight': 12, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Body Size Composite', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Neck Length Ratio', 'weight': 2, 'mode': 'maximize', 'group': 'Upper Body'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'cf.target_physical',
+                'label': 'Target / Physical Striker',
+                'description': 'Large frame and reach oriented striker.',
+                'features': [
+                    {'feature': 'Height', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Torso Collision', 'weight': 10, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Length Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
+                    {'feature': 'Leg Length Based Height', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
+                    {'feature': 'Jumping Height', 'weight': 5, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                ]
+            },
+            {
+                'id': 'cf.advanced_forward',
+                'label': 'Advanced Forward',
+                'description': 'Long-limbed, reach-oriented forward without giant frame.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 10, 'mode': 'range', 'preset': 'HIGH', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'cf.poacher',
+                'label': 'Poacher',
+                'description': 'Balanced striker frame with useful reach.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 11, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 9, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 9, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'cf.mobile',
+                'label': 'Mobile Striker',
+                'description': 'Long/reachable striker frame with moderate bulk.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 17, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            }
+        ]
+    },
+    'LB': {
+        'overall': {
+            'id': 'lb.overall',
+            'label': 'LB Overall',
+            'description': 'Left back physical model baseline.',
+            'features': [
+                {'feature': 'Leg Length Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Height', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Arm Length Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Jumping Height', 'weight': 5, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Neck Length Ratio', 'weight': 3, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Torso Collision', 'weight': 8, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Length Based Height', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'fb.defensive',
+                'label': 'Defensive Fullback',
+                'description': 'Coverage and physical defensive fullback model.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Arm Length Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Torso Collision', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 8, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'fb.two_way',
+                'label': 'Two-Way Fullback',
+                'description': 'Balanced defensive and attacking fullback model.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'fb.wide_runner',
+                'label': 'Wide Runner',
+                'description': 'Fast, long-limbed fullback for attacking width.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 25, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 17, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 2, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'fb.physical',
+                'label': 'Physical Fullback',
+                'description': 'Fullback with greater size and physicality.',
+                'features': [
+                    {'feature': 'Leg Coverage Ratio', 'weight': 18, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Leg Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Arm Length Ratio', 'weight': 7, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 3, 'mode': 'maximize', 'group': 'Leg'},
+                ]
+            }
+        ]
+    },
+    'RB': {
+        'overall': {
+            'id': 'rb.overall',
+            'label': 'RB Overall',
+            'description': 'Right back physical model baseline.',
+            'features': [
+                {'feature': 'Leg Length Ratio', 'weight': 22, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Height', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Arm Length Ratio', 'weight': 8, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Jumping Height', 'weight': 5, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Neck Length Ratio', 'weight': 3, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Torso Collision', 'weight': 8, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Length Based Height', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
+            ]
+        },
+        'roles': []
+    },
+    'LWF-RWF-SHARED': {
+        'roles': []
+    },
+    'SS-ALLOWED': {
+        'roles': []
+    },
+    'CF': {
+        'overall': {
+            'id': 'cf.overall',
+            'label': 'CF Overall',
+            'description': 'Center forward physical model baseline.',
+            'features': [
+                {'feature': 'Height', 'weight': 18, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Upper Body'},
+                {'feature': 'Arm Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Jumping Height', 'weight': 12, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                {'feature': 'Body Size Composite', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
+                {'feature': 'Leg Coverage Ratio', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
+                {'feature': 'Neck Length Ratio', 'weight': 2, 'mode': 'maximize', 'group': 'Upper Body'},
+            ]
+        },
+        'roles': [
+            {
+                'id': 'cf.target_physical',
+                'label': 'Target / Physical Striker',
+                'description': 'Large frame and reach oriented striker.',
+                'features': [
+                    {'feature': 'Height', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Reach'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Torso Collision', 'weight': 10, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
+                    {'feature': 'Leg Length Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
+                    {'feature': 'Leg Length Based Height', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
+                    {'feature': 'Jumping Height', 'weight': 5, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
+                ]
+            },
+            {
+                'id': 'cf.advanced_forward',
+                'label': 'Advanced Forward',
+                'description': 'Long-limbed, reach-oriented forward.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 10, 'mode': 'range', 'preset': 'HIGH', 'group': 'Leg'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            },
+            {
+                'id': 'cf.poacher',
+                'label': 'Poacher',
+                'description': 'Balanced striker frame with useful reach.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 11, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 9, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Leg Length Based Height', 'weight': 9, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
+                ]
+            },
+            {
+                'id': 'cf.mobile',
+                'label': 'Mobile Striker',
+                'description': 'Long reachable proportions with moderate bulk.',
+                'features': [
+                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Length Ratio', 'weight': 17, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
+                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
+                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
+                    {'feature': 'Body Size Composite', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                    {'feature': 'Torso Collision', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
+                ]
+            }
+        ]
+    }
+}
+
+# Maintain legacy POSITION_MODEL_WEIGHTS for backward compatibility.
 POSITION_MODEL_WEIGHTS = {
     "GK": [
         {"feature": "Height",              "weight": 25, "direction": 1},
@@ -3438,6 +4340,172 @@ def position_model_weights_to_df(cfg: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def normalize_model_profile(profile: list, exclude_experimental: bool = False) -> list:
+    normalized = []
+    if not isinstance(profile, list):
+        return normalized
+    for entry in profile:
+        if not isinstance(entry, dict):
+            continue
+        if exclude_experimental and entry.get('experimental'):
+            continue
+        feature = entry.get('feature')
+        if not feature:
+            continue
+        try:
+            weight = float(entry.get('weight', 0))
+        except Exception:
+            weight = 0.0
+        mode = entry.get('mode')
+        direction = entry.get('direction')
+        if mode is None and direction is not None:
+            try:
+                direction = int(direction)
+                mode = 'maximize' if direction == 1 else 'minimize'
+            except Exception:
+                mode = 'maximize'
+        mode = str(mode).lower() if mode is not None else 'maximize'
+        if mode not in VALID_UTILITY_MODES:
+            mode = 'maximize'
+        normalized.append({
+            'feature': feature,
+            'weight': weight,
+            'mode': mode,
+            'group': entry.get('group'),
+            'experimental': bool(entry.get('experimental')),
+            'preset': entry.get('preset'),
+            'target': entry.get('target'),
+        })
+    total_weight = sum(p['weight'] for p in normalized)
+    if total_weight <= 0:
+        return normalized
+    if abs(total_weight - 100.0) > 0.5:
+        factor = 100.0 / total_weight
+        for p in normalized:
+            p['weight'] = p['weight'] * factor
+    return normalized
+
+
+def model_profiles_to_weights(profiles: dict, exclude_experimental: bool = True) -> dict:
+    out = {}
+    if not isinstance(profiles, dict):
+        return out
+    for pos, profile in profiles.items():
+        if not isinstance(profile, dict):
+            continue
+        overall = profile.get('overall', {}) if isinstance(profile.get('overall', {}), dict) else {}
+        features = overall.get('features') if isinstance(overall, dict) else []
+        out[pos] = normalize_model_profile(features, exclude_experimental=exclude_experimental)
+    return out
+
+
+def compute_profile_score(row: pd.Series, profile: list) -> float:
+    total_weight = sum(float(p.get('weight', 0)) for p in profile)
+    if total_weight == 0:
+        total_weight = 1.0
+    score = 0.0
+    for p in profile:
+        feature = p['feature']
+        pct = row.get(feature + '_pct', np.nan)
+        utility = evaluate_profile_feature_pct(
+            pct,
+            mode=p.get('mode', 'maximize'),
+            preset=p.get('preset'),
+            target=p.get('target')
+        )
+        score += utility * (float(p.get('weight', 0)) / total_weight)
+    return score
+
+
+def evaluate_profile_feature_pct(pct, mode='maximize', preset=None, target=None):
+    if pd.isna(pct):
+        return 50.0
+    mode = str(mode).lower() if mode is not None else 'maximize'
+    p = float(pct)
+    if mode == 'maximize':
+        return p
+    if mode == 'minimize':
+        return 100.0 - p
+    if mode == 'target':
+        if target is None:
+            return max(0.0, min(p, 100.0))
+        return max(0.0, 100.0 - min(abs(p - float(target)), 100.0))
+    if mode == 'range':
+        if preset is None:
+            return max(0.0, min(p, 100.0))
+        preset_key = str(preset).upper()
+        range_def = RANGE_PRESETS.get(preset_key)
+        if not range_def:
+            return max(0.0, min(p, 100.0))
+        ideal_min = float(range_def['ideal_min'])
+        ideal_max = float(range_def['ideal_max'])
+        acceptable_min = float(range_def['acceptable_min'])
+        acceptable_max = float(range_def['acceptable_max'])
+        if acceptable_min <= p <= acceptable_max:
+            if ideal_min <= p <= ideal_max:
+                return 100.0
+            if p < ideal_min:
+                return 100.0 * max(0.0, (p - acceptable_min) / max(ideal_min - acceptable_min, 1e-9))
+            return 100.0 * max(0.0, (acceptable_max - p) / max(acceptable_max - ideal_max, 1e-9))
+        return 0.0
+    return max(0.0, min(p, 100.0))
+
+
+def get_profile_weights_for_position(position: str, weights: dict = None, profiles: dict = None, exclude_experimental: bool = True) -> list:
+    if weights is not None and position in weights:
+        return normalize_model_profile(weights.get(position, []), exclude_experimental=exclude_experimental)
+    if profiles is None:
+        profiles = MODEL_PROFILES
+    if not isinstance(profiles, dict) or position not in profiles:
+        return []
+    profile = profiles[position]
+    if not isinstance(profile, dict):
+        return []
+    overall = profile.get('overall', {})
+    if not isinstance(overall, dict):
+        return []
+    features = overall.get('features', [])
+    return normalize_model_profile(features, exclude_experimental=exclude_experimental)
+
+
+def get_model_roles_for_position(position: str, profiles: dict = None, exclude_experimental: bool = True) -> list:
+    if profiles is None:
+        profiles = MODEL_PROFILES
+    if not isinstance(profiles, dict) or position not in profiles:
+        return []
+    profile = profiles[position]
+    if not isinstance(profile, dict):
+        return []
+    raw_roles = profile.get('roles', [])
+    if not isinstance(raw_roles, list):
+        return []
+    roles = []
+    for role in raw_roles:
+        if not isinstance(role, dict):
+            continue
+        label = role.get('label') or role.get('id')
+        if not label:
+            continue
+        roles.append({
+            'id': role.get('id'),
+            'label': label,
+            'description': role.get('description', ''),
+            'features': normalize_model_profile(role.get('features', []), exclude_experimental=exclude_experimental)
+        })
+    return roles
+
+
+def resolve_position_profiles(weights=None, exclude_experimental: bool = True) -> dict:
+    if weights is None:
+        return model_profiles_to_weights(MODEL_PROFILES, exclude_experimental=exclude_experimental)
+    if not isinstance(weights, dict):
+        return {}
+    sample = next(iter(weights.values()), None)
+    if isinstance(sample, dict) and ('overall' in sample or 'roles' in sample):
+        return model_profiles_to_weights(weights, exclude_experimental=exclude_experimental)
+    return {pos: normalize_model_profile(profile, exclude_experimental=exclude_experimental) for pos, profile in weights.items()}
+
+
 def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_level: str = 'Position', chosen_position: str = '(All)') -> pd.DataFrame:
     """Compute Model Score, Uniqueness and Archetype for players in df.
 
@@ -3446,18 +4514,17 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
     columns: `Model Score`, `Model Uniqueness`, `Model Archetype`, `model_data_status`.
     """
     df = _ensure_body_numerics(df).copy()
+    normalized_weights = resolve_position_profiles(weights, exclude_experimental=not JUMPING_HEIGHT_ENABLED)
 
-    # Build union of all features referenced in profiles present in dataset
-    weights = weights if weights is not None else POSITION_MODEL_WEIGHTS
     target_position = None
     if group_level == 'Position' and chosen_position and chosen_position != '(All)':
         target_position = chosen_position
-        profile = weights.get(target_position, [])
+        profile = normalized_weights.get(target_position, [])
         used_features = {e['feature'] for e in profile}
     else:
         used_features = set()
         for pos in df['Position'].dropna().unique():
-            profile = weights.get(pos, [])
+            profile = normalized_weights.get(pos, [])
             for e in profile:
                 used_features.add(e['feature'])
 
@@ -3505,7 +4572,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             feat_to_col[f] = f + '_num'
         else:
             # raw fields such as Height, Jumping Height, etc.
-            feat_to_col[f] = (f + '_num')
+            feat_to_col[f] = f + '_num'
 
     # Imputation: compute missing ratios and medians per feature within df
     feature_stats = {}
@@ -3534,7 +4601,6 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
         col = s.get('col')
         pct_col = f + '_pct'
         if col is None:
-            # skip composite
             continue
         vals = df[col]
         if vals.dropna().nunique() <= 1:
@@ -3563,13 +4629,18 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
     model_archetype = []
     data_status = []
 
+    model_roles = []
+    model_confidences = []
     for idx, row in df.iterrows():
         pos = row.get('Position')
-        profile = weights.get(target_position if target_position is not None else pos, [])
+        model_position = target_position if target_position is not None else pos
+        profile = normalized_weights.get(model_position, [])
         if not profile:
             model_scores.append(np.nan)
             model_uniqueness.append(np.nan)
             model_archetype.append('Unknown')
+            model_roles.append('Unknown')
+            model_confidences.append(np.nan)
             data_status.append('No Position Profile')
             continue
 
@@ -3584,28 +4655,19 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             model_scores.append(np.nan)
             model_uniqueness.append(np.nan)
             model_archetype.append('Unknown')
+            model_roles.append('Unknown')
+            model_confidences.append(np.nan)
             continue
         if missing_count / len(active_features) > 0.3:
             data_status.append('Thiếu dữ liệu')
             model_scores.append(np.nan)
             model_uniqueness.append(np.nan)
             model_archetype.append('Unknown')
+            model_roles.append('Unknown')
+            model_confidences.append(np.nan)
             continue
 
-        # Compute Model Score using profile weights (weights assumed renormalized to sum=100)
-        total_weight = sum(float(p['weight']) for p in profile)
-        if total_weight == 0:
-            total_weight = 1.0
-        score = 0.0
-        for p in profile:
-            f = p['feature']
-            w = float(p['weight']) / total_weight
-            direction = int(p.get('direction', 1))
-            pct = row.get(f + '_pct', np.nan)
-            if pd.isna(pct):
-                pct = 50.0
-            val = pct if direction == 1 else (100.0 - pct)
-            score += val * w
+        score = compute_profile_score(row, profile)
 
         # Compute Uniqueness: RMS of z-scores across CORE_FEATURES (excluding Jumping Height if disabled)
         z_squares = []
@@ -3615,7 +4677,6 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
         for cf in core_list:
             col = feature_stats.get(cf, {}).get('col')
             if col is None:
-                # if composite or missing, skip
                 continue
             series = df[col]
             std = series.std(ddof=0)
@@ -3626,8 +4687,28 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             z_squares.append(z * z)
         rms = math.sqrt(sum(z_squares) / len(z_squares)) if z_squares else 0.0
 
+        # Role assignment uses position role profiles if available
+        role_label = 'Standard'
+        role_confidence = np.nan
+        role_profiles = get_model_roles_for_position(model_position, profiles=weights if weights is not None else MODEL_PROFILES, exclude_experimental=not JUMPING_HEIGHT_ENABLED)
+        if role_profiles:
+            scored_roles = []
+            for role in role_profiles:
+                role_score = compute_profile_score(row, role['features'])
+                scored_roles.append((role['label'], role_score))
+            scored_roles.sort(key=lambda x: x[1], reverse=True)
+            if scored_roles:
+                role_label = scored_roles[0][0]
+                if len(scored_roles) > 1:
+                    best, second = scored_roles[0][1], scored_roles[1][1]
+                    role_confidence = max(0.0, min(100.0, (best - second) * 1.5))
+                else:
+                    role_confidence = 100.0
+
         model_scores.append(score)
         model_uniqueness.append(rms)
+        model_roles.append(role_label)
+        model_confidences.append(role_confidence)
         data_status.append('OK')
 
         # Compute Group Scores (percentile-based) for Archetype
@@ -3702,6 +4783,8 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
     df['Model Score'] = model_scores
     df['Model Uniqueness'] = uniq_pct
     df['Model Archetype'] = model_archetype
+    df['Model Role'] = model_roles
+    df['Model Confidence'] = model_confidences
     df['model_data_status'] = data_status
     df['Model Target Position'] = target_position if target_position is not None else df['Position']
 
@@ -3714,7 +4797,9 @@ def generate_strengths_weaknesses(df: pd.DataFrame) -> pd.DataFrame:
     weaknesses = []
     for idx, row in df.iterrows():
         pos = row.get('Model Target Position') or row.get('Position')
-        profile = POSITION_MODEL_WEIGHTS.get(pos, [])
+        profile = get_profile_weights_for_position(pos, profiles=MODEL_PROFILES)
+        if not profile:
+            profile = POSITION_MODEL_WEIGHTS.get(pos, [])
         feats = [p['feature'] for p in profile]
         pct_map = {}
         for f in feats:
@@ -3723,31 +4808,20 @@ def generate_strengths_weaknesses(df: pd.DataFrame) -> pd.DataFrame:
                 pct_map[f] = pct
         sorted_feats = sorted(pct_map.items(), key=lambda x: x[1], reverse=True)
         # Strengths: up to 2 features with pct >= 75
-        top_feats = [ (f,p) for f,p in sorted_feats if p >= 75 ]
-        top_feats = top_feats[:2]
+        top_feats = [(f, p) for f, p in sorted_feats if p >= 75][:2]
         str_labels = []
         for f, p in top_feats:
-            if p >= 90:
-                str_labels.append(f"Elite {f}")
-            else:
-                str_labels.append(f"Above-average {f}")
+            str_labels.append(f"Elite {f}" if p >= 90 else f"Above-average {f}")
 
         # Weaknesses: up to 2 features with pct <= 25 (lowest percentiles)
         sorted_low = sorted(pct_map.items(), key=lambda x: x[1])
-        bot_feats = [ (f,p) for f,p in sorted_low if p <= 25 ]
-        bot_feats = bot_feats[:2]
+        bot_feats = [(f, p) for f, p in sorted_low if p <= 25][:2]
         weak_labels = []
         for f, p in bot_feats:
-            if p <= 10:
-                weak_labels.append(f"Poor {f}")
-            else:
-                weak_labels.append(f"Below-average {f}")
+            weak_labels.append(f"Poor {f}" if p <= 10 else f"Below-average {f}")
 
         strengths.append(', '.join(str_labels) if str_labels else '')
-        if weak_labels:
-            weaknesses.append(', '.join(weak_labels))
-        else:
-            weaknesses.append('No clear weaknesses')
+        weaknesses.append(', '.join(weak_labels) if weak_labels else 'No clear weaknesses')
     df['Strengths'] = strengths
     df['Weaknesses'] = weaknesses
     return df
@@ -3760,7 +4834,9 @@ def _build_model_radar(player_idx, model_df: pd.DataFrame, weights: dict = None)
     row = model_df.loc[player_idx]
     pos = row.get('Model Target Position') or row.get('Position')
     weights = weights if weights is not None else POSITION_MODEL_WEIGHTS
-    profile = weights.get(pos, [])
+    profile = get_profile_weights_for_position(pos, weights=weights)
+    if not profile:
+        profile = get_profile_weights_for_position(pos, profiles=MODEL_PROFILES)
     if not profile:
         return None
     feats = [p['feature'] for p in profile]
@@ -4761,7 +5837,7 @@ def main():
                     st.caption("Model Score is only comparable within the selected Position or Position Style group.")
                     st.caption("Model Uniqueness measures how rare a player is within the same position; Model Archetype labels the dominant feature group.")
 
-                    display_cols = ['Player', 'Position', 'Secondary Positions', 'Model Target Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
+                    display_cols = ['Player', 'Position', 'Secondary Positions', 'Model Target Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Role', 'Model Confidence', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
                     st.dataframe(model_df[display_cols].reset_index(drop=True), use_container_width=True)
 
                     player_options = [f"{idx} • {row['Player']} ({row['Rating']})" for idx, row in model_df.reset_index().iterrows()]
@@ -4893,7 +5969,7 @@ def main():
                     df_export = model_df.reset_index(drop=True).copy()
                     # Rank within Position by Model Score descending
                     if 'Model Score' in df_export.columns:
-                        df_export['Rank'] = df_export.groupby('Position')['Model Score']\
+                        df_export['Rank'] = df_export.groupby('Model Target Position')['Model Score']\
                             .rank(method='min', ascending=False).fillna(0).astype(int)
                     else:
                         df_export['Rank'] = 0
@@ -4907,7 +5983,7 @@ def main():
                         df_export = df_export.rename(columns={'model_data_status': 'data_status'})
                     # collect per-feature percentile columns (those ending with _pct)
                     feature_pct_cols = [c for c in df_export.columns if str(c).endswith('_pct')]
-                    cols = ['Rank', 'Player', 'Primary Position', 'Secondary Positions', 'Model Target Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype']
+                    cols = ['Rank', 'Player', 'Primary Position', 'Secondary Positions', 'Model Target Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Role', 'Model Confidence', 'Model Archetype']
                     cols += feature_pct_cols
                     cols += ['Strengths', 'Weaknesses', 'data_status']
                     export_sheets['Position_Model_Ranking'] = df_export[[c for c in cols if c in df_export.columns]]
