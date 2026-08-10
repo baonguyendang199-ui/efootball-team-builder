@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import altair as alt
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 import json
 from google.oauth2.service_account import Credentials
@@ -3305,18 +3306,25 @@ def _build_radar_figure(player_idx, meta: pd.DataFrame, fit_context: dict):
     categories = list(scoring.columns)
     player_r = player_z[categories].tolist()
     ideal_r = ideal_z[categories].tolist()
-    fig = px.line_polar(
-        r=[player_r + [player_r[0]], ideal_r + [ideal_r[0]]],
-        theta=categories + [categories[0]],
-        line_close=True,
-        labels={'theta': 'Feature', 'r': 'Z-score'},
-        title=f"Player vs Ideal Profile"
-    )
-    fig.update_traces(fill='toself')
+    closed_categories = categories + [categories[0]]
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=player_r + [player_r[0]],
+        theta=closed_categories,
+        fill='toself',
+        name='Player'
+    ))
+    fig.add_trace(go.Scatterpolar(
+        r=ideal_r + [ideal_r[0]],
+        theta=closed_categories,
+        fill='toself',
+        name='Ideal'
+    ))
     fig.update_layout(
+        title=f"Player vs Ideal Profile",
+        polar=dict(radialaxis=dict(range=[-3, 3], tickangle=0)),
         showlegend=True,
-        legend=dict(orientation='h', y=-0.1, x=0.5, xanchor='center'),
-        polar=dict(radialaxis=dict(range=[-3, 3], tickangle=0))
+        legend=dict(orientation='h', y=-0.1, x=0.5, xanchor='center')
     )
     apply_plotly_theme(fig)
     return fig
