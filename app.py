@@ -4677,53 +4677,61 @@ def main():
             st.plotly_chart(fig_lg, use_container_width=True, config={'displayModeBar': False})
 
     elif current_tab == 'body':
-        st.header("🏋️ Phân tích thể hình")
+        st.header("🏋️ Body Analysis")
 
         missing_cols = check_body_columns(df)
         if missing_cols:
-            st.error("⚠️ Thiếu cột thể hình cần thiết trong dữ liệu: " + ", ".join(missing_cols))
+            st.error("Missing required body measurement columns: " + ", ".join(missing_cols))
         else:
             st.markdown(
-                """Giải pháp mới tập trung vào `Position Body-Fit Score` — đánh giá mức độ phù hợp thể hình theo vị trí, thay vì phân cụm chung chung. Fit Score chỉ có ý nghĩa so sánh trong cùng nhóm Position / Position Style đã chọn."""
+                """The new workflow focuses on Position Model Ranking — ranking players against a fixed position model instead of clustering. Model Score is meaningful only within the selected Position or Position Style group."""
+            )
+            st.markdown(
+                """
+                - **Model Score**: position-specific composite score from `POSITION_MODEL_WEIGHTS`.
+                - **Model Uniqueness**: how physically distinctive a player is within the same position.
+                - **Model Archetype**: deterministic role label based on feature group strengths.
+                """,
             )
 
-            with st.expander("Module 1 — Position Body-Fit Score", expanded=True):
+            with st.expander("Module 1 — Position Model Ranking", expanded=True):
                 col1, col2 = st.columns([1, 1], gap="large")
                 with col1:
-                    group_level = st.selectbox("Nhóm theo", ["Position", "Position Style"], index=0)
+                    group_level = st.selectbox("Group by", ["Position", "Position Style"], index=0)
                     if group_level == 'Position':
                         positions = get_unique_values(df, 'Position')
-                        chosen_position = st.selectbox("Chọn Position", ['(All)'] + positions, index=0)
+                        chosen_position = st.selectbox("Choose Position", ['(All)'] + positions, index=0)
                         chosen_style = '(All)'
                     else:
                         styles = get_unique_values(df, 'Position Style')
-                        chosen_style = st.selectbox("Chọn Position Style", ['(All)'] + styles, index=0)
+                        chosen_style = st.selectbox("Choose Position Style", ['(All)'] + styles, index=0)
                         chosen_position = '(All)'
                 with col2:
-                    model_type = st.selectbox("Model Type", ["Overall", "Coverage", "Physical"], index=0)
-                    st.markdown("Model Score = percentile-based composite theo `POSITION_MODEL_WEIGHTS` (so sánh trong cùng Position/Style).")
+                    model_type = st.selectbox("Model Type", ["Overall", "Coverage", "Physical Structure"], index=0)
+                    st.markdown("Model Score = percentile-based composite using `POSITION_MODEL_WEIGHTS` (comparable only within the same group).")
 
                 subset = _group_subset(df, group_level, chosen_position, chosen_style)
                 fit_df = _ensure_body_numerics(subset)
                 bad_height = fit_df['Height_num'].isna() | (fit_df['Height_num'] <= 0)
                 invalid_rows = int(bad_height.sum())
                 if invalid_rows > 0:
-                    st.caption(f"Đã loại {invalid_rows} cầu thủ do Height thiếu / <= 0.")
+                    st.caption(f"Excluded {invalid_rows} players because Height is missing or <= 0.")
                 fit_df = fit_df[~bad_height].copy()
 
                 if len(fit_df) < MIN_FIT_PLAYERS:
-                    st.info(f"Số cầu thủ trong nhóm quá ít để tính Model Score (cần ít nhất {MIN_FIT_PLAYERS}). Hiện có: {len(fit_df)}")
+                    st.info(f"Not enough players in the group to calculate Model Score (minimum {MIN_FIT_PLAYERS}). Current count: {len(fit_df)}")
                 else:
                     model_df = compute_position_model_scores(fit_df)
                     model_df = generate_strengths_weaknesses(model_df)
                     model_df = model_df.sort_values(['Model Score', 'Rating'], ascending=[False, False])
-                    st.caption("Model Score chỉ có ý nghĩa so sánh trong cùng 1 nhóm Position / Position Style.")
+                    st.caption("Model Score is only comparable within the selected Position or Position Style group.")
+                    st.caption("Model Uniqueness measures how rare a player is within the same position; Model Archetype labels the dominant feature group.")
 
                     display_cols = ['Player', 'Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
                     st.dataframe(model_df[display_cols].reset_index(drop=True), use_container_width=True)
 
                     player_options = [f"{idx} • {row['Player']} ({row['Rating']})" for idx, row in model_df.reset_index().iterrows()]
-                    selected_player = st.selectbox("Xem radar profile của cầu thủ", player_options)
+                    selected_player = st.selectbox("Select a player to view the radar profile", player_options)
                     if selected_player:
                         selected_idx = int(selected_player.split(' • ')[0])
                         player_index = model_df.index[selected_idx]
@@ -4731,11 +4739,11 @@ def main():
                         if radar_fig is not None:
                             st.plotly_chart(radar_fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
                         else:
-                            st.info("Không có đủ dữ liệu để hiển thị radar.")
+                            st.info("Not enough data to display the radar chart.")
 
             with st.expander("Module 2 — Coverage & Reach Explorer", expanded=False):
                 coverage_mode = st.radio("Coverage type", ["Leg Coverage", "Arm Coverage", "Total Coverage"], horizontal=True)
-                cover_group_level = st.selectbox("Filter theo", ["Position", "Position Style"], index=0, key='coverage_filter_group')
+                cover_group_level = st.selectbox("Filter by", ["Position", "Position Style"], index=0, key='coverage_filter_group')
                 if cover_group_level == 'Position':
                     cover_positions = get_unique_values(df, 'Position')
                     selected_positions = st.multiselect("Position", cover_positions, default=cover_positions)
@@ -4746,7 +4754,7 @@ def main():
                     selected_positions = []
                 min_rating = int(df['Rating'].dropna().min())
                 max_rating = int(df['Rating'].dropna().max())
-                selected_rating = st.slider("Rating", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
+                selected_rating = st.slider("Rating range", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
 
                 coverage_df = _ensure_body_numerics(df)
                 if selected_positions:
@@ -4759,7 +4767,7 @@ def main():
                 coverage_df['ResidualSign'] = np.where(coverage_df['Residual'] > 0, 'Above trend', 'Below trend')
 
                 if len(coverage_df) < 5:
-                    st.info("Số cầu thủ quá ít để vẽ trendline coverage (cần ít nhất 5).")
+                    st.info("Not enough players to plot a coverage trendline (minimum 5 required).")
 
                 cover_display = coverage_df[['Player', 'Position', 'Rating', 'Height_num', 'Coverage Value', 'Coverage Efficiency', 'Residual']].copy()
                 cover_display = cover_display.rename(columns={
@@ -4791,10 +4799,10 @@ def main():
             with st.expander("Module 3 — Goalkeeper Model", expanded=False):
                 gk_df = df[df['Position'] == 'GK'].copy()
                 if gk_df.empty:
-                    st.info("Không có GK trong dữ liệu để phân tích.")
+                    st.info("No GK players found in the data for analysis.")
                 else:
                     gk_df = _ensure_body_numerics(gk_df)
-                    use_jump = st.checkbox("Bật Jumping Height (thử nghiệm)", value=False)
+                    use_jump = st.checkbox("Enable Jumping Height (experimental)", value=False)
                     # Respect experimental feature toggle by creating a local weight copy
                     weights = POSITION_MODEL_WEIGHTS.copy()
                     if not use_jump:
@@ -4803,42 +4811,42 @@ def main():
                             weights['GK'] = renormalize_profile(weights['GK'], exclude_experimental=True)
 
                     if len(gk_df) < MIN_GK_FIT_PLAYERS:
-                        st.info(f"Số GK quá ít để tính Model Score (cần ít nhất {MIN_GK_FIT_PLAYERS}). Hiện có: {len(gk_df)}")
+                        st.info(f"Not enough GK players to calculate Model Score (minimum {MIN_GK_FIT_PLAYERS}). Current count: {len(gk_df)}")
                         st.dataframe(gk_df[['Player', 'Rating'] + GK_FEATURES].sort_values('Rating', ascending=False).reset_index(drop=True), use_container_width=True)
                     else:
                         gk_model_df = compute_position_model_scores(gk_df, weights=weights)
                         gk_model_df = generate_strengths_weaknesses(gk_model_df)
                         gk_display = gk_model_df[['Player', 'Rating'] + GK_FEATURES + ['Model Score', 'Model Uniqueness', 'Model Archetype', 'model_data_status']].copy()
                         st.dataframe(gk_display.sort_values(['Model Score', 'Rating'], ascending=[False, False]).reset_index(drop=True), use_container_width=True)
-                        if st.button("So sánh trực tiếp GK"):
+                        if st.button("Compare GK directly"):
                             st.session_state['body_compare_selected'] = gk_model_df['Player'].tolist()[:BODY_COMPARE_MAX_SELECTION]
 
             with st.expander("Module 4 — Body Compare", expanded=False):
                 compare_players = get_unique_values(df, 'Player')
                 selected_compare = st.multiselect(
-                    f"Chọn 2–{BODY_COMPARE_MAX_SELECTION} cầu thủ",
+                    f"Select 2–{BODY_COMPARE_MAX_SELECTION} players",
                     compare_players,
                     default=st.session_state.get('body_compare_selected', [])[:BODY_COMPARE_MAX_SELECTION]
                 )
                 selected_compare = selected_compare[:BODY_COMPARE_MAX_SELECTION]
                 compare_df, compare_fig, compare_summary = _build_body_compare(df, selected_compare)
                 if compare_df.empty:
-                    st.info("Chọn ít nhất 2 cầu thủ để so sánh.")
+                    st.info("Select at least 2 players to compare.")
                 else:
                     st.dataframe(compare_df, use_container_width=True)
                     st.plotly_chart(compare_fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
-                    st.markdown(f"**Tóm tắt:** {compare_summary}")
+                    st.markdown(f"**Summary:** {compare_summary}")
 
             with st.expander("Module 5 — Team Basket + Diversity", expanded=False):
                 if 'body_basket' not in st.session_state:
                     st.session_state['body_basket'] = []
-                st.markdown("**Giỏ đội hình**")
-                basket_player = st.selectbox("Thêm cầu thủ vào giỏ", ['(None)'] + get_unique_values(df, 'Player'))
-                if st.button("Thêm vào giỏ basket") and basket_player != '(None)':
+                st.markdown("**Team Basket**")
+                basket_player = st.selectbox("Add player to basket", ['(None)'] + get_unique_values(df, 'Player'))
+                if st.button("Add to basket") and basket_player != '(None)':
                     if basket_player not in st.session_state['body_basket']:
                         st.session_state['body_basket'].append(basket_player)
                 st.write(st.session_state['body_basket'])
-                if st.button("Xóa giỏ"):
+                if st.button("Clear basket"):
                     st.session_state['body_basket'] = []
                 warnings = _compute_basket_diversity(_ensure_body_numerics(df), st.session_state['body_basket'])
                 for w in warnings:
