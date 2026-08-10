@@ -4832,7 +4832,8 @@ def main():
                     df_export = model_df.reset_index(drop=True).copy()
                     # Rank within Position by Model Score descending
                     if 'Model Score' in df_export.columns:
-                        df_export['Rank'] = df_export.groupby('Position')['Model Score'].rank(method='min', ascending=False).astype(int)
+                        df_export['Rank'] = df_export.groupby('Position')['Model Score']\
+                            .rank(method='min', ascending=False).fillna(0).astype(int)
                     else:
                         df_export['Rank'] = 0
                     if 'model_data_status' in df_export.columns:
