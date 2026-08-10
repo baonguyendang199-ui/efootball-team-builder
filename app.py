@@ -3199,9 +3199,9 @@ def _ensure_body_numerics(df: pd.DataFrame) -> pd.DataFrame:
 
 def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chosen_style: str) -> pd.DataFrame:
     if group_level == 'Position' and chosen_position and chosen_position != '(All)':
-        mask = df['Position'] == chosen_position
+        chosen_upper = chosen_position.strip().upper()
+        mask = df['Position'].astype(str).str.upper().str.strip() == chosen_upper
         if 'Secondary Positions' in df.columns:
-            chosen_upper = chosen_position.strip().upper()
             sec_mask = df['Secondary Positions'].astype(str).str.upper().str.split(',').apply(
                 lambda items: any(chosen_upper == item.strip() for item in items if item.strip())
             )
@@ -3703,6 +3703,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
     df['Model Uniqueness'] = uniq_pct
     df['Model Archetype'] = model_archetype
     df['model_data_status'] = data_status
+    df['Model Target Position'] = target_position if target_position is not None else df['Position']
 
     return df
 
@@ -3712,7 +3713,7 @@ def generate_strengths_weaknesses(df: pd.DataFrame) -> pd.DataFrame:
     strengths = []
     weaknesses = []
     for idx, row in df.iterrows():
-        pos = row.get('Position')
+        pos = row.get('Model Target Position') or row.get('Position')
         profile = POSITION_MODEL_WEIGHTS.get(pos, [])
         feats = [p['feature'] for p in profile]
         pct_map = {}
@@ -3757,7 +3758,7 @@ def _build_model_radar(player_idx, model_df: pd.DataFrame, weights: dict = None)
     if player_idx not in model_df.index:
         return None
     row = model_df.loc[player_idx]
-    pos = row.get('Position')
+    pos = row.get('Model Target Position') or row.get('Position')
     weights = weights if weights is not None else POSITION_MODEL_WEIGHTS
     profile = weights.get(pos, [])
     if not profile:
@@ -4754,13 +4755,13 @@ def main():
                 if len(fit_df) < MIN_FIT_PLAYERS:
                     st.info(f"Not enough players in the group to calculate Model Score (minimum {MIN_FIT_PLAYERS}). Current count: {len(fit_df)}")
                 else:
-                    model_df = compute_position_model_scores(fit_df)
+                    model_df = compute_position_model_scores(fit_df, group_level=group_level, chosen_position=chosen_position)
                     model_df = generate_strengths_weaknesses(model_df)
                     model_df = model_df.sort_values(['Model Score', 'Rating'], ascending=[False, False])
                     st.caption("Model Score is only comparable within the selected Position or Position Style group.")
                     st.caption("Model Uniqueness measures how rare a player is within the same position; Model Archetype labels the dominant feature group.")
 
-                    display_cols = ['Player', 'Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
+                    display_cols = ['Player', 'Position', 'Secondary Positions', 'Model Target Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
                     st.dataframe(model_df[display_cols].reset_index(drop=True), use_container_width=True)
 
                     player_options = [f"{idx} • {row['Player']} ({row['Rating']})" for idx, row in model_df.reset_index().iterrows()]
@@ -4896,11 +4897,17 @@ def main():
                             .rank(method='min', ascending=False).fillna(0).astype(int)
                     else:
                         df_export['Rank'] = 0
+                    if 'Position' in df_export.columns:
+                        df_export['Primary Position'] = df_export['Position']
+                    if 'Model Target Position' not in df_export.columns:
+                        df_export['Model Target Position'] = df_export.get('Position', '')
+                    if 'Secondary Positions' not in df_export.columns:
+                        df_export['Secondary Positions'] = ''
                     if 'model_data_status' in df_export.columns:
                         df_export = df_export.rename(columns={'model_data_status': 'data_status'})
                     # collect per-feature percentile columns (those ending with _pct)
                     feature_pct_cols = [c for c in df_export.columns if str(c).endswith('_pct')]
-                    cols = ['Rank', 'Player', 'Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype']
+                    cols = ['Rank', 'Player', 'Primary Position', 'Secondary Positions', 'Model Target Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype']
                     cols += feature_pct_cols
                     cols += ['Strengths', 'Weaknesses', 'data_status']
                     export_sheets['Position_Model_Ranking'] = df_export[[c for c in cols if c in df_export.columns]]
