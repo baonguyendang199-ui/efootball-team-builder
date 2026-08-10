@@ -3856,19 +3856,24 @@ def main():
         else:
             # Panel điều khiển
             with st.expander("Bộ lọc & Thiết lập", expanded=True):
-                col1, col2, col3 = st.columns([2, 2, 2])
-                group_level = col1.selectbox("Nhóm vị trí để phân cụm", ["Position Style", "Position"], index=0)
-                if group_level == "Position":
-                    positions = get_unique_values(df, 'Position')
-                    chosen_position = col1.selectbox("Chọn Position", ['(All)'] + positions, index=0)
-                else:
-                    styles = get_unique_values(df, 'Position Style')
-                    chosen_style = col1.selectbox("Chọn Position Style", ['(All)'] + styles, index=0)
+                col1, col2 = st.columns([1, 1], gap="large")
+                with col1:
+                    st.markdown("**Lọc nhóm cầu thủ**")
+                    group_level = st.selectbox("Nhóm vị trí để phân cụm", ["Position Style", "Position"], index=0)
+                    if group_level == "Position":
+                        positions = get_unique_values(df, 'Position')
+                        chosen_position = st.selectbox("Chọn Position", ['(All)'] + positions, index=0)
+                        chosen_style = '(All)'
+                    else:
+                        styles = get_unique_values(df, 'Position Style')
+                        chosen_style = st.selectbox("Chọn Position Style", ['(All)'] + styles, index=0)
+                        chosen_position = '(All)'
 
-                # PCA components selection placeholder (will compute suggestions)
-                inertia_display = col2.empty()
-                silhouette_display = col2.empty()
-                run_button = col3.button("Chạy phân cụm")
+                with col2:
+                    st.markdown("**PCA & Cluster**")
+                    inertia_display = st.empty()
+                    silhouette_display = st.empty()
+                    run_button = st.button("Chạy phân cụm")
 
             # Lọc dữ liệu theo bộ lọc đã chọn
             if group_level == 'Position' and chosen_position and chosen_position != '(All)':
@@ -3975,32 +3980,41 @@ def main():
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
                 # Filters & result table
-                st.markdown("**Bộ lọc kết quả**")
-                c1, c2, c3 = st.columns([3,2,2])
-                clusters_available = sorted(sub_df['Cluster'].unique())
-                sel_clusters = c1.multiselect("Chọn cụm", options=clusters_available, default=clusters_available)
-                pos_options = get_unique_values(sub_df, 'Position')
-                sel_positions = c2.multiselect("Position", options=pos_options, default=pos_options)
-                min_rating = int(sub_df['Rating'].min()) if 'Rating' in sub_df.columns else 0
-                max_rating = int(sub_df['Rating'].max()) if 'Rating' in sub_df.columns else 100
-                sel_rating = c3.slider("Rating", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
+                with st.expander("**Bộ lọc kết quả**", expanded=True):
+                    clusters_available = sorted(sub_df['Cluster'].unique())
+                    sel_clusters = st.multiselect("Chọn cụm", options=clusters_available, default=clusters_available)
+                    pos_options = get_unique_values(sub_df, 'Position')
+                    sel_positions = st.multiselect("Position", options=pos_options, default=pos_options)
+                    min_rating = int(sub_df['Rating'].min()) if 'Rating' in sub_df.columns else 0
+                    max_rating = int(sub_df['Rating'].max()) if 'Rating' in sub_df.columns else 100
+                    sel_rating = st.slider("Rating", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
 
-                filtered = sub_df[sub_df['Cluster'].isin(sel_clusters) & sub_df['Position'].isin(sel_positions) & sub_df['Rating'].between(sel_rating[0], sel_rating[1])].copy()
+                    filtered = sub_df[
+                        sub_df['Cluster'].isin(sel_clusters) &
+                        sub_df['Position'].isin(sel_positions) &
+                        sub_df['Rating'].between(sel_rating[0], sel_rating[1])
+                    ].copy()
 
-                display_cols = ['Player','Position','Rating','Cluster','Cluster Name'] + feature_cols
-                st.dataframe(filtered[display_cols].sort_values(['Cluster','Rating'], ascending=[True, False]), use_container_width=True)
+                    show_full_features = st.checkbox("Hiển thị tất cả chỉ số thể hình", value=False)
+                    display_cols = ['Player','Position','Rating','Cluster','Cluster Name']
+                    if show_full_features:
+                        display_cols += feature_cols
+                    else:
+                        display_cols += ['Height','Weight','Age']
+
+                    with st.expander("Kết quả bảng", expanded=not show_full_features):
+                        st.dataframe(filtered[display_cols].sort_values(['Cluster','Rating'], ascending=[True, False]), use_container_width=True)
 
                 # Team basket (independent)
                 if 'body_basket' not in st.session_state:
                     st.session_state['body_basket'] = []
 
-                st.markdown("**Giỏ đội hình (độc lập)**")
-                pick_col1, pick_col2 = st.columns([3,1])
-                pick_list = pick_col1.multiselect("Chọn cầu thủ để thêm vào giỏ", options=filtered['Player'].tolist())
-                if pick_col2.button("Thêm vào giỏ"):
-                    for p in pick_list:
-                        if p not in st.session_state['body_basket']:
-                            st.session_state['body_basket'].append(p)
+                with st.expander("**Giỏ đội hình (độc lập)**", expanded=True):
+                    pick_list = st.multiselect("Chọn cầu thủ để thêm vào giỏ", options=filtered['Player'].tolist())
+                    if st.button("Thêm vào giỏ"):
+                        for p in pick_list:
+                            if p not in st.session_state['body_basket']:
+                                st.session_state['body_basket'].append(p)
 
                 if st.session_state['body_basket']:
                     st.markdown(f"**Đang có {len(st.session_state['body_basket'])} cầu thủ trong giỏ**")
@@ -4304,7 +4318,12 @@ def main():
                 c_s1, c_s2 = st.columns([2, 1])
                 with c_s1:
                     sort_options = [
-                        'Rating', 'BMI', 'Height', 'Weight', 'Age', 'Player Name'
+                        'Rating', 'BMI', 'Height', 'Weight', 'Age',
+                        'Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement',
+                        'Neck Size', 'Shoulder Height', 'Leg Length', 'Thigh Size',
+                        'Waist Size', 'Arm Size', 'Calf Size', 'Leg Coverage Radius',
+                        'Arm Coverage Radius', 'Jumping Height', 'Torso Collision',
+                        'Leg Length Based Height', 'Player Name'
                     ]
                     sort_col = st.selectbox("Sort", sort_options, index=0, label_visibility="collapsed", key="filter_sort_col")
                 with c_s2:
@@ -4384,11 +4403,18 @@ def main():
         # 3. XỬ LÝ LỌC DỮ LIỆU & TÍNH TOÁN BMI
         filtered_df = rec_df.copy()
         
-        for col in ['Height', 'Weight', 'Age']:
+        numeric_columns = [
+            'Height', 'Weight', 'Age', 'Arm Length', 'Shoulder Width', 'Neck Length',
+            'Chest Measurement', 'Neck Size', 'Shoulder Height', 'Leg Length',
+            'Thigh Size', 'Waist Size', 'Arm Size', 'Calf Size', 'Leg Coverage Radius',
+            'Arm Coverage Radius', 'Jumping Height', 'Torso Collision',
+            'Leg Length Based Height'
+        ]
+        for col in numeric_columns:
             filtered_df[f'_num_{col}'] = pd.to_numeric(filtered_df[col], errors='coerce').fillna(0)
 
         filtered_df['_num_BMI'] = filtered_df.apply(
-            lambda x: x['_num_Weight'] / ((x['_num_Height']/100)**2) if x['_num_Height'] > 0 else 0, 
+            lambda x: x['_num_Weight'] / ((x['_num_Height']/100)**2) if x['_num_Height'] > 0 else 0,
             axis=1
         )
 
@@ -4425,11 +4451,15 @@ def main():
         ]
         
         # Apply Sorting Logic
-        if sort_col == 'Player Name': filtered_df = filtered_df.sort_values('Player', ascending=sort_order)
-        elif sort_col == 'BMI': filtered_df = filtered_df.sort_values('_num_BMI', ascending=sort_order)
-        elif sort_col in ['Height', 'Weight', 'Age']: filtered_df = filtered_df.sort_values(f'_num_{sort_col}', ascending=sort_order)
+        if sort_col == 'Player Name':
+            filtered_df = filtered_df.sort_values('Player', ascending=sort_order)
+        elif sort_col == 'BMI':
+            filtered_df = filtered_df.sort_values('_num_BMI', ascending=sort_order)
+        elif sort_col in numeric_columns:
+            filtered_df = filtered_df.sort_values(f'_num_{sort_col}', ascending=sort_order)
         else:
-            if sort_col in filtered_df.columns: filtered_df = filtered_df.sort_values(sort_col, ascending=sort_order)
+            if sort_col in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(sort_col, ascending=sort_order)
 
         # 4. DASHBOARD MINI
         st.markdown("---")
