@@ -4049,91 +4049,6 @@ MODEL_PROFILES = {
     },
     'SS-ALLOWED': {
         'roles': []
-    },
-    'CF': {
-        'overall': {
-            'id': 'cf.overall',
-            'label': 'CF Overall',
-            'description': 'Center forward physical model baseline.',
-            'features': [
-                {'feature': 'Height', 'weight': 18, 'mode': 'maximize', 'group': 'Size'},
-                {'feature': 'Leg Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
-                {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Upper Body'},
-                {'feature': 'Arm Length Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Reach'},
-                {'feature': 'Jumping Height', 'weight': 12, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
-                {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
-                {'feature': 'Body Size Composite', 'weight': 10, 'mode': 'maximize', 'group': 'Size'},
-                {'feature': 'Leg Coverage Ratio', 'weight': 6, 'mode': 'maximize', 'group': 'Leg'},
-                {'feature': 'Neck Length Ratio', 'weight': 2, 'mode': 'maximize', 'group': 'Upper Body'},
-            ]
-        },
-        'roles': [
-            {
-                'id': 'cf.target_physical',
-                'label': 'Target / Physical Striker',
-                'description': 'Large frame and reach oriented striker.',
-                'features': [
-                    {'feature': 'Height', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
-                    {'feature': 'Shoulder Width Ratio', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Upper Body'},
-                    {'feature': 'Body Size Composite', 'weight': 14, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
-                    {'feature': 'Arm Length Ratio', 'weight': 12, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Reach'},
-                    {'feature': 'Arm Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Reach'},
-                    {'feature': 'Leg Coverage Ratio', 'weight': 10, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Torso Collision', 'weight': 10, 'mode': 'range', 'preset': 'MID_HIGH', 'group': 'Size'},
-                    {'feature': 'Leg Length Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
-                    {'feature': 'Leg Length Based Height', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
-                    {'feature': 'Jumping Height', 'weight': 5, 'mode': 'maximize', 'group': 'Aerial', 'experimental': True},
-                ]
-            },
-            {
-                'id': 'cf.advanced_forward',
-                'label': 'Advanced Forward',
-                'description': 'Long-limbed, reach-oriented forward.',
-                'features': [
-                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Arm Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Reach'},
-                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
-                    {'feature': 'Height', 'weight': 10, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                    {'feature': 'Leg Length Based Height', 'weight': 10, 'mode': 'range', 'preset': 'HIGH', 'group': 'Leg'},
-                    {'feature': 'Shoulder Width Ratio', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
-                    {'feature': 'Body Size Composite', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                ]
-            },
-            {
-                'id': 'cf.poacher',
-                'label': 'Poacher',
-                'description': 'Balanced striker frame with useful reach.',
-                'features': [
-                    {'feature': 'Leg Length Ratio', 'weight': 16, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Arm Length Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Reach'},
-                    {'feature': 'Leg Coverage Ratio', 'weight': 14, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Arm Coverage Ratio', 'weight': 11, 'mode': 'maximize', 'group': 'Reach'},
-                    {'feature': 'Height', 'weight': 12, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                    {'feature': 'Shoulder Width Ratio', 'weight': 9, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
-                    {'feature': 'Body Size Composite', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                    {'feature': 'Torso Collision', 'weight': 6, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                    {'feature': 'Leg Length Based Height', 'weight': 9, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Leg'},
-                ]
-            },
-            {
-                'id': 'cf.mobile',
-                'label': 'Mobile Striker',
-                'description': 'Long reachable proportions with moderate bulk.',
-                'features': [
-                    {'feature': 'Leg Length Ratio', 'weight': 20, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Arm Length Ratio', 'weight': 17, 'mode': 'maximize', 'group': 'Reach'},
-                    {'feature': 'Leg Coverage Ratio', 'weight': 15, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Arm Coverage Ratio', 'weight': 12, 'mode': 'maximize', 'group': 'Reach'},
-                    {'feature': 'Leg Length Based Height', 'weight': 12, 'mode': 'maximize', 'group': 'Leg'},
-                    {'feature': 'Height', 'weight': 8, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                    {'feature': 'Shoulder Width Ratio', 'weight': 5, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Upper Body'},
-                    {'feature': 'Body Size Composite', 'weight': 4, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                    {'feature': 'Torso Collision', 'weight': 7, 'mode': 'range', 'preset': 'BALANCED', 'group': 'Size'},
-                ]
-            }
-        ]
     }
 }
 
@@ -4506,17 +4421,18 @@ def resolve_position_profiles(weights=None, exclude_experimental: bool = True) -
     return {pos: normalize_model_profile(profile, exclude_experimental=exclude_experimental) for pos, profile in weights.items()}
 
 
-def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_level: str = 'Position', chosen_position: str = '(All)') -> pd.DataFrame:
+def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_level: str = 'Position', chosen_position: str = '(All)', selected_profile_label: str = 'Overall') -> pd.DataFrame:
     """Compute Model Score, Uniqueness and Archetype for players in df.
 
     Percentiles are computed within the provided dataframe (which should be pre-filtered
     to the chosen Position or Position Style group). Returns a copy of df with added
-    columns: `Model Score`, `Model Uniqueness`, `Model Archetype`, `model_data_status`.
+    columns: `Model Profile`, `Model Score`, `Model Uniqueness`, `Model Role`, `Model Confidence`, `Model Archetype`, `model_data_status`.
     """
     df = _ensure_body_numerics(df).copy()
     normalized_weights = resolve_position_profiles(weights, exclude_experimental=not JUMPING_HEIGHT_ENABLED)
 
     target_position = None
+    selected_profile_label = str(selected_profile_label or 'Overall')
     if group_level == 'Position' and chosen_position and chosen_position != '(All)':
         target_position = chosen_position
         profile = normalized_weights.get(target_position, [])
@@ -4627,6 +4543,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
     model_scores = []
     model_uniqueness = []
     model_archetype = []
+    model_profiles = []
     data_status = []
 
     model_roles = []
@@ -4639,6 +4556,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             model_scores.append(np.nan)
             model_uniqueness.append(np.nan)
             model_archetype.append('Unknown')
+            model_profiles.append(selected_profile_label)
             model_roles.append('Unknown')
             model_confidences.append(np.nan)
             data_status.append('No Position Profile')
@@ -4652,6 +4570,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
                 missing_count += 1
         if len(active_features) == 0:
             data_status.append('No features')
+            model_profiles.append(selected_profile_label)
             model_scores.append(np.nan)
             model_uniqueness.append(np.nan)
             model_archetype.append('Unknown')
@@ -4660,6 +4579,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             continue
         if missing_count / len(active_features) > 0.3:
             data_status.append('Thiếu dữ liệu')
+            model_profiles.append(selected_profile_label)
             model_scores.append(np.nan)
             model_uniqueness.append(np.nan)
             model_archetype.append('Unknown')
@@ -4705,6 +4625,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
                 else:
                     role_confidence = 100.0
 
+        model_profiles.append(selected_profile_label)
         model_scores.append(score)
         model_uniqueness.append(rms)
         model_roles.append(role_label)
@@ -4780,6 +4701,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
     else:
         uniq_pct = uniq_series.rank(method='average', pct=True) * 100
 
+    df['Model Profile'] = model_profiles
     df['Model Score'] = model_scores
     df['Model Uniqueness'] = uniq_pct
     df['Model Archetype'] = model_archetype
@@ -4791,13 +4713,17 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
     return df
 
 
-def generate_strengths_weaknesses(df: pd.DataFrame) -> pd.DataFrame:
+def generate_strengths_weaknesses(df: pd.DataFrame, profile_weights: dict = None) -> pd.DataFrame:
     """Generate Strengths/Weaknesses based on per-feature percentiles and position profiles."""
     strengths = []
     weaknesses = []
     for idx, row in df.iterrows():
         pos = row.get('Model Target Position') or row.get('Position')
-        profile = get_profile_weights_for_position(pos, profiles=MODEL_PROFILES)
+        profile = None
+        if profile_weights is not None:
+            profile = get_profile_weights_for_position(pos, weights=profile_weights)
+        if not profile:
+            profile = get_profile_weights_for_position(pos, profiles=MODEL_PROFILES)
         if not profile:
             profile = POSITION_MODEL_WEIGHTS.get(pos, [])
         feats = [p['feature'] for p in profile]
@@ -5783,13 +5709,14 @@ def main():
             st.error("Missing required body measurement columns: " + ", ".join(missing_cols))
         else:
             st.markdown(
-                """The new workflow focuses on Position Model Ranking — ranking players against a fixed position model instead of clustering. Model Score is meaningful only within the selected Position or Position Style group."""
+                """The new workflow focuses on role-aware position profile scoring using `MODEL_PROFILES`. Model Score is meaningful within the selected Position or Position Style group."""
             )
             st.markdown(
                 """
-                - **Model Score**: position-specific composite score from `POSITION_MODEL_WEIGHTS`.
-                - **Model Uniqueness**: how physically distinctive a player is within the same position.
-                - **Model Archetype**: deterministic role label based on feature group strengths.
+                - **Model Score**: composite score from the selected position or role profile in `MODEL_PROFILES`.
+                - **Model Role**: the best-matching role label for each player's position.
+                - **Model Confidence**: how clearly the player matches the top role compared with the next-best role.
+                - **Model Archetype**: deterministic feature-group label derived from percentile strengths.
                 """,
             )
             with st.expander("Tester Insights — Body Model Parameters", expanded=False):
@@ -5817,8 +5744,25 @@ def main():
                         chosen_style = st.selectbox("Choose Position Style", ['(All)'] + styles, index=0)
                         chosen_position = '(All)'
                 with col2:
-                    model_type = st.selectbox("Model Type", ["Overall", "Coverage", "Physical Structure"], index=0)
-                    st.markdown("Model Score = percentile-based composite using `POSITION_MODEL_WEIGHTS` (comparable only within the same group).")
+                    profile_weights = None
+                    model_profile_choice = 'Overall'
+                    if group_level == 'Position' and chosen_position != '(All)':
+                        position_roles = get_model_roles_for_position(chosen_position, profiles=MODEL_PROFILES, exclude_experimental=not JUMPING_HEIGHT_ENABLED)
+                        profile_options = ['Overall'] + [role['label'] for role in position_roles]
+                        model_profile_choice = st.selectbox("Model Profile", profile_options, index=0)
+                        if model_profile_choice != 'Overall':
+                            selected_role = next((role for role in position_roles if role['label'] == model_profile_choice), None)
+                            if selected_role is not None:
+                                profile_weights = {chosen_position: selected_role['features']}
+                                st.markdown(selected_role.get('description', ''))
+                            else:
+                                st.markdown("Use the selected position's overall profile.")
+                        else:
+                            overall_desc = MODEL_PROFILES.get(chosen_position, {}).get('overall', {}).get('description', '')
+                            st.markdown(overall_desc or "Use the selected position's overall profile.")
+                    else:
+                        st.markdown("Scores are generated using each player's overall position profile from `MODEL_PROFILES`.")
+                    st.caption("Model Score uses the selected profile; Model Role and Model Confidence are computed from available position roles.")
 
                 subset = _group_subset(df, group_level, chosen_position, chosen_style)
                 fit_df = _ensure_body_numerics(subset)
@@ -5831,13 +5775,19 @@ def main():
                 if len(fit_df) < MIN_FIT_PLAYERS:
                     st.info(f"Not enough players in the group to calculate Model Score (minimum {MIN_FIT_PLAYERS}). Current count: {len(fit_df)}")
                 else:
-                    model_df = compute_position_model_scores(fit_df, group_level=group_level, chosen_position=chosen_position)
-                    model_df = generate_strengths_weaknesses(model_df)
+                    model_df = compute_position_model_scores(
+                        fit_df,
+                        weights=profile_weights,
+                        group_level=group_level,
+                        chosen_position=chosen_position,
+                        selected_profile_label=model_profile_choice
+                    )
+                    model_df = generate_strengths_weaknesses(model_df, profile_weights=profile_weights)
                     model_df = model_df.sort_values(['Model Score', 'Rating'], ascending=[False, False])
                     st.caption("Model Score is only comparable within the selected Position or Position Style group.")
                     st.caption("Model Uniqueness measures how rare a player is within the same position; Model Archetype labels the dominant feature group.")
 
-                    display_cols = ['Player', 'Position', 'Secondary Positions', 'Model Target Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Role', 'Model Confidence', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
+                    display_cols = ['Player', 'Position', 'Secondary Positions', 'Model Target Position', 'Model Profile', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Role', 'Model Confidence', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
                     st.dataframe(model_df[display_cols].reset_index(drop=True), use_container_width=True)
 
                     player_options = [f"{idx} • {row['Player']} ({row['Rating']})" for idx, row in model_df.reset_index().iterrows()]
