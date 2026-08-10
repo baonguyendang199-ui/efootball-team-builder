@@ -3198,7 +3198,14 @@ def _ensure_body_numerics(df: pd.DataFrame) -> pd.DataFrame:
 
 def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chosen_style: str) -> pd.DataFrame:
     if group_level == 'Position' and chosen_position and chosen_position != '(All)':
-        return df[df['Position'] == chosen_position].copy()
+        mask = df['Position'] == chosen_position
+        if 'Secondary Positions' in df.columns:
+            chosen_upper = chosen_position.strip().upper()
+            sec_mask = df['Secondary Positions'].astype(str).str.upper().str.split(',').apply(
+                lambda items: any(chosen_upper == item.strip() for item in items if item.strip())
+            )
+            mask = mask | sec_mask
+        return df[mask].copy()
     if group_level == 'Position Style' and chosen_style and chosen_style != '(All)':
         return df[df['Position Style'] == chosen_style].copy()
     return df.copy()
@@ -3429,11 +3436,17 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
 
     # Build union of all features referenced in profiles present in dataset
     weights = weights if weights is not None else POSITION_MODEL_WEIGHTS
-    used_features = set()
-    for pos in df['Position'].dropna().unique():
-        profile = weights.get(pos, [])
-        for e in profile:
-            used_features.add(e['feature'])
+    target_position = None
+    if group_level == 'Position' and chosen_position and chosen_position != '(All)':
+        target_position = chosen_position
+        profile = weights.get(target_position, [])
+        used_features = {e['feature'] for e in profile}
+    else:
+        used_features = set()
+        for pos in df['Position'].dropna().unique():
+            profile = weights.get(pos, [])
+            for e in profile:
+                used_features.add(e['feature'])
 
     # Prepare numeric columns for ratio features and core features per spec
     # Derive ratio columns from existing numeric raw columns (created by _ensure_body_numerics)
@@ -3536,7 +3549,7 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
 
     for idx, row in df.iterrows():
         pos = row.get('Position')
-        profile = weights.get(pos, [])
+        profile = weights.get(target_position if target_position is not None else pos, [])
         if not profile:
             model_scores.append(np.nan)
             model_uniqueness.append(np.nan)
