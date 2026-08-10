@@ -3151,6 +3151,7 @@ BODY_FEATURE_COLUMNS = [
     'Chest Measurement', 'Neck Size', 'Shoulder Height', 'Leg Length',
     'Thigh Size', 'Waist Size', 'Arm Size', 'Calf Size'
 ]
+OPTIONAL_BODY_FEATURE_COLUMNS = ['Leg Length Based Height', 'Torso Collision']
 RATIO_FEATURE_COLUMNS = [
     'Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement',
     'Neck Size', 'Shoulder Height', 'Leg Length', 'Thigh Size',
@@ -3158,7 +3159,7 @@ RATIO_FEATURE_COLUMNS = [
 ]
 COVERAGE_FEATURES = ['Leg Coverage Radius', 'Arm Coverage Radius']
 SCORING_FEATURES = RATIO_FEATURE_COLUMNS + COVERAGE_FEATURES
-GK_FEATURES = ['Height', 'Arm Length', 'Shoulder Width', 'Arm Coverage Radius']
+GK_FEATURES = ['Height', 'Arm Length', 'Shoulder Width', 'Arm Coverage Radius', 'Torso Collision', 'Leg Length Based Height']
 GK_OPTIONAL_FEATURES = ['Jumping Height']
 MIN_FIT_PLAYERS = 10
 MIN_GK_FIT_PLAYERS = 5
@@ -3180,7 +3181,7 @@ def _safe_numeric(series):
 
 def _ensure_body_numerics(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    numeric_features = BODY_FEATURE_COLUMNS + COVERAGE_FEATURES + GK_OPTIONAL_FEATURES
+    numeric_features = BODY_FEATURE_COLUMNS + OPTIONAL_BODY_FEATURE_COLUMNS + COVERAGE_FEATURES + GK_OPTIONAL_FEATURES
     for c in numeric_features:
         df[f'{c}_num'] = _safe_numeric(df.get(c, pd.Series([None] * len(df))))
     df['Height_num'] = _safe_numeric(df.get('Height', pd.Series([None] * len(df))))
@@ -3215,6 +3216,7 @@ def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chos
 # Feature registry and core features per v3 spec
 FEATURE_REGISTRY = (
     BODY_FEATURE_COLUMNS
+    + OPTIONAL_BODY_FEATURE_COLUMNS
     + COVERAGE_FEATURES
     + [
         'Height', 'BMI', 'Body Size Composite', 'Jumping Height',
@@ -3227,7 +3229,8 @@ FEATURE_REGISTRY = (
 )
 
 CORE_FEATURES = [
-    'Height', 'Leg Length Ratio', 'Arm Length Ratio', 'Shoulder Width Ratio',
+    'Height', 'Torso Collision', 'Leg Length Based Height',
+    'Leg Length Ratio', 'Arm Length Ratio', 'Shoulder Width Ratio',
     'Neck Length Ratio', 'Leg Coverage Ratio', 'Arm Coverage Ratio', 'Jumping Height'
 ]
 # Toggle for including experimental Jumping Height in profiles
@@ -3242,57 +3245,67 @@ POSITION_MODEL_WEIGHTS = {
         {"feature": "Jumping Height",      "weight": 15, "direction": 1, "experimental": True},
     ],
     "CB": [
-        {"feature": "Leg Coverage Ratio",  "weight": 16, "direction": 1},
-        {"feature": "Leg Length Ratio",    "weight": 16, "direction": 1},
-        {"feature": "Height",              "weight": 16, "direction": 1},
-        {"feature": "Jumping Height",      "weight": 12, "direction": 1, "experimental": True},
-        {"feature": "Shoulder Width Ratio","weight": 12, "direction": 1},
-        {"feature": "Arm Coverage Ratio",  "weight": 10, "direction": 1},
-        {"feature": "Body Size Composite", "weight": 8,  "direction": 1},
-        {"feature": "Arm Length Ratio",    "weight": 6,  "direction": 1},
-        {"feature": "Neck Length Ratio",   "weight": 4,  "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 14, "direction": 1},
+        {"feature": "Leg Length Ratio",    "weight": 14, "direction": 1},
+        {"feature": "Height",              "weight": 14, "direction": 1},
+        {"feature": "Jumping Height",      "weight": 10, "direction": 1, "experimental": True},
+        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 8,  "direction": 1},
+        {"feature": "Body Size Composite", "weight": 6,  "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 5,  "direction": 1},
+        {"feature": "Neck Length Ratio",   "weight": 3,  "direction": 1},
+        {"feature": "Torso Collision",    "weight": 10, "direction": 1},
+        {"feature": "Leg Length Based Height", "weight": 6, "direction": 1},
     ],
     "LB": [
-        {"feature": "Leg Length Ratio",    "weight": 24, "direction": 1},
-        {"feature": "Leg Coverage Ratio",  "weight": 22, "direction": 1},
-        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
-        {"feature": "Height",              "weight": 12, "direction": 1},
-        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
-        {"feature": "Arm Length Ratio",    "weight": 10, "direction": 1},
-        {"feature": "Jumping Height",      "weight": 6,  "direction": 1, "experimental": True},
-        {"feature": "Neck Length Ratio",   "weight": 4,  "direction": 1},
-    ],
-    "RB": [
-        {"feature": "Leg Length Ratio",    "weight": 24, "direction": 1},
-        {"feature": "Leg Coverage Ratio",  "weight": 22, "direction": 1},
-        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
-        {"feature": "Height",              "weight": 12, "direction": 1},
-        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
-        {"feature": "Arm Length Ratio",    "weight": 10, "direction": 1},
-        {"feature": "Jumping Height",      "weight": 6,  "direction": 1, "experimental": True},
-        {"feature": "Neck Length Ratio",   "weight": 4,  "direction": 1},
-    ],
-    "DMF": [
-        {"feature": "Leg Coverage Ratio",  "weight": 22, "direction": 1},
-        {"feature": "Leg Length Ratio",    "weight": 16, "direction": 1},
-        {"feature": "Arm Coverage Ratio",  "weight": 14, "direction": 1},
-        {"feature": "Height",              "weight": 12, "direction": 1},
-        {"feature": "Shoulder Width Ratio","weight": 12, "direction": 1},
-        {"feature": "Body Size Composite", "weight": 8,  "direction": 1},
+        {"feature": "Leg Length Ratio",    "weight": 22, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 20, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 10, "direction": 1},
+        {"feature": "Height",              "weight": 10, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 8,  "direction": 1},
         {"feature": "Arm Length Ratio",    "weight": 8,  "direction": 1},
         {"feature": "Jumping Height",      "weight": 5,  "direction": 1, "experimental": True},
         {"feature": "Neck Length Ratio",   "weight": 3,  "direction": 1},
+        {"feature": "Torso Collision",    "weight": 8,  "direction": 1},
+        {"feature": "Leg Length Based Height", "weight": 6, "direction": 1},
+    ],
+    "RB": [
+        {"feature": "Leg Length Ratio",    "weight": 22, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 20, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 10, "direction": 1},
+        {"feature": "Height",              "weight": 10, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 8,  "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 8,  "direction": 1},
+        {"feature": "Jumping Height",      "weight": 5,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 3,  "direction": 1},
+        {"feature": "Torso Collision",    "weight": 8,  "direction": 1},
+        {"feature": "Leg Length Based Height", "weight": 6, "direction": 1},
+    ],
+    "DMF": [
+        {"feature": "Leg Coverage Ratio",  "weight": 20, "direction": 1},
+        {"feature": "Leg Length Ratio",    "weight": 14, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
+        {"feature": "Height",              "weight": 10, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
+        {"feature": "Body Size Composite", "weight": 8,  "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 6,  "direction": 1},
+        {"feature": "Jumping Height",      "weight": 4,  "direction": 1, "experimental": True},
+        {"feature": "Neck Length Ratio",   "weight": 3,  "direction": 1},
+        {"feature": "Torso Collision",    "weight": 8,  "direction": 1},
+        {"feature": "Leg Length Based Height", "weight": 5, "direction": 1},
     ],
     "CMF": [
-        {"feature": "Leg Length Ratio",    "weight": 20, "direction": 1},
-        {"feature": "Leg Coverage Ratio",  "weight": 18, "direction": 1},
-        {"feature": "Arm Length Ratio",    "weight": 14, "direction": 1},
-        {"feature": "Arm Coverage Ratio",  "weight": 14, "direction": 1},
-        {"feature": "Height",              "weight": 12, "direction": 1},
-        {"feature": "Shoulder Width Ratio","weight": 10, "direction": 1},
+        {"feature": "Leg Length Ratio",    "weight": 18, "direction": 1},
+        {"feature": "Leg Coverage Ratio",  "weight": 16, "direction": 1},
+        {"feature": "Arm Length Ratio",    "weight": 12, "direction": 1},
+        {"feature": "Arm Coverage Ratio",  "weight": 12, "direction": 1},
+        {"feature": "Height",              "weight": 10, "direction": 1},
+        {"feature": "Shoulder Width Ratio","weight": 8,  "direction": 1},
         {"feature": "Body Size Composite", "weight": 6,  "direction": 1},
         {"feature": "Jumping Height",      "weight": 4,  "direction": 1, "experimental": True},
         {"feature": "Neck Length Ratio",   "weight": 2,  "direction": 1},
+        {"feature": "Torso Collision",    "weight": 6,  "direction": 1},
+        {"feature": "Leg Length Based Height", "weight": 6, "direction": 1},
     ],
     "AMF": [
         {"feature": "Leg Length Ratio",    "weight": 28, "direction": 1},
@@ -3530,7 +3543,10 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             df[pct_col] = vals.rank(method='average', pct=True) * 100
 
     # Compute Body Size Composite percentile as mean of component percentiles (if requested)
-    bsc_components = ['BMI', 'Chest Measurement Ratio', 'Thigh Size Ratio', 'Calf Size Ratio']
+    bsc_components = [
+        'BMI', 'Chest Measurement Ratio', 'Thigh Size Ratio', 'Calf Size Ratio',
+        'Torso Collision', 'Leg Length Based Height'
+    ]
     if 'Body Size Composite' in used_features:
         comp_pcts = []
         for comp in bsc_components:
@@ -3627,10 +3643,16 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
         leg_vals = [safe_get_pct(row, 'Leg Length Ratio'), safe_get_pct(row, 'Leg Coverage Ratio')]
         group_scores['Leg'] = np.nanmean([v for v in leg_vals if v is not None]) if any(v is not None for v in leg_vals) else -1
         # ReachGroup
-        reach_vals = [safe_get_pct(row, 'Arm Length Ratio'), safe_get_pct(row, 'Arm Coverage Ratio')]
+        reach_vals = [
+            safe_get_pct(row, 'Arm Length Ratio'), safe_get_pct(row, 'Arm Coverage Ratio'),
+            safe_get_pct(row, 'Leg Length Based Height')
+        ]
         group_scores['Reach'] = np.nanmean([v for v in reach_vals if v is not None]) if any(v is not None for v in reach_vals) else -1
         # PhysicalGroup
-        phys_vals = [safe_get_pct(row, 'Height'), safe_get_pct(row, 'Shoulder Width Ratio'), safe_get_pct(row, 'Body Size Composite')]
+        phys_vals = [
+            safe_get_pct(row, 'Height'), safe_get_pct(row, 'Shoulder Width Ratio'),
+            safe_get_pct(row, 'Body Size Composite'), safe_get_pct(row, 'Torso Collision')
+        ]
         group_scores['Physical'] = np.nanmean([v for v in phys_vals if v is not None]) if any(v is not None for v in phys_vals) else -1
         # AerialGroup
         if JUMPING_HEIGHT_ENABLED:
