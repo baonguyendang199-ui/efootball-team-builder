@@ -3204,6 +3204,14 @@ def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chos
     return df.copy()
 
 
+# Minimal feature registry and position model weights (populated by user/config)
+FEATURE_REGISTRY = BODY_FEATURE_COLUMNS + COVERAGE_FEATURES + ['Height', 'BMI', 'Body Size Composite', 'Jumping Height']
+# Toggle for including experimental Jumping Height in profiles
+JUMPING_HEIGHT_ENABLED = False
+# Placeholder POSITION_MODEL_WEIGHTS; users may replace with full v4 appendix
+POSITION_MODEL_WEIGHTS = {}
+
+
 def validate_position_model_weights(cfg: dict):
     """Validate POSITION_MODEL_WEIGHTS schema and totals.
 
