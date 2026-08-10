@@ -3204,6 +3204,284 @@ def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chos
     return df.copy()
 
 
+def validate_position_model_weights(cfg: dict):
+    """Validate POSITION_MODEL_WEIGHTS schema and totals.
+
+    Raises ValueError on any validation failure (per spec: fail loudly on load).
+    """
+    errors = []
+    for pos, profile in cfg.items():
+        if not isinstance(profile, list):
+            errors.append(f"Position {pos} profile must be a list")
+            continue
+        seen = set()
+        total = 0.0
+        for entry in profile:
+            if 'feature' not in entry or 'weight' not in entry:
+                errors.append(f"Position {pos} has invalid entry (missing 'feature' or 'weight'): {entry}")
+                continue
+            feat = entry['feature']
+            if feat in seen:
+                errors.append(f"Duplicate feature '{feat}' in profile for {pos}")
+            seen.add(feat)
+            if feat not in FEATURE_REGISTRY:
+                errors.append(f"Unknown feature '{feat}' in profile for {pos}. Must be one of FEATURE_REGISTRY.")
+            try:
+                total += float(entry['weight'])
+            except Exception:
+                errors.append(f"Invalid weight for feature '{feat}' in {pos}: {entry.get('weight')}")
+        if abs(total - 100.0) > 0.5:
+            errors.append(f"Total weight for {pos} = {total:.2f} (must be 100 ±0.5)")
+    if errors:
+        raise ValueError("POSITION_MODEL_WEIGHTS validation failed:\n" + "\n".join(errors))
+
+
+def renormalize_profile(profile: list, exclude_experimental: bool = False) -> list:
+    """Return a new profile list where experimental features may be excluded and remaining weights renormalized to 100."""
+    included = [p for p in profile if not (exclude_experimental and p.get('experimental'))]
+    if not included:
+        return []
+    total = sum(float(p['weight']) for p in included)
+    if abs(total - 100.0) <= 0.5:
+        # still close to 100, keep weights as-is (but zero-out excluded)
+        new_profile = []
+        for p in profile:
+            if exclude_experimental and p.get('experimental'):
+                continue
+            new_profile.append(dict(p, weight=float(p['weight'])))
+        return new_profile
+    factor = 100.0 / total
+    new_profile = []
+    for p in included:
+        new_p = dict(p)
+        new_p['weight'] = float(new_p['weight']) * factor
+        new_profile.append(new_p)
+    return new_profile
+
+# Apply validation at load; renormalize profiles if Jumping Height is disabled
+validate_position_model_weights(POSITION_MODEL_WEIGHTS)
+if not JUMPING_HEIGHT_ENABLED:
+    for pos in list(POSITION_MODEL_WEIGHTS.keys()):
+        PROFILE = POSITION_MODEL_WEIGHTS[pos]
+        if any(e.get('experimental') for e in PROFILE):
+            POSITION_MODEL_WEIGHTS[pos] = renormalize_profile(PROFILE, exclude_experimental=True)
+
+
+def position_model_weights_to_df(cfg: dict) -> pd.DataFrame:
+    rows = []
+    for pos, profile in cfg.items():
+        for entry in profile:
+            rows.append({
+                'Position': pos,
+                'Feature': entry.get('feature'),
+                'Weight': float(entry.get('weight', 0)),
+                'Direction': int(entry.get('direction', 1)),
+                'Experimental': bool(entry.get('experimental', False))
+            })
+    return pd.DataFrame(rows)
+
+
+def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_level: str = 'Position', chosen_position: str = '(All)') -> pd.DataFrame:
+    """Compute Model Score, Uniqueness and Archetype for players in df.
+
+    Percentiles are computed within the provided dataframe (which should be pre-filtered
+    to the chosen Position or Position Style group). Returns a copy of df with added
+    columns: `Model Score`, `Model Uniqueness`, `Model Archetype`, `model_data_status`.
+    """
+    df = _ensure_body_numerics(df).copy()
+
+    # Build union of all features referenced in profiles present in dataset
+    weights = weights if weights is not None else POSITION_MODEL_WEIGHTS
+    used_features = set()
+    for pos in df['Position'].dropna().unique():
+        profile = weights.get(pos, [])
+        for e in profile:
+            used_features.add(e['feature'])
+
+    # Map feature -> numeric column name
+    feat_to_col = {f: (f + '_num') if f not in ['BMI', 'Body Size Composite'] else ('BMI_num' if f == 'BMI' else f) for f in used_features}
+
+    # Imputation: compute missing ratios and medians per feature within df
+    feature_stats = {}
+    for f in used_features:
+        col = feat_to_col.get(f, f + '_num')
+        if col not in df.columns:
+            df[col] = np.nan
+        non_na = df[col].notna().sum()
+        total = len(df)
+        missing_ratio = 1.0 - (non_na / total) if total > 0 else 1.0
+        median = df[col].median() if non_na > 0 else np.nan
+        feature_stats[f] = {'col': col, 'missing_ratio': missing_ratio, 'median': median}
+
+    # Perform imputations where missing_ratio <= 0.3
+    for f, s in feature_stats.items():
+        if s['missing_ratio'] <= 0.3 and pd.notna(s['median']):
+            df[s['col']] = df[s['col']].fillna(s['median'])
+
+    # Compute percentiles per feature within df
+    for f, s in feature_stats.items():
+        col = s['col']
+        pct_col = f + '_pct'
+        vals = df[col]
+        if vals.dropna().nunique() <= 1:
+            df[pct_col] = 50.0
+        else:
+            df[pct_col] = vals.rank(method='average', pct=True) * 100
+
+    # Now compute scores per player
+    model_scores = []
+    model_uniqueness = []
+    model_archetype = []
+    data_status = []
+
+    for idx, row in df.iterrows():
+        pos = row.get('Position')
+        profile = weights.get(pos, [])
+        if not profile:
+            model_scores.append(np.nan)
+            model_uniqueness.append(np.nan)
+            model_archetype.append('Unknown')
+            data_status.append('No Position Profile')
+            continue
+
+        active_features = [p['feature'] for p in profile]
+        missing_count = 0
+        for f in active_features:
+            col = feature_stats.get(f, {}).get('col', f + '_num')
+            if pd.isna(row.get(col)):
+                missing_count += 1
+        if len(active_features) == 0:
+            data_status.append('No features')
+            model_scores.append(np.nan)
+            model_uniqueness.append(np.nan)
+            model_archetype.append('Unknown')
+            continue
+        if missing_count / len(active_features) > 0.3:
+            data_status.append('Thiếu dữ liệu')
+            model_scores.append(np.nan)
+            model_uniqueness.append(np.nan)
+            model_archetype.append('Unknown')
+            continue
+
+        total_weight = sum(float(p['weight']) for p in profile)
+        if total_weight == 0:
+            total_weight = 1.0
+        score = 0.0
+        sorted_by_w = sorted(profile, key=lambda x: float(x['weight']), reverse=True)
+        cutoff = max(1, int(math.ceil(len(sorted_by_w) * 0.5)))
+        core_feats = [p['feature'] for p in sorted_by_w[:cutoff]]
+        z_squares = []
+
+        for p in profile:
+            f = p['feature']
+            w = float(p['weight']) / total_weight
+            direction = int(p.get('direction', 1))
+            pct = row.get(f + '_pct', np.nan)
+            if pd.isna(pct):
+                pct = 50.0
+            val = pct if direction == 1 else (100.0 - pct)
+            score += val * w
+
+        for cf in core_feats:
+            col = feature_stats.get(cf, {}).get('col', cf + '_num')
+            series = df[col]
+            if series.std(ddof=0) == 0 or np.isnan(series.std(ddof=0)):
+                z = 0.0
+            else:
+                z = (row.get(col, 0) - series.mean()) / series.std(ddof=0)
+            z_squares.append(z * z)
+        if z_squares:
+            rms = math.sqrt(sum(z_squares) / len(z_squares))
+        else:
+            rms = 0.0
+
+        model_scores.append(score)
+        model_uniqueness.append(rms)
+        data_status.append('OK')
+
+        groups = {
+            'Physical': ['Height', 'Jumping Height', 'Body Size Composite'],
+            'Coverage': ['Leg Coverage Ratio', 'Arm Coverage Ratio', 'Leg Coverage Ratio'],
+            'Size': ['Arm Length Ratio', 'Shoulder Width Ratio', 'Neck Length Ratio']
+        }
+        group_scores = {}
+        for gname, feats in groups.items():
+            vals = []
+            for f in feats:
+                pct = row.get(f + '_pct', np.nan)
+                if not pd.isna(pct):
+                    vals.append(pct)
+            group_scores[gname] = np.mean(vals) if vals else -1
+
+        arche = max(group_scores.items(), key=lambda x: x[1])[0] if group_scores else 'General'
+        model_archetype.append(arche)
+
+    uniq_series = pd.Series(model_uniqueness)
+    if uniq_series.dropna().nunique() <= 1:
+        uniq_pct = pd.Series([50.0] * len(uniq_series))
+    else:
+        uniq_pct = uniq_series.rank(method='average', pct=True) * 100
+
+    df['Model Score'] = model_scores
+    df['Model Uniqueness'] = uniq_pct
+    df['Model Archetype'] = model_archetype
+    df['model_data_status'] = data_status
+
+    return df
+
+
+def generate_strengths_weaknesses(df: pd.DataFrame) -> pd.DataFrame:
+    """Generate Strengths/Weaknesses based on per-feature percentiles and position profiles."""
+    strengths = []
+    weaknesses = []
+    for idx, row in df.iterrows():
+        pos = row.get('Position')
+        profile = POSITION_MODEL_WEIGHTS.get(pos, [])
+        feats = [p['feature'] for p in profile]
+        pct_map = {}
+        for f in feats:
+            pct = row.get(f + '_pct', np.nan)
+            if not pd.isna(pct):
+                pct_map[f] = pct
+        sorted_feats = sorted(pct_map.items(), key=lambda x: x[1], reverse=True)
+        top = [f for f, _ in sorted_feats[:2]] if sorted_feats else []
+        bot = [f for f, _ in sorted_feats[-2:]] if sorted_feats else []
+        strengths.append(', '.join(top) if top else '')
+        weaknesses.append(', '.join(bot) if bot else '')
+    df['Strengths'] = strengths
+    df['Weaknesses'] = weaknesses
+    return df
+
+
+def _build_model_radar(player_idx, model_df: pd.DataFrame, weights: dict = None):
+    """Build a radar comparing player's percentiles for profile features vs median (50)."""
+    if player_idx not in model_df.index:
+        return None
+    row = model_df.loc[player_idx]
+    pos = row.get('Position')
+    weights = weights if weights is not None else POSITION_MODEL_WEIGHTS
+    profile = weights.get(pos, [])
+    if not profile:
+        return None
+    feats = [p['feature'] for p in profile]
+    categories = feats
+    player_vals = []
+    for f in feats:
+        pct = row.get(f + '_pct', np.nan)
+        player_vals.append(pct if not pd.isna(pct) else 50.0)
+
+    closed = categories + [categories[0]]
+    vals = player_vals + [player_vals[0]]
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(r=vals, theta=closed, fill='toself', name='Player'))
+    # median line at 50
+    med = [50.0] * len(categories)
+    fig.add_trace(go.Scatterpolar(r=med + [med[0]], theta=closed, name='Population Median', line=dict(dash='dash')))
+    fig.update_layout(title='Model Percentile Profile (0-100)', polar=dict(radialaxis=dict(range=[0, 100])), showlegend=True)
+    apply_plotly_theme(fig)
+    return fig
+
+
 def _build_scoring_matrix(df: pd.DataFrame, scoring_features=None) -> pd.DataFrame:
     scoring_features = scoring_features if scoring_features is not None else SCORING_FEATURES
     scoring = pd.DataFrame(index=df.index)
@@ -3367,7 +3645,12 @@ def _position_percentile(df: pd.DataFrame, position: str, feature: str, value: f
 
 def _build_body_compare(df: pd.DataFrame, selected_players: list):
     df = df.copy()
-    compare_players = df[df['Player'].isin(selected_players)].copy()
+    # compute model scores for population and merge
+    try:
+        model_pop = compute_position_model_scores(df)
+    except Exception:
+        model_pop = df.copy()
+    compare_players = model_pop[model_pop['Player'].isin(selected_players)].copy()
     if compare_players.empty:
         return pd.DataFrame(), None, ""
 
@@ -3395,6 +3678,12 @@ def _build_body_compare(df: pd.DataFrame, selected_players: list):
             row[player['Player']] = f"{raw:.1f} ({ratio:.2f}) — {pct}%" if pd.notna(raw) else "N/A"
         rows.append(row)
     compare_display = pd.DataFrame(rows, index=comparison_features)
+
+    # add Model Score row
+    score_row = {}
+    for _, player in compare_players.iterrows():
+        score_row[player['Player']] = f"{player.get('Model Score', np.nan):.2f} | {player.get('Model Archetype', '')}"
+    compare_display.loc['Model Score'] = score_row
 
     radar_data = []
     categories = comparison_features
@@ -3448,29 +3737,25 @@ def _compute_basket_diversity(df: pd.DataFrame, basket_players: list) -> list:
         'Midfielder': [pos for pos, group in POSITIONS.items() if group == 'Midfielder'],
         'Forward': [pos for pos, group in POSITIONS.items() if group == 'Forward']
     }
+    # New rule: warn if >=70% of players in a row share the same Model Archetype
+    try:
+        model_pop = compute_position_model_scores(df)
+    except Exception:
+        model_pop = df.copy()
+
     for style, positions in positions_by_style.items():
         style_basket = basket_df[basket_df['Position'].isin(positions)]
         if len(style_basket) < MIN_BASKET_PLAYERS_FOR_CHECK:
             continue
-        style_population = df[df['Position'].isin(positions)].copy()
-        if style_population.empty:
+        # merge with model archetype
+        basket_with_model = model_pop[model_pop['Player'].isin(style_basket['Player'])]
+        if basket_with_model.empty:
             continue
-        score_df = _build_scoring_matrix(style_population)
-        pop_std = score_df.std(ddof=0).replace(0, np.nan)
-        basket_score = _build_scoring_matrix(style_basket)
-        basket_std = basket_score.std(ddof=0)
-        low_ratio_count = 0
-        total_checked = 0
-        for feat in score_df.columns:
-            if pd.isna(pop_std[feat]) or pop_std[feat] == 0:
-                continue
-            total_checked += 1
-            ratio = basket_std[feat] / pop_std[feat]
-            if pd.notna(ratio) and ratio < DIVERSITY_STD_RATIO_THRESHOLD:
-                low_ratio_count += 1
-        if total_checked > 0 and low_ratio_count / total_checked > DIVERSITY_WARNING_FEATURE_RATIO:
+        arch_counts = basket_with_model['Model Archetype'].value_counts(dropna=True)
+        top_frac = arch_counts.iloc[0] / len(basket_with_model) if not arch_counts.empty else 0
+        if top_frac >= 0.7:
             warnings.append(
-                f"Hàng {style} trong giỏ của bạn có thể hình khá đồng nhất so với biến thiên tự nhiên của vị trí này — cân nhắc bổ sung đa dạng thể hình."
+                f"Hàng {style} trong giỏ có >={int(top_frac*100)}% cùng một Archetype ({arch_counts.index[0]}) — cân nhắc thêm đa dạng thể hình."
             )
     return warnings
 
@@ -4132,11 +4417,11 @@ def main():
                         chosen_style = st.selectbox("Chọn Position Style", ['(All)'] + styles, index=0)
                         chosen_position = '(All)'
                 with col2:
-                    top_percent = st.slider("Top X% rating dùng làm hình mẫu", min_value=10, max_value=50, value=20, step=5)
-                    w_coverage_pct = st.slider("Ưu tiên Coverage vs Ratio", min_value=0, max_value=100, value=50, step=5)
-                    st.markdown("Fit Score = 100 khi distance nhỏ nhất theo các feature tỷ lệ + coverage.")
+                    model_type = st.selectbox("Model Type", ["Overall", "Coverage", "Physical"], index=0)
+                    st.markdown("Model Score = percentile-based composite theo `POSITION_MODEL_WEIGHTS` (so sánh trong cùng Position/Style).")
 
-                fit_df = _ensure_body_numerics(_group_subset(df, group_level, chosen_position, chosen_style))
+                subset = _group_subset(df, group_level, chosen_position, chosen_style)
+                fit_df = _ensure_body_numerics(subset)
                 bad_height = fit_df['Height_num'].isna() | (fit_df['Height_num'] <= 0)
                 invalid_rows = int(bad_height.sum())
                 if invalid_rows > 0:
@@ -4144,25 +4429,22 @@ def main():
                 fit_df = fit_df[~bad_height].copy()
 
                 if len(fit_df) < MIN_FIT_PLAYERS:
-                    st.info(f"Số cầu thủ trong nhóm quá ít để tính Fit Score (cần ít nhất {MIN_FIT_PLAYERS}). Hiện có: {len(fit_df)}")
+                    st.info(f"Số cầu thủ trong nhóm quá ít để tính Model Score (cần ít nhất {MIN_FIT_PLAYERS}). Hiện có: {len(fit_df)}")
                 else:
-                    fit_df, fit_context = _compute_fit_scores(
-                        fit_df,
-                        top_percent / 100,
-                        w_coverage_pct / 100,
-                        scoring_features=SCORING_FEATURES
-                    )
-                    fit_df = fit_df.sort_values(['Fit Score', 'Rating'], ascending=[False, False])
-                    st.caption("Fit Score chỉ so sánh trong cùng 1 nhóm Position / Position Style.")
+                    model_df = compute_position_model_scores(fit_df)
+                    model_df = generate_strengths_weaknesses(model_df)
+                    model_df = model_df.sort_values(['Model Score', 'Rating'], ascending=[False, False])
+                    st.caption("Model Score chỉ có ý nghĩa so sánh trong cùng 1 nhóm Position / Position Style.")
 
-                    display_cols = ['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status']
-                    st.dataframe(fit_df[display_cols].reset_index(drop=True), use_container_width=True)
+                    display_cols = ['Player', 'Position', 'Rating', 'Model Score', 'Model Uniqueness', 'Model Archetype', 'Strengths', 'Weaknesses', 'model_data_status']
+                    st.dataframe(model_df[display_cols].reset_index(drop=True), use_container_width=True)
 
-                    player_options = [f"{idx} • {row['Player']} ({row['Rating']})" for idx, row in fit_df.reset_index().iterrows()]
+                    player_options = [f"{idx} • {row['Player']} ({row['Rating']})" for idx, row in model_df.reset_index().iterrows()]
                     selected_player = st.selectbox("Xem radar profile của cầu thủ", player_options)
                     if selected_player:
                         selected_idx = int(selected_player.split(' • ')[0])
-                        radar_fig = _build_radar_figure(fit_df.index[selected_idx], fit_df, fit_context)
+                        player_index = model_df.index[selected_idx]
+                        radar_fig = _build_model_radar(player_index, model_df)
                         if radar_fig is not None:
                             st.plotly_chart(radar_fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
                         else:
@@ -4230,23 +4512,23 @@ def main():
                 else:
                     gk_df = _ensure_body_numerics(gk_df)
                     use_jump = st.checkbox("Bật Jumping Height (thử nghiệm)", value=False)
-                    gk_features = GK_FEATURES.copy()
-                    if use_jump:
-                        gk_features += GK_OPTIONAL_FEATURES
+                    # Respect experimental feature toggle by creating a local weight copy
+                    weights = POSITION_MODEL_WEIGHTS.copy()
+                    if not use_jump:
+                        # remove experimental features for GK profile
+                        if 'GK' in weights:
+                            weights['GK'] = renormalize_profile(weights['GK'], exclude_experimental=True)
+
                     if len(gk_df) < MIN_GK_FIT_PLAYERS:
-                        st.info(f"Số GK quá ít để tính Fit Score (cần ít nhất {MIN_GK_FIT_PLAYERS}). Hiện có: {len(gk_df)}")
-                        st.dataframe(gk_df[['Player', 'Rating'] + gk_features].sort_values('Rating', ascending=False).reset_index(drop=True), use_container_width=True)
+                        st.info(f"Số GK quá ít để tính Model Score (cần ít nhất {MIN_GK_FIT_PLAYERS}). Hiện có: {len(gk_df)}")
+                        st.dataframe(gk_df[['Player', 'Rating'] + GK_FEATURES].sort_values('Rating', ascending=False).reset_index(drop=True), use_container_width=True)
                     else:
-                        gk_df, gk_context = _compute_fit_scores(
-                            gk_df,
-                            0.2,
-                            0.5,
-                            scoring_features=gk_features
-                        )
-                        gk_display = gk_df[['Player', 'Rating'] + gk_features + ['Fit Score', 'data_status']].copy()
-                        st.dataframe(gk_display.sort_values(['Fit Score', 'Rating'], ascending=[False, False]).reset_index(drop=True), use_container_width=True)
+                        gk_model_df = compute_position_model_scores(gk_df, weights=weights)
+                        gk_model_df = generate_strengths_weaknesses(gk_model_df)
+                        gk_display = gk_model_df[['Player', 'Rating'] + GK_FEATURES + ['Model Score', 'Model Uniqueness', 'Model Archetype', 'model_data_status']].copy()
+                        st.dataframe(gk_display.sort_values(['Model Score', 'Rating'], ascending=[False, False]).reset_index(drop=True), use_container_width=True)
                         if st.button("So sánh trực tiếp GK"):
-                            st.session_state['body_compare_selected'] = gk_df['Player'].tolist()[:BODY_COMPARE_MAX_SELECTION]
+                            st.session_state['body_compare_selected'] = gk_model_df['Player'].tolist()[:BODY_COMPARE_MAX_SELECTION]
 
             with st.expander("Module 4 — Body Compare", expanded=False):
                 compare_players = get_unique_values(df, 'Player')
@@ -4300,6 +4582,13 @@ def main():
                     with pd.ExcelWriter(export_bytes, engine='openpyxl') as writer:
                         for sheet_name, sheet_df in export_sheets.items():
                             sheet_df.to_excel(writer, index=False, sheet_name=sheet_name[:31])
+                        # Also include Position Model Profile for auditing
+                        try:
+                            pm_df = position_model_weights_to_df(POSITION_MODEL_WEIGHTS)
+                            if not pm_df.empty:
+                                pm_df.to_excel(writer, index=False, sheet_name='Position_Model_Profile')
+                        except Exception:
+                            pass
                     export_bytes.seek(0)
                     st.download_button('📥 Xuất Excel body_analysis.xlsx', data=export_bytes, file_name='body_analysis.xlsx', mime='application/vnd.openxmlformats-officedocument-spreadsheetml.sheet')
                 else:
