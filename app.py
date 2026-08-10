@@ -4693,6 +4693,17 @@ def main():
                 - **Model Archetype**: deterministic role label based on feature group strengths.
                 """,
             )
+            with st.expander("Tester Insights — Body Model Parameters", expanded=False):
+                st.markdown(
+                    """
+                    - **Leg Coverage**: the effective reach of the legs. Very important for defenders and tall CFs in crowded boxes.
+                    - **Arm Coverage**: the effective reach of the arms. Very important for goalkeepers and useful for defenders in duels.
+                    - **Leg Length Based Height**: a secondary height proxy for when leg reach matters more than raw height.
+                    - **Torso Collision**: a body-volume/shielding metric influenced by weight and shoulder width.
+                    - **Jumping Height**: maximum jump reach. In practice, match jump is roughly 0.5 cm per point under pressure unless special aerial ability applies.
+                    - **Height**: the main factor behind coverage and collision, and a strong influence on player smoothness in game feel.
+                    """,
+                )
 
             with st.expander("Module 1 — Position Model Ranking", expanded=True):
                 col1, col2 = st.columns([1, 1], gap="large")
