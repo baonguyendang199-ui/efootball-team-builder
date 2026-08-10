@@ -3144,73 +3144,326 @@ def get_unique_values(df: pd.DataFrame, column: str) -> list:
     return []
 
 
-# ------------------- Body Clustering Utilities -------------------
+# ------------------- Body Analysis Utilities -------------------
 BODY_FEATURE_COLUMNS = [
     'Height', 'Weight', 'Arm Length', 'Shoulder Width', 'Neck Length',
     'Chest Measurement', 'Neck Size', 'Shoulder Height', 'Leg Length',
     'Thigh Size', 'Waist Size', 'Arm Size', 'Calf Size'
 ]
+RATIO_FEATURE_COLUMNS = [
+    'Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement',
+    'Neck Size', 'Shoulder Height', 'Leg Length', 'Thigh Size',
+    'Waist Size', 'Arm Size', 'Calf Size'
+]
+COVERAGE_FEATURES = ['Leg Coverage Radius', 'Arm Coverage Radius']
+SCORING_FEATURES = RATIO_FEATURE_COLUMNS + COVERAGE_FEATURES
+GK_FEATURES = ['Height', 'Arm Length', 'Shoulder Width', 'Arm Coverage Radius']
+GK_OPTIONAL_FEATURES = ['Jumping Height']
+MIN_FIT_PLAYERS = 10
+MIN_GK_FIT_PLAYERS = 5
+DIVERSITY_STD_RATIO_THRESHOLD = 0.3
+DIVERSITY_WARNING_FEATURE_RATIO = 0.5
+MIN_BASKET_PLAYERS_FOR_CHECK = 3
+BODY_COMPARE_MAX_SELECTION = 3
 
 
 def check_body_columns(df: pd.DataFrame) -> list:
     """Return list of missing required body feature columns."""
-    missing = [c for c in BODY_FEATURE_COLUMNS if c not in df.columns]
+    missing = [c for c in BODY_FEATURE_COLUMNS + COVERAGE_FEATURES if c not in df.columns]
     return missing
 
 
-@st.cache_data(ttl=300)
-def compute_pca_and_scale(df: pd.DataFrame, feature_cols: list, n_components: int = None):
-    """
-    Scale features (z-score) and compute PCA.
-    Returns: scaled array, pca object, explained_variance_ratio_
-    """
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.decomposition import PCA
-
-    X = df[feature_cols].copy()
-    # Ensure numeric and fillna
-    for c in feature_cols:
-        X[c] = pd.to_numeric(X[c], errors='coerce').fillna(0.0)
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X.values)
-
-    # Auto choose components if not provided (keep all then user can pick)
-    pca = PCA(n_components=n_components if n_components else min(len(feature_cols), X_scaled.shape[0]))
-    X_pca = pca.fit_transform(X_scaled)
-
-    return X_scaled, X_pca, pca, scaler
+def _safe_numeric(series):
+    return pd.to_numeric(series, errors='coerce')
 
 
-@st.cache_data(ttl=300)
-def compute_kmeans(X_for_clustering, k: int, random_state: int = 42):
-    """Run KMeans and return labels, model and inertia."""
-    from sklearn.cluster import KMeans
+def _ensure_body_numerics(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for c in BODY_FEATURE_COLUMNS + COVERAGE_FEATURES:
+        df[f'{c}_num'] = _safe_numeric(df.get(c, pd.Series([None] * len(df))))
+    df['Height_num'] = _safe_numeric(df.get('Height', pd.Series([None] * len(df))))
+    df['Weight_num'] = _safe_numeric(df.get('Weight', pd.Series([None] * len(df))))
+    if 'BMI' in df.columns:
+        df['BMI_num'] = _safe_numeric(df['BMI'])
+    else:
+        df['BMI_num'] = df.apply(
+            lambda row: row['Weight_num'] / ((row['Height_num'] / 100) ** 2)
+            if pd.notna(row['Weight_num']) and pd.notna(row['Height_num']) and row['Height_num'] > 0 else np.nan,
+            axis=1
+        )
+    return df
 
-    km = KMeans(n_clusters=k, random_state=random_state, n_init='auto')
-    labels = km.fit_predict(X_for_clustering)
-    return labels, km, km.inertia_
+
+def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chosen_style: str) -> pd.DataFrame:
+    if group_level == 'Position' and chosen_position and chosen_position != '(All)':
+        return df[df['Position'] == chosen_position].copy()
+    if group_level == 'Position Style' and chosen_style and chosen_style != '(All)':
+        return df[df['Position Style'] == chosen_style].copy()
+    return df.copy()
 
 
-@st.cache_data(ttl=300)
-def evaluate_k_range(X_for_clustering, k_min: int = 2, k_max: int = 8):
-    """Compute inertia and silhouette for range of k. Returns dicts."""
-    from sklearn.metrics import silhouette_score
-    inertias = {}
-    silhouettes = {}
-    for k in range(k_min, k_max + 1):
-        try:
-            labels, km, inertia = compute_kmeans(X_for_clustering, k)
-            inertias[k] = float(inertia)
-            # silhouette requires at least 2 clusters and less than n_samples
-            if len(set(labels)) > 1 and len(labels) > k:
-                silhouettes[k] = float(silhouette_score(X_for_clustering, labels))
+def _build_scoring_matrix(df: pd.DataFrame, scoring_features=None) -> pd.DataFrame:
+    scoring_features = scoring_features if scoring_features is not None else SCORING_FEATURES
+    scoring = pd.DataFrame(index=df.index)
+    for feat in scoring_features:
+        if feat in RATIO_FEATURE_COLUMNS:
+            scoring[feat] = df[f'{feat}_num'] / df['Height_num']
+        elif feat == 'BMI':
+            scoring[feat] = df['BMI_num']
+        else:
+            scoring[feat] = df[f'{feat}_num']
+    return scoring
+
+
+def _compute_fit_scores(df: pd.DataFrame, top_percent: float, w_coverage: float, scoring_features=None):
+    scoring_features = scoring_features if scoring_features is not None else SCORING_FEATURES
+    ratio_features = [f for f in scoring_features if f in RATIO_FEATURE_COLUMNS]
+    coverage_features = [f for f in scoring_features if f in COVERAGE_FEATURES]
+    scoring = _build_scoring_matrix(df, scoring_features)
+
+    meta = df.copy()
+    meta['missing_count'] = scoring.isna().sum(axis=1)
+    meta['data_status'] = np.where(meta['missing_count'] > 4, 'Không đủ dữ liệu', 'OK')
+    eligible = meta[meta['data_status'] == 'OK'].copy()
+
+    if eligible.empty:
+        meta['Fit Score'] = np.nan
+        meta['Strengths'] = ''
+        meta['Weaknesses'] = ''
+        return meta, None
+
+    impute_means = scoring.mean(skipna=True)
+    scoring_filled = scoring.fillna(impute_means)
+    mean_pop = scoring_filled.mean()
+    std_pop = scoring_filled.std(ddof=0).replace(0, 1)
+
+    top_n = max(5, math.ceil(top_percent * len(eligible)))
+    top_n = min(top_n, len(eligible))
+    top_players = eligible.sort_values('Rating', ascending=False).head(top_n)
+    ideal_values = scoring_filled.loc[top_players.index].mean()
+
+    w_ratio = 1.0 - w_coverage
+    weights = {}
+    if scoring_features:
+        total_ratio = len([f for f in scoring_features if f not in coverage_features])
+        total_cov = len(coverage_features)
+    else:
+        total_ratio = len(SCORING_FEATURES) - len(COVERAGE_FEATURES)
+        total_cov = len(COVERAGE_FEATURES)
+    for feat in scoring_features:
+        if feat in coverage_features and total_cov > 0:
+            weights[feat] = w_coverage / total_cov
+        else:
+            weights[feat] = w_ratio / max(total_ratio, 1)
+
+    z_to_ideal = (scoring_filled - ideal_values) / std_pop
+    squared = z_to_ideal.pow(2).mul(pd.Series(weights), axis=1)
+    raw_distance = np.sqrt(squared.sum(axis=1))
+
+    if raw_distance.max() == raw_distance.min():
+        fit_score = pd.Series(100.0, index=raw_distance.index)
+    else:
+        fit_score = 100 * (1 - (raw_distance - raw_distance.min()) / (raw_distance.max() - raw_distance.min()))
+
+    meta['Fit Score'] = fit_score.reindex(meta.index)
+    meta.loc[meta['data_status'] != 'OK', 'Fit Score'] = np.nan
+
+    z_pop = (scoring_filled - mean_pop) / std_pop
+    strengths = []
+    weaknesses = []
+    for idx, row in z_pop.iterrows():
+        top_pos = row[row > 0].sort_values(ascending=False).head(2)
+        top_neg = row[row < 0].sort_values().head(2)
+        strengths.append(
+            "; ".join([f"{feat}: +{val:.1f}σ" for feat, val in top_pos.items()]) if not top_pos.empty else ""
+        )
+        weaknesses.append(
+            "; ".join([f"{feat}: {val:.1f}σ" for feat, val in top_neg.items()]) if not top_neg.empty else ""
+        )
+
+    meta['Strengths'] = strengths
+    meta['Weaknesses'] = weaknesses
+    return meta, {
+        'ideal_values': ideal_values,
+        'mean_pop': mean_pop,
+        'std_pop': std_pop,
+        'scoring_values': scoring_filled
+    }
+
+
+def _build_radar_figure(player_idx, meta: pd.DataFrame, fit_context: dict):
+    if fit_context is None or player_idx not in meta.index:
+        return None
+    ideal = fit_context['ideal_values']
+    mean_pop = fit_context['mean_pop']
+    std_pop = fit_context['std_pop']
+    scoring = fit_context['scoring_values']
+
+    player_values = scoring.loc[player_idx]
+    player_z = (player_values - mean_pop) / std_pop
+    ideal_z = (ideal - mean_pop) / std_pop
+    categories = list(scoring.columns)
+    player_r = player_z[categories].tolist()
+    ideal_r = ideal_z[categories].tolist()
+    fig = px.line_polar(
+        r=[player_r + [player_r[0]], ideal_r + [ideal_r[0]]],
+        theta=categories + [categories[0]],
+        line_close=True,
+        labels={'theta': 'Feature', 'r': 'Z-score'},
+        title=f"Player vs Ideal Profile"
+    )
+    fig.update_traces(fill='toself')
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(orientation='h', y=-0.1, x=0.5, xanchor='center'),
+        polar=dict(radialaxis=dict(range=[-3, 3], tickangle=0))
+    )
+    apply_plotly_theme(fig)
+    return fig
+
+
+def _compute_coverage_explorer(df: pd.DataFrame, coverage_mode: str):
+    df = df.copy()
+    df['Height_num'] = _safe_numeric(df.get('Height', pd.Series([None] * len(df))))
+    df['Leg Coverage Radius_num'] = _safe_numeric(df.get('Leg Coverage Radius', pd.Series([None] * len(df))))
+    df['Arm Coverage Radius_num'] = _safe_numeric(df.get('Arm Coverage Radius', pd.Series([None] * len(df))))
+    df['Coverage Efficiency'] = (df['Leg Coverage Radius_num'] + df['Arm Coverage Radius_num']) / df['Height_num']
+    if coverage_mode == 'Leg Coverage':
+        df['Coverage Value'] = df['Leg Coverage Radius_num']
+    elif coverage_mode == 'Arm Coverage':
+        df['Coverage Value'] = df['Arm Coverage Radius_num']
+    else:
+        df['Coverage Value'] = df['Leg Coverage Radius_num'] + df['Arm Coverage Radius_num']
+    if len(df) >= 5:
+        x = df['Height_num'].values
+        y = df['Coverage Value'].values
+        coef = np.polyfit(x, y, 1)
+        df['Coverage Trend'] = coef[0] * x + coef[1]
+        df['Residual'] = df['Coverage Value'] - df['Coverage Trend']
+    else:
+        df['Residual'] = np.nan
+        df['Coverage Trend'] = np.nan
+    return df
+
+
+def _position_percentile(df: pd.DataFrame, position: str, feature: str, value: float):
+    position_df = df[df['Position'] == position]
+    if position_df.empty or pd.isna(value):
+        return np.nan
+    values = position_df[feature].dropna().values
+    if len(values) == 0:
+        return np.nan
+    return int(100 * np.sum(values <= value) / len(values))
+
+
+def _build_body_compare(df: pd.DataFrame, selected_players: list):
+    df = df.copy()
+    compare_players = df[df['Player'].isin(selected_players)].copy()
+    if compare_players.empty:
+        return pd.DataFrame(), None, ""
+
+    compare_players = _ensure_body_numerics(compare_players)
+    compare_players['BMI_num'] = compare_players['BMI_num']
+    comparison_features = ['Height'] + RATIO_FEATURE_COLUMNS + ['BMI']
+    for feat in RATIO_FEATURE_COLUMNS:
+        compare_players[f'{feat}_ratio'] = compare_players[f'{feat}_num'] / compare_players['Height_num']
+
+    rows = []
+    for feat in comparison_features:
+        row = {}
+        for _, player in compare_players.iterrows():
+            if feat == 'BMI':
+                raw = player['BMI_num']
+                ratio = raw
+            elif feat == 'Height':
+                raw = player['Height_num']
+                ratio = raw
             else:
-                silhouettes[k] = None
-        except Exception:
-            inertias[k] = None
-            silhouettes[k] = None
-    return inertias, silhouettes
+                raw = player[f'{feat}_num']
+                ratio = player[f'{feat}_ratio']
+            percentile_feature = f'{feat}_ratio' if feat not in ['Height', 'BMI'] else 'BMI_num' if feat == 'BMI' else 'Height_num'
+            pct = _position_percentile(df, player['Position'], percentile_feature, ratio)
+            row[player['Player']] = f"{raw:.1f} ({ratio:.2f}) — {pct}%" if pd.notna(raw) else "N/A"
+        rows.append(row)
+    compare_display = pd.DataFrame(rows, index=comparison_features)
+
+    radar_data = []
+    categories = comparison_features
+    for _, player in compare_players.iterrows():
+        values = []
+        for feat in comparison_features:
+            if feat == 'BMI':
+                val = player['BMI_num']
+            elif feat == 'Height':
+                val = player['Height_num']
+            else:
+                val = player[f'{feat}_ratio']
+            pct = _position_percentile(df, player['Position'], f'{feat}_ratio' if feat not in ['Height', 'BMI'] else 'BMI_num' if feat == 'BMI' else 'Height_num', val)
+            values.append(pct if not pd.isna(pct) else 0)
+        radar_data.append((player['Player'], values))
+
+    fig = px.line_polar(
+        r=[vals + [vals[0]] for _, vals in radar_data],
+        theta=categories + [categories[0]],
+        line_close=True,
+        names=[name for name, _ in radar_data]
+    )
+    fig.update_layout(showlegend=True, polar=dict(radialaxis=dict(range=[0, 100])))
+    apply_plotly_theme(fig)
+
+    leg_values = []
+    for _, player in compare_players.iterrows():
+        val = player.get('Leg Length_ratio', np.nan)
+        pct = _position_percentile(df, player['Position'], 'Leg Length_ratio', val)
+        leg_values.append((player['Player'], val, pct, player['Position']))
+    leg_values = [x for x in leg_values if not pd.isna(x[1])]
+    if leg_values:
+        best = max(leg_values, key=lambda x: x[2])
+        summary = f"{best[0]} có Leg Length/Height = {best[1]:.2f} (percentile {best[2]}% trong vị trí {best[3]})."
+    else:
+        summary = "Không đủ dữ liệu để so sánh chân dài theo tỷ lệ."
+
+    return compare_display, fig, summary
+
+
+def _compute_basket_diversity(df: pd.DataFrame, basket_players: list) -> list:
+    warnings = []
+    if not basket_players:
+        return warnings
+    basket_df = df[df['Player'].isin(basket_players)].copy()
+    if basket_df.empty:
+        return warnings
+
+    positions_by_style = {
+        'Defender': [pos for pos, group in POSITIONS.items() if group == 'Defender'],
+        'Midfielder': [pos for pos, group in POSITIONS.items() if group == 'Midfielder'],
+        'Forward': [pos for pos, group in POSITIONS.items() if group == 'Forward']
+    }
+    for style, positions in positions_by_style.items():
+        style_basket = basket_df[basket_df['Position'].isin(positions)]
+        if len(style_basket) < MIN_BASKET_PLAYERS_FOR_CHECK:
+            continue
+        style_population = df[df['Position'].isin(positions)].copy()
+        if style_population.empty:
+            continue
+        score_df = _build_scoring_matrix(style_population)
+        pop_std = score_df.std(ddof=0).replace(0, np.nan)
+        basket_score = _build_scoring_matrix(style_basket)
+        basket_std = basket_score.std(ddof=0)
+        low_ratio_count = 0
+        total_checked = 0
+        for feat in score_df.columns:
+            if pd.isna(pop_std[feat]) or pop_std[feat] == 0:
+                continue
+            total_checked += 1
+            ratio = basket_std[feat] / pop_std[feat]
+            if pd.notna(ratio) and ratio < DIVERSITY_STD_RATIO_THRESHOLD:
+                low_ratio_count += 1
+        if total_checked > 0 and low_ratio_count / total_checked > DIVERSITY_WARNING_FEATURE_RATIO:
+            warnings.append(
+                f"Hàng {style} trong giỏ của bạn có thể hình khá đồng nhất so với biến thiên tự nhiên của vị trí này — cân nhắc bổ sung đa dạng thể hình."
+            )
+    return warnings
 
 # ------------------- end utilities -------------------
 
@@ -3849,18 +4102,19 @@ def main():
     elif current_tab == 'body':
         st.header("🏋️ Phân tích thể hình")
 
-        # 1. Kiểm tra tồn tại các cột cần thiết
         missing_cols = check_body_columns(df)
         if missing_cols:
             st.error("⚠️ Thiếu cột thể hình cần thiết trong dữ liệu: " + ", ".join(missing_cols))
         else:
-            # Panel điều khiển
-            with st.expander("Bộ lọc & Thiết lập", expanded=True):
+            st.markdown(
+                """Giải pháp mới tập trung vào `Position Body-Fit Score` — đánh giá mức độ phù hợp thể hình theo vị trí, thay vì phân cụm chung chung. Fit Score chỉ có ý nghĩa so sánh trong cùng nhóm Position / Position Style đã chọn."""
+            )
+
+            with st.expander("Module 1 — Position Body-Fit Score", expanded=True):
                 col1, col2 = st.columns([1, 1], gap="large")
                 with col1:
-                    st.markdown("**Lọc nhóm cầu thủ**")
-                    group_level = st.selectbox("Nhóm vị trí để phân cụm", ["Position Style", "Position"], index=0)
-                    if group_level == "Position":
+                    group_level = st.selectbox("Nhóm theo", ["Position", "Position Style"], index=0)
+                    if group_level == 'Position':
                         positions = get_unique_values(df, 'Position')
                         chosen_position = st.selectbox("Chọn Position", ['(All)'] + positions, index=0)
                         chosen_style = '(All)'
@@ -3868,196 +4122,179 @@ def main():
                         styles = get_unique_values(df, 'Position Style')
                         chosen_style = st.selectbox("Chọn Position Style", ['(All)'] + styles, index=0)
                         chosen_position = '(All)'
-
                 with col2:
-                    st.markdown("**PCA & Cluster**")
-                    inertia_display = st.empty()
-                    silhouette_display = st.empty()
-                    run_button = st.button("Chạy phân cụm")
+                    top_percent = st.slider("Top X% rating dùng làm hình mẫu", min_value=10, max_value=50, value=20, step=5)
+                    w_coverage_pct = st.slider("Ưu tiên Coverage vs Ratio", min_value=0, max_value=100, value=50, step=5)
+                    st.markdown("Fit Score = 100 khi distance nhỏ nhất theo các feature tỷ lệ + coverage.")
 
-            # Lọc dữ liệu theo bộ lọc đã chọn
-            if group_level == 'Position' and chosen_position and chosen_position != '(All)':
-                sub_df = df[df['Position'].astype(str) == chosen_position].copy()
-            elif group_level == 'Position Style' and chosen_style and chosen_style != '(All)':
-                sub_df = df[df['Position Style'].astype(str) == chosen_style].copy()
-            else:
-                sub_df = df.copy()
+                fit_df = _ensure_body_numerics(_group_subset(df, group_level, chosen_position, chosen_style))
+                bad_height = fit_df['Height_num'].isna() | (fit_df['Height_num'] <= 0)
+                invalid_rows = int(bad_height.sum())
+                if invalid_rows > 0:
+                    st.caption(f"Đã loại {invalid_rows} cầu thủ do Height thiếu / <= 0.")
+                fit_df = fit_df[~bad_height].copy()
 
-            n_players = len(sub_df)
-            if n_players < 10:
-                st.info(f"Số cầu thủ trong nhóm quá ít để phân cụm (cần ít nhất 10). Hiện có: {n_players}")
-            else:
-                # Chuẩn bị dữ liệu features
-                feature_cols = BODY_FEATURE_COLUMNS.copy()
-                for c in feature_cols:
-                    sub_df[c] = pd.to_numeric(sub_df.get(c, 0), errors='coerce').fillna(0.0)
-
-                # Compute PCA (all components) to show explained variance
-                X_scaled, X_pca_full, pca_obj, scaler = compute_pca_and_scale(sub_df, feature_cols, n_components=min(len(feature_cols), max(1, n_players)))
-                evr = list(pca_obj.explained_variance_ratio_)
-                cum_evr = np.cumsum(evr)
-                # Default n_components: >=80% variance or min 3
-                default_n_comp = int(next((i+1 for i,v in enumerate(cum_evr) if v >= 0.8), min(3, len(evr))))
-                max_comp = min(len(evr), 10)
-
-                # UI: choose number of PCs used for clustering
-                pcs_col1, pcs_col2 = st.columns([3,2])
-                pcs_col1.markdown("**Explained variance (per PC)**")
-                ev_df = pd.DataFrame({ 'PC': [f'PC{i+1}' for i in range(len(evr))], 'Explained': [float(x) for x in evr], 'Cumulative': [float(x) for x in cum_evr] })
-                fig_e = px.bar(ev_df, x='PC', y='Explained', title='Explained Variance by PC')
-                fig_e.add_scatter(x=ev_df['PC'], y=ev_df['Cumulative'], mode='lines+markers', name='Cumulative')
-                apply_plotly_theme(fig_e)
-                fig_e.update_layout(
-                    height=320,
-                    margin=dict(l=20, r=20, t=40, b=45),
-                    legend=dict(orientation='h', y=-0.18, x=0.5, xanchor='center', font=dict(size=10))
-                )
-                pcs_col1.plotly_chart(fig_e, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
-
-                n_pcs = pcs_col2.slider("Số PC dùng cho clustering", min_value=2, max_value=max_comp, value=default_n_comp)
-
-                # Prepare data for clustering: use first n_pcs of PCA (but still keep PC1/PC2 for visualization)
-                X_for_cluster = X_pca_full[:, :n_pcs]
-
-                # Auto determine best K
-                with st.spinner('Tính K đề xuất (Elbow + Silhouette)...'):
-                    inertias, silhouettes = evaluate_k_range(X_for_cluster, 2, min(8, max(2, n_players-1)))
-
-                # Suggest K by highest silhouette (if available)
-                suggested_k = 3
-                valid_sil = {k:v for k,v in silhouettes.items() if v is not None}
-                if valid_sil:
-                    suggested_k = max(valid_sil, key=valid_sil.get)
+                if len(fit_df) < MIN_FIT_PLAYERS:
+                    st.info(f"Số cầu thủ trong nhóm quá ít để tính Fit Score (cần ít nhất {MIN_FIT_PLAYERS}). Hiện có: {len(fit_df)}")
                 else:
-                    # fallback: choose k with largest decrease in inertia
-                    prev = None; best_k = 3
-                    for k in sorted(inertias.keys()):
-                        if prev is not None and inertias[k] is not None and prev is not None:
-                            pass
-                        prev = inertias[k]
-                    suggested_k = best_k
+                    fit_df, fit_context = _compute_fit_scores(
+                        fit_df,
+                        top_percent / 100,
+                        w_coverage_pct / 100,
+                        scoring_features=SCORING_FEATURES
+                    )
+                    fit_df = fit_df.sort_values(['Fit Score', 'Rating'], ascending=[False, False])
+                    st.caption("Fit Score chỉ so sánh trong cùng 1 nhóm Position / Position Style.")
 
-                k_choice = st.slider("Số cluster K", min_value=2, max_value=8, value=int(suggested_k))
+                    display_cols = ['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status']
+                    st.dataframe(fit_df[display_cols].reset_index(drop=True), use_container_width=True)
 
-                # Run KMeans with chosen K when user click run or always run
-                labels, kmodel, inertia_val = compute_kmeans(X_for_cluster, int(k_choice))
+                    player_options = [f"{idx} • {row['Player']} ({row['Rating']})" for idx, row in fit_df.reset_index().iterrows()]
+                    selected_player = st.selectbox("Xem radar profile của cầu thủ", player_options)
+                    if selected_player:
+                        selected_idx = int(selected_player.split(' • ')[0])
+                        radar_fig = _build_radar_figure(fit_df.index[selected_idx], fit_df, fit_context)
+                        if radar_fig is not None:
+                            st.plotly_chart(radar_fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
+                        else:
+                            st.info("Không có đủ dữ liệu để hiển thị radar.")
 
-                # Attach PC1, PC2 and cluster to DataFrame
-                pcs = X_pca_full
-                sub_df = sub_df.reset_index(drop=True)
-                sub_df['PC1'] = pcs[:,0]
-                sub_df['PC2'] = pcs[:,1] if pcs.shape[1] > 1 else 0.0
-                sub_df['Cluster'] = labels.astype(int)
+            with st.expander("Module 2 — Coverage & Reach Explorer", expanded=False):
+                coverage_mode = st.radio("Coverage type", ["Leg Coverage", "Arm Coverage", "Total Coverage"], horizontal=True)
+                cover_group_level = st.selectbox("Filter theo", ["Position", "Position Style"], index=0, key='coverage_filter_group')
+                if cover_group_level == 'Position':
+                    cover_positions = get_unique_values(df, 'Position')
+                    selected_positions = st.multiselect("Position", cover_positions, default=cover_positions)
+                    selected_styles = []
+                else:
+                    cover_styles = get_unique_values(df, 'Position Style')
+                    selected_styles = st.multiselect("Position Style", cover_styles, default=cover_styles)
+                    selected_positions = []
+                min_rating = int(df['Rating'].dropna().min())
+                max_rating = int(df['Rating'].dropna().max())
+                selected_rating = st.slider("Rating", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
 
-                # Derive cluster descriptive names (suggestions)
-                # Use mean z-score (X_scaled) per cluster
-                df_scaled = pd.DataFrame(X_scaled, columns=feature_cols)
-                df_scaled['Cluster'] = labels
-                cluster_summaries = {}
-                for cl in sorted(df_scaled['Cluster'].unique()):
-                    means = df_scaled[df_scaled['Cluster']==cl].mean()
-                    # exclude the Cluster column itself when picking top features
-                    means = means.drop(labels=['Cluster'], errors='ignore')
-                    # pick top 2 features by absolute mean
-                    top_feats = means.abs().sort_values(ascending=False).head(2).index.tolist()
-                    desc_parts = []
-                    for f in top_feats:
-                        val = means[f]
-                        arrow = '↑' if val > 0 else '↓'
-                        desc_parts.append(f"{f} {arrow}")
-                    suggested_name = ", ".join(desc_parts)
-                    cluster_summaries[cl] = suggested_name
+                coverage_df = _ensure_body_numerics(df)
+                if selected_positions:
+                    coverage_df = coverage_df[coverage_df['Position'].isin(selected_positions)]
+                if selected_styles:
+                    coverage_df = coverage_df[coverage_df['Position Style'].isin(selected_styles)]
+                coverage_df = coverage_df[coverage_df['Rating'].between(selected_rating[0], selected_rating[1])].copy()
+                coverage_df = coverage_df[coverage_df['Height_num'] > 0].copy()
+                coverage_df = _compute_coverage_explorer(coverage_df, coverage_mode)
+                coverage_df['ResidualSign'] = np.where(coverage_df['Residual'] > 0, 'Above trend', 'Below trend')
 
-                # Let user edit cluster names
-                st.markdown("**Tên cụm (gợi ý)**")
-                cluster_name_map = {}
-                for cl in sorted(cluster_summaries.keys()):
-                    default_name = f"Cluster {cl}: {cluster_summaries[cl]}"
-                    new_name = st.text_input(f"Tên cụm #{cl}", value=default_name, key=f"cluster_name_{cl}")
-                    cluster_name_map[cl] = new_name
+                if len(coverage_df) < 5:
+                    st.info("Số cầu thủ quá ít để vẽ trendline coverage (cần ít nhất 5).")
 
-                # Map cluster names
-                sub_df['Cluster Name'] = sub_df['Cluster'].map(cluster_name_map)
+                cover_display = coverage_df[['Player', 'Position', 'Rating', 'Height_num', 'Coverage Value', 'Coverage Efficiency', 'Residual']].copy()
+                cover_display = cover_display.rename(columns={
+                    'Height_num': 'Height',
+                    'Coverage Value': coverage_mode,
+                    'Coverage Efficiency': 'Coverage Efficiency',
+                    'Residual': 'Residual'
+                })
+                st.dataframe(cover_display.sort_values(['Coverage Efficiency', 'Residual'], ascending=[False, False]).reset_index(drop=True), use_container_width=True)
 
-                # Scatter plot PC1 vs PC2 colored by cluster
-                fig = px.scatter(sub_df, x='PC1', y='PC2', color='Cluster Name', hover_data=['Player','Position','Rating'], title='PC1 vs PC2 (colored by cluster)')
-                apply_plotly_theme(fig)
-                fig.update_layout(
-                    height=380,
-                    margin=dict(l=20, r=20, t=55, b=45),
-                    legend=dict(orientation='h', y=-0.17, x=0.5, xanchor='center', font=dict(size=10)),
-                    hoverlabel=dict(font=dict(size=11))
-                )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
+                if len(coverage_df) >= 5:
+                    import plotly.graph_objects as go
+                    fig = px.scatter(
+                        coverage_df,
+                        x='Height_num',
+                        y='Coverage Value',
+                        color='Residual',
+                        hover_data=['Player', 'Position', 'Rating'],
+                        title=f"Coverage vs Height ({coverage_mode})"
+                    )
+                    trend_x = np.linspace(coverage_df['Height_num'].min(), coverage_df['Height_num'].max(), 50)
+                    coef = np.polyfit(coverage_df['Height_num'], coverage_df['Coverage Value'], 1)
+                    trend_y = coef[0] * trend_x + coef[1]
+                    fig.add_trace(go.Scatter(x=trend_x, y=trend_y, mode='lines', name='Trendline', line=dict(color='white')))
+                    apply_plotly_theme(fig)
+                    fig.update_layout(height=380)
+                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
 
-                # Filters & result table
-                with st.expander("**Bộ lọc kết quả**", expanded=True):
-                    clusters_available = sorted(sub_df['Cluster'].unique())
-                    sel_clusters = st.multiselect("Chọn cụm", options=clusters_available, default=clusters_available)
-                    pos_options = get_unique_values(sub_df, 'Position')
-                    sel_positions = st.multiselect("Position", options=pos_options, default=pos_options)
-                    min_rating = int(sub_df['Rating'].min()) if 'Rating' in sub_df.columns else 0
-                    max_rating = int(sub_df['Rating'].max()) if 'Rating' in sub_df.columns else 100
-                    sel_rating = st.slider("Rating", min_value=min_rating, max_value=max_rating, value=(min_rating, max_rating))
-
-                    filtered = sub_df[
-                        sub_df['Cluster'].isin(sel_clusters) &
-                        sub_df['Position'].isin(sel_positions) &
-                        sub_df['Rating'].between(sel_rating[0], sel_rating[1])
-                    ].copy()
-
-                    show_full_features = st.checkbox("Hiển thị tất cả chỉ số thể hình", value=False)
-                    display_cols = ['Player','Position','Rating','Cluster','Cluster Name']
-                    if show_full_features:
-                        display_cols += feature_cols
+            with st.expander("Module 3 — Goalkeeper Model", expanded=False):
+                gk_df = df[df['Position'] == 'GK'].copy()
+                if gk_df.empty:
+                    st.info("Không có GK trong dữ liệu để phân tích.")
+                else:
+                    gk_df = _ensure_body_numerics(gk_df)
+                    use_jump = st.checkbox("Bật Jumping Height (thử nghiệm)", value=False)
+                    gk_features = GK_FEATURES.copy()
+                    if use_jump:
+                        gk_features += GK_OPTIONAL_FEATURES
+                    if len(gk_df) < MIN_GK_FIT_PLAYERS:
+                        st.info(f"Số GK quá ít để tính Fit Score (cần ít nhất {MIN_GK_FIT_PLAYERS}). Hiện có: {len(gk_df)}")
+                        st.dataframe(gk_df[['Player', 'Rating'] + gk_features].sort_values('Rating', ascending=False).reset_index(drop=True), use_container_width=True)
                     else:
-                        display_cols += ['Height','Weight','Age']
+                        gk_df, gk_context = _compute_fit_scores(
+                            gk_df,
+                            0.2,
+                            0.5,
+                            scoring_features=gk_features
+                        )
+                        gk_display = gk_df[['Player', 'Rating'] + gk_features + ['Fit Score', 'data_status']].copy()
+                        st.dataframe(gk_display.sort_values(['Fit Score', 'Rating'], ascending=[False, False]).reset_index(drop=True), use_container_width=True)
+                        if st.button("So sánh trực tiếp GK"):
+                            st.session_state['body_compare_selected'] = gk_df['Player'].tolist()[:BODY_COMPARE_MAX_SELECTION]
 
-                    with st.expander("Kết quả bảng", expanded=not show_full_features):
-                        st.dataframe(filtered[display_cols].sort_values(['Cluster','Rating'], ascending=[True, False]), use_container_width=True)
+            with st.expander("Module 4 — Body Compare", expanded=False):
+                compare_players = get_unique_values(df, 'Player')
+                selected_compare = st.multiselect(
+                    f"Chọn 2–{BODY_COMPARE_MAX_SELECTION} cầu thủ",
+                    compare_players,
+                    default=st.session_state.get('body_compare_selected', [])[:BODY_COMPARE_MAX_SELECTION]
+                )
+                selected_compare = selected_compare[:BODY_COMPARE_MAX_SELECTION]
+                compare_df, compare_fig, compare_summary = _build_body_compare(df, selected_compare)
+                if compare_df.empty:
+                    st.info("Chọn ít nhất 2 cầu thủ để so sánh.")
+                else:
+                    st.dataframe(compare_df, use_container_width=True)
+                    st.plotly_chart(compare_fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
+                    st.markdown(f"**Tóm tắt:** {compare_summary}")
 
-                # Team basket (independent)
+            with st.expander("Module 5 — Team Basket + Diversity", expanded=False):
                 if 'body_basket' not in st.session_state:
                     st.session_state['body_basket'] = []
+                st.markdown("**Giỏ đội hình**")
+                basket_player = st.selectbox("Thêm cầu thủ vào giỏ", ['(None)'] + get_unique_values(df, 'Player'))
+                if st.button("Thêm vào giỏ basket") and basket_player != '(None)':
+                    if basket_player not in st.session_state['body_basket']:
+                        st.session_state['body_basket'].append(basket_player)
+                st.write(st.session_state['body_basket'])
+                if st.button("Xóa giỏ"):
+                    st.session_state['body_basket'] = []
+                warnings = _compute_basket_diversity(_ensure_body_numerics(df), st.session_state['body_basket'])
+                for w in warnings:
+                    st.warning(w)
 
-                with st.expander("**Giỏ đội hình (độc lập)**", expanded=True):
-                    pick_list = st.multiselect("Chọn cầu thủ để thêm vào giỏ", options=filtered['Player'].tolist())
-                    if st.button("Thêm vào giỏ"):
-                        for p in pick_list:
-                            if p not in st.session_state['body_basket']:
-                                st.session_state['body_basket'].append(p)
+            with st.expander("Module 6 — Export Excel", expanded=False):
+                export_sheets = {}
+                if 'fit_df' in locals() and not fit_df.empty:
+                    export_sheets['Fit_Score'] = fit_df.reset_index(drop=True)[['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status']]
+                if 'coverage_df' in locals() and not coverage_df.empty:
+                    export_sheets['Coverage_Ranking'] = coverage_df[['Player', 'Position', 'Rating', 'Height_num', 'Coverage Value', 'Coverage Efficiency', 'Residual']].rename(columns={'Height_num': 'Height'})
+                if 'gk_df' in locals() and not gk_df.empty:
+                    export_sheets['GK_Comparison'] = gk_df.reset_index(drop=True)[['Player', 'Rating'] + [col for col in gk_features if col in gk_df.columns] + ['Fit Score', 'data_status']]
+                if 'compare_df' in locals() and not compare_df.empty:
+                    export_sheets['Body_Compare'] = compare_df
+                if 'body_basket' in st.session_state and st.session_state['body_basket']:
+                    basket_rows = df[df['Player'].isin(st.session_state['body_basket'])].copy()
+                    basket_rows['Row Group'] = basket_rows['Position'].map(lambda p: POSITIONS.get(p, 'Other'))
+                    basket_rows = basket_rows[['Player', 'Position', 'Row Group', 'Rating']]
+                    export_sheets['Team_Basket'] = basket_rows
 
-                if st.session_state['body_basket']:
-                    st.markdown(f"**Đang có {len(st.session_state['body_basket'])} cầu thủ trong giỏ**")
-                    st.write(st.session_state['body_basket'])
-                    if st.button("Xóa giỏ" ):
-                        st.session_state['body_basket'] = []
-
-                    # Imbalance warning
-                    basket_df = sub_df[sub_df['Player'].isin(st.session_state['body_basket'])].copy()
-                    if not basket_df.empty:
-                        # Map to style group
-                        basket_df['Style Group'] = basket_df['Position'].map(lambda p: POSITIONS.get(p, 'Other'))
-                        for style in ['Defender','Midfielder','Forward']:
-                            grp = basket_df[basket_df['Style Group']==style]
-                            if len(grp) >= 3:
-                                top_cluster = grp['Cluster'].value_counts(normalize=True).max()
-                                if top_cluster >= 0.7:
-                                    st.warning(f"⚠️ Hàng {style} nghiêng nhiều về một cụm ({top_cluster*100:.0f}%): cân nhắc bổ sung đa dạng thể hình.")
-
-                # Export XLSX
-                to_export = filtered.copy()
-                to_export['Cluster Name'] = to_export['Cluster Name'].astype(str)
-                to_export = to_export[display_cols]
-                to_export_bytes = BytesIO()
-                with pd.ExcelWriter(to_export_bytes, engine='openpyxl') as writer:
-                    # write full sheet
-                    to_export.to_excel(writer, index=False, sheet_name='Filtered')
-                    # also sheet per cluster
-                    for cl in sorted(to_export['Cluster'].unique()):
-                        to_export[to_export['Cluster']==cl].to_excel(writer, index=False, sheet_name=f'Cluster_{cl}')
-                to_export_bytes.seek(0)
-                st.download_button('📥 Xuất Excel (Filtered + per-cluster)', data=to_export_bytes, file_name='body_clustering.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                if export_sheets:
+                    export_bytes = BytesIO()
+                    with pd.ExcelWriter(export_bytes, engine='openpyxl') as writer:
+                        for sheet_name, sheet_df in export_sheets.items():
+                            sheet_df.to_excel(writer, index=False, sheet_name=sheet_name[:31])
+                    export_bytes.seek(0)
+                    st.download_button('📥 Xuất Excel body_analysis.xlsx', data=export_bytes, file_name='body_analysis.xlsx', mime='application/vnd.openxmlformats-officedocument-spreadsheetml.sheet')
+                else:
+                    st.info('Không có dữ liệu để xuất. Vui lòng chạy ít nhất một module.')
 
     elif current_tab == 'players':
         st.header("👥 Players")
