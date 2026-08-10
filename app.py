@@ -3206,7 +3206,19 @@ def _group_subset(df: pd.DataFrame, group_level: str, chosen_position: str, chos
 
 # Minimal feature registry and position model weights (populated by user/config)
 # Feature registry and core features per v3 spec
-FEATURE_REGISTRY = BODY_FEATURE_COLUMNS + COVERAGE_FEATURES + ['Height', 'BMI', 'Body Size Composite', 'Jumping Height']
+FEATURE_REGISTRY = (
+    BODY_FEATURE_COLUMNS
+    + COVERAGE_FEATURES
+    + [
+        'Height', 'BMI', 'Body Size Composite', 'Jumping Height',
+        # ratio forms
+        'Leg Length Ratio', 'Arm Length Ratio', 'Shoulder Width Ratio', 'Neck Length Ratio',
+        'Chest Measurement Ratio', 'Neck Size Ratio', 'Shoulder Height Ratio', 'Thigh Size Ratio',
+        'Waist Size Ratio', 'Arm Size Ratio', 'Calf Size Ratio',
+        'Leg Coverage Ratio', 'Arm Coverage Ratio'
+    ]
+)
+
 CORE_FEATURES = [
     'Height', 'Leg Length Ratio', 'Arm Length Ratio', 'Shoulder Width Ratio',
     'Neck Length Ratio', 'Leg Coverage Ratio', 'Arm Coverage Ratio', 'Jumping Height'
