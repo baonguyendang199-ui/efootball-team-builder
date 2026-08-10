@@ -4859,12 +4859,12 @@ def main():
                         gk_export = gk_export.rename(columns={'Model Score': 'Fit Score'})
                     if 'model_data_status' in gk_export.columns:
                         gk_export = gk_export.rename(columns={'model_data_status': 'data_status'})
-                    gk_cols = ['Player', 'Rating'] + [col for col in gk_features if col in gk_export.columns] + [c for c in ['Fit Score', 'data_status'] if c in gk_export.columns]
+                    gk_cols = ['Player', 'Rating'] + [col for col in GK_FEATURES if col in gk_export.columns] + [c for c in ['Fit Score', 'data_status'] if c in gk_export.columns]
                     export_sheets['GK_Comparison'] = gk_export[gk_cols]
                 elif 'gk_df' in locals() and not gk_df.empty:
                     gk_export = gk_df.reset_index(drop=True).copy()
                     gk_export = gk_export.rename(columns={'Model Score': 'Fit Score', 'model_data_status': 'data_status'})
-                    gk_cols = ['Player', 'Rating'] + [col for col in gk_features if col in gk_export.columns] + [c for c in ['Fit Score', 'data_status'] if c in gk_export.columns]
+                    gk_cols = ['Player', 'Rating'] + [col for col in GK_FEATURES if col in gk_export.columns] + [c for c in ['Fit Score', 'data_status'] if c in gk_export.columns]
                     export_sheets['GK_Comparison'] = gk_export[gk_cols]
                 if 'compare_df' in locals() and not compare_df.empty:
                     export_sheets['Body_Compare'] = compare_df
