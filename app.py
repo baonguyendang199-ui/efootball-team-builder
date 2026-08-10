@@ -4571,12 +4571,36 @@ def main():
 
             with st.expander("Module 6 — Export Excel", expanded=False):
                 export_sheets = {}
-                if 'fit_df' in locals() and not fit_df.empty:
-                    export_sheets['Fit_Score'] = fit_df.reset_index(drop=True)[['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status']]
+                # Prefer the computed model_df (new pipeline); fall back to legacy fit_df if present
+                if 'model_df' in locals() and not model_df.empty:
+                    df_export = model_df.reset_index(drop=True).copy()
+                    if 'Model Score' in df_export.columns:
+                        df_export = df_export.rename(columns={'Model Score': 'Fit Score'})
+                    if 'model_data_status' in df_export.columns:
+                        df_export = df_export.rename(columns={'model_data_status': 'data_status'})
+                    export_sheets['Fit_Score'] = df_export[['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status']]
+                elif 'fit_df' in locals() and not fit_df.empty:
+                    df_export = fit_df.reset_index(drop=True).copy()
+                    df_export = df_export.rename(columns={'Model Score': 'Fit Score', 'model_data_status': 'data_status'})
+                    # attempt to select export columns if they exist
+                    cols = [c for c in ['Player', 'Position', 'Rating', 'Fit Score', 'Strengths', 'Weaknesses', 'data_status'] if c in df_export.columns]
+                    export_sheets['Fit_Score'] = df_export[cols]
                 if 'coverage_df' in locals() and not coverage_df.empty:
                     export_sheets['Coverage_Ranking'] = coverage_df[['Player', 'Position', 'Rating', 'Height_num', 'Coverage Value', 'Coverage Efficiency', 'Residual']].rename(columns={'Height_num': 'Height'})
-                if 'gk_df' in locals() and not gk_df.empty:
-                    export_sheets['GK_Comparison'] = gk_df.reset_index(drop=True)[['Player', 'Rating'] + [col for col in gk_features if col in gk_df.columns] + ['Fit Score', 'data_status']]
+                # Export GK comparison using gk_model_df if available (maps Model Score → Fit Score)
+                if 'gk_model_df' in locals() and not gk_model_df.empty:
+                    gk_export = gk_model_df.reset_index(drop=True).copy()
+                    if 'Model Score' in gk_export.columns:
+                        gk_export = gk_export.rename(columns={'Model Score': 'Fit Score'})
+                    if 'model_data_status' in gk_export.columns:
+                        gk_export = gk_export.rename(columns={'model_data_status': 'data_status'})
+                    gk_cols = ['Player', 'Rating'] + [col for col in gk_features if col in gk_export.columns] + [c for c in ['Fit Score', 'data_status'] if c in gk_export.columns]
+                    export_sheets['GK_Comparison'] = gk_export[gk_cols]
+                elif 'gk_df' in locals() and not gk_df.empty:
+                    gk_export = gk_df.reset_index(drop=True).copy()
+                    gk_export = gk_export.rename(columns={'Model Score': 'Fit Score', 'model_data_status': 'data_status'})
+                    gk_cols = ['Player', 'Rating'] + [col for col in gk_features if col in gk_export.columns] + [c for c in ['Fit Score', 'data_status'] if c in gk_export.columns]
+                    export_sheets['GK_Comparison'] = gk_export[gk_cols]
                 if 'compare_df' in locals() and not compare_df.empty:
                     export_sheets['Body_Compare'] = compare_df
                 if 'body_basket' in st.session_state and st.session_state['body_basket']:
