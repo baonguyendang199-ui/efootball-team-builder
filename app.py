@@ -3180,7 +3180,8 @@ def _safe_numeric(series):
 
 def _ensure_body_numerics(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    for c in BODY_FEATURE_COLUMNS + COVERAGE_FEATURES:
+    numeric_features = BODY_FEATURE_COLUMNS + COVERAGE_FEATURES + GK_OPTIONAL_FEATURES
+    for c in numeric_features:
         df[f'{c}_num'] = _safe_numeric(df.get(c, pd.Series([None] * len(df))))
     df['Height_num'] = _safe_numeric(df.get('Height', pd.Series([None] * len(df))))
     df['Weight_num'] = _safe_numeric(df.get('Weight', pd.Series([None] * len(df))))
