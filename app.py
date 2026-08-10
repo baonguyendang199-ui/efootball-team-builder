@@ -3724,7 +3724,7 @@ def generate_strengths_weaknesses(df: pd.DataFrame) -> pd.DataFrame:
         if weak_labels:
             weaknesses.append(', '.join(weak_labels))
         else:
-            weaknesses.append('Không có điểm yếu rõ rệt')
+            weaknesses.append('No clear weaknesses')
     df['Strengths'] = strengths
     df['Weaknesses'] = weaknesses
     return df
