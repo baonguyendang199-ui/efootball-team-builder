@@ -768,11 +768,11 @@ def apply_plotly_theme(fig):
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family="Inter, sans-serif", color=theme["text"]),
-        margin=dict(l=40, r=30, t=60, b=50),
-        legend=dict(font=dict(color=theme["text"])),
+        margin=dict(l=20, r=20, t=60, b=50),
+        legend=dict(font=dict(color=theme["text"]), orientation='h', y=-0.2, x=0.5, xanchor='center'),
         title=dict(
             text=figure_title,
-            font=dict(family="Space Grotesk, Inter, sans-serif", color=theme["text"])
+            font=dict(family="Space Grotesk, Inter, sans-serif", color=theme["text"], size=16)
         )
     )
     fig.update_xaxes(
@@ -3907,7 +3907,12 @@ def main():
                 fig_e = px.bar(ev_df, x='PC', y='Explained', title='Explained Variance by PC')
                 fig_e.add_scatter(x=ev_df['PC'], y=ev_df['Cumulative'], mode='lines+markers', name='Cumulative')
                 apply_plotly_theme(fig_e)
-                pcs_col1.plotly_chart(fig_e, use_container_width=True, config={'displayModeBar': False})
+                fig_e.update_layout(
+                    height=320,
+                    margin=dict(l=20, r=20, t=40, b=45),
+                    legend=dict(orientation='h', y=-0.18, x=0.5, xanchor='center', font=dict(size=10))
+                )
+                pcs_col1.plotly_chart(fig_e, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
 
                 n_pcs = pcs_col2.slider("Số PC dùng cho clustering", min_value=2, max_value=max_comp, value=default_n_comp)
 
@@ -3977,7 +3982,13 @@ def main():
                 # Scatter plot PC1 vs PC2 colored by cluster
                 fig = px.scatter(sub_df, x='PC1', y='PC2', color='Cluster Name', hover_data=['Player','Position','Rating'], title='PC1 vs PC2 (colored by cluster)')
                 apply_plotly_theme(fig)
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                fig.update_layout(
+                    height=380,
+                    margin=dict(l=20, r=20, t=55, b=45),
+                    legend=dict(orientation='h', y=-0.17, x=0.5, xanchor='center', font=dict(size=10)),
+                    hoverlabel=dict(font=dict(size=11))
+                )
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
 
                 # Filters & result table
                 with st.expander("**Bộ lọc kết quả**", expanded=True):
