@@ -3908,7 +3908,9 @@ def _position_percentile(df: pd.DataFrame, position: str, feature: str, value: f
 
 
 def _build_body_compare(df: pd.DataFrame, selected_players: list):
-    df = df.copy()
+    df = _ensure_body_numerics(df).copy()
+    for feat in RATIO_FEATURE_COLUMNS:
+        df[f'{feat}_ratio'] = df[f'{feat}_num'] / df['Height_num']
     # compute model scores for population and merge
     try:
         model_pop = compute_position_model_scores(df)
