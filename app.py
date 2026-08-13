@@ -2781,6 +2781,26 @@ def extract_ehub_player_id(value: str) -> str:
     m = re.search(r"(\d{14,})", s)
     return m.group(1) if m else ""
 
+def resolve_efhub_player_url(value: str) -> str:
+    """Normalize any legacy player URL/ID into the canonical EFHub player URL."""
+    if not value:
+        return ""
+    s = str(value).strip()
+    if not s:
+        return ""
+
+    if "efhub.com/players/" in s:
+        return s
+
+    for pattern in (r"(\d{14,})", r"[?&]id=(\d{12,})", r"player/detail/(\d{12,})"):
+        match = re.search(pattern, s)
+        if match:
+            pid = match.group(1)
+            return f"https://efhub.com/players/{pid}"
+
+    return make_ehub_player_url(s)
+
+
 def make_ehub_player_url(player_id: str) -> str:
     """Tạo URL EFHub player từ Player ID hoặc URL"""
     pid = extract_ehub_player_id(player_id)
@@ -5334,7 +5354,8 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                             new_val = appearance.get(appearance_key, '') if appearance_key else ''
                             if not str(new_val).strip():
                                 player_url = str(row.get('Player URL', '') or '')
-                                fallback_html = fetch_ehub_raw_html(player_url) if player_url.startswith('http') else ''
+                                efhub_url = resolve_efhub_player_url(player_url)
+                                fallback_html = fetch_ehub_raw_html(efhub_url) if efhub_url else ''
                                 fallback_appearance = extract_efhub_body_model(fallback_html)
                                 new_val = fallback_appearance.get(appearance_key, '') if appearance_key else ''
                             if new_val is not None and str(new_val).strip() != '':
@@ -5345,9 +5366,9 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         state['updated_count'] += 1
                         updated_in_batch += 1
                     else:
-                        failure_text = 'PESDATA API returned nothing useful for body model'
+                        failure_text = 'PESDATA API + EFHub fallback returned nothing useful for body model'
                         if appearance:
-                            failure_text = 'PESDATA API returned data but no missing fields were filled'
+                            failure_text = 'PESDATA API returned data but no missing fields were filled; EFHub fallback was also empty'
                         state['failed'].append({
                             'idx': idx,
                             'name': player_name,
