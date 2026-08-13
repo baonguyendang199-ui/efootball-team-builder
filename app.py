@@ -3003,8 +3003,110 @@ def extract_secondary_positions(soup, main_position):
     except Exception as e:
         return ""
 
+
+def extract_basic_info_from_pesdata(pesdata_json: dict) -> dict:
+    """Trích xuất thông tin CƠ BẢN từ PESDATA API JSON response.
+    
+    Dùng khi PESDB HTML parsing lỗi làm fallback.
+    
+    Mapping các field có thể có trong PESDATA JSON:
+    - playerName / name → Player
+    - position / pos → Position
+    - club / clubName → Club
+    - nationality / nation → Nation
+    - height → Height
+    - weight → Weight
+    - age → Age
+    - foot / preferredFoot → Foot
+    - rating / grade → Rating
+    - form / condition → Form
+    - injuryResistance → Injury Resistance
+    - league / leagueName → League
+    """
+    info = {}
+    
+    # Mapping các tên key có thể có trong PESDATA JSON
+    field_map = {
+        'playerName': 'Player',
+        'player_name': 'Player',
+        'name': 'Player',
+        
+        'position': 'Position',
+        'pos': 'Position',
+        
+        'clubName': 'Club',
+        'club': 'Club',
+        'club_name': 'Club',
+        
+        'nationality': 'Nation',
+        'nation': 'Nation',
+        'country': 'Nation',
+        
+        'league': 'League',
+        'leagueName': 'League',
+        'league_name': 'League',
+        
+        'region': 'Region',
+        
+        'height': 'Height',
+        'weight': 'Weight',
+        'age': 'Age',
+        
+        'foot': 'Foot',
+        'preferredFoot': 'Foot',
+        'preferred_foot': 'Foot',
+        
+        'weakFootUsage': 'Weak Foot Usage',
+        'weak_foot_usage': 'Weak Foot Usage',
+        
+        'weakFootAccuracy': 'Weak Foot Accuracy',
+        'weak_foot_accuracy': 'Weak Foot Accuracy',
+        
+        'form': 'Form',
+        'condition': 'Form',
+        
+        'injuryResistance': 'Injury Resistance',
+        'injury_resistance': 'Injury Resistance',
+        
+        'rating': 'Rating',
+        'baseRating': 'Rating',
+        'base_rating': 'Rating',
+        'overall': 'Rating',
+    }
+    
+    for json_key, field_name in field_map.items():
+        if json_key in pesdata_json:
+            value = pesdata_json[json_key]
+            if value:
+                info[field_name] = str(value).strip()
+    
+    return info
+
+
+def extract_body_model_from_pesdata(pesdata_json: dict) -> dict:
+    """Trích xuất BODY MODEL từ PESDATA API JSON response.
+    
+    Lấy appearance object và map các field theo PESDATA_APPEARANCE_KEY_MAP.
+    """
+    info = {}
+    
+    appearance = pesdata_json.get('appearance') or {}
+    if isinstance(appearance, dict):
+        for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
+            value = appearance.get(json_key)
+            if value:
+                info[field_name] = str(value).strip()
+    
+    return info
+
+
 def extract_full_player_info(player_url: str) -> dict:
     """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB hoặc PESDATA.
+    
+    Fallback logic:
+    1. Thử lấy từ PESDB HTML → đầy đủ nhất
+    2. Nếu PESDB lỗi → Thử PESDATA API làm fallback
+    3. Nếu cả 2 lỗi → Return default
     
     Returns:
         dict: {
@@ -3066,7 +3168,20 @@ def extract_full_player_info(player_url: str) -> dict:
             return default_info
 
         html = fetch_ehub_raw_html(pesdb_url)
+        
+        # === FALLBACK LOGIC: Nếu PESDB HTML lỗi, thử PESDATA API ===
         if not html:
+            if pesdata_id:
+                pesdata_data = fetch_pesdata_player_json(pesdata_id)
+                if pesdata_data and isinstance(pesdata_data, dict):
+                    # Lấy thông tin cơ bản từ PESDATA JSON
+                    info = default_info.copy()
+                    basic_info = extract_basic_info_from_pesdata(pesdata_data)
+                    info.update(basic_info)
+                    # Lấy body model từ PESDATA JSON
+                    body_info = extract_body_model_from_pesdata(pesdata_data)
+                    info.update(body_info)
+                    return info
             return default_info
 
         soup = BeautifulSoup(html, 'html.parser')
@@ -3115,21 +3230,23 @@ def extract_full_player_info(player_url: str) -> dict:
             base_html=html
         )
 
-        # Nếu có PESDATA ID, lấy thêm body model từ PESDATA API
+        # === Lấy body model từ PESDATA API ===
         if pesdata_id:
             pesdata_data = fetch_pesdata_player_json(pesdata_id)
-            appearance = pesdata_data.get('appearance') or {}
-            for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                info[field_name] = appearance.get(json_key, '')
+            if pesdata_data and isinstance(pesdata_data, dict):
+                body_info = extract_body_model_from_pesdata(pesdata_data)
+                info.update(body_info)
         else:
             # Nếu URL/PID khác dạng, thử extract ID và lấy body model
             player_id = extract_ehub_player_id(normalized_url)
             if player_id:
                 pesdata_data = fetch_pesdata_player_json(player_id)
-                appearance = pesdata_data.get('appearance') or {}
-                for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                    if not info.get(field_name):
-                        info[field_name] = appearance.get(json_key, '')
+                if pesdata_data and isinstance(pesdata_data, dict):
+                    body_info = extract_body_model_from_pesdata(pesdata_data)
+                    # Chỉ update nếu chưa có body model từ PESDB
+                    for key, val in body_info.items():
+                        if not info.get(key):
+                            info[key] = val
 
         return info
 
