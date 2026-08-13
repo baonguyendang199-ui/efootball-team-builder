@@ -2812,6 +2812,72 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
             continue
     return ""
 
+
+def extract_efhub_body_model(html: str) -> dict:
+    """Extract body-model and physics values directly from eFHUB player HTML."""
+    if not html:
+        return {}
+
+    soup = BeautifulSoup(html, 'html.parser')
+    labels = [
+        'Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement',
+        'Neck Size', 'Shoulder Height', 'Leg Length', 'Thigh Size', 'Waist Size',
+        'Arm Size', 'Calf Size', 'Leg Coverage Radius', 'Arm Coverage Radius',
+        'Jumping Height', 'Torso Collision', 'Leg Length Based Height'
+    ]
+    target = {label: '' for label in labels}
+
+    def clean_value(value):
+        if value is None:
+            return ''
+        text = str(value).strip()
+        text = re.sub(r'\s+', ' ', text)
+        return text
+
+    for tag in soup.find_all(True):
+        tag_text = clean_value(tag.get_text(' ', strip=True))
+        if tag_text in labels:
+            parent = tag.parent
+            if parent is None:
+                continue
+            siblings = []
+            for child in parent.children:
+                text = clean_value(child.get_text(' ', strip=True)) if hasattr(child, 'get_text') else clean_value(str(child))
+                if text:
+                    siblings.append(text)
+            if tag_text in siblings:
+                idx = siblings.index(tag_text)
+                for candidate in siblings[idx + 1:]:
+                    if candidate and candidate != tag_text:
+                        if re.fullmatch(r'[-+]?\d+(?:\.\d+)?', candidate):
+                            target[tag_text] = candidate
+                            break
+                        if re.fullmatch(r'[-+]?\d+(?:\.\d+)?\s*[-+]?\d+(?:\.\d+)?', candidate):
+                            target[tag_text] = candidate
+                            break
+                        target[tag_text] = candidate
+                        break
+
+    return {
+        'ArmLength': target.get('Arm Length', ''),
+        'ShoulderWidth': target.get('Shoulder Width', ''),
+        'NeckLength': target.get('Neck Length', ''),
+        'ChestMeasurement': target.get('Chest Measurement', ''),
+        'NeckSize': target.get('Neck Size', ''),
+        'ShoulderHeight': target.get('Shoulder Height', ''),
+        'LegLength': target.get('Leg Length', ''),
+        'ThighSize': target.get('Thigh Size', ''),
+        'WaistSize': target.get('Waist Size', ''),
+        'ArmSize': target.get('Arm Size', ''),
+        'CalfSize': target.get('Calf Size', ''),
+        'LegCoverageRadius': target.get('Leg Coverage Radius', ''),
+        'ArmCoverageRadius': target.get('Arm Coverage Radius', ''),
+        'JumpingHeight': target.get('Jumping Height', ''),
+        'TorsoCollision': target.get('Torso Collision', ''),
+        'LegLengthBasedHeight': target.get('Leg Length Based Height', ''),
+    }
+
+
 def extract_player_skills(player_url: str) -> str:
     """Trích xuất Skills từ PESDB
     
@@ -3184,7 +3250,13 @@ def extract_full_player_info(player_url: str) -> dict:
             pesdata_data = fetch_pesdata_player_json(pesdata_id)
             appearance = _extract_pesdata_appearance(pesdata_data)
             for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                info[field_name] = appearance.get(json_key, '')
+                if not info.get(field_name):
+                    info[field_name] = appearance.get(json_key, '')
+
+            efhub_fallback = extract_efhub_body_model(html)
+            for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
+                if not info.get(field_name) and efhub_fallback.get(json_key):
+                    info[field_name] = efhub_fallback.get(json_key, '')
         else:
             # Nếu URL/PID khác dạng, thử extract ID và lấy body model
             player_id = extract_ehub_player_id(normalized_url)
@@ -3194,6 +3266,11 @@ def extract_full_player_info(player_url: str) -> dict:
                 for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
                     if not info.get(field_name):
                         info[field_name] = appearance.get(json_key, '')
+
+            efhub_fallback = extract_efhub_body_model(html)
+            for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
+                if not info.get(field_name) and efhub_fallback.get(json_key):
+                    info[field_name] = efhub_fallback.get(json_key, '')
 
         return info
 
@@ -5255,6 +5332,11 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         if not current_val or current_val == 'nan':
                             appearance_key = PESDATA_APPEARANCE_KEY_MAP_REVERSE.get(field, '')
                             new_val = appearance.get(appearance_key, '') if appearance_key else ''
+                            if not str(new_val).strip():
+                                player_url = str(row.get('Player URL', '') or '')
+                                fallback_html = fetch_ehub_raw_html(player_url) if player_url.startswith('http') else ''
+                                fallback_appearance = extract_efhub_body_model(fallback_html)
+                                new_val = fallback_appearance.get(appearance_key, '') if appearance_key else ''
                             if new_val is not None and str(new_val).strip() != '':
                                 state['df_snapshot'].at[idx, field] = new_val
                                 row_updated = True
