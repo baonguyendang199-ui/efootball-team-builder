@@ -2673,6 +2673,60 @@ def _extract_pesdata_player_id(value: str) -> str:
     return m.group(1) if m else ""
 
 
+def _extract_pesdata_appearance(payload) -> dict:
+    """Extract the body-model/appearance dict across PESDATA response variants."""
+    if not isinstance(payload, (dict, list)):
+        return {}
+
+    def normalize_key(key):
+        return re.sub(r"[^a-z0-9]", "", str(key).lower())
+
+    def recurse(node):
+        if isinstance(node, list):
+            for item in node:
+                extracted = recurse(item)
+                if extracted:
+                    return extracted
+            return {}
+
+        if not isinstance(node, dict):
+            return {}
+
+        for key in ("appearance", "bodyModel", "body_model", "bodymodel", "bodyModelInfo", "body_model_info"):
+            value = node.get(key)
+            if isinstance(value, dict):
+                return value
+
+        if isinstance(node.get("data"), dict):
+            extracted = recurse(node["data"])
+            if extracted:
+                return extracted
+
+        if isinstance(node.get("data"), list):
+            extracted = recurse(node["data"])
+            if extracted:
+                return extracted
+
+        if node and all(normalize_key(k) not in {"data", "result", "player", "response"} for k in node.keys()):
+            if any(normalize_key(k) in {
+                "armlength", "shoulderwidth", "necklength", "chestmeasurement", "necksize",
+                "shoulderheight", "leglength", "thighsize", "waistsize", "armsize",
+                "calfsize", "legcoverageradius", "armcoverageradius", "jumpingheight",
+                "torsocollision", "leglengthbasedheight"
+            } for k in node.keys()):
+                return node
+
+        for value in node.values():
+            if isinstance(value, (dict, list)):
+                extracted = recurse(value)
+                if extracted:
+                    return extracted
+
+        return {}
+
+    return recurse(payload)
+
+
 def fetch_pesdata_player_json(player_id_or_url: str) -> dict:
     pid = _extract_pesdata_player_id(player_id_or_url)
     if not pid:
@@ -2696,14 +2750,24 @@ def fetch_pesdata_player_json(player_id_or_url: str) -> dict:
         resp.raise_for_status()
         data = resp.json()
 
+        if isinstance(data, list) and data:
+            for item in data:
+                if isinstance(item, dict):
+                    return item
+            return {}
+
         if isinstance(data, dict):
-            if data.get('data'):
-                if isinstance(data['data'], list) and data['data']:
-                    return data['data'][0]
-                if isinstance(data['data'], dict):
-                    return data['data']
-            if data.get('code') in (0, 200) and isinstance(data.get('data'), dict):
-                return data['data']
+            for key in ('data', 'result', 'response', 'player', 'details', 'detail'):
+                value = data.get(key)
+                if isinstance(value, list) and value:
+                    for item in value:
+                        if isinstance(item, dict):
+                            return item
+                elif isinstance(value, dict):
+                    return value
+            if data.get('code') in (0, 200):
+                return data
+            return data
     except Exception:
         pass
     return {}
@@ -3118,7 +3182,7 @@ def extract_full_player_info(player_url: str) -> dict:
         # Nếu có PESDATA ID, lấy thêm body model từ PESDATA API
         if pesdata_id:
             pesdata_data = fetch_pesdata_player_json(pesdata_id)
-            appearance = pesdata_data.get('appearance') or {}
+            appearance = _extract_pesdata_appearance(pesdata_data)
             for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
                 info[field_name] = appearance.get(json_key, '')
         else:
@@ -3126,7 +3190,7 @@ def extract_full_player_info(player_url: str) -> dict:
             player_id = extract_ehub_player_id(normalized_url)
             if player_id:
                 pesdata_data = fetch_pesdata_player_json(player_id)
-                appearance = pesdata_data.get('appearance') or {}
+                appearance = _extract_pesdata_appearance(pesdata_data)
                 for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
                     if not info.get(field_name):
                         info[field_name] = appearance.get(json_key, '')
@@ -5183,7 +5247,7 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                     })
                 else:
                     pesdata_data = fetch_pesdata_player_json(pesdata_id)
-                    appearance = pesdata_data.get('appearance') or {}
+                    appearance = _extract_pesdata_appearance(pesdata_data)
                     row_updated = False
 
                     for field in PESDATA_BODY_MODEL_FIELDS:
