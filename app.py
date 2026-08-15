@@ -6853,23 +6853,14 @@ def main():
                 options_map[skill] = label
             
             st.caption(f"**Current position:** {effective_position}")
-            
-            # Determine max_selections - must be positive integer or None
-            max_sel = remaining_slots if remaining_slots > 0 else None
-            
-            selected = st.multiselect(
-                "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
-                default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
-                max_selections=max_sel,
-                disabled=remaining_slots <= 0  # Disable if no slots left
-            )
 
             current_position = str(row.get('Position', '')).strip().upper()
             role_switch_needed = effective_position != current_position
+
             if role_switch_needed:
                 st.markdown("#### 🔁 Role switch preview")
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
-                
+
                 # Show target skills for new position with color-coding
                 st.markdown("**Target skills for this role:**")
                 skill_html = ""
@@ -6882,12 +6873,36 @@ def main():
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.3);color:#ef4444;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #ef4444'>❌ {skill}</span>"
                 st.markdown(skill_html, unsafe_allow_html=True)
 
-            # Validate
-            out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
-            
-            col_save1, col_save2 = st.columns(2)
-            with col_save1:
-                if role_switch_needed:
+                if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
+                    old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
+                    new_secondary = []
+                    for pos in old_secondary + [effective_position]:
+                        p = str(pos).strip().upper()
+                        if p and p not in new_secondary:
+                            new_secondary.append(p)
+                    df.at[idx, 'Position'] = effective_position
+                    df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
+                    if save_data_to_gsheet(df):
+                        st.toast(f"Role updated to {effective_position}", icon="✅")
+                        st.cache_data.clear()
+                        time.sleep(0.7)
+                        st.rerun()
+            else:
+                # Determine max_selections - must be positive integer or None
+                max_sel = remaining_slots if remaining_slots > 0 else None
+
+                selected = st.multiselect(
+                    "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
+                    default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
+                    max_selections=max_sel,
+                    disabled=remaining_slots <= 0  # Disable if no slots left
+                )
+
+                # Validate
+                out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
+
+                col_save1, col_save2 = st.columns(2)
+                with col_save1:
                     if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
                         old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
                         new_secondary = []
@@ -6902,24 +6917,24 @@ def main():
                             st.cache_data.clear()
                             time.sleep(0.7)
                             st.rerun()
-            with col_save2:
-                btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
-                if remaining_slots <= 0:
-                    st.info("ℹ️ No free slot left. This is preview only.")
-                if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
-                
-                if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
-                    new_added = added_skills + selected
-                    df.at[idx, 'Added Skills'] = ", ".join(new_added)
-                    if save_data_to_gsheet(df):
-                        # GỌI HÀM UPDATE VỚI FLAG is_gk
-                        for s in selected:
-                            update_inventory_count(s, -1, is_gk=is_gk)
-                        
-                        st.toast("Success!", icon="🎉")
-                        st.cache_data.clear()
-                        time.sleep(1)
-                        st.rerun()
+                with col_save2:
+                    btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
+                    if remaining_slots <= 0:
+                        st.info("ℹ️ No free slot left. This is preview only.")
+                    if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
+
+                    if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
+                        new_added = added_skills + selected
+                        df.at[idx, 'Added Skills'] = ", ".join(new_added)
+                        if save_data_to_gsheet(df):
+                            # GỌI HÀM UPDATE VỚI FLAG is_gk
+                            for s in selected:
+                                update_inventory_count(s, -1, is_gk=is_gk)
+
+                            st.toast("Success!", icon="🎉")
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
 
         # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
         with st.container(border=True):
