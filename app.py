@@ -6853,10 +6853,15 @@ def main():
                 options_map[skill] = label
             
             st.caption(f"**Current position:** {effective_position}")
+            
+            # Determine max_selections - must be positive integer or None
+            max_sel = remaining_slots if remaining_slots > 0 else None
+            
             selected = st.multiselect(
                 "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
                 default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
-                max_selections=max(remaining_slots, 0)
+                max_selections=max_sel,
+                disabled=remaining_slots <= 0  # Disable if no slots left
             )
 
             current_position = str(row.get('Position', '')).strip().upper()
