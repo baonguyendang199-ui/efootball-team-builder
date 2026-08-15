@@ -1106,6 +1106,20 @@ def get_view_positions_for_player(row) -> list:
     return positions
 
 
+def get_retained_skills_for_position(position: str, base_skills: str, added_skills: str) -> dict:
+    """Trả về các skill được giữ / bị mất khi chuyển sang một vị trí mới."""
+    role_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(position, []))
+    all_skills = get_all_skills(base_skills, added_skills)
+    kept = []
+    lost = []
+    for skill in all_skills:
+        if normalize_skill_name(skill) in role_pool:
+            kept.append(skill)
+        else:
+            lost.append(skill)
+    return {"kept": kept, "lost": lost}
+
+
 def is_bench_player(value) -> bool:
     """Trả về True nếu player đang ở chế độ cầu thủ dự bị."""
     if isinstance(value, bool):
@@ -6824,11 +6838,42 @@ def main():
                 default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
                 max_selections=max(remaining_slots, 0)
             )
-            
+
+            current_position = str(row.get('Position', '')).strip().upper()
+            role_switch_needed = effective_position != current_position
+            if role_switch_needed:
+                retained_info = get_retained_skills_for_position(effective_position, str(row.get('Skills', '')), str(row.get('Added Skills', '')))
+                kept = retained_info["kept"]
+                lost = retained_info["lost"]
+                st.markdown("#### 🔁 Role switch preview")
+                st.caption(f"Current: {current_position} → Preview: {effective_position}")
+                if kept:
+                    st.markdown("**Skills kept when switching:**")
+                    st.write(", ".join(kept) if kept else "None")
+                if lost:
+                    st.markdown("**Skills likely not aligned in this role:**")
+                    st.write(", ".join(lost) if lost else "None")
+
             # Validate
             out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
             
             col_save1, col_save2 = st.columns(2)
+            with col_save1:
+                if role_switch_needed:
+                    if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
+                        old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
+                        new_secondary = []
+                        for pos in old_secondary + [effective_position]:
+                            p = str(pos).strip().upper()
+                            if p and p not in new_secondary:
+                                new_secondary.append(p)
+                        df.at[idx, 'Position'] = effective_position
+                        df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
+                        if save_data_to_gsheet(df):
+                            st.toast(f"Role updated to {effective_position}", icon="✅")
+                            st.cache_data.clear()
+                            time.sleep(0.7)
+                            st.rerun()
             with col_save2:
                 btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
                 if remaining_slots <= 0:
