@@ -1081,6 +1081,31 @@ def get_all_skills(base_skills: str, added_skills: str) -> list:
     
     return all_skills
 
+
+def parse_secondary_positions(value: str) -> list:
+    """Parse các secondary positions thành list dạng chuẩn, bỏ trùng."""
+    if value is None:
+        return []
+    text = str(value).replace('/', ',').replace('|', ',').replace(';', ',')
+    positions = []
+    for part in text.split(','):
+        p = str(part).strip().upper()
+        if p and p not in positions:
+            positions.append(p)
+    return positions
+
+
+def get_view_positions_for_player(row) -> list:
+    """Lấy các vị trí có thể xét skill cho player: primary + các secondary positions."""
+    primary = str(row.get('Position', '')).strip().upper()
+    secondary = parse_secondary_positions(row.get('Secondary Positions', ''))
+    positions = []
+    for pos in [primary] + secondary:
+        if pos and pos not in positions:
+            positions.append(pos)
+    return positions
+
+
 def is_bench_player(value) -> bool:
     """Trả về True nếu player đang ở chế độ cầu thủ dự bị."""
     if isinstance(value, bool):
@@ -6704,13 +6729,14 @@ def main():
 
         # --- HELPER: Dialog Training (Trái tim của bản nâng cấp) ---
         @st.dialog("🏋️ Training Center")
-        def show_training_modal(idx, row, current_inventory): # current_inventory được truyền từ bên ngoài vào
+        def show_training_modal(idx, row, current_inventory, selected_position=None): # current_inventory được truyền từ bên ngoài vào
             """Popup xử lý training thông minh"""
             p_name = row['Player']
             p_pos = str(row['Position']).strip()
+            effective_position = str(selected_position or p_pos).strip().upper()
             
             # --- CHECK GK MODE ---
-            is_gk = p_pos == 'GK'
+            is_gk = effective_position == 'GK'
             
             # Nếu là GK, ta PHẢI dùng kho GK, bất kể current_inventory truyền vào là gì
             # (Để an toàn, ta load lại kho GK ở đây nếu cần, hoặc giả định bên ngoài truyền đúng)
@@ -6736,7 +6762,7 @@ def main():
                 st.image(img_url, width=80)
             with c2:
                 st.subheader(p_name)
-                st.caption(f"{p_pos} | {row['Rating']} | {row['Club']}")
+                st.caption(f"{effective_position} • {row['Rating']} • {row['Club']}")
                 st.progress(used_slots / MAX_ADDED_SLOTS, text=f"Slot: {used_slots}/{MAX_ADDED_SLOTS}")
             st.divider()
             st.markdown("**Current Skills:**")
@@ -6753,10 +6779,10 @@ def main():
             # --- LOGIC STRICT TARGETS ---
             bench_mode = is_bench_player(row.get('Is Bench', False))
             if bench_mode:
-                target_skills = get_bench_target_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), remaining_slots)
+                target_skills = get_bench_target_skills(effective_position, str(row.get('Skills', '')), str(row.get('Added Skills', '')), remaining_slots)
             else:
                 all_missing = get_recommended_skills(
-                    p_pos,
+                    effective_position,
                     str(row.get('Skills', '')),
                     str(row.get('Added Skills', '')),
                     15,
@@ -6781,7 +6807,16 @@ def main():
                 valid_options.append(skill)
                 options_map[skill] = label
             
-            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'})")
+            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'} • {effective_position})")
+            available_positions = get_view_positions_for_player(row)
+            if len(available_positions) > 1:
+                st.selectbox(
+                    "View skill priority by:",
+                    options=available_positions,
+                    index=available_positions.index(effective_position) if effective_position in available_positions else 0,
+                    key=f"training_role_{idx}",
+                    on_change=lambda: None,
+                )
             selected = st.multiselect(
                 "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
                 default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
@@ -6978,13 +7013,22 @@ def main():
                         n_added = len(added_list)
                         remaining_slots = MAX_ADDED_SLOTS - n_added
                         is_potw = "POTW" in str(row['Player Type']).upper()
+                        position_options = get_view_positions_for_player(row)
+                        selected_position = st.selectbox(
+                            "View as",
+                            options=position_options,
+                            index=0,
+                            key=f"view_pos_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        effective_position = str(selected_position or p_pos).strip().upper()
                         
                         # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
                         bench_mode = is_bench_player(row.get('Is Bench', False))
                         if bench_mode:
-                            strict_targets = get_bench_target_skills(p_pos, p_skills, p_added, remaining_slots)
+                            strict_targets = get_bench_target_skills(effective_position, p_skills, p_added, remaining_slots)
                         else:
-                            all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15, is_bench=False)
+                            all_missing_ordered = get_recommended_skills(effective_position, p_skills, p_added, 15, is_bench=False)
                             strict_targets = all_missing_ordered[:remaining_slots]
 
                         # LOGIC CHỌN KHO ĐỂ CHECK
@@ -7092,7 +7136,7 @@ def main():
 
                             if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
                                 # Pass the correct inventory depending on player position to avoid extra API calls
-                                show_training_modal(idx, row, inventory_gk if is_gk_player else inventory_field)
+                                show_training_modal(idx, row, inventory_gk if is_gk_player else inventory_field, selected_position=effective_position)
 
     elif current_tab == 'squad':
         st.header("⚽ Squad Management")
