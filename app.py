@@ -825,7 +825,7 @@ def load_data_from_gsheet():
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
             "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions",
-            "National Booster", "Booster Type", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23",
+            "Is Bench", "National Booster", "Booster Type", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23",
             *PESDATA_BODY_MODEL_FIELDS
         ]
         for col in required_cols:
@@ -847,11 +847,15 @@ def load_data_from_gsheet():
             "Nation", "Club", "League",
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
-            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions", "Booster Type",
+            "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions", "Is Bench", "Booster Type",
             *PESDATA_BODY_MODEL_FIELDS
         ]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
+        
+        if "Is Bench" not in df.columns:
+            df["Is Bench"] = False
+        df["Is Bench"] = df["Is Bench"].apply(lambda v: str(v).strip().lower() in {'1','true','yes','y','bench','substitute','reserve'})
         
         if "Player Type" in df.columns:
             df["Player Type"] = df["Player Type"].apply(normalize_player_type)
@@ -1077,25 +1081,68 @@ def get_all_skills(base_skills: str, added_skills: str) -> list:
     
     return all_skills
 
-def get_recommended_skills(position: str, base_skills: str, added_skills: str, max_total_skills: int = 15) -> list:
-    """Trả về danh sách skills được đề xuất cho một vị trí"""
+def is_bench_player(value) -> bool:
+    """Trả về True nếu player đang ở chế độ cầu thủ dự bị."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    text = str(value).strip().lower()
+    return text in {'1', 'true', 'yes', 'y', 'bench', 'substitute', 'reserve'}
+
+
+def get_recommended_skills(position: str, base_skills: str, added_skills: str, max_total_skills: int = 15, is_bench: bool = False) -> list:
+    """Trả về danh sách skills được đề xuất cho một vị trí.
+    Nếu là bench player, skill thứ 5 luôn cố định là Super Sub và không dựa vào bảng priority.
+    """
     if position not in POSITION_SKILLS_PRIORITY:
         return []
-    
+
     all_current_skills = get_all_skills(base_skills, added_skills)
     current_skills_normalized = [normalize_skill_name(s) for s in all_current_skills]
-    
+
+    if is_bench:
+        priority_skills = [
+            s for s in POSITION_SKILLS_PRIORITY[position]
+            if normalize_skill_name(s) != normalize_skill_name('Super Sub')
+        ]
+        missing_priority = [
+            s for s in priority_skills
+            if normalize_skill_name(s) not in current_skills_normalized
+        ]
+
+        fixed_super_sub = []
+        if normalize_skill_name('Super Sub') not in current_skills_normalized:
+            fixed_super_sub = ['Super Sub']
+
+        required_slots = max_total_skills - len(fixed_super_sub)
+        missing_priority = missing_priority[:required_slots]
+
+        return (missing_priority + fixed_super_sub)[:max_total_skills]
+
     current_count = len(all_current_skills)
     remaining_slots = max_total_skills - current_count
-    
+
     if remaining_slots <= 0:
         return []
-    
+
     priority_skills = POSITION_SKILLS_PRIORITY[position]
-    missing_skills = [s for s in priority_skills 
+    missing_skills = [s for s in priority_skills
                      if normalize_skill_name(s) not in current_skills_normalized]
-    
+
     return missing_skills[:remaining_slots]
+
+
+def get_skill_targets_for_player(row, default_max=5):
+    """Trả về danh sách skills cần ưu tiên cho player, tùy theo bench mode."""
+    p_pos = str(row.get('Position', '')).strip()
+    p_skills = str(row.get('Skills', ''))
+    p_added = str(row.get('Added Skills', ''))
+    bench_mode = is_bench_player(row.get('Is Bench', False))
+    if bench_mode:
+        return get_recommended_skills(p_pos, p_skills, p_added, default_max, is_bench=True)
+    return get_recommended_skills(p_pos, p_skills, p_added, default_max)
+
 
 def get_player_rank(df, row, group_by, max_size=23):
     """Trả về rank của 1 cầu thủ trong group (Club/Nation/League) theo Top 23."""
@@ -2839,63 +2886,36 @@ def extract_efhub_body_model(html: str) -> dict:
         return {}
 
     soup = BeautifulSoup(html, 'html.parser')
-    labels = [
-        'Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement',
-        'Neck Size', 'Shoulder Height', 'Leg Length', 'Thigh Size', 'Waist Size',
-        'Arm Size', 'Calf Size', 'Leg Coverage Radius', 'Arm Coverage Radius',
-        'Jumping Height', 'Torso Collision', 'Leg Length Based Height'
-    ]
-    target = {label: '' for label in labels}
+    page_text = re.sub(r'\s+', ' ', soup.get_text(' ', strip=True))
 
-    def clean_value(value):
-        if value is None:
-            return ''
-        text = str(value).strip()
-        text = re.sub(r'\s+', ' ', text)
-        return text
-
-    for tag in soup.find_all(True):
-        tag_text = clean_value(tag.get_text(' ', strip=True))
-        if tag_text in labels:
-            parent = tag.parent
-            if parent is None:
-                continue
-            siblings = []
-            for child in parent.children:
-                text = clean_value(child.get_text(' ', strip=True)) if hasattr(child, 'get_text') else clean_value(str(child))
-                if text:
-                    siblings.append(text)
-            if tag_text in siblings:
-                idx = siblings.index(tag_text)
-                for candidate in siblings[idx + 1:]:
-                    if candidate and candidate != tag_text:
-                        if re.fullmatch(r'[-+]?\d+(?:\.\d+)?', candidate):
-                            target[tag_text] = candidate
-                            break
-                        if re.fullmatch(r'[-+]?\d+(?:\.\d+)?\s*[-+]?\d+(?:\.\d+)?', candidate):
-                            target[tag_text] = candidate
-                            break
-                        target[tag_text] = candidate
-                        break
-
-    return {
-        'ArmLength': target.get('Arm Length', ''),
-        'ShoulderWidth': target.get('Shoulder Width', ''),
-        'NeckLength': target.get('Neck Length', ''),
-        'ChestMeasurement': target.get('Chest Measurement', ''),
-        'NeckSize': target.get('Neck Size', ''),
-        'ShoulderHeight': target.get('Shoulder Height', ''),
-        'LegLength': target.get('Leg Length', ''),
-        'ThighSize': target.get('Thigh Size', ''),
-        'WaistSize': target.get('Waist Size', ''),
-        'ArmSize': target.get('Arm Size', ''),
-        'CalfSize': target.get('Calf Size', ''),
-        'LegCoverageRadius': target.get('Leg Coverage Radius', ''),
-        'ArmCoverageRadius': target.get('Arm Coverage Radius', ''),
-        'JumpingHeight': target.get('Jumping Height', ''),
-        'TorsoCollision': target.get('Torso Collision', ''),
-        'LegLengthBasedHeight': target.get('Leg Length Based Height', ''),
+    labels = {
+        'Arm Length': 'ArmLength',
+        'Shoulder Width': 'ShoulderWidth',
+        'Neck Length': 'NeckLength',
+        'Chest Measurement': 'ChestMeasurement',
+        'Neck Size': 'NeckSize',
+        'Shoulder Height': 'ShoulderHeight',
+        'Leg Length': 'LegLength',
+        'Thigh Size': 'ThighSize',
+        'Waist Size': 'WaistSize',
+        'Arm Size': 'ArmSize',
+        'Calf Size': 'CalfSize',
+        'Leg Coverage Radius': 'LegCoverageRadius',
+        'Arm Coverage Radius': 'ArmCoverageRadius',
+        'Jumping Height': 'JumpingHeight',
+        'Torso Collision': 'TorsoCollision',
+        'Leg Length Based Height': 'LegLengthBasedHeight',
     }
+
+    result = {}
+    for label, key in labels.items():
+        label_pattern = re.escape(label)
+        match = re.search(rf'{label_pattern}\s*[:\-]?\s*([0-9]+(?:\.\d+)?)', page_text, flags=re.IGNORECASE)
+        if match:
+            result[key] = match.group(1)
+            result[label] = match.group(1)
+
+    return result
 
 
 def extract_player_skills(player_url: str) -> str:
@@ -6714,10 +6734,16 @@ def main():
             st.divider()
             
             # --- LOGIC STRICT TARGETS ---
-            # Hàm get_recommended_skills đã được thiết kế để trả về Priority List chuẩn
-            all_missing = get_recommended_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), 15)
+            bench_mode = is_bench_player(row.get('Is Bench', False))
+            all_missing = get_recommended_skills(
+                p_pos,
+                str(row.get('Skills', '')),
+                str(row.get('Added Skills', '')),
+                15,
+                is_bench=bench_mode,
+            )
             target_skills = all_missing[:remaining_slots]
-            
+
             if not target_skills:
                 st.info("No skill specified.")
                 return
@@ -6824,29 +6850,41 @@ def main():
             # 1. Check Full / Locked
             is_potw = "POTW" in str(row['Player Type']).upper()
             added = [x for x in str(row.get('Added Skills', '')).split(',') if x.strip()]
-            
-            if is_potw or len(added) >= MAX_ADDED_SLOTS:
+            bench_mode = is_bench_player(row.get('Is Bench', False))
+
+            if is_potw:
                 return "Full skills"
 
             # 2. Xác định vị trí & Kho tương ứng
             p_pos = str(row['Position']).strip()
             is_gk = p_pos == 'GK'
-            
+
             # [QUAN TRỌNG] Choose kho để check stock
             current_inv = inventory_gk if is_gk else inventory_field
 
             # 3. Tính toán Strict Targets (Ưu tiên tuyệt đối)
             remaining_slots = MAX_ADDED_SLOTS - len(added)
-            all_missing = get_recommended_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), 15)
+            all_missing = get_recommended_skills(
+                p_pos,
+                str(row.get('Skills', '')),
+                str(row.get('Added Skills', '')),
+                15,
+                is_bench=bench_mode,
+            )
             strict_targets = all_missing[:remaining_slots]
-            
-            if not strict_targets:
+
+            if not strict_targets and not bench_mode:
                 return "Full skills" # Không còn skill gợi ý nào
-            
+            if bench_mode and not strict_targets:
+                # Bench player vẫn có thể cần Super Sub dù đã đủ 5 skill cũ
+                if normalize_skill_name('Super Sub') in [normalize_skill_name(s) for s in added]:
+                    return "Full skills"
+                return "Missing skills to add"
+
             # 4. Check Stock trong kho tương ứng
             # Chỉ cần 1 skill trong nhóm Strict Targets có hàng -> Trainable
             has_stock = any(current_inv.get(s, 0) > 0 for s in strict_targets)
-            
+
             if has_stock:
                 return "Trainable"
             else:
@@ -6918,9 +6956,10 @@ def main():
                         is_potw = "POTW" in str(row['Player Type']).upper()
                         
                         # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
-                        all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15)
+                        bench_mode = is_bench_player(row.get('Is Bench', False))
+                        all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15, is_bench=bench_mode)
                         strict_targets = all_missing_ordered[:remaining_slots]
-                        
+
                         # LOGIC CHỌN KHO ĐỂ CHECK
                         is_gk_player = p_pos == 'GK'
                         if is_gk_player:
@@ -6935,10 +6974,25 @@ def main():
                         btn_disabled = True
                         btn_type = "secondary"
                         btn_label = "Checking..."
-                        
+
                         if is_potw:
                             btn_label = "🔒 POTW"
-                        elif n_added >= MAX_ADDED_SLOTS:
+                        elif bench_mode and normalize_skill_name('Super Sub') in [normalize_skill_name(s) for s in added_list]:
+                            if len(added_list) >= MAX_ADDED_SLOTS:
+                                btn_label = "✅ Bench Ready"
+                            elif not strict_targets:
+                                btn_label = "🤷‍♂️ Đủ Skill Top"
+                            elif len(trainable_skills) > 0:
+                                btn_label = f"🏋️ Train ({len(trainable_skills)})"
+                                btn_disabled = False
+                                btn_type = "primary"
+                            else:
+                                missing_top1 = strict_targets[0] if strict_targets else ""
+                                btn_label = f"⚠️ Missing: {missing_top1}"
+                                btn_disabled = True
+                        elif is_potw:
+                            btn_label = "🔒 POTW"
+                        elif n_added >= MAX_ADDED_SLOTS and not bench_mode:
                             btn_label = "✅ Full Slots"
                         elif not strict_targets:
                             btn_label = "🤷‍♂️ Đủ Skill Top"
@@ -6972,17 +7026,43 @@ def main():
                                 pid = str(row.get('Player ID', '')).strip()
                                 img = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else "https://pesdb.net/assets/img/card/f0.png"
                                 st.image(img, use_container_width=True)
-                            
+
                             with c_info:
                                 color = "#fbbf24" if row['Epic_Priority'] == 0 else ("#d946ef" if is_potw else "#fff")
-                                
+
                                 # Thêm badge BARCA
                                 prefix = "🔵🔴 " if is_barca else ""
-                                
+                                bench_badge = "🪑 Bench" if is_bench_player(row.get('Is Bench', False)) else ""
+
                                 st.markdown(f"<div style='font-weight:bold; color:{color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{prefix}{row['Player']}</div>", unsafe_allow_html=True)
+                                if bench_badge:
+                                    st.caption(bench_badge)
                                 st.caption(f"{p_pos} • {row['Rating']}")
                                 st.markdown(f"<div>{slots_html}</div>", unsafe_allow_html=True)
-                            
+
+                            toggle_bench = st.button(
+                                "🪑 Bench" if not is_bench_player(row.get('Is Bench', False)) else "♻️ Unbench",
+                                key=f"bench_{idx}",
+                                use_container_width=True,
+                            )
+                            if toggle_bench:
+                                current_bench = is_bench_player(df.at[idx, 'Is Bench'])
+                                next_bench = not current_bench
+                                df.at[idx, 'Is Bench'] = next_bench
+
+                                if next_bench:
+                                    added_list = [x.strip() for x in str(df.at[idx, 'Added Skills']).split(',') if x.strip()]
+                                    normalized_added = [normalize_skill_name(s) for s in added_list]
+                                    if normalize_skill_name('Super Sub') not in normalized_added and len(added_list) >= MAX_ADDED_SLOTS:
+                                        df.at[idx, 'Added Skills'] = ', '.join(added_list[:-1])
+                                    elif normalize_skill_name('Super Sub') in normalized_added:
+                                        df.at[idx, 'Added Skills'] = ', '.join(added_list)
+
+                                if save_data_to_gsheet(df):
+                                    st.cache_data.clear()
+                                    time.sleep(0.5)
+                                    st.rerun()
+
                             if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
                                 # Pass the correct inventory depending on player position to avoid extra API calls
                                 show_training_modal(idx, row, inventory_gk if is_gk_player else inventory_field)

@@ -53,6 +53,6 @@ def test_extract_efhub_body_model_from_html():
     </div>
     '''
     result = extract_efhub_body_model(html)
-    assert result['Arm Length'] == '8'
-    assert result['Shoulder Width'] == '8'
-    assert result['Jumping Height'] == '275.7'
+    assert result['ArmLength'] == '8'
+    assert result['ShoulderWidth'] == '8'
+    assert result['JumpingHeight'] == '275.7'
