@@ -1133,6 +1133,23 @@ def get_recommended_skills(position: str, base_skills: str, added_skills: str, m
     return missing_skills[:remaining_slots]
 
 
+def get_bench_target_skills(position: str, base_skills: str, added_skills: str, remaining_slots: int) -> list:
+    """Tạo target cho bench: luôn ép Super Sub vào slot cuối nếu chưa có."""
+    if remaining_slots <= 0:
+        return []
+
+    all_missing = get_recommended_skills(position, base_skills, added_skills, 15, is_bench=True)
+    if not all_missing:
+        return []
+
+    existing = [normalize_skill_name(s) for s in get_all_skills(base_skills, added_skills)]
+    if normalize_skill_name('Super Sub') not in existing:
+        non_super = [s for s in all_missing if normalize_skill_name(s) != normalize_skill_name('Super Sub')]
+        return (non_super[:max(0, remaining_slots - 1)] + ['Super Sub'])[:remaining_slots]
+
+    return all_missing[:remaining_slots]
+
+
 def get_skill_targets_for_player(row, default_max=5):
     """Trả về danh sách skills cần ưu tiên cho player, tùy theo bench mode."""
     p_pos = str(row.get('Position', '')).strip()
@@ -6735,23 +6752,16 @@ def main():
             
             # --- LOGIC STRICT TARGETS ---
             bench_mode = is_bench_player(row.get('Is Bench', False))
-            all_missing = get_recommended_skills(
-                p_pos,
-                str(row.get('Skills', '')),
-                str(row.get('Added Skills', '')),
-                15,
-                is_bench=bench_mode,
-            )
-
             if bench_mode:
-                existing_skills = [normalize_skill_name(s) for s in base_skills + added_skills]
-                missing_super_sub = normalize_skill_name('Super Sub') not in existing_skills
-                if missing_super_sub and 'Super Sub' in all_missing:
-                    non_super = [s for s in all_missing if normalize_skill_name(s) != normalize_skill_name('Super Sub')]
-                    target_skills = non_super[:max(0, remaining_slots - 1)] + ['Super Sub']
-                else:
-                    target_skills = all_missing[:remaining_slots]
+                target_skills = get_bench_target_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), remaining_slots)
             else:
+                all_missing = get_recommended_skills(
+                    p_pos,
+                    str(row.get('Skills', '')),
+                    str(row.get('Added Skills', '')),
+                    15,
+                    is_bench=False,
+                )
                 target_skills = all_missing[:remaining_slots]
 
             if not target_skills:
@@ -6874,14 +6884,17 @@ def main():
 
             # 3. Tính toán Strict Targets (Ưu tiên tuyệt đối)
             remaining_slots = MAX_ADDED_SLOTS - len(added)
-            all_missing = get_recommended_skills(
-                p_pos,
-                str(row.get('Skills', '')),
-                str(row.get('Added Skills', '')),
-                15,
-                is_bench=bench_mode,
-            )
-            strict_targets = all_missing[:remaining_slots]
+            if bench_mode:
+                strict_targets = get_bench_target_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), remaining_slots)
+            else:
+                all_missing = get_recommended_skills(
+                    p_pos,
+                    str(row.get('Skills', '')),
+                    str(row.get('Added Skills', '')),
+                    15,
+                    is_bench=False,
+                )
+                strict_targets = all_missing[:remaining_slots]
 
             if not strict_targets and not bench_mode:
                 return "Full skills" # Không còn skill gợi ý nào
@@ -6898,7 +6911,8 @@ def main():
             if has_stock:
                 return "Trainable"
             else:
-                return "Missing skills to add"
+                missing_name = 'Super Sub' if bench_mode and normalize_skill_name('Super Sub') not in [normalize_skill_name(s) for s in added] else (strict_targets[0] if strict_targets else 'Super Sub')
+                return f"Missing skills to add ({missing_name})"
 
         # Áp dụng logic
         filtered_df['Train_Status'] = filtered_df.apply(classify_status_smart, axis=1)
@@ -6967,8 +6981,11 @@ def main():
                         
                         # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
                         bench_mode = is_bench_player(row.get('Is Bench', False))
-                        all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15, is_bench=bench_mode)
-                        strict_targets = all_missing_ordered[:remaining_slots]
+                        if bench_mode:
+                            strict_targets = get_bench_target_skills(p_pos, p_skills, p_added, remaining_slots)
+                        else:
+                            all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15, is_bench=False)
+                            strict_targets = all_missing_ordered[:remaining_slots]
 
                         # LOGIC CHỌN KHO ĐỂ CHECK
                         is_gk_player = p_pos == 'GK'
