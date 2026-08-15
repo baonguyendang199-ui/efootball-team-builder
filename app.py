@@ -6772,14 +6772,13 @@ def main():
             st.markdown(skill_badges, unsafe_allow_html=True)
             
             if remaining_slots <= 0:
-                st.warning("🔒 Slot full!")
-                return
+                st.warning("🔒 Slot full! Preview mode still works below — you can review the role target without adding a new skill.")
             st.divider()
             
             # --- LOGIC STRICT TARGETS ---
             bench_mode = is_bench_player(row.get('Is Bench', False))
             if bench_mode:
-                target_skills = get_bench_target_skills(effective_position, str(row.get('Skills', '')), str(row.get('Added Skills', '')), remaining_slots)
+                target_skills = get_bench_target_skills(effective_position, str(row.get('Skills', '')), str(row.get('Added Skills', '')), max(remaining_slots, 5))
             else:
                 all_missing = get_recommended_skills(
                     effective_position,
@@ -6788,7 +6787,10 @@ def main():
                     15,
                     is_bench=False,
                 )
-                target_skills = all_missing[:remaining_slots]
+                if remaining_slots > 0:
+                    target_skills = all_missing[:remaining_slots]
+                else:
+                    target_skills = all_missing[:5]
 
             if not target_skills:
                 st.info("No skill specified.")
@@ -6820,7 +6822,7 @@ def main():
             selected = st.multiselect(
                 "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
                 default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
-                max_selections=remaining_slots
+                max_selections=max(remaining_slots, 0)
             )
             
             # Validate
@@ -6828,7 +6830,9 @@ def main():
             
             col_save1, col_save2 = st.columns(2)
             with col_save2:
-                btn_disabled = len(selected) == 0 or len(out_of_stock) > 0
+                btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
+                if remaining_slots <= 0:
+                    st.info("ℹ️ No free slot left. This is preview only.")
                 if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
                 
                 if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
