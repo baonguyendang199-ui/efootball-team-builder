@@ -6789,7 +6789,23 @@ def main():
                 st.warning("🔒 Slot full! Preview mode still works below — you can review the role target without adding a new skill.")
             st.divider()
             
-            # --- LOGIC STRICT TARGETS ---
+            # --- SHOW ROLE SELECTOR FIRST, GET THE VALUE ---
+            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'})")
+            available_positions = get_view_positions_for_player(row)
+            
+            if len(available_positions) > 1:
+                selected_role = st.selectbox(
+                    "View skill priority by:",
+                    options=available_positions,
+                    index=available_positions.index(effective_position) if effective_position in available_positions else 0,
+                    key=f"training_role_{idx}",
+                )
+                # Update effective position based on selectbox selection
+                effective_position = str(selected_role).strip().upper()
+            else:
+                effective_position = str(available_positions[0]).strip().upper() if available_positions else effective_position
+            
+            # --- LOGIC STRICT TARGETS (RECALCULATED BASED ON EFFECTIVE POSITION) ---
             bench_mode = is_bench_player(row.get('Is Bench', False))
             if bench_mode:
                 target_skills = get_bench_target_skills(effective_position, str(row.get('Skills', '')), str(row.get('Added Skills', '')), max(remaining_slots, 5))
@@ -6807,7 +6823,7 @@ def main():
                     target_skills = all_missing[:5]
 
             if not target_skills:
-                st.info("No skill specified.")
+                st.info("No skill specified for this role.")
                 return
 
             options_map = {}
@@ -6823,16 +6839,7 @@ def main():
                 valid_options.append(skill)
                 options_map[skill] = label
             
-            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'} • {effective_position})")
-            available_positions = get_view_positions_for_player(row)
-            if len(available_positions) > 1:
-                st.selectbox(
-                    "View skill priority by:",
-                    options=available_positions,
-                    index=available_positions.index(effective_position) if effective_position in available_positions else 0,
-                    key=f"training_role_{idx}",
-                    on_change=lambda: None,
-                )
+            st.caption(f"**Current position:** {effective_position}")
             selected = st.multiselect(
                 "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
                 default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
