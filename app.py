@@ -6845,13 +6845,38 @@ def main():
                 retained_info = get_retained_skills_for_position(effective_position, str(row.get('Skills', '')), str(row.get('Added Skills', '')))
                 kept = retained_info["kept"]
                 lost = retained_info["lost"]
+                
+                # Get target skills for new position (using only base skills as reference)
+                new_position_targets = get_recommended_skills(
+                    effective_position,
+                    str(row.get('Skills', '')),
+                    '',  # Empty - don't consider already added skills
+                    5,
+                    is_bench=is_bench_player(row.get('Is Bench', False))
+                )
+                
+                # Check which added skills match new position targets
+                added_list_norm = [normalize_skill_name(s) for s in added_skills]
+                transferred_skills = [s for s in new_position_targets if normalize_skill_name(s) in added_list_norm]
+                missing_skills = [s for s in new_position_targets if normalize_skill_name(s) not in added_list_norm]
+                
                 st.markdown("#### 🔁 Role switch preview")
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
-                if kept:
-                    st.markdown("**Skills kept when switching:**")
-                    st.write(", ".join(kept) if kept else "None")
+                
+                # Show target skills with color-coding
+                st.markdown("**Target skills for this role:**")
+                skill_html = ""
+                for skill in new_position_targets:
+                    if skill in transferred_skills:
+                        # Green - already has this skill
+                        skill_html += f"<span style='background:rgba(74, 222, 128, 0.3);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
+                    else:
+                        # Red - missing this skill
+                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.3);color:#ef4444;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #ef4444'>❌ {skill}</span>"
+                st.markdown(skill_html, unsafe_allow_html=True)
+                
                 if lost:
-                    st.markdown("**Skills likely not aligned in this role:**")
+                    st.markdown("**Skills that won't align in this role:**")
                     st.write(", ".join(lost) if lost else "None")
 
             # Validate
