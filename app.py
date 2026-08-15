@@ -7100,6 +7100,7 @@ def main():
                         elif bench_mode and normalize_skill_name('Super Sub') in [normalize_skill_name(s) for s in added_list]:
                             if len(added_list) >= MAX_ADDED_SLOTS:
                                 btn_label = "✅ Bench Ready"
+                                btn_disabled = False  # Allow preview even when bench is ready
                             elif not strict_targets:
                                 btn_label = "🤷‍♂️ Đủ Skill Top"
                             elif len(trainable_skills) > 0:
@@ -7113,7 +7114,8 @@ def main():
                         elif is_potw:
                             btn_label = "🔒 POTW"
                         elif n_added >= MAX_ADDED_SLOTS and not bench_mode:
-                            btn_label = "✅ Full Slots"
+                            btn_label = "🔍 Preview"  # Changed from "✅ Full Slots" to allow clicking
+                            btn_disabled = False  # Allow preview even when full
                         elif not strict_targets:
                             btn_label = "🤷‍♂️ Đủ Skill Top"
                         elif len(trainable_skills) > 0:
