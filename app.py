@@ -6742,7 +6742,17 @@ def main():
                 15,
                 is_bench=bench_mode,
             )
-            target_skills = all_missing[:remaining_slots]
+
+            if bench_mode:
+                existing_skills = [normalize_skill_name(s) for s in base_skills + added_skills]
+                missing_super_sub = normalize_skill_name('Super Sub') not in existing_skills
+                if missing_super_sub and 'Super Sub' in all_missing:
+                    non_super = [s for s in all_missing if normalize_skill_name(s) != normalize_skill_name('Super Sub')]
+                    target_skills = non_super[:max(0, remaining_slots - 1)] + ['Super Sub']
+                else:
+                    target_skills = all_missing[:remaining_slots]
+            else:
+                target_skills = all_missing[:remaining_slots]
 
             if not target_skills:
                 st.info("No skill specified.")
