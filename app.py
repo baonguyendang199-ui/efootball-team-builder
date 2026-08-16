@@ -6900,6 +6900,7 @@ def main():
 
             st.markdown(skill_html, unsafe_allow_html=True)
 
+            if role_switch_needed:
                 if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True, key=f"role_switch_{idx}_{effective_position}"):
                     old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
                     new_secondary = [p for p in old_secondary if p not in {current_position, effective_position}]
@@ -6920,8 +6921,6 @@ def main():
                         time.sleep(0.7)
                         st.rerun()
             else:
-                st.markdown(skill_html, unsafe_allow_html=True)
-
                 if remaining_slots <= 0:
                     st.info("ℹ️ No free slot left. This is preview only.")
                 else:
