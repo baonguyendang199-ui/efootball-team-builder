@@ -6899,7 +6899,7 @@ def main():
 
                 st.markdown(skill_html, unsafe_allow_html=True)
 
-                if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
+                if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True, key=f"role_switch_{idx}_{effective_position}"):
                     old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
                     new_secondary = [p for p in old_secondary if p not in {current_position, effective_position}]
                     new_secondary = [current_position] + new_secondary
@@ -6936,26 +6936,10 @@ def main():
                     btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
                     if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
 
-                    if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
+                    if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled, key=f"confirm_add_{idx}_{effective_position}"):
                         new_added = added_skills + selected
                         df.at[idx, 'Added Skills'] = ", ".join(new_added)
                         if save_data_to_gsheet(df):
-                            for s in selected:
-                                update_inventory_count(s, -1, is_gk=is_gk)
-
-                            st.toast("Success!", icon="🎉")
-                            st.cache_data.clear()
-                            time.sleep(1)
-                            st.rerun()
-
-                    btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
-                    if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
-
-                    if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
-                        new_added = added_skills + selected
-                        df.at[idx, 'Added Skills'] = ", ".join(new_added)
-                        if save_data_to_gsheet(df):
-                            # GỌI HÀM UPDATE VỚI FLAG is_gk
                             for s in selected:
                                 update_inventory_count(s, -1, is_gk=is_gk)
 
