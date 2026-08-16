@@ -906,13 +906,8 @@ def save_data_to_gsheet(df):
             st.error("⚠️ Cannot save: DataFrame is empty!")
             return False
             
-        st.write(f"DEBUG save_data_to_gsheet - DataFrame shape: {df.shape}")
-        st.write(f"DEBUG save_data_to_gsheet - First row Position: {df.iloc[0]['Position'] if len(df) > 0 else 'N/A'}")
-        
         client = get_gsheet_connection()
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
-        
-        st.write("DEBUG - Got sheet connection")
         
         # Remove Epic_Priority column before saving
         df_save = df.drop(columns=['Epic_Priority', 'Effective_Nation_Rating', 'Effective_Club_Rating', 'Effective_League_Rating', 'Top23_Count'], errors='ignore').copy()
@@ -924,27 +919,17 @@ def save_data_to_gsheet(df):
         # Replace inf values if any
         df_save = df_save.replace([float('inf'), float('-inf')], '')
         
-        st.write(f"DEBUG - df_save shape before update: {df_save.shape}")
-        
         # Check again after cleaning
         if df_save.empty:
             st.error("⚠️ Cannot save: DataFrame is empty after processing!")
             return False
         
         # Clear and update
-        st.write("DEBUG - Clearing sheet...")
         sheet.clear()
-        
-        st.write("DEBUG - Updating sheet...")
         sheet.update([df_save.columns.values.tolist()] + df_save.values.tolist())
-        
-        st.write("DEBUG - Sheet update completed successfully")
         return True
     except Exception as e:
         st.error(f"❌ Error saving data: {e}")
-        st.write(f"DEBUG - Exception: {type(e).__name__}: {str(e)}")
-        import traceback
-        st.write(traceback.format_exc())
         # Don't clear sheet if there's an error!
         return False
 
@@ -7022,8 +7007,9 @@ def main():
                     # CRITICAL: Use df.at[idx] instead of row, since row is a snapshot and may be stale
                     current_position_from_df = str(df.at[idx, 'Position']).strip().upper()
                     old_secondary = parse_secondary_positions(str(df.at[idx, 'Secondary Positions'] or ''))
+                    # Only keep secondary positions that are NOT the current or new main position
+                    # Do NOT auto-add current_position to secondary (that's a manual action, not role switch)
                     new_secondary = [p for p in old_secondary if p not in {current_position_from_df, effective_position}]
-                    new_secondary = [current_position_from_df] + new_secondary
 
                     retained_added = reconcile_added_skills_for_role_switch(
                         current_position_from_df,
@@ -7032,21 +7018,9 @@ def main():
                         bench_mode=bench_mode,
                     )
                     
-                    # Debug: Show what will be saved
-                    st.write(f"DEBUG - Current Position: {current_position_from_df}")
-                    st.write(f"DEBUG - New Position: {effective_position}")
-                    st.write(f"DEBUG - Old Secondary: {old_secondary}")
-                    st.write(f"DEBUG - New Secondary: {new_secondary}")
-                    st.write(f"DEBUG - Old Added Skills: {str(df.at[idx, 'Added Skills'] or '')}")
-                    st.write(f"DEBUG - Retained Added: {retained_added}")
-                    
                     df.at[idx, 'Position'] = effective_position
                     df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
                     df.at[idx, 'Added Skills'] = retained_added
-                    
-                    st.write(f"DEBUG - Updated df Position: {df.at[idx, 'Position']}")
-                    st.write(f"DEBUG - Updated df Secondary: {df.at[idx, 'Secondary Positions']}")
-                    st.write(f"DEBUG - Updated df Added Skills: {df.at[idx, 'Added Skills']}")
 
                     if save_data_to_gsheet(df):
                         st.toast(f"Role updated to {effective_position}. Incompatible added skills were removed.", icon="✅")
