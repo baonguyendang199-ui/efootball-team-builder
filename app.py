@@ -6815,11 +6815,12 @@ def main():
             available_positions = get_view_positions_for_player(row)
             
             if len(available_positions) > 1:
+                current_role_key = str(row.get('Player ID', '')).strip() or str(row.get('Player', '')).strip() or str(idx)
                 selected_role = st.selectbox(
                     "View skill priority by:",
                     options=available_positions,
                     index=available_positions.index(effective_position) if effective_position in available_positions else 0,
-                    key=f"training_role_{idx}",
+                    key=f"training_role_{current_role_key}_{str(row.get('Position', '')).strip().upper()}",
                 )
                 # Update effective position based on selectbox selection
                 effective_position = str(selected_role).strip().upper()
@@ -7116,11 +7117,12 @@ def main():
                         remaining_slots = MAX_ADDED_SLOTS - n_added
                         is_potw = "POTW" in str(row['Player Type']).upper()
                         position_options = get_view_positions_for_player(row)
+                        view_key = f"view_pos_{str(row.get('Player ID', '')).strip() or str(row.get('Player', '')).strip() or idx}_{str(row.get('Position', '')).strip().upper()}"
                         selected_position = st.selectbox(
                             "View as",
                             options=position_options,
-                            index=0,
-                            key=f"view_pos_{idx}",
+                            index=position_options.index(str(row.get('Position', '')).strip().upper()) if str(row.get('Position', '')).strip().upper() in position_options else 0,
+                            key=view_key,
                             label_visibility="collapsed",
                         )
                         effective_position = str(selected_position or p_pos).strip().upper()
