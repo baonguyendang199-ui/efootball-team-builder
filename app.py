@@ -6877,16 +6877,16 @@ def main():
             for s in added_skills:
                 skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
 
+            st.markdown(skill_html, unsafe_allow_html=True)
+
             if role_switch_needed:
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
 
                 role_status_html = ""
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
-                target_skills_seen = set()
 
                 for skill in target_skills:
                     norm = normalize_skill_name(skill)
-                    target_skills_seen.add(norm)
                     if norm in added_skills_normalized:
                         role_status_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
                     else:
