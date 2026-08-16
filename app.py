@@ -6872,28 +6872,43 @@ def main():
 
             st.markdown("**Current Skills:**")
             skill_html = ""
-            for s in base_skills:
-                skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
-            for s in added_skills:
-                skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
+            seen = set()
 
             if role_switch_needed:
-                target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                # When switching roles: show base skills, added skills, then new target skills
+                
+                # 1. Show base skills first
+                for s in base_skills:
+                    norm = normalize_skill_name(s)
+                    seen.add(norm)
+                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block'>⭐ {s}</span>"
+                
+                # 2. Show added skills
                 added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
-                seen = set()
-
-                for skill in target_skills + added_skills_list:
+                for s in added_skills:
+                    norm = normalize_skill_name(s)
+                    seen.add(norm)
+                    skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
+                
+                # 3. Show target skills (only if not already displayed)
+                target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                for skill in target_skills:
                     norm = normalize_skill_name(skill)
                     if norm in seen:
                         continue
                     seen.add(norm)
-
-                    if norm in target_normalized and norm in added_normalized_set:
-                        skill_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
-                    elif norm in target_normalized:
+                    
+                    if norm in added_normalized_set:
+                        # This skill is in both target and added, but already shown above
+                        continue
+                    else:
                         skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
-                    elif norm in added_normalized_set:
-                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
+            else:
+                # Standard display: base skills + added skills
+                for s in base_skills:
+                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
+                for s in added_skills:
+                    skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
 
             st.markdown(skill_html, unsafe_allow_html=True)
 
