@@ -7152,6 +7152,9 @@ def main():
             .skill-slot-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 2px; }
             .slot-filled { background-color: #4ade80; box-shadow: 0 0 5px #4ade80; }
             .slot-empty { background-color: #334155; border: 1px solid #475569; }
+            [data-testid="column"] { display: flex; flex-direction: column; }
+            [data-testid="column"] > div:nth-child(1) { display: flex; flex: 1; flex-direction: column; }
+            [data-testid="column"] [data-testid="stContainer"] { display: flex; flex-direction: column; flex: 1; }
             </style>
             """, unsafe_allow_html=True)
 
