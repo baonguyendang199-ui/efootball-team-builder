@@ -6894,10 +6894,12 @@ def main():
                 for skill in combined_skills:
                     norm = normalize_skill_name(skill)
                     if norm in target_normalized and norm in added_skills_normalized:
-                        # Do not duplicate green badges here; keep the original current skill list above as the source of truth.
+                        # Keep current skills as the source of truth; do not duplicate green badges here.
                         continue
                     elif norm in target_normalized:
                         skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
+                    elif norm in current_visible_skills:
+                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
                     else:
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
             else:
