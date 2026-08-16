@@ -6889,13 +6889,8 @@ def main():
                     skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
                 
                 # 2. Get FULL target list for the new position to check compatibility
-                position_full_targets = get_recommended_skills(
-                    effective_position,
-                    str(row.get('Skills', '')),
-                    '',
-                    15,
-                    is_bench=False,
-                )
+                # Use POSITION_SKILLS_PRIORITY directly, not get_recommended_skills (which only returns missing skills)
+                position_full_targets = POSITION_SKILLS_PRIORITY.get(effective_position, [])
                 position_full_targets_normalized = {normalize_skill_name(skill) for skill in position_full_targets}
                 
                 # 3. Show added skills and identify which will be removed
