@@ -1100,7 +1100,6 @@ def reconcile_added_skills_for_role_switch(current_position: str, new_position: 
     if not current_position or not new_position:
         return str(added_skills or '').strip()
 
-    current_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(current_position, []))
     new_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(new_position, []))
     if not new_pool:
         return str(added_skills or '').strip()
@@ -6821,20 +6820,21 @@ def main():
             # --- LOGIC STRICT TARGETS (RECALCULATED BASED ON EFFECTIVE POSITION) ---
             bench_mode = is_bench_player(row.get('Is Bench', False))
             
-            # Get target skills for NEW position (without considering already added skills)
-            # This is to show what skills the player SHOULD have for this role
+            # Get target skills for NEW position - MUST INCLUDE ADDED SKILLS
+            # get_recommended_skills will automatically filter them out from recommendations
+            # This ensures we get exactly N recommendations for N remaining slots
             if bench_mode:
                 all_position_targets = get_bench_target_skills(
                     effective_position, 
                     str(row.get('Skills', '')), 
-                    '',  # Don't include added skills - calculate from base only
+                    str(row.get('Added Skills', '')),  # INCLUDE added skills so get_recommended_skills filters them out
                     5
                 )
             else:
                 all_position_targets = get_recommended_skills(
                     effective_position,
                     str(row.get('Skills', '')),
-                    '',  # Don't include added skills - calculate from base only
+                    str(row.get('Added Skills', '')),  # INCLUDE added skills so get_recommended_skills filters them out
                     15,
                     is_bench=False,
                 )
@@ -6860,8 +6860,8 @@ def main():
                 if normalize_skill_name(skill) in added_skills_normalized:
                     continue
                 
-                # Dùng training_inventory đã chọn đúng loại
-                stock = training_inventory.get(skill, 0)
+                # Dùng training_inventory đã chọn đúng loại - normalize skill name for lookup
+                stock = training_inventory.get(normalize_skill_name(skill), 0)
                 if stock > 0:
                     label = f"🟢 {skill} (Kho: {stock})"
                 else:
@@ -6888,13 +6888,11 @@ def main():
                     seen.add(norm)
                     skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
                 
-                # 2. Get FULL target list for the new position to check compatibility
-                position_full_targets = get_recommended_skills(
-                    effective_position,
-                    str(row.get('Skills', '')),
-                    '',
-                    15,
-                    is_bench=False,
+                # 2. Get FULL target list for the new position (ALL 15 skills for compatibility check)
+                # CRITICAL: Use entire POSITION_SKILLS_PRIORITY pool, not capped version from get_recommended_skills
+                position_full_targets = POSITION_SKILLS_PRIORITY.get(
+                    effective_position, 
+                    POSITION_SKILLS_PRIORITY.get('CF', [])  # fallback to CF if position not found
                 )
                 position_full_targets_normalized = {normalize_skill_name(skill) for skill in position_full_targets}
                 
@@ -6985,12 +6983,12 @@ def main():
                     max_sel = remaining_slots if remaining_slots > 0 else None
                     selected = st.multiselect(
                         "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
-                        default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
+                        default=[s for s in valid_options if training_inventory.get(normalize_skill_name(s), 0) > 0],
                         max_selections=max_sel,
                         disabled=remaining_slots <= 0
                     )
 
-                    out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
+                    out_of_stock = [s for s in selected if training_inventory.get(normalize_skill_name(s), 0) <= 0]
                     btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
                     if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
 
@@ -7038,8 +7036,12 @@ def main():
         # --- 2. XỬ LÝ DỮ LIỆU & PHÂN LOẠI GK/FIELD ---
         
         # [QUAN TRỌNG] Load CẢ 2 kho để check chéo
-        inventory_field = get_inventory()
-        inventory_gk = get_gk_inventory_from_gsheet()
+        inventory_field_raw = get_inventory()
+        inventory_gk_raw = get_gk_inventory_from_gsheet()
+        
+        # NORMALIZE inventory keys to handle "First-time Shot", "first-time shot", "First-time Shot " variations
+        inventory_field = {normalize_skill_name(k): v for k, v in inventory_field_raw.items()}
+        inventory_gk = {normalize_skill_name(k): v for k, v in inventory_gk_raw.items()}
         
         filtered_df = df.copy()
         
@@ -7070,7 +7072,7 @@ def main():
             bench_mode = is_bench_player(row.get('Is Bench', False))
 
             if is_potw:
-                return "Full skills"
+                return ("Full skills", "")
 
             # 2. Xác định vị trí & Kho tương ứng
             p_pos = str(row['Position']).strip()
@@ -7094,25 +7096,28 @@ def main():
                 strict_targets = all_missing[:remaining_slots]
 
             if not strict_targets and not bench_mode:
-                return "Full skills" # Không còn skill gợi ý nào
+                return ("Full skills", "")
             if bench_mode and not strict_targets:
                 # Bench player vẫn có thể cần Super Sub dù đã đủ 5 skill cũ
                 if normalize_skill_name('Super Sub') in [normalize_skill_name(s) for s in added]:
-                    return "Full skills"
-                return "Missing skills to add"
+                    return ("Full skills", "")
+                return ("Missing skills to add", "Super Sub")
 
             # 4. Check Stock trong kho tương ứng
             # Chỉ cần 1 skill trong nhóm Strict Targets có hàng -> Trainable
-            has_stock = any(current_inv.get(s, 0) > 0 for s in strict_targets)
+            # Normalize skill names for inventory lookup
+            has_stock = any(current_inv.get(normalize_skill_name(s), 0) > 0 for s in strict_targets)
 
             if has_stock:
-                return "Trainable"
+                return ("Trainable", "")
             else:
                 missing_name = 'Super Sub' if bench_mode and normalize_skill_name('Super Sub') not in [normalize_skill_name(s) for s in added] else (strict_targets[0] if strict_targets else 'Super Sub')
-                return f"Missing skills to add ({missing_name})"
+                return ("Missing skills to add", missing_name)
 
-        # Áp dụng logic
-        filtered_df['Train_Status'] = filtered_df.apply(classify_status_smart, axis=1)
+        # Áp dụng logic - tách thành 2 cột
+        status_results = filtered_df.apply(classify_status_smart, axis=1)
+        filtered_df['Train_Status'] = status_results.apply(lambda x: x[0])
+        filtered_df['Missing_Top_Skill'] = status_results.apply(lambda x: x[1])
 
         # Lọc theo Status người dùng chọn
         if ft_status != "All":
@@ -7195,8 +7200,8 @@ def main():
                         else:
                             check_inventory = inventory_field
                             
-                        # Check Stock
-                        trainable_skills = [s for s in strict_targets if check_inventory.get(s, 0) > 0]
+# Check Stock - normalize skill names for inventory lookup
+            trainable_skills = [s for s in strict_targets if check_inventory.get(normalize_skill_name(s), 0) > 0]
                         
                         # C. QUYẾT ĐỊNH TRẠNG THÁI NÚT
                         btn_disabled = True
