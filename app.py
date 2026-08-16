@@ -6822,7 +6822,7 @@ def main():
             bench_mode = is_bench_player(row.get('Is Bench', False))
             
             # Get target skills for NEW position (including already added skills for filtering)
-            # This is to show what skills the player SHOULD have for this role
+            # For training view, only care about added skills (max 5), not base skills
             if bench_mode:
                 all_position_targets = get_bench_target_skills(
                     effective_position, 
@@ -6833,9 +6833,9 @@ def main():
             else:
                 all_position_targets = get_recommended_skills(
                     effective_position,
-                    str(row.get('Skills', '')),
+                    '',  # Don't include base skills - focus on added skills only
                     str(row.get('Added Skills', '')),  # Include added skills for proper filtering
-                    15,
+                    5,  # Max 5 for added skills (not 15 which includes base skills)
                     is_bench=False,
                 )
             
