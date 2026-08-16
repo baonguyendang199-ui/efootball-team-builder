@@ -7116,16 +7116,7 @@ def main():
                         n_added = len(added_list)
                         remaining_slots = MAX_ADDED_SLOTS - n_added
                         is_potw = "POTW" in str(row['Player Type']).upper()
-                        position_options = get_view_positions_for_player(row)
-                        view_key = f"view_pos_{str(row.get('Player ID', '')).strip() or str(row.get('Player', '')).strip() or idx}_{str(row.get('Position', '')).strip().upper()}"
-                        selected_position = st.selectbox(
-                            "View as",
-                            options=position_options,
-                            index=position_options.index(str(row.get('Position', '')).strip().upper()) if str(row.get('Position', '')).strip().upper() in position_options else 0,
-                            key=view_key,
-                            label_visibility="collapsed",
-                        )
-                        effective_position = str(selected_position or p_pos).strip().upper()
+                        effective_position = str(p_pos).strip().upper()
                         
                         # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
                         bench_mode = is_bench_player(row.get('Is Bench', False))
