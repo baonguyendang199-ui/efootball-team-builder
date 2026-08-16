@@ -6798,9 +6798,9 @@ def main():
             
             # ... (Phần hiển thị Header, Skill hiện có giữ nguyên) ...
             # Copy lại đoạn hiển thị Header từ code cũ vào đây
-            # ...
-            base_skills = [s.strip() for s in str(row.get('Skills', '')).split(',') if s.strip()]
-            added_skills = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
+            # CRITICAL: Always fetch from df.at[idx], not from row snapshot
+            base_skills = [s.strip() for s in str(df.at[idx, 'Skills'] or '').split(',') if s.strip()]
+            added_skills = [s.strip() for s in str(df.at[idx, 'Added Skills'] or '').split(',') if s.strip()]
             used_slots = len(added_skills)
             remaining_slots = MAX_ADDED_SLOTS - used_slots
             
@@ -6875,7 +6875,8 @@ def main():
                 target_skills = []  # No slots left, so no target skills to add
 
             # Get list of already added skills for comparison
-            added_skills_list = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
+            # CRITICAL: Use df.at[idx], not row snapshot
+            added_skills_list = [s.strip() for s in str(df.at[idx, 'Added Skills'] or '').split(',') if s.strip()]
             added_skills_normalized = [normalize_skill_name(s) for s in added_skills_list]
             
             options_map = {}
@@ -7002,14 +7003,16 @@ def main():
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
 
                 if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True, key=f"role_switch_{idx}_{effective_position}"):
-                    old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
-                    new_secondary = [p for p in old_secondary if p not in {current_position, effective_position}]
-                    new_secondary = [current_position] + new_secondary
+                    # CRITICAL: Use df.at[idx] instead of row, since row is a snapshot and may be stale
+                    current_position_from_df = str(df.at[idx, 'Position']).strip().upper()
+                    old_secondary = parse_secondary_positions(str(df.at[idx, 'Secondary Positions'] or ''))
+                    new_secondary = [p for p in old_secondary if p not in {current_position_from_df, effective_position}]
+                    new_secondary = [current_position_from_df] + new_secondary
 
                     retained_added = reconcile_added_skills_for_role_switch(
-                        current_position,
+                        current_position_from_df,
                         effective_position,
-                        row.get('Added Skills', ''),
+                        str(df.at[idx, 'Added Skills'] or ''),
                         bench_mode=bench_mode,
                     )
                     df.at[idx, 'Position'] = effective_position
