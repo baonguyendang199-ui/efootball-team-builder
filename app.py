@@ -7200,8 +7200,8 @@ def main():
                         else:
                             check_inventory = inventory_field
                             
-# Check Stock - normalize skill names for inventory lookup
-            trainable_skills = [s for s in strict_targets if check_inventory.get(normalize_skill_name(s), 0) > 0]
+                        # Check Stock - normalize skill names for inventory lookup
+                        trainable_skills = [s for s in strict_targets if check_inventory.get(normalize_skill_name(s), 0) > 0]
                         
                         # C. QUYẾT ĐỊNH TRẠNG THÁI NÚT
                         btn_disabled = True
