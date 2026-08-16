@@ -6904,41 +6904,35 @@ def main():
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
                 
                 # 3. Show target skills that are new
-                # Calculate how many new skills needed for the NEW position
-                # Goal: ensure at least 5 skills total for regular player, or proper count for bench
-                all_retained = base_normalized | retained_added_normalized
-                current_count = len(all_retained)
+                # Target: ADDED SKILLS must always be 5 total (base doesn't matter)
+                # Skills needed = 5 - retained added skills
                 
-                # Target count depends on bench mode
-                target_count = 5  # Default for regular players
-                if bench_mode:
-                    target_count = 5  # Even bench players should have 5
+                added_skills_needed = 5 - len(retained_added_normalized)
                 
-                # Number of new skills needed
-                skills_needed = max(0, target_count - current_count)
-                
-                # Get full target list for the new position
-                position_full_targets = get_recommended_skills(
-                    effective_position,
-                    str(row.get('Skills', '')),
-                    '',
-                    15,
-                    is_bench=False,
-                )
-                
-                # Build list of new skills to suggest (excluding retained and removed)
-                needed_new_skills = []
-                for skill in position_full_targets:
-                    norm = normalize_skill_name(skill)
-                    # Only add if: not already retained AND not in the removed list
-                    if norm not in all_retained and norm not in removed_skills_normalized:
-                        needed_new_skills.append(skill)
-                        if len(needed_new_skills) >= skills_needed:
-                            break
-                
-                # Display the new suggested skills
-                for skill in needed_new_skills:
-                    skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
+                # Only suggest new skills if we need them
+                if added_skills_needed > 0:
+                    # Get full target list for the new position
+                    position_full_targets = get_recommended_skills(
+                        effective_position,
+                        str(row.get('Skills', '')),
+                        '',
+                        15,
+                        is_bench=False,
+                    )
+                    
+                    # Build list of new skills to suggest (excluding retained and removed)
+                    needed_new_skills = []
+                    for skill in position_full_targets:
+                        norm = normalize_skill_name(skill)
+                        # Only add if: not already retained AND not in the removed list
+                        if norm not in retained_added_normalized and norm not in removed_skills_normalized:
+                            needed_new_skills.append(skill)
+                            if len(needed_new_skills) >= added_skills_needed:
+                                break
+                    
+                    # Display the new suggested skills
+                    for skill in needed_new_skills:
+                        skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
             else:
                 # Standard display: base skills + added skills (same style as role switch)
                 for s in base_skills:
