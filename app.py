@@ -937,17 +937,17 @@ def save_data_to_gsheet(df):
 POSITION_SKILLS_PRIORITY = {
     "CF": [
         "First-time Shot", "Acrobatic Finishing", "Long-Range Curler", 
-        "Long Range Shooting", "Outside Curler", "Heading", 
-        "Aerial Superiority", "One-touch Pass", "Through Passing",
-        "Weighted Pass", "Fighting Spirit", "Cut Behind & Turn",
-        "Sole Control", "Heel Trick", "Track Back"
+        "Long Range Shooting", "Outside Curler", "One-touch Pass", 
+        "Heel Trick", "Fighting Spirit", "Heading",
+        "Aerial Superiority", "Through Passing", "Track Back",
+        "Cut Behind & Turn", "Weighted Pass", "Sole Control"
     ],
     "SS": [
         "One-touch Pass", "Through Passing", "First-time Shot",
         "Acrobatic Finishing", "Fighting Spirit", "Outside Curler",
-        "Long Range Shooting", "Weighted Pass", "Sole Control",
+        "Long Range Shooting", "Weighted Pass", "Heel Trick",
         "Long-Range Curler", "Cut Behind & Turn", "Double Touch",
-        "Pinpoint Crossing", "Heel Trick", "Super Sub"
+        "Pinpoint Crossing", "Sole Control", "Super Sub"
     ],
     "LWF": [
         "Pinpoint Crossing", "One-touch Pass", "Through Passing",
@@ -1015,8 +1015,8 @@ POSITION_SKILLS_PRIORITY = {
         "Interception", "Blocker", "Man Marking",
         "Aerial Superiority", "Heading", "Sliding Tackle",
         "Acrobatic Clearance", "Fighting Spirit", "One-touch Pass",
-        "Through Passing", "Weighted Pass", "Low Lofted Pass",
-        "Sole Control", "Outside Curler", "Track Back"
+        "Through Passing", "Outside Curler", "Weighted Pass",
+        "Sole Control", "Low Lofted Pass", "Track Back"
     ],
     "GK": [
         "GK Low Punt", "GK High Punt", "GK Long Throw",
