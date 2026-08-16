@@ -6934,26 +6934,6 @@ def main():
                         st.cache_data.clear()
                         time.sleep(0.7)
                         st.rerun()
-
-                if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True, key=f"role_switch_{idx}_{effective_position}"):
-                    old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
-                    new_secondary = [p for p in old_secondary if p not in {current_position, effective_position}]
-                    new_secondary = [current_position] + new_secondary
-
-                    retained_added = reconcile_added_skills_for_role_switch(
-                        current_position,
-                        effective_position,
-                        row.get('Added Skills', ''),
-                    )
-                    df.at[idx, 'Position'] = effective_position
-                    df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
-                    df.at[idx, 'Added Skills'] = retained_added
-
-                    if save_data_to_gsheet(df):
-                        st.toast(f"Role updated to {effective_position}. Incompatible added skills were removed.", icon="✅")
-                        st.cache_data.clear()
-                        time.sleep(0.7)
-                        st.rerun()
             else:
                 if remaining_slots <= 0:
                     st.info("ℹ️ No free slot left. This is preview only.")
