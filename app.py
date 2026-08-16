@@ -937,17 +937,13 @@ def save_data_to_gsheet(df):
 POSITION_SKILLS_PRIORITY = {
     "CF": [
         "First-time Shot", "Acrobatic Finishing", "Long-Range Curler", 
-        "Long Range Shooting", "Outside Curler", "One-touch Pass", 
-        "Heel Trick", "Fighting Spirit", "Heading",
-        "Aerial Superiority", "Through Passing", "Track Back",
-        "Cut Behind & Turn", "Weighted Pass", "Sole Control"
     ],
     "SS": [
         "One-touch Pass", "Through Passing", "First-time Shot",
         "Acrobatic Finishing", "Fighting Spirit", "Outside Curler",
-        "Long Range Shooting", "Weighted Pass", "Heel Trick",
+        "Long Range Shooting", "Weighted Pass", "Sole Control",
         "Long-Range Curler", "Cut Behind & Turn", "Double Touch",
-        "Pinpoint Crossing", "Sole Control", "Super Sub"
+        "Pinpoint Crossing", "Heel Trick", "Super Sub"
     ],
     "LWF": [
         "Pinpoint Crossing", "One-touch Pass", "Through Passing",
@@ -1015,8 +1011,8 @@ POSITION_SKILLS_PRIORITY = {
         "Interception", "Blocker", "Man Marking",
         "Aerial Superiority", "Heading", "Sliding Tackle",
         "Acrobatic Clearance", "Fighting Spirit", "One-touch Pass",
-        "Through Passing", "Outside Curler", "Weighted Pass",
-        "Sole Control", "Low Lofted Pass", "Track Back"
+        "Through Passing", "Weighted Pass", "Low Lofted Pass",
+        "Sole Control", "Outside Curler", "Track Back"
     ],
     "GK": [
         "GK Low Punt", "GK High Punt", "GK Long Throw",
@@ -1080,80 +1076,6 @@ def get_all_skills(base_skills: str, added_skills: str) -> list:
         all_skills.extend([s.strip() for s in added_skills.split(',') if s.strip()])
     
     return all_skills
-
-
-def parse_secondary_positions(value: str) -> list:
-    """Parse các secondary positions thành list dạng chuẩn, bỏ trùng."""
-    if value is None:
-        return []
-    text = str(value).replace('/', ',').replace('|', ',').replace(';', ',')
-    positions = []
-    for part in text.split(','):
-        p = str(part).strip().upper()
-        if p and p not in positions:
-            positions.append(p)
-    return positions
-
-
-def reconcile_added_skills_for_role_switch(current_position: str, new_position: str, added_skills: str, bench_mode: bool = False) -> str:
-    """Giữ lại các skill phù hợp với role mới theo priority.
-    Keep only skills within top 5 priority of the new position.
-    For bench players, always keep Super Sub even if priority is low."""
-    if not current_position or not new_position:
-        return str(added_skills or '').strip()
-
-    # Get full priority list for new position
-    new_position_full = POSITION_SKILLS_PRIORITY.get(new_position, [])
-    
-    if not new_position_full:
-        return str(added_skills or '').strip()
-
-    # Parse current added skills
-    current_added = [s.strip() for s in str(added_skills).split(',') if s.strip()]
-    
-    # For bench players, mark Super Sub as critical
-    super_sub_normalized = normalize_skill_name('Super Sub')
-    
-    # Find which skills are in top 5 priority of new position
-    retained_skills = []
-    
-    for skill in current_added:
-        norm = normalize_skill_name(skill)
-        # Find priority index of this skill in new position
-        for idx, p_skill in enumerate(new_position_full):
-            if normalize_skill_name(p_skill) == norm:
-                # Keep if: within top 5 priority OR is Super Sub for bench players
-                if idx < 5 or (bench_mode and norm == super_sub_normalized):
-                    retained_skills.append(skill)
-                break
-    
-    return ", ".join(retained_skills)
-
-
-def get_view_positions_for_player(row) -> list:
-    """Lấy các vị trí có thể xét skill cho player: primary + các secondary positions."""
-    primary = str(row.get('Position', '')).strip().upper()
-    secondary = parse_secondary_positions(row.get('Secondary Positions', ''))
-    positions = []
-    for pos in [primary] + secondary:
-        if pos and pos not in positions:
-            positions.append(pos)
-    return positions
-
-
-def get_retained_skills_for_position(position: str, base_skills: str, added_skills: str) -> dict:
-    """Trả về các skill được giữ / bị mất khi chuyển sang một vị trí mới."""
-    role_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(position, []))
-    all_skills = get_all_skills(base_skills, added_skills)
-    kept = []
-    lost = []
-    for skill in all_skills:
-        if normalize_skill_name(skill) in role_pool:
-            kept.append(skill)
-        else:
-            lost.append(skill)
-    return {"kept": kept, "lost": lost}
-
 
 def is_bench_player(value) -> bool:
     """Trả về True nếu player đang ở chế độ cầu thủ dự bị."""
@@ -6778,14 +6700,13 @@ def main():
 
         # --- HELPER: Dialog Training (Trái tim của bản nâng cấp) ---
         @st.dialog("🏋️ Training Center")
-        def show_training_modal(idx, row, current_inventory, selected_position=None): # current_inventory được truyền từ bên ngoài vào
+        def show_training_modal(idx, row, current_inventory): # current_inventory được truyền từ bên ngoài vào
             """Popup xử lý training thông minh"""
             p_name = row['Player']
             p_pos = str(row['Position']).strip()
-            effective_position = str(selected_position or p_pos).strip().upper()
             
             # --- CHECK GK MODE ---
-            is_gk = effective_position == 'GK'
+            is_gk = p_pos == 'GK'
             
             # Nếu là GK, ta PHẢI dùng kho GK, bất kể current_inventory truyền vào là gì
             # (Để an toàn, ta load lại kho GK ở đây nếu cần, hoặc giả định bên ngoài truyền đúng)
@@ -6798,9 +6719,9 @@ def main():
             
             # ... (Phần hiển thị Header, Skill hiện có giữ nguyên) ...
             # Copy lại đoạn hiển thị Header từ code cũ vào đây
-            # CRITICAL: Always fetch from df.at[idx], not from row snapshot
-            base_skills = [s.strip() for s in str(df.at[idx, 'Skills'] or '').split(',') if s.strip()]
-            added_skills = [s.strip() for s in str(df.at[idx, 'Added Skills'] or '').split(',') if s.strip()]
+            # ...
+            base_skills = [s.strip() for s in str(row.get('Skills', '')).split(',') if s.strip()]
+            added_skills = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
             used_slots = len(added_skills)
             remaining_slots = MAX_ADDED_SLOTS - used_slots
             
@@ -6811,82 +6732,42 @@ def main():
                 st.image(img_url, width=80)
             with c2:
                 st.subheader(p_name)
-                st.caption(f"{effective_position} • {row['Rating']} • {row['Club']}")
+                st.caption(f"{p_pos} | {row['Rating']} | {row['Club']}")
                 st.progress(used_slots / MAX_ADDED_SLOTS, text=f"Slot: {used_slots}/{MAX_ADDED_SLOTS}")
             st.divider()
+            st.markdown("**Current Skills:**")
+            skill_badges = ""
+            for s in base_skills: skill_badges += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
+            for s in added_skills: skill_badges += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
+            st.markdown(skill_badges, unsafe_allow_html=True)
             
-            # --- SHOW ROLE SELECTOR FIRST, GET THE VALUE ---
-            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'})")
-            available_positions = get_view_positions_for_player(row)
+            if remaining_slots <= 0:
+                st.warning("🔒 Slot full!")
+                return
+            st.divider()
             
-            if len(available_positions) > 1:
-                current_role_key = str(row.get('Player ID', '')).strip() or str(row.get('Player', '')).strip() or str(idx)
-                selected_role = st.selectbox(
-                    "View skill priority by:",
-                    options=available_positions,
-                    index=available_positions.index(effective_position) if effective_position in available_positions else 0,
-                    key=f"training_role_{current_role_key}_{str(row.get('Position', '')).strip().upper()}",
-                )
-                # Update effective position based on selectbox selection
-                effective_position = str(selected_role).strip().upper()
-            else:
-                effective_position = str(available_positions[0]).strip().upper() if available_positions else effective_position
-            
-            # --- LOGIC STRICT TARGETS (RECALCULATED BASED ON EFFECTIVE POSITION) ---
+            # --- LOGIC STRICT TARGETS ---
             bench_mode = is_bench_player(row.get('Is Bench', False))
-            
-            # Get target skills for NEW position (including already added skills for filtering)
-            # For training view, only care about added skills (max 5), not base skills
-            if remaining_slots > 0:
-                # Get full position priority list
-                position_full_priority = POSITION_SKILLS_PRIORITY.get(effective_position, [])
-                if not position_full_priority:
-                    st.info("No skill specified for this role.")
-                    return
-                
-                # Find lowest rank of base_skills
-                lowest_base_rank = 999
-                base_skills_normalized = {normalize_skill_name(s) for s in base_skills}
-                
-                for idx, skill in enumerate(position_full_priority):
-                    norm = normalize_skill_name(skill)
-                    if norm in base_skills_normalized:
-                        lowest_base_rank = min(lowest_base_rank, idx)
-                
-                # Build target skills: start from (lowest_base_rank + 1), exclude base + added
-                added_skills_list = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
-                added_skills_normalized = {normalize_skill_name(s) for s in added_skills_list}
-                
-                target_skills = []
-                recommend_start = lowest_base_rank + 1 if lowest_base_rank < 999 else 0
-                
-                for idx in range(recommend_start, len(position_full_priority)):
-                    skill = position_full_priority[idx]
-                    norm = normalize_skill_name(skill)
-                    if norm not in base_skills_normalized and norm not in added_skills_normalized:
-                        target_skills.append(skill)
-                        if len(target_skills) >= remaining_slots:
-                            break
-                
-                if not target_skills:
-                    st.info("No more skills to add for this role.")
-                    return
+            if bench_mode:
+                target_skills = get_bench_target_skills(p_pos, str(row.get('Skills', '')), str(row.get('Added Skills', '')), remaining_slots)
             else:
-                target_skills = []  # No slots left, so no target skills to add
+                all_missing = get_recommended_skills(
+                    p_pos,
+                    str(row.get('Skills', '')),
+                    str(row.get('Added Skills', '')),
+                    15,
+                    is_bench=False,
+                )
+                target_skills = all_missing[:remaining_slots]
 
-            # Get list of already added skills for comparison
-            # CRITICAL: Use df.at[idx], not row snapshot
-            added_skills_list = [s.strip() for s in str(df.at[idx, 'Added Skills'] or '').split(',') if s.strip()]
-            added_skills_normalized = [normalize_skill_name(s) for s in added_skills_list]
-            
+            if not target_skills:
+                st.info("No skill specified.")
+                return
+
             options_map = {}
             valid_options = []
             
             for skill in target_skills:
-                # Skip skills already added
-                if normalize_skill_name(skill) in added_skills_normalized:
-                    continue
-                
                 # Dùng training_inventory đã chọn đúng loại
                 stock = training_inventory.get(skill, 0)
                 if stock > 0:
@@ -6896,180 +6777,33 @@ def main():
                 valid_options.append(skill)
                 options_map[skill] = label
             
-            st.caption(f"**Current position:** {effective_position}")
-
-            # CRITICAL: Use df.at[idx], not row snapshot
-            current_position = str(df.at[idx, 'Position']).strip().upper()
-            role_switch_needed = effective_position != current_position
-
-            st.markdown("**Current Skills:**")
-            skill_html = ""
-            seen = set()
-
-            if role_switch_needed:
-                # When switching roles: show base skills, added skills, then new target skills, and skills to remove
+            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'})")
+            selected = st.multiselect(
+                "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
+                default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
+                max_selections=remaining_slots
+            )
+            
+            # Validate
+            out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
+            
+            col_save1, col_save2 = st.columns(2)
+            with col_save2:
+                btn_disabled = len(selected) == 0 or len(out_of_stock) > 0
+                if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
                 
-                # 1. Show base skills first
-                base_normalized = {normalize_skill_name(s) for s in base_skills}
-                for s in base_skills:
-                    norm = normalize_skill_name(s)
-                    seen.add(norm)
-                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
-                
-                # 2. Get FULL priority list for the new position
-                position_full_priority = POSITION_SKILLS_PRIORITY.get(effective_position, [])
-                position_full_normalized = {normalize_skill_name(skill): (i, skill) for i, skill in enumerate(position_full_priority)}
-                
-                # 3. Check which added skills are compatible and rank by priority
-                compatible_with_priorities = []
-                for s in added_skills:
-                    norm = normalize_skill_name(s)
-                    if norm in position_full_normalized:
-                        priority_idx, _ = position_full_normalized[norm]
-                        compatible_with_priorities.append((priority_idx, s, True))  # True = compatible
-                    else:
-                        compatible_with_priorities.append((999, s, False))  # False = not compatible
-                
-                # Sort by priority (keep track of original order for display)
-                sorted_compatible = sorted(compatible_with_priorities, key=lambda x: x[0])
-                
-                # Decide which to keep: keep top 5 by priority
-                retained_added_normalized = set()
-                removed_skills_normalized = set()
-                
-                # For bench players, Super Sub should always be retained
-                super_sub_normalized = normalize_skill_name('Super Sub')
-                
-                for i, (priority_idx, s, is_compat) in enumerate(sorted_compatible):
-                    norm = normalize_skill_name(s)
-                    seen.add(norm)
-                    
-                    # Keep if: compatible AND (priority rank within top 5 OR is Super Sub for bench players)
-                    should_keep = is_compat and (priority_idx < 5 or (bench_mode and norm == super_sub_normalized))
-                    
-                    if should_keep:
-                        retained_added_normalized.add(norm)
-                        skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
-                    else:
-                        removed_skills_normalized.add(norm)
-                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
-                
-                # 4. Show target skills that are new
-                # Find lowest priority rank of base_skills
-                lowest_base_rank = 999
-                base_skills_normalized = {normalize_skill_name(s) for s in base_skills}
-                
-                for skill in position_full_priority:
-                    norm = normalize_skill_name(skill)
-                    for idx, p_skill in enumerate(position_full_priority):
-                        if normalize_skill_name(p_skill) == norm and norm in base_skills_normalized:
-                            lowest_base_rank = min(lowest_base_rank, idx)
-                            break
-                
-                # Skills needed = 5 - retained added skills
-                added_skills_needed = 5 - len(retained_added_normalized)
-                
-                if added_skills_needed > 0:
-                    # Recommend from (lowest_base_rank + 1) onwards, excluding base & retained skills
-                    needed_new_skills = []
-                    recommend_start = lowest_base_rank + 1 if lowest_base_rank < 999 else 0
-                    
-                    for idx in range(recommend_start, len(position_full_priority)):
-                        skill = position_full_priority[idx]
-                        norm = normalize_skill_name(skill)
-                        # Skip if already in base or already retained in added
-                        if norm not in base_skills_normalized and norm not in retained_added_normalized:
-                            needed_new_skills.append(skill)
-                            if len(needed_new_skills) >= added_skills_needed:
-                                break
-                    
-                    # Display the new suggested skills
-                    for skill in needed_new_skills:
-                        skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
-            else:
-                # Standard display: base skills + added skills (same style as role switch)
-                for s in base_skills:
-                    norm = normalize_skill_name(s)
-                    seen.add(norm)
-                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
-                
-                for s in added_skills:
-                    norm = normalize_skill_name(s)
-                    seen.add(norm)
-                    skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
-
-            st.markdown(skill_html, unsafe_allow_html=True)
-
-            if role_switch_needed:
-                st.caption(f"Current: {current_position} → Preview: {effective_position}")
-
-                if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True, key=f"role_switch_{idx}_{effective_position}"):
-                    # CRITICAL: Use df.at[idx] instead of row, since row is a snapshot and may be stale
-                    current_position_from_df = str(df.at[idx, 'Position']).strip().upper()
-                    old_secondary = parse_secondary_positions(str(df.at[idx, 'Secondary Positions'] or ''))
-                    
-                    # Role switch semantics:
-                    # 1. Old primary position becomes secondary
-                    # 2. New/selected position becomes primary
-                    # 3. Remove new primary from secondary (no duplicates)
-                    # 4. Preserve remaining secondary positions
-                    new_secondary = []
-                    for p in [current_position_from_df] + old_secondary:
-                        p = str(p).strip().upper()
-                        if not p:
-                            continue
-                        # Skip the new primary position (avoid duplicates)
-                        if p == effective_position:
-                            continue
-                        # Avoid duplicate entries in secondary
-                        if p not in new_secondary:
-                            new_secondary.append(p)
-
-                    retained_added = reconcile_added_skills_for_role_switch(
-                        current_position_from_df,
-                        effective_position,
-                        str(df.at[idx, 'Added Skills'] or ''),
-                        bench_mode=bench_mode,
-                    )
-                    
-                    df.at[idx, 'Position'] = effective_position
-                    df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
-                    df.at[idx, 'Added Skills'] = retained_added
-
+                if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
+                    new_added = added_skills + selected
+                    df.at[idx, 'Added Skills'] = ", ".join(new_added)
                     if save_data_to_gsheet(df):
-                        st.toast(f"Role updated to {effective_position}. Incompatible added skills were removed.", icon="✅")
+                        # GỌI HÀM UPDATE VỚI FLAG is_gk
+                        for s in selected:
+                            update_inventory_count(s, -1, is_gk=is_gk)
+                        
+                        st.toast("Success!", icon="🎉")
                         st.cache_data.clear()
-                        time.sleep(0.7)
+                        time.sleep(1)
                         st.rerun()
-                    else:
-                        st.error("❌ Failed to save changes to Google Sheet!")
-            else:
-                if remaining_slots <= 0:
-                    st.info("ℹ️ No free slot left. This is preview only.")
-                else:
-                    max_sel = remaining_slots if remaining_slots > 0 else None
-                    selected = st.multiselect(
-                        "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
-                        default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
-                        max_selections=max_sel,
-                        disabled=remaining_slots <= 0
-                    )
-
-                    out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
-                    btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
-                    if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
-
-                    if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled, key=f"confirm_add_{idx}_{effective_position}"):
-                        new_added = added_skills + selected
-                        df.at[idx, 'Added Skills'] = ", ".join(new_added)
-                        if save_data_to_gsheet(df):
-                            for s in selected:
-                                update_inventory_count(s, -1, is_gk=is_gk)
-
-                            st.toast("Success!", icon="🎉")
-                            st.cache_data.clear()
-                            time.sleep(1)
-                            st.rerun()
 
         # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
         with st.container(border=True):
@@ -7181,11 +6915,7 @@ def main():
 
         # Lọc theo Status người dùng chọn
         if ft_status != "All":
-            if ft_status == "Missing skills to add":
-                # Match any status that starts with "Missing skills to add"
-                filtered_df = filtered_df[filtered_df['Train_Status'].str.startswith("Missing skills to add")]
-            else:
-                filtered_df = filtered_df[filtered_df['Train_Status'] == ft_status]
+            filtered_df = filtered_df[filtered_df['Train_Status'] == ft_status]
 
         # --- C. LOGIC SẮP XẾP (BARCELONA FIRST) ---
         filtered_df['Is_Barca'] = filtered_df['Club'].apply(lambda x: 1 if str(x).strip() == "FC Barcelona" else 0)
@@ -7221,9 +6951,6 @@ def main():
             .skill-slot-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 2px; }
             .slot-filled { background-color: #4ade80; box-shadow: 0 0 5px #4ade80; }
             .slot-empty { background-color: #334155; border: 1px solid #475569; }
-            [data-testid="column"] { display: flex; flex-direction: column; }
-            [data-testid="column"] > div:nth-child(1) { display: flex; flex: 1; flex-direction: column; }
-            [data-testid="column"] [data-testid="stContainer"] { display: flex; flex-direction: column; flex: 1; }
             </style>
             """, unsafe_allow_html=True)
 
@@ -7247,14 +6974,13 @@ def main():
                         n_added = len(added_list)
                         remaining_slots = MAX_ADDED_SLOTS - n_added
                         is_potw = "POTW" in str(row['Player Type']).upper()
-                        effective_position = str(p_pos).strip().upper()
                         
                         # B. LOGIC "DÀNH SLOT TUYỆT ĐỐI"
                         bench_mode = is_bench_player(row.get('Is Bench', False))
                         if bench_mode:
-                            strict_targets = get_bench_target_skills(effective_position, p_skills, p_added, remaining_slots)
+                            strict_targets = get_bench_target_skills(p_pos, p_skills, p_added, remaining_slots)
                         else:
-                            all_missing_ordered = get_recommended_skills(effective_position, p_skills, p_added, 15, is_bench=False)
+                            all_missing_ordered = get_recommended_skills(p_pos, p_skills, p_added, 15, is_bench=False)
                             strict_targets = all_missing_ordered[:remaining_slots]
 
                         # LOGIC CHỌN KHO ĐỂ CHECK
@@ -7277,7 +7003,6 @@ def main():
                         elif bench_mode and normalize_skill_name('Super Sub') in [normalize_skill_name(s) for s in added_list]:
                             if len(added_list) >= MAX_ADDED_SLOTS:
                                 btn_label = "✅ Bench Ready"
-                                btn_disabled = False  # Allow preview even when bench is ready
                             elif not strict_targets:
                                 btn_label = "🤷‍♂️ Đủ Skill Top"
                             elif len(trainable_skills) > 0:
@@ -7287,12 +7012,11 @@ def main():
                             else:
                                 missing_top1 = strict_targets[0] if strict_targets else ""
                                 btn_label = f"⚠️ Missing: {missing_top1}"
-                                btn_disabled = False  # Allow preview even with missing skills
+                                btn_disabled = True
                         elif is_potw:
                             btn_label = "🔒 POTW"
                         elif n_added >= MAX_ADDED_SLOTS and not bench_mode:
-                            btn_label = "🔍 Preview"  # Changed from "✅ Full Slots" to allow clicking
-                            btn_disabled = False  # Allow preview even when full
+                            btn_label = "✅ Full Slots"
                         elif not strict_targets:
                             btn_label = "🤷‍♂️ Đủ Skill Top"
                         elif len(trainable_skills) > 0:
@@ -7302,7 +7026,7 @@ def main():
                         else:
                             missing_top1 = strict_targets[0] if strict_targets else ""
                             btn_label = f"⚠️ Missing: {missing_top1}"
-                            btn_disabled = False  # Allow preview even with missing skills
+                            btn_disabled = True
 
                         # D. RENDER CARD
                         slots_html = ""
@@ -7364,7 +7088,7 @@ def main():
 
                             if st.button(btn_label, key=f"tr_{idx}", disabled=btn_disabled, type=btn_type, use_container_width=True):
                                 # Pass the correct inventory depending on player position to avoid extra API calls
-                                show_training_modal(idx, row, inventory_gk if is_gk_player else inventory_field, selected_position=effective_position)
+                                show_training_modal(idx, row, inventory_gk if is_gk_player else inventory_field)
 
     elif current_tab == 'squad':
         st.header("⚽ Squad Management")
@@ -8101,17 +7825,14 @@ def main():
                                 new_df = df.copy()
                                 
                                 if not matching_cards.empty:
-                                    # Updating existing card
                                     old_idx = matching_cards.index[0]
                                     old_rating = matching_cards.iloc[0]['Rating']
                                     old_type = matching_cards.iloc[0]['Player Type']
                                     
                                     new_df.at[old_idx, 'Rating'] = int(rating)
-                                    # PRESERVE Position & Secondary Positions to avoid overwriting role-switch
-                                    # User should use dedicated role-switch UI to change positions
-                                    # new_df.at[old_idx, 'Position'] = position  ← Kept from existing
-                                    # new_df.at[old_idx, 'Secondary Positions'] = secondary_pos  ← Kept from existing
+                                    new_df.at[old_idx, 'Position'] = position
                                     new_df.at[old_idx, 'Position Style'] = position_style
+                                    new_df.at[old_idx, 'Secondary Positions'] = secondary_pos # LƯU VỊ TRÍ PHỤ
                                     new_df.at[old_idx, 'Player Type'] = player_type_norm
                                     new_df.at[old_idx, 'Region'] = region_val
                                     new_df.at[old_idx, 'Height'] = height_val
