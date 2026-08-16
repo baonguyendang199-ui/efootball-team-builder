@@ -6880,6 +6880,7 @@ def main():
             if role_switch_needed:
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                current_visible_skills = {normalize_skill_name(skill) for skill in base_skills + added_skills}
                 combined_skills = []
                 seen = set()
                 for skill in target_skills + added_skills_list:
@@ -6891,6 +6892,8 @@ def main():
                 for skill in combined_skills:
                     norm = normalize_skill_name(skill)
                     if norm in target_normalized and norm in added_skills_normalized:
+                        if norm in current_visible_skills:
+                            continue
                         skill_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
                     elif norm in target_normalized:
                         skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
