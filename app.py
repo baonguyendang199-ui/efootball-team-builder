@@ -6808,19 +6808,19 @@ def main():
             
             st.divider()
             
-            # --- SHOW ROLE SELECTOR WITH THE CURRENT SKILLS BLOCK ---
+            # --- SHOW ROLE SELECTOR FIRST, GET THE VALUE ---
+            st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'})")
             available_positions = get_view_positions_for_player(row)
             
             if len(available_positions) > 1:
                 current_role_key = str(row.get('Player ID', '')).strip() or str(row.get('Player', '')).strip() or str(idx)
-                st.markdown("**View skill priority by:**")
                 selected_role = st.selectbox(
-                    "",
+                    "View skill priority by:",
                     options=available_positions,
                     index=available_positions.index(effective_position) if effective_position in available_positions else 0,
                     key=f"training_role_{current_role_key}_{str(row.get('Position', '')).strip().upper()}",
-                    label_visibility="collapsed",
                 )
+                # Update effective position based on selectbox selection
                 effective_position = str(selected_role).strip().upper()
             else:
                 effective_position = str(available_positions[0]).strip().upper() if available_positions else effective_position
@@ -6872,20 +6872,16 @@ def main():
                 valid_options.append(skill)
                 options_map[skill] = label
             
+            st.caption(f"**Current position:** {effective_position}")
+
             current_position = str(row.get('Position', '')).strip().upper()
             role_switch_needed = effective_position != current_position
 
             if role_switch_needed:
-                st.caption(f"Current: {current_position} → Preview: {effective_position}")
-
-                # Show 3-color preview for the new role:
-                # Green = needed and already present
-                # Blue = needed but still missing
-                # Red = currently added but should be removed for this role
-                st.markdown("**Target skills for this role:**")
+                # Integrate the role-switch summary directly into the skills section above.
+                st.markdown("**Role switch preview:**")
                 skill_html = ""
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
-                current_added_normalized = {normalize_skill_name(skill) for skill in added_skills_list}
 
                 for skill in target_skills:
                     if normalize_skill_name(skill) in added_skills_normalized:
