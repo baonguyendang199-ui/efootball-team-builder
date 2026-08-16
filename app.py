@@ -7007,9 +7007,23 @@ def main():
                     # CRITICAL: Use df.at[idx] instead of row, since row is a snapshot and may be stale
                     current_position_from_df = str(df.at[idx, 'Position']).strip().upper()
                     old_secondary = parse_secondary_positions(str(df.at[idx, 'Secondary Positions'] or ''))
-                    # Only keep secondary positions that are NOT the current or new main position
-                    # Do NOT auto-add current_position to secondary (that's a manual action, not role switch)
-                    new_secondary = [p for p in old_secondary if p not in {current_position_from_df, effective_position}]
+                    
+                    # Role switch semantics:
+                    # 1. Old primary position becomes secondary
+                    # 2. New/selected position becomes primary
+                    # 3. Remove new primary from secondary (no duplicates)
+                    # 4. Preserve remaining secondary positions
+                    new_secondary = []
+                    for p in [current_position_from_df] + old_secondary:
+                        p = str(p).strip().upper()
+                        if not p:
+                            continue
+                        # Skip the new primary position (avoid duplicates)
+                        if p == effective_position:
+                            continue
+                        # Avoid duplicate entries in secondary
+                        if p not in new_secondary:
+                            new_secondary.append(p)
 
                     retained_added = reconcile_added_skills_for_role_switch(
                         current_position_from_df,
@@ -8087,14 +8101,17 @@ def main():
                                 new_df = df.copy()
                                 
                                 if not matching_cards.empty:
+                                    # Updating existing card
                                     old_idx = matching_cards.index[0]
                                     old_rating = matching_cards.iloc[0]['Rating']
                                     old_type = matching_cards.iloc[0]['Player Type']
                                     
                                     new_df.at[old_idx, 'Rating'] = int(rating)
-                                    new_df.at[old_idx, 'Position'] = position
+                                    # PRESERVE Position & Secondary Positions to avoid overwriting role-switch
+                                    # User should use dedicated role-switch UI to change positions
+                                    # new_df.at[old_idx, 'Position'] = position  ← Kept from existing
+                                    # new_df.at[old_idx, 'Secondary Positions'] = secondary_pos  ← Kept from existing
                                     new_df.at[old_idx, 'Position Style'] = position_style
-                                    new_df.at[old_idx, 'Secondary Positions'] = secondary_pos # LƯU VỊ TRÍ PHỤ
                                     new_df.at[old_idx, 'Player Type'] = player_type_norm
                                     new_df.at[old_idx, 'Region'] = region_val
                                     new_df.at[old_idx, 'Height'] = height_val
