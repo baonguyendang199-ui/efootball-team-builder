@@ -6916,36 +6916,37 @@ def main():
                         time.sleep(0.7)
                         st.rerun()
             else:
-                # Determine max_selections - must be positive integer or None
-                max_sel = remaining_slots if remaining_slots > 0 else None
-
-                selected = st.multiselect(
-                    "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
-                    default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
-                    max_selections=max_sel,
-                    disabled=remaining_slots <= 0  # Disable if no slots left
-                )
-
-                # Validate
-                out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
-
-                btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
                 if remaining_slots <= 0:
                     st.info("ℹ️ No free slot left. This is preview only.")
-                if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
+                else:
+                    # Determine max_selections - must be positive integer or None
+                    max_sel = remaining_slots if remaining_slots > 0 else None
 
-                if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
-                    new_added = added_skills + selected
-                    df.at[idx, 'Added Skills'] = ", ".join(new_added)
-                    if save_data_to_gsheet(df):
-                        # GỌI HÀM UPDATE VỚI FLAG is_gk
-                        for s in selected:
-                            update_inventory_count(s, -1, is_gk=is_gk)
+                    selected = st.multiselect(
+                        "Choose skill:", options=valid_options, format_func=lambda x: options_map.get(x, x),
+                        default=[s for s in valid_options if training_inventory.get(s, 0) > 0],
+                        max_selections=max_sel,
+                        disabled=remaining_slots <= 0  # Disable if no slots left
+                    )
 
-                        st.toast("Success!", icon="🎉")
-                        st.cache_data.clear()
-                        time.sleep(1)
-                        st.rerun()
+                    # Validate
+                    out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
+
+                    btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
+                    if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
+
+                    if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
+                        new_added = added_skills + selected
+                        df.at[idx, 'Added Skills'] = ", ".join(new_added)
+                        if save_data_to_gsheet(df):
+                            # GỌI HÀM UPDATE VỚI FLAG is_gk
+                            for s in selected:
+                                update_inventory_count(s, -1, is_gk=is_gk)
+
+                            st.toast("Success!", icon="🎉")
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
 
         # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
         with st.container(border=True):
