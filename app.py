@@ -6887,6 +6887,7 @@ def main():
                 added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
                 retained_added_normalized = set()
+                removed_skills_count = 0
                 
                 for s in added_skills:
                     norm = normalize_skill_name(s)
@@ -6898,14 +6899,29 @@ def main():
                         skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
                     else:
                         # Skill will be removed (not in target role)
+                        removed_skills_count += 1
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
                 
-                # 3. Show target skills that are new (not in base and not in retained added skills)
+                # 3. Show target skills that are new - calculate based on freed up slots
+                # After removing incompatible skills, we have more slots to fill
                 base_normalized = {normalize_skill_name(s) for s in base_skills}
-                for skill in target_skills:
+                all_retained = base_normalized | retained_added_normalized
+                
+                # Recalculate needed new skills based on freed slots
+                new_slots_available = remaining_slots + removed_skills_count
+                needed_new_skills = []
+                
+                # Get more candidates from all_position_targets
+                for skill in all_position_targets:
                     norm = normalize_skill_name(skill)
-                    if norm not in base_normalized and norm not in retained_added_normalized:
-                        skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
+                    if norm not in all_retained:
+                        needed_new_skills.append(skill)
+                        if len(needed_new_skills) >= new_slots_available:
+                            break
+                
+                # Display the new suggested skills
+                for skill in needed_new_skills:
+                    skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
             else:
                 # Standard display: base skills + added skills (same style as role switch)
                 for s in base_skills:
