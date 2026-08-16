@@ -6878,6 +6878,7 @@ def main():
                 # When switching roles: show base skills, added skills, then new target skills, and skills to remove
                 
                 # 1. Show base skills first
+                base_normalized = {normalize_skill_name(s) for s in base_skills}
                 for s in base_skills:
                     norm = normalize_skill_name(s)
                     seen.add(norm)
@@ -6903,35 +6904,36 @@ def main():
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
                 
                 # 3. Show target skills that are new
-                # Only suggest skills that are:
-                # - Not in base skills
-                # - Not in retained added skills
-                # - Not in removed skills (don't suggest to add back what was removed)
-                base_normalized = {normalize_skill_name(s) for s in base_skills}
+                # Calculate how many new skills needed for the NEW position
+                # Goal: ensure at least 5 skills total for regular player, or proper count for bench
                 all_retained = base_normalized | retained_added_normalized
-                all_excluded = base_normalized | added_normalized_set  # Exclude anything that was ever a base or added skill
+                current_count = len(all_retained)
                 
-                # Recalculate needed new skills based on freed slots
-                removed_skills_count = len(removed_skills_normalized)
-                new_slots_available = remaining_slots + removed_skills_count
-                needed_new_skills = []
+                # Target count depends on bench mode
+                target_count = 5  # Default for regular players
+                if bench_mode:
+                    target_count = 5  # Even bench players should have 5
                 
-                # Get more candidates from all_position_targets but ONLY for current vposition (effective_position)
-                # We need to recalculate the full target list for effective_position
+                # Number of new skills needed
+                skills_needed = max(0, target_count - current_count)
+                
+                # Get full target list for the new position
                 position_full_targets = get_recommended_skills(
                     effective_position,
                     str(row.get('Skills', '')),
                     '',
-                    15,  # Get all 15 possible skills
+                    15,
                     is_bench=False,
                 )
                 
+                # Build list of new skills to suggest (excluding retained and removed)
+                needed_new_skills = []
                 for skill in position_full_targets:
                     norm = normalize_skill_name(skill)
-                    # Only add if: not already displayed AND not in the removed list
+                    # Only add if: not already retained AND not in the removed list
                     if norm not in all_retained and norm not in removed_skills_normalized:
                         needed_new_skills.append(skill)
-                        if len(needed_new_skills) >= new_slots_available:
+                        if len(needed_new_skills) >= skills_needed:
                             break
                 
                 # Display the new suggested skills
