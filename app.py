@@ -6800,13 +6800,6 @@ def main():
                 st.caption(f"{effective_position} • {row['Rating']} • {row['Club']}")
                 st.progress(used_slots / MAX_ADDED_SLOTS, text=f"Slot: {used_slots}/{MAX_ADDED_SLOTS}")
             st.divider()
-            st.markdown("**Current Skills:**")
-            skill_badges = ""
-            for s in base_skills: skill_badges += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
-            for s in added_skills: skill_badges += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
-            st.markdown(skill_badges, unsafe_allow_html=True)
-            
-            st.divider()
             
             # --- SHOW ROLE SELECTOR FIRST, GET THE VALUE ---
             st.markdown(f"#### 🎯 Targets ({'GK' if is_gk else 'Field'})")
@@ -6877,10 +6870,15 @@ def main():
             current_position = str(row.get('Position', '')).strip().upper()
             role_switch_needed = effective_position != current_position
 
+            st.markdown("**Current Skills:**")
+            skill_html = ""
+            for s in base_skills:
+                skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
+            for s in added_skills:
+                skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
+
             if role_switch_needed:
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
-
-                skill_html = ""
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
                 combined_skills = []
                 seen = set()
@@ -6899,7 +6897,7 @@ def main():
                     else:
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
 
-                st.markdown(skill_html, unsafe_allow_html=True)
+            st.markdown(skill_html, unsafe_allow_html=True)
 
                 if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
                     old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
