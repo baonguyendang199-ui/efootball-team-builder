@@ -906,8 +906,13 @@ def save_data_to_gsheet(df):
             st.error("⚠️ Cannot save: DataFrame is empty!")
             return False
             
+        st.write(f"DEBUG save_data_to_gsheet - DataFrame shape: {df.shape}")
+        st.write(f"DEBUG save_data_to_gsheet - First row Position: {df.iloc[0]['Position'] if len(df) > 0 else 'N/A'}")
+        
         client = get_gsheet_connection()
         sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
+        
+        st.write("DEBUG - Got sheet connection")
         
         # Remove Epic_Priority column before saving
         df_save = df.drop(columns=['Epic_Priority', 'Effective_Nation_Rating', 'Effective_Club_Rating', 'Effective_League_Rating', 'Top23_Count'], errors='ignore').copy()
@@ -919,17 +924,27 @@ def save_data_to_gsheet(df):
         # Replace inf values if any
         df_save = df_save.replace([float('inf'), float('-inf')], '')
         
+        st.write(f"DEBUG - df_save shape before update: {df_save.shape}")
+        
         # Check again after cleaning
         if df_save.empty:
             st.error("⚠️ Cannot save: DataFrame is empty after processing!")
             return False
         
         # Clear and update
+        st.write("DEBUG - Clearing sheet...")
         sheet.clear()
+        
+        st.write("DEBUG - Updating sheet...")
         sheet.update([df_save.columns.values.tolist()] + df_save.values.tolist())
+        
+        st.write("DEBUG - Sheet update completed successfully")
         return True
     except Exception as e:
         st.error(f"❌ Error saving data: {e}")
+        st.write(f"DEBUG - Exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        st.write(traceback.format_exc())
         # Don't clear sheet if there's an error!
         return False
 
@@ -6898,7 +6913,8 @@ def main():
             
             st.caption(f"**Current position:** {effective_position}")
 
-            current_position = str(row.get('Position', '')).strip().upper()
+            # CRITICAL: Use df.at[idx], not row snapshot
+            current_position = str(df.at[idx, 'Position']).strip().upper()
             role_switch_needed = effective_position != current_position
 
             st.markdown("**Current Skills:**")
