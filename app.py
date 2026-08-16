@@ -6878,19 +6878,25 @@ def main():
             role_switch_needed = effective_position != current_position
 
             if role_switch_needed:
-                # Integrate the role-switch summary directly into the skills section above.
-                st.markdown("**Role switch preview:**")
+                st.caption(f"Current: {current_position} → Preview: {effective_position}")
+
                 skill_html = ""
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                combined_skills = []
+                seen = set()
+                for skill in target_skills + added_skills_list:
+                    norm = normalize_skill_name(skill)
+                    if norm not in seen:
+                        combined_skills.append(skill)
+                        seen.add(norm)
 
-                for skill in target_skills:
-                    if normalize_skill_name(skill) in added_skills_normalized:
+                for skill in combined_skills:
+                    norm = normalize_skill_name(skill)
+                    if norm in target_normalized and norm in added_skills_normalized:
                         skill_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
-                    else:
+                    elif norm in target_normalized:
                         skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
-
-                for skill in added_skills_list:
-                    if normalize_skill_name(skill) not in target_normalized:
+                    else:
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
 
                 st.markdown(skill_html, unsafe_allow_html=True)
