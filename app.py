@@ -6887,7 +6887,7 @@ def main():
                 added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
                 retained_added_normalized = set()
-                removed_skills_count = 0
+                removed_skills_normalized = set()
                 
                 for s in added_skills:
                     norm = normalize_skill_name(s)
@@ -6899,22 +6899,37 @@ def main():
                         skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
                     else:
                         # Skill will be removed (not in target role)
-                        removed_skills_count += 1
+                        removed_skills_normalized.add(norm)
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
                 
-                # 3. Show target skills that are new - calculate based on freed up slots
-                # After removing incompatible skills, we have more slots to fill
+                # 3. Show target skills that are new
+                # Only suggest skills that are:
+                # - Not in base skills
+                # - Not in retained added skills
+                # - Not in removed skills (don't suggest to add back what was removed)
                 base_normalized = {normalize_skill_name(s) for s in base_skills}
                 all_retained = base_normalized | retained_added_normalized
+                all_excluded = base_normalized | added_normalized_set  # Exclude anything that was ever a base or added skill
                 
                 # Recalculate needed new skills based on freed slots
+                removed_skills_count = len(removed_skills_normalized)
                 new_slots_available = remaining_slots + removed_skills_count
                 needed_new_skills = []
                 
-                # Get more candidates from all_position_targets
-                for skill in all_position_targets:
+                # Get more candidates from all_position_targets but ONLY for current vposition (effective_position)
+                # We need to recalculate the full target list for effective_position
+                position_full_targets = get_recommended_skills(
+                    effective_position,
+                    str(row.get('Skills', '')),
+                    '',
+                    15,  # Get all 15 possible skills
+                    is_bench=False,
+                )
+                
+                for skill in position_full_targets:
                     norm = normalize_skill_name(skill)
-                    if norm not in all_retained:
+                    # Only add if: not already displayed AND not in the removed list
+                    if norm not in all_retained and norm not in removed_skills_normalized:
                         needed_new_skills.append(skill)
                         if len(needed_new_skills) >= new_slots_available:
                             break
