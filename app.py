@@ -6844,13 +6844,17 @@ def main():
             else:
                 target_skills = all_position_targets[:5]
 
-            if not target_skills:
-                st.info("No skill specified for this role.")
-                return
-
             # Get list of already added skills for comparison
             added_skills_list = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
             added_skills_normalized = [normalize_skill_name(s) for s in added_skills_list]
+            
+            # Filter target_skills to remove those already present (base + added)
+            all_existing_normalized = set(normalize_skill_name(s) for s in base_skills + added_skills)
+            target_skills = [s for s in target_skills if normalize_skill_name(s) not in all_existing_normalized]
+            
+            if not target_skills:
+                st.info("No new skills available for this role.")
+                return
             
             options_map = {}
             valid_options = []
