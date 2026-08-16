@@ -6806,8 +6806,6 @@ def main():
             for s in added_skills: skill_badges += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
             st.markdown(skill_badges, unsafe_allow_html=True)
             
-            if remaining_slots <= 0:
-                st.warning("🔒 Slot full! Preview mode still works below — you can review the role target without adding a new skill.")
             st.divider()
             
             # --- SHOW ROLE SELECTOR FIRST, GET THE VALUE ---
