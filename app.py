@@ -6884,9 +6884,18 @@ def main():
                     seen.add(norm)
                     skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
                 
-                # 2. Show added skills and identify which will be removed
+                # 2. Get FULL target list for the new position to check compatibility
+                position_full_targets = get_recommended_skills(
+                    effective_position,
+                    str(row.get('Skills', '')),
+                    '',
+                    15,
+                    is_bench=False,
+                )
+                position_full_targets_normalized = {normalize_skill_name(skill) for skill in position_full_targets}
+                
+                # 3. Show added skills and identify which will be removed
                 added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
-                target_normalized = {normalize_skill_name(skill) for skill in target_skills}
                 retained_added_normalized = set()
                 removed_skills_normalized = set()
                 
@@ -6894,8 +6903,9 @@ def main():
                     norm = normalize_skill_name(s)
                     seen.add(norm)
                     
-                    if norm in target_normalized:
-                        # Skill will be kept for new role
+                    # Check against FULL position targets, not just target_skills
+                    if norm in position_full_targets_normalized:
+                        # Skill will be kept for new role (compatible with new position)
                         retained_added_normalized.add(norm)
                         skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
                     else:
@@ -6903,7 +6913,7 @@ def main():
                         removed_skills_normalized.add(norm)
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
                 
-                # 3. Show target skills that are new
+                # 4. Show target skills that are new
                 # Target: ADDED SKILLS must always be 5 total (base doesn't matter)
                 # Skills needed = 5 - retained added skills
                 
@@ -6911,15 +6921,6 @@ def main():
                 
                 # Only suggest new skills if we need them
                 if added_skills_needed > 0:
-                    # Get full target list for the new position
-                    position_full_targets = get_recommended_skills(
-                        effective_position,
-                        str(row.get('Skills', '')),
-                        '',
-                        15,
-                        is_bench=False,
-                    )
-                    
                     # Build list of new skills to suggest (excluding retained and removed)
                     needed_new_skills = []
                     for skill in position_full_targets:
