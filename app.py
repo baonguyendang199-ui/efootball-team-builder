@@ -6870,42 +6870,34 @@ def main():
             current_position = str(row.get('Position', '')).strip().upper()
             role_switch_needed = effective_position != current_position
 
-            if role_switch_needed:
-                st.markdown("**Current Skills:**")
-                current_skill_html = ""
-                for s in base_skills:
-                    current_skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
-                for s in added_skills:
-                    current_skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
-                st.markdown(current_skill_html, unsafe_allow_html=True)
+            st.markdown("**Current Skills:**")
+            skill_html = ""
+            for s in base_skills:
+                skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
+            for s in added_skills:
+                skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
 
+            if role_switch_needed:
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
-                skill_html = ""
+
+                role_status_html = ""
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
-                combined_skills = []
-                seen = set()
+                target_skills_seen = set()
 
                 for skill in target_skills:
                     norm = normalize_skill_name(skill)
-                    if norm not in seen:
-                        combined_skills.append(skill)
-                        seen.add(norm)
+                    target_skills_seen.add(norm)
+                    if norm in added_skills_normalized:
+                        role_status_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
+                    else:
+                        role_status_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
 
                 for skill in added_skills_list:
                     norm = normalize_skill_name(skill)
-                    if norm not in target_normalized and norm not in seen:
-                        combined_skills.append(skill)
-                        seen.add(norm)
+                    if norm not in target_normalized and norm not in {normalize_skill_name(s) for s in base_skills}:
+                        role_status_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
 
-                for skill in combined_skills:
-                    norm = normalize_skill_name(skill)
-                    if norm in target_normalized and norm in added_skills_normalized:
-                        skill_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
-                    elif norm in target_normalized:
-                        skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
-                    else:
-                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
-                st.markdown(skill_html, unsafe_allow_html=True)
+                st.markdown(role_status_html, unsafe_allow_html=True)
 
                 if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True, key=f"role_switch_{idx}_{effective_position}"):
                     old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
@@ -6927,12 +6919,6 @@ def main():
                         time.sleep(0.7)
                         st.rerun()
             else:
-                st.markdown("**Current Skills:**")
-                skill_html = ""
-                for s in base_skills:
-                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
-                for s in added_skills:
-                    skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
                 st.markdown(skill_html, unsafe_allow_html=True)
 
                 if remaining_slots <= 0:
