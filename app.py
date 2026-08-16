@@ -6839,14 +6839,32 @@ def main():
                     is_bench=False,
                 )
             
-            if remaining_slots > 0:
-                target_skills = all_position_targets[:remaining_slots]
-            else:
-                target_skills = all_position_targets[:5]
-
             # Get list of already added skills for comparison
             added_skills_list = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
             added_skills_normalized = [normalize_skill_name(s) for s in added_skills_list]
+            
+            # Calculate slots that will be freed when switching roles
+            current_position = str(row.get('Position', '')).strip().upper()
+            role_switch_needed = effective_position != current_position
+            
+            if role_switch_needed:
+                # When switching roles, recalculate remaining slots based on skills that will be kept
+                target_normalized = {normalize_skill_name(skill) for skill in all_position_targets}
+                skills_to_keep = [s for s in added_skills if normalize_skill_name(s) in target_normalized]
+                # Add base skills to the count
+                total_skills_after_switch = len(base_skills) + len(skills_to_keep)
+                remaining_slots_after_switch = MAX_ADDED_SLOTS - len(skills_to_keep)
+                
+                if remaining_slots_after_switch > 0:
+                    target_skills = all_position_targets[:remaining_slots_after_switch]
+                else:
+                    target_skills = all_position_targets[:5]
+            else:
+                # Normal mode: use current remaining slots
+                if remaining_slots > 0:
+                    target_skills = all_position_targets[:remaining_slots]
+                else:
+                    target_skills = all_position_targets[:5]
             
             # Filter target_skills to remove those already present (base + added)
             all_existing_normalized = set(normalize_skill_name(s) for s in base_skills + added_skills)
@@ -6871,9 +6889,6 @@ def main():
             
             st.caption(f"**Current position:** {effective_position}")
 
-            current_position = str(row.get('Position', '')).strip().upper()
-            role_switch_needed = effective_position != current_position
-
             st.markdown("**Current Skills:**")
             skill_html = ""
             seen = set()
@@ -6888,14 +6903,14 @@ def main():
                     skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
                 
                 # 2. Show added skills and identify which will be removed
-                added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
-                target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                # Use all_position_targets to check which added_skills will be kept
+                all_targets_normalized = {normalize_skill_name(skill) for skill in all_position_targets}
                 
                 for s in added_skills:
                     norm = normalize_skill_name(s)
                     seen.add(norm)
                     
-                    if norm in target_normalized:
+                    if norm in all_targets_normalized:
                         # Skill will be kept for new role
                         skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
                     else:
