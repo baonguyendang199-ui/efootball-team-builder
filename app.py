@@ -1095,6 +1095,27 @@ def parse_secondary_positions(value: str) -> list:
     return positions
 
 
+def reconcile_added_skills_for_role_switch(current_position: str, new_position: str, added_skills: str) -> str:
+    """Giữ lại các skill phù hợp với role mới, bỏ những skill không còn phù hợp."""
+    if not current_position or not new_position:
+        return str(added_skills or '').strip()
+
+    current_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(current_position, []))
+    new_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(new_position, []))
+    if not new_pool:
+        return str(added_skills or '').strip()
+
+    retained = []
+    for skill in [s.strip() for s in str(added_skills).split(',') if s.strip()]:
+        norm = normalize_skill_name(skill)
+        if norm in new_pool:
+            retained.append(skill)
+
+    # Nếu skill đang có là common skill ở cả hai role thì được giữ lại.
+    # Nếu không thuộc role mới thì bị loại ra khỏi Added Skills ngay khi confirm role switch.
+    return ", ".join(retained)
+
+
 def get_view_positions_for_player(row) -> list:
     """Lấy các vị trí có thể xét skill cho player: primary + các secondary positions."""
     primary = str(row.get('Position', '')).strip().upper()
@@ -6875,15 +6896,21 @@ def main():
 
                 if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
                     old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
-                    new_secondary = []
-                    for pos in old_secondary + [effective_position]:
-                        p = str(pos).strip().upper()
-                        if p and p not in new_secondary:
-                            new_secondary.append(p)
+                    new_secondary = [p for p in old_secondary if p not in {current_position, effective_position}]
+                    new_secondary = [current_position] + new_secondary
+
+                    # Reconcile added skills to match the new role.
+                    retained_added = reconcile_added_skills_for_role_switch(
+                        current_position,
+                        effective_position,
+                        row.get('Added Skills', ''),
+                    )
                     df.at[idx, 'Position'] = effective_position
                     df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
+                    df.at[idx, 'Added Skills'] = retained_added
+
                     if save_data_to_gsheet(df):
-                        st.toast(f"Role updated to {effective_position}", icon="✅")
+                        st.toast(f"Role updated to {effective_position}. Incompatible added skills were removed.", icon="✅")
                         st.cache_data.clear()
                         time.sleep(0.7)
                         st.rerun()
@@ -6901,40 +6928,23 @@ def main():
                 # Validate
                 out_of_stock = [s for s in selected if training_inventory.get(s, 0) <= 0]
 
-                col_save1, col_save2 = st.columns(2)
-                with col_save1:
-                    if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
-                        old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
-                        new_secondary = []
-                        for pos in old_secondary + [effective_position]:
-                            p = str(pos).strip().upper()
-                            if p and p not in new_secondary:
-                                new_secondary.append(p)
-                        df.at[idx, 'Position'] = effective_position
-                        df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
-                        if save_data_to_gsheet(df):
-                            st.toast(f"Role updated to {effective_position}", icon="✅")
-                            st.cache_data.clear()
-                            time.sleep(0.7)
-                            st.rerun()
-                with col_save2:
-                    btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
-                    if remaining_slots <= 0:
-                        st.info("ℹ️ No free slot left. This is preview only.")
-                    if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
+                btn_disabled = remaining_slots <= 0 or len(selected) == 0 or len(out_of_stock) > 0
+                if remaining_slots <= 0:
+                    st.info("ℹ️ No free slot left. This is preview only.")
+                if out_of_stock: st.error(f"⚠️ Out of stock: {', '.join(out_of_stock)}")
 
-                    if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
-                        new_added = added_skills + selected
-                        df.at[idx, 'Added Skills'] = ", ".join(new_added)
-                        if save_data_to_gsheet(df):
-                            # GỌI HÀM UPDATE VỚI FLAG is_gk
-                            for s in selected:
-                                update_inventory_count(s, -1, is_gk=is_gk)
+                if st.button("💾 Confirm add", type="primary", use_container_width=True, disabled=btn_disabled):
+                    new_added = added_skills + selected
+                    df.at[idx, 'Added Skills'] = ", ".join(new_added)
+                    if save_data_to_gsheet(df):
+                        # GỌI HÀM UPDATE VỚI FLAG is_gk
+                        for s in selected:
+                            update_inventory_count(s, -1, is_gk=is_gk)
 
-                            st.toast("Success!", icon="🎉")
-                            st.cache_data.clear()
-                            time.sleep(1)
-                            st.rerun()
+                        st.toast("Success!", icon="🎉")
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
 
         # --- 1. THANH CÔNG CỤ FILTER (Sử dụng st.pills nếu có, fallback st.radio) ---
         with st.container(border=True):
