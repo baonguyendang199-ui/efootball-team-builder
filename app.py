@@ -937,6 +937,10 @@ def save_data_to_gsheet(df):
 POSITION_SKILLS_PRIORITY = {
     "CF": [
         "First-time Shot", "Acrobatic Finishing", "Long-Range Curler", 
+        "Long Range Shooting", "Outside Curler", "One-touch Pass", 
+        "Heel Trick", "Fighting Spirit", "Heading",
+        "Aerial Superiority", "Through Passing", "Track Back",
+        "Cut Behind & Turn", "Weighted Pass", "Sole Control"
     ],
     "SS": [
         "One-touch Pass", "Through Passing", "First-time Shot",
