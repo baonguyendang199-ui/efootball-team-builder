@@ -6872,6 +6872,13 @@ def main():
 
             if role_switch_needed:
                 st.markdown("**Current Skills:**")
+                current_skill_html = ""
+                for s in base_skills:
+                    current_skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
+                for s in added_skills:
+                    current_skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
+                st.markdown(current_skill_html, unsafe_allow_html=True)
+
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
                 skill_html = ""
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
