@@ -6823,30 +6823,30 @@ def main():
             
             # Get target skills for NEW position (including already added skills for filtering)
             # For training view, only care about added skills (max 5), not base skills
-            if bench_mode:
-                all_position_targets = get_bench_target_skills(
-                    effective_position, 
-                    str(row.get('Skills', '')), 
-                    str(row.get('Added Skills', '')),  # Include added skills for proper filtering
-                    5
-                )
-            else:
-                all_position_targets = get_recommended_skills(
-                    effective_position,
-                    '',  # Don't include base skills - focus on added skills only
-                    str(row.get('Added Skills', '')),  # Include added skills for proper filtering
-                    5,  # Max 5 for added skills (not 15 which includes base skills)
-                    is_bench=False,
-                )
-            
             if remaining_slots > 0:
+                if bench_mode:
+                    all_position_targets = get_bench_target_skills(
+                        effective_position, 
+                        str(row.get('Skills', '')), 
+                        str(row.get('Added Skills', '')),  # Include added skills for proper filtering
+                        5
+                    )
+                else:
+                    all_position_targets = get_recommended_skills(
+                        effective_position,
+                        '',  # Don't include base skills - focus on added skills only
+                        str(row.get('Added Skills', '')),  # Include added skills for proper filtering
+                        5,  # Max 5 for added skills (not 15 which includes base skills)
+                        is_bench=False,
+                    )
+                
                 target_skills = all_position_targets[:remaining_slots]
+                
+                if not target_skills:
+                    st.info("No skill specified for this role.")
+                    return
             else:
-                target_skills = all_position_targets[:5]
-
-            if not target_skills:
-                st.info("No skill specified for this role.")
-                return
+                target_skills = []  # No slots left, so no target skills to add
 
             # Get list of already added skills for comparison
             added_skills_list = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
