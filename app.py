@@ -6877,6 +6877,8 @@ def main():
             for s in added_skills:
                 skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
 
+            st.markdown(skill_html, unsafe_allow_html=True)
+
             if role_switch_needed:
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
@@ -6920,8 +6922,6 @@ def main():
                         time.sleep(0.7)
                         st.rerun()
             else:
-                st.markdown(skill_html, unsafe_allow_html=True)
-
                 if remaining_slots <= 0:
                     st.info("ℹ️ No free slot left. This is preview only.")
                 else:
