@@ -6881,7 +6881,7 @@ def main():
                 for s in base_skills:
                     norm = normalize_skill_name(s)
                     seen.add(norm)
-                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block'>⭐ {s}</span>"
+                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
                 
                 # 2. Show added skills and identify which will be removed
                 added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
@@ -6906,11 +6906,16 @@ def main():
                     seen.add(norm)
                     skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
             else:
-                # Standard display: base skills + added skills
+                # Standard display: base skills + added skills (same style as role switch)
                 for s in base_skills:
-                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>⭐ {s}</span>"
+                    norm = normalize_skill_name(s)
+                    seen.add(norm)
+                    skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
+                
                 for s in added_skills:
-                    skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
+                    norm = normalize_skill_name(s)
+                    seen.add(norm)
+                    skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
 
             st.markdown(skill_html, unsafe_allow_html=True)
 
