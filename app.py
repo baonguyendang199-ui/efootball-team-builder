@@ -7015,15 +7015,30 @@ def main():
                         str(df.at[idx, 'Added Skills'] or ''),
                         bench_mode=bench_mode,
                     )
+                    
+                    # Debug: Show what will be saved
+                    st.write(f"DEBUG - Current Position: {current_position_from_df}")
+                    st.write(f"DEBUG - New Position: {effective_position}")
+                    st.write(f"DEBUG - Old Secondary: {old_secondary}")
+                    st.write(f"DEBUG - New Secondary: {new_secondary}")
+                    st.write(f"DEBUG - Old Added Skills: {str(df.at[idx, 'Added Skills'] or '')}")
+                    st.write(f"DEBUG - Retained Added: {retained_added}")
+                    
                     df.at[idx, 'Position'] = effective_position
                     df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
                     df.at[idx, 'Added Skills'] = retained_added
+                    
+                    st.write(f"DEBUG - Updated df Position: {df.at[idx, 'Position']}")
+                    st.write(f"DEBUG - Updated df Secondary: {df.at[idx, 'Secondary Positions']}")
+                    st.write(f"DEBUG - Updated df Added Skills: {df.at[idx, 'Added Skills']}")
 
                     if save_data_to_gsheet(df):
                         st.toast(f"Role updated to {effective_position}. Incompatible added skills were removed.", icon="✅")
                         st.cache_data.clear()
                         time.sleep(0.7)
                         st.rerun()
+                    else:
+                        st.error("❌ Failed to save changes to Google Sheet!")
             else:
                 if remaining_slots <= 0:
                     st.info("ℹ️ No free slot left. This is preview only.")
