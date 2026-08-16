@@ -6877,27 +6877,28 @@ def main():
             for s in added_skills:
                 skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:2px 8px;border-radius:10px;font-size:0.8em;margin:2px;display:inline-block'>✅ {s}</span>"
 
-            st.markdown(skill_html, unsafe_allow_html=True)
-
             if role_switch_needed:
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
-
-                role_status_html = ""
                 target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
+                status_html = ""
+                seen = set()
 
-                for skill in target_skills:
+                for skill in target_skills + added_skills_list:
                     norm = normalize_skill_name(skill)
-                    if norm in added_skills_normalized:
-                        role_status_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
-                    else:
-                        role_status_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
+                    if norm in seen:
+                        continue
+                    seen.add(norm)
 
-                for skill in added_skills_list:
-                    norm = normalize_skill_name(skill)
-                    if norm not in target_normalized and norm not in {normalize_skill_name(s) for s in base_skills}:
-                        role_status_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
+                    if norm in target_normalized and norm in added_normalized_set:
+                        status_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
+                    elif norm in target_normalized:
+                        status_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
+                    elif norm in added_normalized_set:
+                        status_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
 
-                st.markdown(role_status_html, unsafe_allow_html=True)
+                if status_html:
+                    st.markdown(status_html, unsafe_allow_html=True)
 
                 if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True, key=f"role_switch_{idx}_{effective_position}"):
                     old_secondary = parse_secondary_positions(str(row.get('Secondary Positions', '')))
