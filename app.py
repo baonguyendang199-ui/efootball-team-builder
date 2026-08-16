@@ -7215,7 +7215,7 @@ def main():
                             else:
                                 missing_top1 = strict_targets[0] if strict_targets else ""
                                 btn_label = f"⚠️ Missing: {missing_top1}"
-                                btn_disabled = True
+                                btn_disabled = False  # Allow preview even with missing skills
                         elif is_potw:
                             btn_label = "🔒 POTW"
                         elif n_added >= MAX_ADDED_SLOTS and not bench_mode:
@@ -7230,7 +7230,7 @@ def main():
                         else:
                             missing_top1 = strict_targets[0] if strict_targets else ""
                             btn_label = f"⚠️ Missing: {missing_top1}"
-                            btn_disabled = True
+                            btn_disabled = False  # Allow preview even with missing skills
 
                         # D. RENDER CARD
                         slots_html = ""
