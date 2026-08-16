@@ -1095,25 +1095,39 @@ def parse_secondary_positions(value: str) -> list:
     return positions
 
 
-def reconcile_added_skills_for_role_switch(current_position: str, new_position: str, added_skills: str) -> str:
-    """Giữ lại các skill phù hợp với role mới, bỏ những skill không còn phù hợp."""
+def reconcile_added_skills_for_role_switch(current_position: str, new_position: str, added_skills: str, bench_mode: bool = False) -> str:
+    """Giữ lại các skill phù hợp với role mới theo priority.
+    Keep only skills within top 5 priority of the new position.
+    For bench players, always keep Super Sub even if priority is low."""
     if not current_position or not new_position:
         return str(added_skills or '').strip()
 
-    current_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(current_position, []))
-    new_pool = set(normalize_skill_name(s) for s in POSITION_SKILLS_PRIORITY.get(new_position, []))
-    if not new_pool:
+    # Get full priority list for new position
+    new_position_full = POSITION_SKILLS_PRIORITY.get(new_position, [])
+    
+    if not new_position_full:
         return str(added_skills or '').strip()
 
-    retained = []
-    for skill in [s.strip() for s in str(added_skills).split(',') if s.strip()]:
+    # Parse current added skills
+    current_added = [s.strip() for s in str(added_skills).split(',') if s.strip()]
+    
+    # For bench players, mark Super Sub as critical
+    super_sub_normalized = normalize_skill_name('Super Sub')
+    
+    # Find which skills are in top 5 priority of new position
+    retained_skills = []
+    
+    for skill in current_added:
         norm = normalize_skill_name(skill)
-        if norm in new_pool:
-            retained.append(skill)
-
-    # Nếu skill đang có là common skill ở cả hai role thì được giữ lại.
-    # Nếu không thuộc role mới thì bị loại ra khỏi Added Skills ngay khi confirm role switch.
-    return ", ".join(retained)
+        # Find priority index of this skill in new position
+        for idx, p_skill in enumerate(new_position_full):
+            if normalize_skill_name(p_skill) == norm:
+                # Keep if: within top 5 priority OR is Super Sub for bench players
+                if idx < 5 or (bench_mode and norm == super_sub_normalized):
+                    retained_skills.append(skill)
+                break
+    
+    return ", ".join(retained_skills)
 
 
 def get_view_positions_for_player(row) -> list:
@@ -6824,26 +6838,38 @@ def main():
             # Get target skills for NEW position (including already added skills for filtering)
             # For training view, only care about added skills (max 5), not base skills
             if remaining_slots > 0:
-                if bench_mode:
-                    all_position_targets = get_bench_target_skills(
-                        effective_position, 
-                        str(row.get('Skills', '')), 
-                        str(row.get('Added Skills', '')),  # Include added skills for proper filtering
-                        5
-                    )
-                else:
-                    all_position_targets = get_recommended_skills(
-                        effective_position,
-                        '',  # Don't include base skills - focus on added skills only
-                        str(row.get('Added Skills', '')),  # Include added skills for proper filtering
-                        5,  # Max 5 for added skills (not 15 which includes base skills)
-                        is_bench=False,
-                    )
+                # Get full position priority list
+                position_full_priority = POSITION_SKILLS_PRIORITY.get(effective_position, [])
+                if not position_full_priority:
+                    st.info("No skill specified for this role.")
+                    return
                 
-                target_skills = all_position_targets[:remaining_slots]
+                # Find lowest rank of base_skills
+                lowest_base_rank = 999
+                base_skills_normalized = {normalize_skill_name(s) for s in base_skills}
+                
+                for idx, skill in enumerate(position_full_priority):
+                    norm = normalize_skill_name(skill)
+                    if norm in base_skills_normalized:
+                        lowest_base_rank = min(lowest_base_rank, idx)
+                
+                # Build target skills: start from (lowest_base_rank + 1), exclude base + added
+                added_skills_list = [s.strip() for s in str(row.get('Added Skills', '')).split(',') if s.strip()]
+                added_skills_normalized = {normalize_skill_name(s) for s in added_skills_list}
+                
+                target_skills = []
+                recommend_start = lowest_base_rank + 1 if lowest_base_rank < 999 else 0
+                
+                for idx in range(recommend_start, len(position_full_priority)):
+                    skill = position_full_priority[idx]
+                    norm = normalize_skill_name(skill)
+                    if norm not in base_skills_normalized and norm not in added_skills_normalized:
+                        target_skills.append(skill)
+                        if len(target_skills) >= remaining_slots:
+                            break
                 
                 if not target_skills:
-                    st.info("No skill specified for this role.")
+                    st.info("No more skills to add for this role.")
                     return
             else:
                 target_skills = []  # No slots left, so no target skills to add
@@ -6888,48 +6914,69 @@ def main():
                     seen.add(norm)
                     skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid rgba(255,255,255,0.2)'>⭐ {s}</span>"
                 
-                # 2. Get FULL target list for the new position to check compatibility
-                # Use POSITION_SKILLS_PRIORITY directly, not get_recommended_skills (which only returns missing skills)
-                position_full_targets = POSITION_SKILLS_PRIORITY.get(effective_position, [])
-                position_full_targets_normalized = {normalize_skill_name(skill) for skill in position_full_targets}
+                # 2. Get FULL priority list for the new position
+                position_full_priority = POSITION_SKILLS_PRIORITY.get(effective_position, [])
+                position_full_normalized = {normalize_skill_name(skill): (i, skill) for i, skill in enumerate(position_full_priority)}
                 
-                # 3. Show added skills and identify which will be removed
-                added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
+                # 3. Check which added skills are compatible and rank by priority
+                compatible_with_priorities = []
+                for s in added_skills:
+                    norm = normalize_skill_name(s)
+                    if norm in position_full_normalized:
+                        priority_idx, _ = position_full_normalized[norm]
+                        compatible_with_priorities.append((priority_idx, s, True))  # True = compatible
+                    else:
+                        compatible_with_priorities.append((999, s, False))  # False = not compatible
+                
+                # Sort by priority (keep track of original order for display)
+                sorted_compatible = sorted(compatible_with_priorities, key=lambda x: x[0])
+                
+                # Decide which to keep: keep top 5 by priority
                 retained_added_normalized = set()
                 removed_skills_normalized = set()
                 
                 # For bench players, Super Sub should always be retained
                 super_sub_normalized = normalize_skill_name('Super Sub')
                 
-                for s in added_skills:
+                for i, (priority_idx, s, is_compat) in enumerate(sorted_compatible):
                     norm = normalize_skill_name(s)
                     seen.add(norm)
                     
-                    # Check against FULL position targets, not just target_skills
-                    # For bench players, always keep Super Sub
-                    if norm in position_full_targets_normalized or (bench_mode and norm == super_sub_normalized):
-                        # Skill will be kept for new role (compatible with new position)
+                    # Keep if: compatible AND (priority rank within top 5 OR is Super Sub for bench players)
+                    should_keep = is_compat and (priority_idx < 5 or (bench_mode and norm == super_sub_normalized))
+                    
+                    if should_keep:
                         retained_added_normalized.add(norm)
                         skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
                     else:
-                        # Skill will be removed (not in target role)
                         removed_skills_normalized.add(norm)
                         skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
                 
                 # 4. Show target skills that are new
-                # Target: ADDED SKILLS must always be 5 total (base doesn't matter)
-                # Skills needed = 5 - retained added skills
+                # Find lowest priority rank of base_skills
+                lowest_base_rank = 999
+                base_skills_normalized = {normalize_skill_name(s) for s in base_skills}
                 
+                for skill in position_full_priority:
+                    norm = normalize_skill_name(skill)
+                    for idx, p_skill in enumerate(position_full_priority):
+                        if normalize_skill_name(p_skill) == norm and norm in base_skills_normalized:
+                            lowest_base_rank = min(lowest_base_rank, idx)
+                            break
+                
+                # Skills needed = 5 - retained added skills
                 added_skills_needed = 5 - len(retained_added_normalized)
                 
-                # Only suggest new skills if we need them
                 if added_skills_needed > 0:
-                    # Build list of new skills to suggest (excluding retained and removed)
+                    # Recommend from (lowest_base_rank + 1) onwards, excluding base & retained skills
                     needed_new_skills = []
-                    for skill in position_full_targets:
+                    recommend_start = lowest_base_rank + 1 if lowest_base_rank < 999 else 0
+                    
+                    for idx in range(recommend_start, len(position_full_priority)):
+                        skill = position_full_priority[idx]
                         norm = normalize_skill_name(skill)
-                        # Only add if: not already retained AND not in the removed list
-                        if norm not in retained_added_normalized and norm not in removed_skills_normalized:
+                        # Skip if already in base or already retained in added
+                        if norm not in base_skills_normalized and norm not in retained_added_normalized:
                             needed_new_skills.append(skill)
                             if len(needed_new_skills) >= added_skills_needed:
                                 break
@@ -6963,6 +7010,7 @@ def main():
                         current_position,
                         effective_position,
                         row.get('Added Skills', ''),
+                        bench_mode=bench_mode,
                     )
                     df.at[idx, 'Position'] = effective_position
                     df.at[idx, 'Secondary Positions'] = ", ".join(new_secondary)
