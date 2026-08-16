@@ -6881,16 +6881,25 @@ def main():
                 st.markdown("#### 🔁 Role switch preview")
                 st.caption(f"Current: {current_position} → Preview: {effective_position}")
 
-                # Show target skills for new position with color-coding
+                # Show 3-color preview for the new role:
+                # Green = needed and already present
+                # Blue = needed but still missing
+                # Red = currently added but should be removed for this role
                 st.markdown("**Target skills for this role:**")
                 skill_html = ""
+                target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                current_added_normalized = {normalize_skill_name(skill) for skill in added_skills_list}
+
                 for skill in target_skills:
                     if normalize_skill_name(skill) in added_skills_normalized:
-                        # Green - already has this skill from RWF added skills
-                        skill_html += f"<span style='background:rgba(74, 222, 128, 0.3);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
+                        skill_html += f"<span style='background:rgba(22, 163, 74, 0.25);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {skill}</span>"
                     else:
-                        # Red - missing this skill for new role
-                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.3);color:#ef4444;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #ef4444'>❌ {skill}</span>"
+                        skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
+
+                for skill in added_skills_list:
+                    if normalize_skill_name(skill) not in target_normalized:
+                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {skill}</span>"
+
                 st.markdown(skill_html, unsafe_allow_html=True)
 
                 if st.button("🔄 Confirm role switch", type="secondary", use_container_width=True):
