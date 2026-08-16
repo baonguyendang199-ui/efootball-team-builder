@@ -6821,20 +6821,20 @@ def main():
             # --- LOGIC STRICT TARGETS (RECALCULATED BASED ON EFFECTIVE POSITION) ---
             bench_mode = is_bench_player(row.get('Is Bench', False))
             
-            # Get target skills for NEW position (without considering already added skills)
+            # Get target skills for NEW position (including already added skills for filtering)
             # This is to show what skills the player SHOULD have for this role
             if bench_mode:
                 all_position_targets = get_bench_target_skills(
                     effective_position, 
                     str(row.get('Skills', '')), 
-                    '',  # Don't include added skills - calculate from base only
+                    str(row.get('Added Skills', '')),  # Include added skills for proper filtering
                     5
                 )
             else:
                 all_position_targets = get_recommended_skills(
                     effective_position,
                     str(row.get('Skills', '')),
-                    '',  # Don't include added skills - calculate from base only
+                    str(row.get('Added Skills', '')),  # Include added skills for proper filtering
                     15,
                     is_bench=False,
                 )
