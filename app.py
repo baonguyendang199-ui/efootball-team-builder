@@ -6875,7 +6875,7 @@ def main():
             seen = set()
 
             if role_switch_needed:
-                # When switching roles: show base skills, added skills, then new target skills
+                # When switching roles: show base skills, added skills, then new target skills, and skills to remove
                 
                 # 1. Show base skills first
                 for s in base_skills:
@@ -6883,26 +6883,28 @@ def main():
                     seen.add(norm)
                     skill_html += f"<span style='background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block'>⭐ {s}</span>"
                 
-                # 2. Show added skills
+                # 2. Show added skills and identify which will be removed
                 added_normalized_set = {normalize_skill_name(skill) for skill in added_skills_list}
+                target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                
                 for s in added_skills:
                     norm = normalize_skill_name(s)
                     seen.add(norm)
-                    skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
+                    
+                    if norm in target_normalized:
+                        # Skill will be kept for new role
+                        skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
+                    else:
+                        # Skill will be removed (not in target role)
+                        skill_html += f"<span style='background:rgba(239, 68, 68, 0.25);color:#f87171;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #f87171'>❌ {s}</span>"
                 
-                # 3. Show target skills (only if not already displayed)
-                target_normalized = {normalize_skill_name(skill) for skill in target_skills}
+                # 3. Show target skills that are new (not already displayed)
                 for skill in target_skills:
                     norm = normalize_skill_name(skill)
                     if norm in seen:
                         continue
                     seen.add(norm)
-                    
-                    if norm in added_normalized_set:
-                        # This skill is in both target and added, but already shown above
-                        continue
-                    else:
-                        skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
+                    skill_html += f"<span style='background:rgba(59, 130, 246, 0.22);color:#60a5fa;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #60a5fa'>➕ {skill}</span>"
             else:
                 # Standard display: base skills + added skills
                 for s in base_skills:
