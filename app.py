@@ -6903,12 +6903,16 @@ def main():
                 retained_added_normalized = set()
                 removed_skills_normalized = set()
                 
+                # For bench players, Super Sub should always be retained
+                super_sub_normalized = normalize_skill_name('Super Sub')
+                
                 for s in added_skills:
                     norm = normalize_skill_name(s)
                     seen.add(norm)
                     
                     # Check against FULL position targets, not just target_skills
-                    if norm in position_full_targets_normalized:
+                    # For bench players, always keep Super Sub
+                    if norm in position_full_targets_normalized or (bench_mode and norm == super_sub_normalized):
                         # Skill will be kept for new role (compatible with new position)
                         retained_added_normalized.add(norm)
                         skill_html += f"<span style='background:rgba(74, 222, 128, 0.2);color:#4ade80;padding:4px 10px;border-radius:6px;font-size:0.9em;margin:2px;display:inline-block;border:1px solid #4ade80'>✅ {s}</span>"
