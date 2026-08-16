@@ -6856,6 +6856,10 @@ def main():
             valid_options = []
             
             for skill in target_skills:
+                # Skip skills already added
+                if normalize_skill_name(skill) in added_skills_normalized:
+                    continue
+                
                 # Dùng training_inventory đã chọn đúng loại
                 stock = training_inventory.get(skill, 0)
                 if stock > 0:
