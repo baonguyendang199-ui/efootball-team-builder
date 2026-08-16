@@ -7116,7 +7116,11 @@ def main():
 
         # Lọc theo Status người dùng chọn
         if ft_status != "All":
-            filtered_df = filtered_df[filtered_df['Train_Status'] == ft_status]
+            if ft_status == "Missing skills to add":
+                # Match any status that starts with "Missing skills to add"
+                filtered_df = filtered_df[filtered_df['Train_Status'].str.startswith("Missing skills to add")]
+            else:
+                filtered_df = filtered_df[filtered_df['Train_Status'] == ft_status]
 
         # --- C. LOGIC SẮP XẾP (BARCELONA FIRST) ---
         filtered_df['Is_Barca'] = filtered_df['Club'].apply(lambda x: 1 if str(x).strip() == "FC Barcelona" else 0)
