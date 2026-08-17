@@ -2266,15 +2266,15 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
 def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
     """
     Tự động xây dựng đội hình tối ưu.
-    CẬP NHẬT: 
-    1. Luật Anti-Spam CB ĐỘNG: 
+    CẬP NHẬT:
+    1. Luật Anti-Spam CB ĐỘNG:
        - Sơ đồ 2 CB đá chính -> Max 2 CB dự bị.
        - Sơ đồ 3 CB đá chính (3HV/5HV) -> Max 3 CB dự bị.
     2. Luật Strict Fit: Dự bị bắt buộc phải đá được 1 trong các vị trí của sơ đồ.
     """
     # 1. CHUẨN HÓA DỮ LIỆU
     pool_df = df.copy()
-    
+
     def clean_and_to_num(val):
         if pd.isna(val) or str(val).strip() == "": return 0.0
         cleaned = re.sub(r'[^\d.]', '', str(val).replace(',', '.'))
@@ -2283,13 +2283,13 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     if 'Height' in pool_df.columns: pool_df['Height_num'] = pool_df['Height'].apply(clean_and_to_num)
     else: pool_df['Height_num'] = 0.0
-        
+
     if 'Weight' in pool_df.columns: pool_df['Weight_num'] = pool_df['Weight'].apply(clean_and_to_num)
     else: pool_df['Weight_num'] = 0.0
-        
+
     if 'Age' in pool_df.columns: pool_df['Age_num'] = pool_df['Age'].apply(clean_and_to_num)
     else: pool_df['Age_num'] = 99.0
-    
+
     if 'Secondary Positions' not in pool_df.columns: pool_df['Secondary Positions'] = ""
     else: pool_df['Secondary Positions'] = pool_df['Secondary Positions'].fillna("").astype(str).str.upper().str.strip()
 
@@ -2307,24 +2307,22 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     pool_df = pool_df.drop_duplicates(subset=['Player'], keep='first')
     pool_df = pool_df.reset_index(drop=True)
 
-# --- LOGIC MỚI CHO UNITED NATIONS (DÒNG 844) ---
+    # --- LOGIC UNITED NATIONS ---
     if sort_mode == 'united_nations':
         # BƯỚC 1: Sort toàn bộ theo Rating
         pool_df = pool_df.sort_values(['Rating', 'Epic_Priority'], ascending=[False, True])
-        
+
         # BƯỚC 2: Lấy đại diện XUẤT SẮC NHẤT mỗi quốc gia
-        # ✅ FIX: Giữ nguyên pool_df gốc, chỉ tạo pool phụ cho Starters
         pool_df_nations = pool_df.drop_duplicates(subset=['Nation'], keep='first').copy()
-        
+
         # BƯỚC 3: Đảm bảo có GK
         if 'GK' not in pool_df_nations['Position'].values:
             current_nations = pool_df_nations['Nation'].unique()
-            extra_gks = pool_df[(pool_df['Position'] == 'GK') & 
+            extra_gks = pool_df[(pool_df['Position'] == 'GK') &
                                (~pool_df['Nation'].isin(current_nations))]
             extra_gks = extra_gks.sort_values('Rating', ascending=False).head(3)
             pool_df_nations = pd.concat([pool_df_nations, extra_gks]).reset_index(drop=True)
-        
-        # ✅ FIX: GHI ĐÈ pool_df để Hungarian Algorithm sử dụng
+
         pool_df = pool_df_nations.reset_index(drop=True)
 
     required_positions = FORMATIONS.get(formation_name, [])
@@ -2337,12 +2335,12 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
 
     def calculate_score(row):
         eff_rating = row['_build_rating']
-        rating_bonus = eff_rating / 100000.0 
-        
-        if sort_mode == 'rating_desc': 
+        rating_bonus = eff_rating / 100000.0
+
+        if sort_mode == 'rating_desc':
             return eff_rating
         elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
-        elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus 
+        elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus
         elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
         elif sort_mode == 'weight_asc': return (150 - row['Weight_num']) + rating_bonus
         elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
@@ -2424,54 +2422,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         try:
             row_ind, col_ind = linear_sum_assignment(cost_matrix)
         except Exception:
-            # Assignment failed: fallback to top-rated players for all slots (ignoring position constraints)
-            fsquad = [None] * 11
-            used_idx = set()
-            top_players = pdf.nlargest(11, 'Build_Score')
-            
-            for slot_idx, (_, player_row) in enumerate(top_players.iterrows()):
-                if slot_idx < 11:
-                    pid = str(player_row.get('Player ID', '')).strip()
-                    purl = str(player_row.get('Player URL', '')).strip()
-                    if not pid and purl:
-                        m = re.search(r"(\d{14,})", purl)
-                        pid = m.group(1) if m else ""
-                    img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
-                    
-                    fsquad[slot_idx] = {
-                        "Is_Starter": True, "Position": required_positions[slot_idx],
-                        "Real_Position": player_row['Position'], "Player": player_row['Player'],
-                        "Rating": player_row['Rating'], "Type": player_row['Player Type'], "Image": img_url,
-                        "Height": player_row.get('Height', ''), "Weight": player_row.get('Weight', ''),
-                        "Age": player_row.get('Age', ''), "Score": player_row['Build_Score'], 
-                        "Data": player_row.to_dict() if hasattr(player_row, 'to_dict') else player_row
-                    }
-                    used_idx.add(player_row.name)
-            
-            # Fill any remaining None slots with "---"
-            for i in range(11):
-                if fsquad[i] is None:
-                    fsquad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", 
-                                "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
-            
-            # Fill bench with remaining top players
-            remaining_pool = pdf[~pdf.index.isin(used_idx)].copy()
-            bench_picks = []
-            for idx, row in remaining_pool.nlargest(12, 'Build_Score').iterrows():
-                pid = str(row.get('Player ID', '')).strip()
-                purl = str(row.get('Player URL', '')).strip()
-                if not pid and purl:
-                    m = re.search(r"(\d{14,})", purl)
-                    pid = m.group(1) if m else ""
-                img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
-                bench_picks.append({
-                    "Is_Starter": False, "Position": row['Position'], "Player": row['Player'],
-                    "Rating": row['Rating'], "Type": row['Player Type'], "Image": img_url,
-                    "Height": row.get('Height', ''), "Weight": row.get('Weight', ''), "Age": row.get('Age', ''),
-                    "Score": row['Build_Score'], "Data": row.to_dict() if hasattr(row, 'to_dict') else row
-                })
-            
-            return fsquad + bench_picks, pdf
+            return [], pdf
 
         fsquad = [None] * 11
         used_idx = set()
@@ -2483,7 +2434,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                 pid = str(row.get('Player ID', '')).strip()
                 purl = str(row.get('Player URL', '')).strip()
                 if not pid and purl:
-                    m = re.search(r"(\d{14,})", purl); pid = m.group(1) if m else ""
+                    m = re.search(r'(\d{14,})', purl); pid = m.group(1) if m else ""
                 img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
                 fsquad[s_idx] = {
@@ -2578,7 +2529,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             r_get = row.get if isinstance(row, dict) else row.get
             pid = str(r_get('Player ID', '')).strip()
             purl = str(r_get('Player URL', '')).strip()
-            if not pid and purl: m = re.search(r"(\d{14,})", purl); pid = m.group(1) if m else ""
+            if not pid and purl: m = re.search(r'(\d{14,})', purl); pid = m.group(1) if m else ""
             img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
 
             fsquad.append({
@@ -2591,74 +2542,86 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         return fsquad, pdf
 
     # ==========================================================
-    # 5. ITERATIVE REBUILD LOOP (Booster Feedback to Selection)
-    #    Lặp lại để booster ảnh hưởng ngược trở lại việc chọn cầu thủ
+    # 5. VÒNG LẶP HỘI TỤ (FIXED-POINT ITERATION)
+    #    Build thử -> tính depth thực tế trong squad vừa build ->
+    #    cập nhật lại _build_rating cho Booster Type National/Club/League
+    #    rồi build lại. Lặp đến khi đội hình không đổi nữa.
     # ==========================================================
-    print(f'Optimizing squad for {formation_name} (pool size: {len(pool_df)})...')
-    import time
-    import copy
-    opt_start = time.time()
-    
-    final_squad = None
-    previous_signature = None
-    MAX_ITERATIONS = 8
-    
-    for iteration in range(MAX_ITERATIONS):
-        # 1. Tính score từ current effective rating
-        pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
-        
-        # 2. Build squad sử dụng beam search
-        squad_candidate = _beam_search_squad_optimization(
-            pool_df, 
-            required_positions, 
-            sort_mode, 
-            formation_name
-        )
-        
-        if not squad_candidate or len(squad_candidate) == 0:
-            # If first iteration has no squad, allow empty/partial squad to continue
-            # Allow at least 1 iteration to return something
-            if iteration > 0:
-                break
-            # Continue even with empty candidate on first iteration
-            squad_candidate = [{"Is_Starter": True, "Position": required_positions[i], "Player": "---", 
-                              "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None} for i in range(11)]
-        
-        # 3. Deep copy squad để tránh mutate issue khi apply booster
-        squad_to_boost = copy.deepcopy(squad_candidate)
-        
-        # 4. Apply booster trên full 23-man squad (mutate)
-        squad_with_boosters = apply_squad_national_boosters(squad_to_boost, filter_col=filter_col)
-        
-        # 5. Tính effective rating cho từng cầu thủ dựa trên squad depth
-        nation_depth, club_depth, league_depth = _calculate_squad_depths(squad_with_boosters)
-        
-        # 6. Update pool_df['_build_rating'] với effective rating mới
-        for idx, row in pool_df.iterrows():
-            player_dict = {'Data': row.to_dict() if hasattr(row, 'to_dict') else row}
-            effective = _get_player_boosted_rating(player_dict, nation_depth, club_depth, league_depth)
-            pool_df.at[idx, '_build_rating'] = effective
-        
-        # 7. Kiểm tra convergence: 23 cầu thủ có thay đổi không
-        current_players = tuple(sorted([p.get('Player') for p in squad_with_boosters if p.get('Player') != '---']))
-        
-        if current_players == previous_signature:
-            print(f'   Iteration {iteration}: Converged')
-            final_squad = squad_with_boosters
-            break
-        
-        previous_signature = current_players
-        final_squad = squad_with_boosters
-        final_rating = _get_squad_total_boosted_rating(final_squad)
-        print(f'   Iteration {iteration}: Rating {final_rating}')
-    
-    opt_time = time.time() - opt_start
-    print(f'Squad optimized in {opt_time:.2f}s')
-    
-    if not final_squad:
-        return []
+    def _depth_maps_of(fsquad):
+        nation_depth = {}
+        club_depth = {}
+        league_depth = {}
+        for p in fsquad:
+            if p.get('Player') and p['Player'] != '---':
+                data = p.get('Data', {})
+                nation = str(data.get('Nation', '')).strip()
+                club = str(data.get('Club', '')).strip()
+                league = str(data.get('League', '')).strip()
 
-    return final_squad
+                if nation:
+                    nation_depth[nation] = nation_depth.get(nation, 0) + 1
+                if club and nation:
+                    club_depth[(club, nation)] = club_depth.get((club, nation), 0) + 1
+                if league and nation:
+                    league_depth[(league, nation)] = league_depth.get((league, nation), 0) + 1
+
+        return nation_depth, club_depth, league_depth
+
+    def _tier_value(data_dict, depth):
+        if depth <= 7:
+            val = data_dict.get('Booster Rating 1-7', 0)
+        elif depth <= 10:
+            val = data_dict.get('Booster Rating 8-10', 0)
+        else:
+            val = data_dict.get('Booster Rating 11-23', 0)
+        try:
+            val = int(val)
+        except (TypeError, ValueError):
+            val = 0
+        base = data_dict.get('Rating', 0)
+        return val if val > 0 else base
+
+    def _refresh_build_rating(row, nation_depth, club_depth, league_depth):
+        booster_type = _normalize_booster_type(row.get('Booster Type', 'None'))
+        if booster_type == 'National':
+            depth = nation_depth.get(str(row.get('Nation', '')).strip(), 0)
+        elif booster_type == 'Club':
+            depth = club_depth.get((str(row.get('Club', '')).strip(), str(row.get('Nation', '')).strip()), 0)
+        elif booster_type == 'League':
+            depth = league_depth.get((str(row.get('League', '')).strip(), str(row.get('Nation', '')).strip()), 0)
+        else:
+            return row.get('_build_rating', row.get('Rating', 0))
+        return _tier_value(row.to_dict(), depth)
+
+    MAX_ITER = 8
+    prev_signature = None
+    seen_signatures = set()
+    final_squad = []
+
+    for _iter_n in range(MAX_ITER):
+        final_squad, pool_df = _select_squad(pool_df)
+        if not final_squad:
+            break
+
+        signature = tuple(sorted(
+            p.get('Player', '') for p in final_squad
+            if p.get('Player') and p['Player'] != '---'
+        ))
+
+        if signature == prev_signature:
+            break
+        if signature in seen_signatures:
+            break
+        seen_signatures.add(signature)
+        prev_signature = signature
+
+        pool_df = pool_df.copy()
+        nation_depth, club_depth, league_depth = _depth_maps_of(final_squad)
+        pool_df['_build_rating'] = pool_df.apply(
+            lambda r: _refresh_build_rating(r, nation_depth, club_depth, league_depth), axis=1
+        )
+
+    return apply_squad_national_boosters(final_squad, filter_col=filter_col)
 
 
 
@@ -2732,107 +2695,70 @@ def _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidat
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Evaluate each formation independently and choose the best valid squad.
-
-    Correct architecture:
-    1. Build squad for a given formation using that formation's required slots.
-    2. Apply squad boosters on the resulting 23-player squad.
-    3. Compare all formations by total boosted rating and fit quality.
-    4. Return the formation + squad with the highest final score.
-    
-    Allow PARTIAL SQUAD: If pool is limited, still show best squad even if < 11 starters.
-    Selection criteria (in order):
-    - More filled starters is better (11 > 10 > 9 ...)
-    - Higher total boosted rating is better
-    - More main-position matches is better
+    Tìm sơ đồ tối ưu với logic phân cấp (Tier-based Logic):
+    1. Ưu tiên TUYỆT ĐỐI cho sự đầy đủ đội hình (Đủ người > Thiếu 1 > Thiếu 2...).
+    2. Nếu cùng số lượng người thiếu: So sánh tổng điểm Score.
+    3. Nếu cùng điểm Score: So sánh số lượng cầu thủ đá đúng vị trí sở trường.
     """
-    import time
-    start_time = time.time()
-    best_formation_name = ""
+    best_score = -float('inf')
+    best_main_pos_count = -1
     best_squad = []
-    best_key = None
-    checked = 0
+    best_formation_name = ""
 
-    def _formation_fit_quality(squad, required_positions):
-        """Return (num_filled_starters, main_pos_count, forced_secondary_count)."""
-        starters = [p for p in squad if p.get('Is_Starter')]
-        
-        # Count actual non-empty starters
-        actual_starters = [p for p in starters if p.get('Player') != '---']
-        num_filled = len(actual_starters)
-        
-        main_pos_count = 0
-        forced_secondary = 0
+    # Hằng số phạt cho mỗi vị trí thiếu
+    MISSING_PENALTY = 1_000_000_000
 
-        for req_pos in required_positions:
-            req_pos = str(req_pos).upper()
-            assigned = False
-
-            for player in starters:
-                if player.get('Player') == '---':
-                    continue
-                current_pos = str(player.get('Position', '')).strip().upper()
-                if current_pos == req_pos:
-                    assigned = True
-                    main_pos_count += 1
-                    break
-
-            if not assigned:
-                for player in starters:
-                    if player.get('Player') == '---':
-                        continue
-                    data = player.get('Data', {}) if isinstance(player.get('Data'), dict) else {}
-                    real_pos = str(player.get('Real_Position', player.get('Position', ''))).strip().upper()
-                    secondary_positions = [
-                        s.strip().upper()
-                        for s in str(data.get('Secondary Positions', '')).split(',')
-                        if s.strip()
-                    ]
-                    if req_pos in {real_pos, *secondary_positions}:
-                        assigned = True
-                        forced_secondary += 1
-                        break
-
-        return num_filled, main_pos_count, forced_secondary
-
+    # Quét qua toàn bộ sơ đồ
     for form_name in FORMATIONS.keys():
-        checked += 1
-        required_positions = FORMATIONS[form_name]
-        candidate = auto_build_squad(
-            df,
-            form_name,
-            sort_mode=sort_mode,
-            filter_col=filter_col,
-            filter_val=filter_val,
-        )
+        # Build thử đội hình
+        squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
 
-        if not candidate:
-            continue
+        # Lấy danh sách đá chính
+        starters = [p for p in squad if p.get('Is_Starter', False)]
 
-        candidate = apply_squad_national_boosters(candidate, filter_col=filter_col)
-        num_filled, main_pos_count, forced_secondary = _formation_fit_quality(candidate, required_positions)
-        
-        # Allow all formations, even partial squad (num_filled >= 0)
-        # This ensures app always returns a squad, even if pool is too limited
-        total_boosted_rating = _get_squad_total_boosted_rating(candidate)
-        
-        # Selection criteria: (num_filled DESC, rating DESC, main_pos DESC, forced_secondary ASC)
-        candidate_key = (int(num_filled), float(total_boosted_rating), int(main_pos_count), -int(forced_secondary))
+        # Lọc ra những người CÓ MẶT (không phải placeholder "---")
+        valid_starters = [p for p in starters if p['Player'] != "---"]
 
-        if best_key is None or candidate_key > best_key:
-            best_key = candidate_key
+        # Đếm số người thiếu
+        missing_count = 11 - len(valid_starters)
+
+        # Tính tổng điểm của những người ĐANG CÓ
+        current_rating_score = sum(p.get('Score', 0) for p in valid_starters)
+
+        # --- TÍNH ĐIỂM TỔNG HỢP ---
+        if missing_count == 0:
+            current_total_score = current_rating_score
+
+            # Bonus đặc biệt cho Rating mode (Ưu tiên DMF) chỉ áp dụng khi đủ người
+            if sort_mode == 'rating_desc':
+                has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
+                needs_dmf = "DMF" in FORMATIONS[form_name]
+                if has_dmf: current_total_score += 50000
+                elif needs_dmf: current_total_score -= 20000
+        else:
+            current_total_score = current_rating_score - (missing_count * MISSING_PENALTY)
+
+        # --- TÍNH TOÁN POSITION FIDELITY ---
+        current_main_pos_count = 0
+        for p in valid_starters:
+            assigned_pos = str(p.get('Position', '')).strip().upper()
+            real_pos = str(p.get('Real_Position', '')).strip().upper()
+            if assigned_pos == real_pos:
+                current_main_pos_count += 1
+
+        # --- LOGIC SO SÁNH ---
+        if current_total_score > best_score + 0.01:
+            best_score = current_total_score
+            best_main_pos_count = current_main_pos_count
+            best_squad = squad
             best_formation_name = form_name
-            best_squad = candidate
+        elif abs(current_total_score - best_score) <= 0.01:
+            if current_main_pos_count > best_main_pos_count:
+                best_score = current_total_score
+                best_main_pos_count = current_main_pos_count
+                best_squad = squad
+                best_formation_name = form_name
 
-    elapsed = time.time() - start_time
-    print(f"[FORMATION EVALUATION] {checked} formations checked in {elapsed:.3f}s")
-
-    if not best_squad:
-        print("[RESULT] No valid formation found (pool too limited)")
-        return "", []
-
-    num_filled = best_key[0]
-    print(f"[RESULT] Best Formation: {best_formation_name}, Starters Filled: {num_filled}/11, Total Boosted Rating: {best_key[1]}")
     return best_formation_name, best_squad
 
 
