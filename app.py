@@ -2424,7 +2424,54 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         try:
             row_ind, col_ind = linear_sum_assignment(cost_matrix)
         except Exception:
-            return [], pdf
+            # Assignment failed: fallback to top-rated players for all slots (ignoring position constraints)
+            fsquad = [None] * 11
+            used_idx = set()
+            top_players = pdf.nlargest(11, 'Build_Score')
+            
+            for slot_idx, (_, player_row) in enumerate(top_players.iterrows()):
+                if slot_idx < 11:
+                    pid = str(player_row.get('Player ID', '')).strip()
+                    purl = str(player_row.get('Player URL', '')).strip()
+                    if not pid and purl:
+                        m = re.search(r"(\d{14,})", purl)
+                        pid = m.group(1) if m else ""
+                    img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+                    
+                    fsquad[slot_idx] = {
+                        "Is_Starter": True, "Position": required_positions[slot_idx],
+                        "Real_Position": player_row['Position'], "Player": player_row['Player'],
+                        "Rating": player_row['Rating'], "Type": player_row['Player Type'], "Image": img_url,
+                        "Height": player_row.get('Height', ''), "Weight": player_row.get('Weight', ''),
+                        "Age": player_row.get('Age', ''), "Score": player_row['Build_Score'], 
+                        "Data": player_row.to_dict() if hasattr(player_row, 'to_dict') else player_row
+                    }
+                    used_idx.add(player_row.name)
+            
+            # Fill any remaining None slots with "---"
+            for i in range(11):
+                if fsquad[i] is None:
+                    fsquad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", 
+                                "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
+            
+            # Fill bench with remaining top players
+            remaining_pool = pdf[~pdf.index.isin(used_idx)].copy()
+            bench_picks = []
+            for idx, row in remaining_pool.nlargest(12, 'Build_Score').iterrows():
+                pid = str(row.get('Player ID', '')).strip()
+                purl = str(row.get('Player URL', '')).strip()
+                if not pid and purl:
+                    m = re.search(r"(\d{14,})", purl)
+                    pid = m.group(1) if m else ""
+                img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+                bench_picks.append({
+                    "Is_Starter": False, "Position": row['Position'], "Player": row['Player'],
+                    "Rating": row['Rating'], "Type": row['Player Type'], "Image": img_url,
+                    "Height": row.get('Height', ''), "Weight": row.get('Weight', ''), "Age": row.get('Age', ''),
+                    "Score": row['Build_Score'], "Data": row.to_dict() if hasattr(row, 'to_dict') else row
+                })
+            
+            return fsquad + bench_picks, pdf
 
         fsquad = [None] * 11
         used_idx = set()
@@ -2568,8 +2615,14 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             formation_name
         )
         
-        if not squad_candidate:
-            break
+        if not squad_candidate or len(squad_candidate) == 0:
+            # If first iteration has no squad, allow empty/partial squad to continue
+            # Allow at least 1 iteration to return something
+            if iteration > 0:
+                break
+            # Continue even with empty candidate on first iteration
+            squad_candidate = [{"Is_Starter": True, "Position": required_positions[i], "Player": "---", 
+                              "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None} for i in range(11)]
         
         # 3. Deep copy squad để tránh mutate issue khi apply booster
         squad_to_boost = copy.deepcopy(squad_candidate)
@@ -2686,6 +2739,12 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     2. Apply squad boosters on the resulting 23-player squad.
     3. Compare all formations by total boosted rating and fit quality.
     4. Return the formation + squad with the highest final score.
+    
+    Allow PARTIAL SQUAD: If pool is limited, still show best squad even if < 11 starters.
+    Selection criteria (in order):
+    - More filled starters is better (11 > 10 > 9 ...)
+    - Higher total boosted rating is better
+    - More main-position matches is better
     """
     import time
     start_time = time.time()
@@ -2695,11 +2754,13 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     checked = 0
 
     def _formation_fit_quality(squad, required_positions):
-        """Return (fits, main_pos_count, forced_secondary_count)."""
+        """Return (num_filled_starters, main_pos_count, forced_secondary_count)."""
         starters = [p for p in squad if p.get('Is_Starter')]
-        if len(starters) != 11:
-            return False, 0, 0
-
+        
+        # Count actual non-empty starters
+        actual_starters = [p for p in starters if p.get('Player') != '---']
+        num_filled = len(actual_starters)
+        
         main_pos_count = 0
         forced_secondary = 0
 
@@ -2732,10 +2793,7 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
                         forced_secondary += 1
                         break
 
-            if not assigned:
-                return False, 0, 0
-
-        return True, main_pos_count, forced_secondary
+        return num_filled, main_pos_count, forced_secondary
 
     for form_name in FORMATIONS.keys():
         checked += 1
@@ -2752,12 +2810,14 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
             continue
 
         candidate = apply_squad_national_boosters(candidate, filter_col=filter_col)
-        fits, main_pos_count, forced_secondary = _formation_fit_quality(candidate, required_positions)
-        if not fits:
-            continue
-
+        num_filled, main_pos_count, forced_secondary = _formation_fit_quality(candidate, required_positions)
+        
+        # Allow all formations, even partial squad (num_filled >= 0)
+        # This ensures app always returns a squad, even if pool is too limited
         total_boosted_rating = _get_squad_total_boosted_rating(candidate)
-        candidate_key = (float(total_boosted_rating), int(main_pos_count), -int(forced_secondary))
+        
+        # Selection criteria: (num_filled DESC, rating DESC, main_pos DESC, forced_secondary ASC)
+        candidate_key = (int(num_filled), float(total_boosted_rating), int(main_pos_count), -int(forced_secondary))
 
         if best_key is None or candidate_key > best_key:
             best_key = candidate_key
@@ -2768,10 +2828,11 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     print(f"[FORMATION EVALUATION] {checked} formations checked in {elapsed:.3f}s")
 
     if not best_squad:
-        print("[RESULT] No valid formation found")
+        print("[RESULT] No valid formation found (pool too limited)")
         return "", []
 
-    print(f"[RESULT] Best Formation: {best_formation_name}, Total Boosted Rating: {best_key[0]}")
+    num_filled = best_key[0]
+    print(f"[RESULT] Best Formation: {best_formation_name}, Starters Filled: {num_filled}/11, Total Boosted Rating: {best_key[1]}")
     return best_formation_name, best_squad
 
 
