@@ -2641,88 +2641,99 @@ def _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidat
 
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    PHASE 2: Find best formation for the globally-optimized 23-man squad.
-    
-    Two-stage architecture:
-    1. Optimize 23-man squad ONCE (formation-independent, booster-aware)
-       - Returns globally best 23 players for total boosted rating
-    2. Test 80+ formations CHEAPLY by validating position assignments
-       - For each formation, check if the best 23 can be legally assigned
-       - Position validation only, no heavy search
-    
-    Key insight: Boosters depend on Nation/Club/League counts, not formation.
-    So optimize for squad composition once, then find the formation that fits.
+    Evaluate each formation independently and choose the best valid squad.
+
+    Correct architecture:
+    1. Build squad for a given formation using that formation's required slots.
+    2. Apply squad boosters on the resulting 23-player squad.
+    3. Compare all formations by total boosted rating and fit quality.
+    4. Return the formation + squad with the highest final score.
     """
     import time
-    global_start = time.time()
-    
-    # PHASE 1: Global optimization (expensive, but only ONCE)
-    candidate_squads = _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidates=1)
-    
-    if not candidate_squads:
-        return "", []
-    
-    # Take the best squad from global optimization
-    best_global_rating, best_global_squad = candidate_squads[0]
-    
-    best_total_boosted_rating = best_global_rating
-    best_squad = best_global_squad
+    start_time = time.time()
     best_formation_name = ""
-    
-    # Track which formation this squad was optimized for
-    global_formation = '4-2-3-1'  # Default used in Phase 1
-    best_formation_name = global_formation
-    
-    form_eval_start = time.time()
-    form_count = 0
-    
-    # PHASE 2: Test 80+ formations against the best 23-man squad (cheap validation only)
-    for form_name in FORMATIONS.keys():
-        form_count += 1
-        required_positions = FORMATIONS[form_name]
-        
-        # Quick validation: Can this formation fit our 23-man squad?
-        # Check: Do we have enough players for each position type?
-        squad_positions = {}
-        for player in best_global_squad:
-            if player['Player'] == '---':
-                continue
-            pos = str(player.get('Position', '')).strip().upper()
-            if pos not in squad_positions:
-                squad_positions[pos] = 0
-            squad_positions[pos] += 1
-        
-        # Can we fill all required positions?
-        position_counts = {}
+    best_squad = []
+    best_key = None
+    checked = 0
+
+    def _formation_fit_quality(squad, required_positions):
+        """Return (fits, main_pos_count, forced_secondary_count)."""
+        starters = [p for p in squad if p.get('Is_Starter')]
+        if len(starters) != 11:
+            return False, 0, 0
+
+        main_pos_count = 0
+        forced_secondary = 0
+
         for req_pos in required_positions:
-            position_counts[req_pos] = position_counts.get(req_pos, 0) + 1
-        
-        # Simple check: Do we have all needed positions?
-        can_fit = True
-        for req_pos, count in position_counts.items():
-            if squad_positions.get(req_pos, 0) < count:
-                can_fit = False
-                break
-        
-        # If this formation works, use it (first valid formation found)
-        if can_fit and not best_formation_name:
+            req_pos = str(req_pos).upper()
+            assigned = False
+
+            for player in starters:
+                if player.get('Player') == '---':
+                    continue
+                current_pos = str(player.get('Position', '')).strip().upper()
+                if current_pos == req_pos:
+                    assigned = True
+                    main_pos_count += 1
+                    break
+
+            if not assigned:
+                for player in starters:
+                    if player.get('Player') == '---':
+                        continue
+                    data = player.get('Data', {}) if isinstance(player.get('Data'), dict) else {}
+                    real_pos = str(player.get('Real_Position', player.get('Position', ''))).strip().upper()
+                    secondary_positions = [
+                        s.strip().upper()
+                        for s in str(data.get('Secondary Positions', '')).split(',')
+                        if s.strip()
+                    ]
+                    if req_pos in {real_pos, *secondary_positions}:
+                        assigned = True
+                        forced_secondary += 1
+                        break
+
+            if not assigned:
+                return False, 0, 0
+
+        return True, main_pos_count, forced_secondary
+
+    for form_name in FORMATIONS.keys():
+        checked += 1
+        required_positions = FORMATIONS[form_name]
+        candidate = auto_build_squad(
+            df,
+            form_name,
+            sort_mode=sort_mode,
+            filter_col=filter_col,
+            filter_val=filter_val,
+        )
+
+        if not candidate:
+            continue
+
+        candidate = apply_squad_national_boosters(candidate, filter_col=filter_col)
+        fits, main_pos_count, forced_secondary = _formation_fit_quality(candidate, required_positions)
+        if not fits:
+            continue
+
+        total_boosted_rating = _get_squad_total_boosted_rating(candidate)
+        candidate_key = (float(total_boosted_rating), int(main_pos_count), -int(forced_secondary))
+
+        if best_key is None or candidate_key > best_key:
+            best_key = candidate_key
             best_formation_name = form_name
-            # Squad is already the best global, just use it
-            break
-    
-    form_elapsed = time.time() - form_eval_start
-    total_elapsed = time.time() - global_start
+            best_squad = candidate
 
-    # Important: the squad shown in UI must use the final boosted ratings based on
-    # actual squad depth, not the raw card rating stored in the data sheet.
-    if best_squad:
-        best_squad = apply_squad_national_boosters(best_squad, filter_col=filter_col)
-        best_total_boosted_rating = _get_squad_total_boosted_rating(best_squad)
+    elapsed = time.time() - start_time
+    print(f"[FORMATION EVALUATION] {checked} formations checked in {elapsed:.3f}s")
 
-    print(f"[PHASE 2: FORMATION EVALUATION] {form_count} formations checked in {form_elapsed:.3f}s")
-    print(f"[TOTAL TIME] {total_elapsed:.2f}s")
-    print(f"[RESULT] Best Formation: {best_formation_name}, Total Boosted Rating: {best_total_boosted_rating}")
+    if not best_squad:
+        print("[RESULT] No valid formation found")
+        return "", []
 
+    print(f"[RESULT] Best Formation: {best_formation_name}, Total Boosted Rating: {best_key[0]}")
     return best_formation_name, best_squad
 
 
