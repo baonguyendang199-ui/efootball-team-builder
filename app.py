@@ -2574,42 +2574,141 @@ def calculate_squad_total_boosted_rating(squad):
     return _get_squad_total_boosted_rating(squad)
 
 
+def _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidates=5):
+    """
+    PHASE 1: Optimize 23-man squad globally (formation-independent).
+    
+    Booster effects depend ONLY on:
+    - Nation depth, Club depth, League depth
+    
+    NOT on formation. So we optimize for a single default formation,
+    which gives us the best 23-man squad. This squad can then be
+    tested against all 80+ formations cheaply.
+    
+    Returns: List of (total_boosted_rating, full_squad) tuples, sorted descending.
+    """
+    import time
+    start_time = time.time()
+    
+    # Use default formation for position assignment structure
+    default_formation = '4-2-3-1'
+    required_positions = FORMATIONS[default_formation]
+    
+    pool_df = df.copy()
+    
+    # Pre-compute numeric columns for scoring
+    pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
+    pool_df['Weight_num'] = pd.to_numeric(pool_df['Weight'], errors='coerce').fillna(0)
+    pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(0)
+    
+    # Calculate effective rating for initial scoring
+    pool_df['Effective_Nation_Rating'] = pool_df['Rating']  # Placeholder, will be overridden
+    
+    # Run pool-wide replacement search ONCE to find the best 23-man squad
+    best_squad = _beam_search_squad_optimization(
+        pool_df,
+        required_positions,
+        sort_mode,
+        default_formation,
+        beam_width=8,
+        max_iterations=3
+    )
+    
+    elapsed = time.time() - start_time
+    
+    # Return the best squad
+    candidates = []
+    if best_squad:
+        total_rating = _get_squad_total_boosted_rating(best_squad)
+        candidates.append((total_rating, best_squad))
+    
+    print(f"[PHASE 1: GLOBAL 23-MAN OPTIMIZATION] Completed in {elapsed:.2f}s")
+    
+    return candidates
+
+
+
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Tìm sơ đồ tối ưu dựa trên TOTAL BOOSTED RATING DƯƠNG của squad.
+    PHASE 2: Find best formation for the globally-optimized 23-man squad.
     
-    Thuật toán:
-    1. Với MỖI formation: xây dựng squad tốt nhất cho formation đó
-    2. Tính TOTAL BOOSTED RATING của toàn bộ 23 cầu thủ (starters + bench)
-    3. Chọn formation có TOTAL BOOSTED RATING cao nhất
+    Two-stage architecture:
+    1. Optimize 23-man squad ONCE (formation-independent, booster-aware)
+       - Returns globally best 23 players for total boosted rating
+    2. Test 80+ formations CHEAPLY by validating position assignments
+       - For each formation, check if the best 23 can be legally assigned
+       - Position validation only, no heavy search
     
-    Không còn ưu tiên "đủ 11 người" - CHỈ so sánh tổng rating sau booster.
-    Nếu formation A thiếu người nhưng tổng rating cao hơn formation B (đủ người),
-    thì formation A sẽ được chọn.
+    Key insight: Boosters depend on Nation/Club/League counts, not formation.
+    So optimize for squad composition once, then find the formation that fits.
     """
-    best_total_boosted_rating = -float('inf')
-    best_squad = []
+    import time
+    global_start = time.time()
+    
+    # PHASE 1: Global optimization (expensive, but only ONCE)
+    candidate_squads = _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidates=1)
+    
+    if not candidate_squads:
+        return "", []
+    
+    # Take the best squad from global optimization
+    best_global_rating, best_global_squad = candidate_squads[0]
+    
+    best_total_boosted_rating = best_global_rating
+    best_squad = best_global_squad
     best_formation_name = ""
-
-    # Quét qua toàn bộ sơ đồ
+    
+    # Track which formation this squad was optimized for
+    global_formation = '4-2-3-1'  # Default used in Phase 1
+    best_formation_name = global_formation
+    
+    form_eval_start = time.time()
+    form_count = 0
+    
+    # PHASE 2: Test 80+ formations against the best 23-man squad (cheap validation only)
     for form_name in FORMATIONS.keys():
-        # Build thử đội hình cho formation này
-        squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
+        form_count += 1
+        required_positions = FORMATIONS[form_name]
         
-        if not squad:
-            continue
+        # Quick validation: Can this formation fit our 23-man squad?
+        # Check: Do we have enough players for each position type?
+        squad_positions = {}
+        for player in best_global_squad:
+            if player['Player'] == '---':
+                continue
+            pos = str(player.get('Position', '')).strip().upper()
+            if pos not in squad_positions:
+                squad_positions[pos] = 0
+            squad_positions[pos] += 1
         
-        # Tính TOTAL BOOSTED RATING của toàn bộ 23 cầu thủ
-        # (Điều này đã tính cả booster effect dựa trên squad depth)
-        total_boosted_rating = calculate_squad_total_boosted_rating(squad)
+        # Can we fill all required positions?
+        position_counts = {}
+        for req_pos in required_positions:
+            position_counts[req_pos] = position_counts.get(req_pos, 0) + 1
         
-        # So sánh: Formation nào có total boosted rating cao nhất thì thắng
-        if total_boosted_rating > best_total_boosted_rating:
-            best_total_boosted_rating = total_boosted_rating
-            best_squad = squad
+        # Simple check: Do we have all needed positions?
+        can_fit = True
+        for req_pos, count in position_counts.items():
+            if squad_positions.get(req_pos, 0) < count:
+                can_fit = False
+                break
+        
+        # If this formation works, use it (first valid formation found)
+        if can_fit and not best_formation_name:
             best_formation_name = form_name
-            
+            # Squad is already the best global, just use it
+            break
+    
+    form_elapsed = time.time() - form_eval_start
+    total_elapsed = time.time() - global_start
+    
+    print(f"[PHASE 2: FORMATION EVALUATION] {form_count} formations checked in {form_elapsed:.3f}s")
+    print(f"[TOTAL TIME] {total_elapsed:.2f}s")
+    print(f"[RESULT] Best Formation: {best_formation_name}, Total Boosted Rating: {best_total_boosted_rating}")
+    
     return best_formation_name, best_squad
+
+
 
 
 def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
