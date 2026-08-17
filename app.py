@@ -2887,7 +2887,7 @@ def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
             u = get_wf_num(d.get('Weak Foot Usage', ''))
             a = get_wf_num(d.get('Weak Foot Accuracy', ''))
             val_display = f"🦶{u} | 🎯{a}"
-            metric_label = 'Ambidextrous'
+            metric_label = ''
         elif highlight_type == 'Nation':
             raw = get_data_value('Nation')
             val_display = str(raw)[:3].upper() if raw not in [None, ''] else ''
