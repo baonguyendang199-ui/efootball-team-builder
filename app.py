@@ -2672,6 +2672,66 @@ def calculate_squad_total_boosted_rating(squad):
     return _get_squad_total_boosted_rating(squad)
 
 
+def check_squad_cb_depth_and_recommend_sale(squad, formation_name):
+    """
+    Check if squad has at least 2 CB (Main Position + Secondary Positions).
+    If not, recommend which top non-CB player to sell.
+    
+    Returns:
+        (is_sufficient: bool, recommendation_message: str)
+    """
+    MIN_CB_REQUIRED = 2  # Always require minimum 2 CB
+    
+    # Count players who can play CB
+    cb_capable_players = []
+    
+    for player in squad:
+        if player.get('Player') == '---':
+            continue
+        
+        data = player.get('Data', {}) if isinstance(player.get('Data'), dict) else {}
+        main_pos = str(player.get('Real_Position', player.get('Position', ''))).strip().upper()
+        secondary_positions = [
+            s.strip().upper()
+            for s in str(data.get('Secondary Positions', '')).split(',')
+            if s.strip()
+        ]
+        
+        # Check if player can play CB
+        if main_pos == 'CB' or 'CB' in secondary_positions:
+            cb_capable_players.append((player.get('Player'), int(player.get('Rating', 0)), True))
+        else:
+            cb_capable_players.append((player.get('Player'), int(player.get('Rating', 0)), False))
+    
+    # Count actual CB-capable players
+    cb_count = sum(1 for name, rating, is_cb in cb_capable_players if is_cb)
+    
+    # Check if sufficient
+    if cb_count >= MIN_CB_REQUIRED:
+        return True, ""
+    
+    # Insufficient CB: recommend selling lowest rated non-CB player to make room for CB
+    non_cb_players = [(name, rating) for name, rating, is_cb in cb_capable_players if not is_cb and name != '---']
+    
+    if non_cb_players:
+        # Sort by rating ascending to get worst non-CB (lowest rating)
+        worst_non_cb = sorted(non_cb_players, key=lambda x: x[1])[0]
+        player_name, player_rating = worst_non_cb
+        
+        recommendation = (
+            f"⚠️ CB DEPTH WARNING: Squad chỉ có {cb_count} CB nhưng cần tối thiểu 2. "
+            f"Recommend bán **{player_name}** (Rating {player_rating}) để pool có cơ hội tìm CB khác."
+        )
+        return False, recommendation
+    
+    # No non-CB players to recommend selling
+    recommendation = (
+        f"⚠️ CB DEPTH WARNING: Squad chỉ có {cb_count} CB nhưng cần tối thiểu 2. "
+        f"Pool hạn chế, không đủ CB resource."
+    )
+    return False, recommendation
+
+
 def _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidates=5):
     """
     PHASE 1: Optimize 23-man squad globally (formation-independent).
@@ -7790,6 +7850,10 @@ def main():
                         missing_text = ", ".join([f"{k} ({v})" for k, v in missing_counts.items()])
                         st.error(f"⚠️ Lineup incomplete! Missing {len(missing_slots)} positions: **{missing_text}**")
                         st.info("💡 The system chose this formation because it requires the fewest additional players.")
+                    # --- KIỂM TRA CB DEPTH & RECOMMEND BÁN ---
+                    cb_sufficient, cb_recommendation = check_squad_cb_depth_and_recommend_sale(best_squad, found_name)
+                    if not cb_sufficient and cb_recommendation:
+                        st.warning(cb_recommendation)
                     # ---------------------------------------------
 
                 # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
