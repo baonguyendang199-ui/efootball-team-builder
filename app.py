@@ -2730,6 +2730,278 @@ def _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidat
 
 
 
+def _clean_numeric_value(value):
+    if value is None or (isinstance(value, str) and value.strip() == ""):
+        return 0.0
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return float(value)
+    cleaned = re.sub(r'[^0-9.\-]', '', str(value).replace(',', '.'))
+    if cleaned in ('', '-', '.', '-.'):
+        return 0.0
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0.0
+
+
+def _get_player_row_value(player_row, field_names):
+    if isinstance(player_row, dict):
+        for name in field_names:
+            if name in player_row and player_row.get(name) not in [None, '']:
+                return player_row.get(name)
+        data = player_row.get('Data', {})
+        if isinstance(data, dict):
+            for name in field_names:
+                if name in data and data.get(name) not in [None, '']:
+                    return data.get(name)
+        return None
+
+    if hasattr(player_row, 'get'):
+        for name in field_names:
+            if name in player_row and player_row.get(name) not in [None, '']:
+                return player_row.get(name)
+    return None
+
+
+def _compute_bmi(height_cm, weight_kg):
+    height_m = _clean_numeric_value(height_cm) / 100.0
+    weight = _clean_numeric_value(weight_kg)
+    if height_m <= 0 or weight <= 0:
+        return 0.0
+    return weight / (height_m ** 2)
+
+
+def _player_stat_value(player_row, stat_key):
+    key = str(stat_key).lower().strip()
+    if key == 'rating':
+        value = _get_player_row_value(player_row, ['Rating', 'rating'])
+        return _clean_numeric_value(value)
+    if key == 'height':
+        value = _get_player_row_value(player_row, ['Height', 'height'])
+        return _clean_numeric_value(value)
+    if key == 'weight':
+        value = _get_player_row_value(player_row, ['Weight', 'weight'])
+        return _clean_numeric_value(value)
+    if key == 'age':
+        value = _get_player_row_value(player_row, ['Age', 'age'])
+        return _clean_numeric_value(value)
+    if key == 'bmi':
+        height = _get_player_row_value(player_row, ['Height', 'height'])
+        weight = _get_player_row_value(player_row, ['Weight', 'weight'])
+        return _compute_bmi(height, weight)
+
+    for label, field_key in GENERIC_SQUAD_FIELDS:
+        if str(field_key).lower() == key:
+            value = _get_player_row_value(player_row, [label, field_key, label.replace(' ', '_'), label.replace(' ', '').replace('-', '_')])
+            return _clean_numeric_value(value)
+
+    return 0.0
+
+
+def _stat_match_score(player_row, slot_pos, stat_key, direction):
+    stat_value = _player_stat_value(player_row, stat_key)
+    if isinstance(player_row, dict):
+        row_pos = str(player_row.get('Position', '')).strip().upper()
+        sec_text = str(player_row.get('Secondary Positions', '')).strip()
+    else:
+        row_pos = str(player_row.get('Position', '')).strip().upper()
+        sec_text = str(player_row.get('Secondary Positions', '')).strip()
+    main_match = 1 if row_pos == str(slot_pos).upper() else 0
+    sec_positions = {s.strip().upper() for s in sec_text.split(',') if s.strip()}
+    if str(slot_pos).upper() in sec_positions:
+        main_match = 0.5
+
+    rating = _clean_numeric_value(_get_player_row_value(player_row, ['Rating', 'rating']))
+    build_score = _clean_numeric_value(_get_player_row_value(player_row, ['Build_Score', 'build_score']))
+
+    if direction == 'desc':
+        return (main_match, -stat_value, -rating, -build_score)
+    return (main_match, stat_value, -rating, -build_score)
+
+
+def build_squad_by_stats_simple(df, formation_name, sort_mode='rating_desc', filter_col=None, filter_val=None):
+    """Simple direct-stat build path for By Stats. This does not use the complex boosted optimizer."""
+    pool_df = df.copy()
+    if filter_col and filter_val and str(filter_val).strip() not in ['', '(All)', '-']:
+        pool_df = pool_df[pool_df[filter_col].astype(str) == str(filter_val)]
+    if pool_df.empty:
+        return []
+
+    required_positions = FORMATIONS.get(formation_name, [])
+    if not required_positions:
+        return []
+
+    if sort_mode in ['ambidextrous', 'potw_only', 'united_nations']:
+        stat_key = sort_mode
+        direction = 'desc'
+    elif '_' in sort_mode:
+        stat_key, direction = sort_mode.rsplit('_', 1)
+        stat_key = stat_key.lower()
+        direction = direction.lower()
+    else:
+        stat_key = 'rating'
+        direction = 'desc'
+
+    def can_play_slot(row, slot_pos):
+        position = str(row.get('Position', '')).strip().upper()
+        secondaries = [s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()]
+        return slot_pos.upper() in {position, *secondaries}
+
+    starters = []
+    used = set()
+    unique_formation_positions = {str(p).upper() for p in required_positions}
+
+    for slot_pos in required_positions:
+        options = []
+        for idx, row in pool_df.iterrows():
+            if idx in used:
+                continue
+            if not can_play_slot(row, slot_pos):
+                continue
+            stat_score = _player_stat_value(row, stat_key)
+            if stat_score == 0 and stat_key not in ['rating', 'height', 'weight', 'age', 'bmi']:
+                # For non-standard metrics, the row may be missing data; skip instead of forcing a bad pick.
+                continue
+            rank_key = _stat_match_score(row, slot_pos, stat_key, direction)
+            options.append((rank_key, idx, row))
+
+        if options:
+            best_rank, best_idx, best_row = sorted(options, key=lambda item: item[0])[0]
+            used.add(best_idx)
+            starters.append({
+                'Is_Starter': True,
+                'Position': slot_pos,
+                'Real_Position': best_row.get('Position', ''),
+                'Player': best_row.get('Player', '---'),
+                'Rating': best_row.get('Rating', 0),
+                'Type': best_row.get('Player Type', ''),
+                'Image': None,
+                'Height': best_row.get('Height', ''),
+                'Weight': best_row.get('Weight', ''),
+                'Age': best_row.get('Age', ''),
+                'Score': _player_stat_value(best_row, stat_key),
+                'Data': best_row.to_dict() if hasattr(best_row, 'to_dict') else best_row
+            })
+        else:
+            starters.append({
+                'Is_Starter': True,
+                'Position': slot_pos,
+                'Real_Position': '',
+                'Player': '---',
+                'Rating': 0,
+                'Type': 'N/A',
+                'Image': None,
+                'Height': '',
+                'Weight': '',
+                'Age': '',
+                'Score': 0,
+                'Data': {}
+            })
+
+    remaining = pool_df[~pool_df.index.isin(used)].copy()
+    if 'Build_Score' not in remaining.columns:
+        remaining['Build_Score'] = 0.0
+    if not remaining.empty:
+        def can_still_fit(row):
+            position = str(row.get('Position', '')).strip().upper()
+            sec_positions = {s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()}
+            return bool({position, *sec_positions}.intersection(unique_formation_positions))
+
+        remaining = remaining[remaining.apply(can_still_fit, axis=1)].copy()
+        remaining['sort_rank'] = remaining.apply(lambda row: _player_stat_value(row, stat_key), axis=1)
+        if direction == 'desc':
+            remaining = remaining.sort_values(['sort_rank', 'Rating', 'Build_Score'], ascending=[False, False, False])
+        else:
+            remaining = remaining.sort_values(['sort_rank', 'Rating', 'Build_Score'], ascending=[True, False, False])
+        bench = []
+        for _, row in remaining.head(12).iterrows():
+            bench.append({
+                'Is_Starter': False,
+                'Position': row.get('Position', ''),
+                'Player': row.get('Player', '---'),
+                'Rating': row.get('Rating', 0),
+                'Type': row.get('Player Type', ''),
+                'Image': None,
+                'Height': row.get('Height', ''),
+                'Weight': row.get('Weight', ''),
+                'Age': row.get('Age', ''),
+                'Score': _player_stat_value(row, stat_key),
+                'Data': row.to_dict() if hasattr(row, 'to_dict') else row
+            })
+    else:
+        bench = []
+
+    return starters + bench
+
+
+def find_best_formation_for_stats(df, sort_mode, filter_col=None, filter_val=None):
+    """Select the best formation for a simple direct-stat objective without the complex optimizer."""
+    pool_df = df.copy()
+    if filter_col and filter_val and str(filter_val).strip() not in ['', '(All)', '-']:
+        pool_df = pool_df[pool_df[filter_col].astype(str) == str(filter_val)]
+    if pool_df.empty:
+        return "", []
+
+    if sort_mode in ['ambidextrous', 'potw_only', 'united_nations']:
+        stat_key = sort_mode
+        direction = 'desc'
+    elif '_' in sort_mode:
+        stat_key, direction = sort_mode.rsplit('_', 1)
+        stat_key = stat_key.lower()
+        direction = direction.lower()
+    else:
+        stat_key = 'rating'
+        direction = 'desc'
+
+    best_formation_name = ""
+    best_squad = []
+    best_key = None
+
+    for form_name in FORMATIONS.keys():
+        squad = build_squad_by_stats_simple(pool_df, form_name, sort_mode=sort_mode, filter_col=None, filter_val=None)
+        if not squad:
+            continue
+
+        starters = [p for p in squad if p.get('Is_Starter') and p.get('Player') != '---']
+        if not starters:
+            continue
+
+        objective_total = 0.0
+        for player in starters:
+            objective_total += _player_stat_value(player.get('Data', {}), stat_key)
+
+        if direction == 'asc':
+            objective_score = -objective_total
+        else:
+            objective_score = objective_total
+
+        main_pos_count = 0
+        required_positions = FORMATIONS[form_name]
+        for req_pos in required_positions:
+            matched = False
+            for player in starters:
+                current_pos = str(player.get('Position', '')).strip().upper()
+                real_pos = str(player.get('Real_Position', player.get('Position', ''))).strip().upper()
+                data = player.get('Data', {}) if isinstance(player.get('Data'), dict) else {}
+                secondaries = {s.strip().upper() for s in str(data.get('Secondary Positions', '')).split(',') if s.strip()}
+                if current_pos == str(req_pos).upper() or real_pos == str(req_pos).upper() or str(req_pos).upper() in secondaries:
+                    matched = True
+                    break
+            if matched:
+                main_pos_count += 1
+
+        rating_total = sum(_clean_numeric_value(p.get('Rating', 0)) for p in starters)
+        filled_count = len(starters)
+        candidate_key = (filled_count, objective_score, main_pos_count, rating_total)
+
+        if best_key is None or candidate_key > best_key:
+            best_key = candidate_key
+            best_formation_name = form_name
+            best_squad = squad
+
+    return best_formation_name, best_squad
+
+
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
     Evaluate each formation independently and choose the best valid squad.
@@ -7769,8 +8041,11 @@ def main():
 
             if should_run:
                 # Dùng spinner để báo đang xử lý
-                with st.spinner("🤖 Scanning 80+ formations to find the optimal squad..."):
-                    found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
+                with st.spinner("🤖 Building squad..."):
+                    if build_mode == "By Stats":
+                        found_name, best_squad = find_best_formation_for_stats(df, sort_mode, filter_col, filter_val)
+                    else:
+                        found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
                 
             if not best_squad:
                 st.warning("⚠️ No suitable players found for squad formation!")
