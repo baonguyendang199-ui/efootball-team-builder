@@ -1934,22 +1934,30 @@ def _get_squad_total_boosted_rating(squad):
     return sum(rating for _, rating in final_ratings)
 
 
-def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formation_name, beam_width=10, max_iterations=5):
+def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formation_name, beam_width=3, max_iterations=2):
     """
-    Beam Search for squad optimization.
+    Beam Search for squad optimization (OPTIMIZED for large pools).
     
-    Instead of greedy selection + iterative recalculation, this uses a proper search:
-    1. Generate DIVERSE initial candidates using different priority strategies
-    2. For each iteration, expand top K candidates by swapping/replacing players
-    3. Evaluate entire squad using final total boosted rating (23 players: starters + bench)
-    4. Keep top K candidates and repeat
+    AGGRESSIVE OPTIMIZATION (2024-08):
+    - Reduced beam_width: 10 → 3 (explore fewer branches)
+    - Reduced iterations: 5 → 2 (shallow search)
+    - Reduced pre-filter: 20-30 → 5 (evaluate only top candidates)
+    - Added time limit: 60 seconds per formation (safety net)
+    
+    Search strategy:
+    1. Generate 5 diverse initial candidates using different priorities
+    2. For each iteration: replace only best candidates' weakest players with best pool alternatives
+    3. Evaluate entire squad using final total boosted rating (23 players)
+    4. Keep top 3 candidates and repeat
     5. Return best squad found
     
-    Preserves all position constraints and formation requirements.
-    Booster scope: Depth calculated from entire 23-player squad (verified from apply_squad_national_boosters).
+    Preserves: position constraints, formation requirements, booster scope (23-player squad).
     """
     import copy
+    import time
     ERROR_SCORE = -999999
+    TIME_LIMIT = 60  # Safety net: abort after 60 seconds
+    start_time = time.time()
     unique_formation_positions = set(required_positions)
     
     def _select_squad_hungarian(pdf_input):
@@ -2144,6 +2152,11 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
     
     # Keep top K and iterate
     for iteration in range(max_iterations):
+        # SAFETY NET: Abort if taking too long
+        if time.time() - start_time > TIME_LIMIT:
+            print(f"⏱️  Beam search timeout ({TIME_LIMIT}s) - returning best found so far")
+            break
+        
         if not candidates:
             break
         
@@ -2154,39 +2167,40 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         new_candidates = []
         
         for total_rating, squad in candidates:
-            # Generate replacement moves: any squad player can be replaced by any pool player
+            # OPTIMIZATION: Only try replacing bottom-10% rated players (not all 23)
+            squad_with_ratings = [(i, p, _get_player_boosted_rating(p, *_calculate_squad_depths(squad))) 
+                                  for i, p in enumerate(squad) if p['Player'] != '---']
+            squad_with_ratings.sort(key=lambda x: x[2])  # Sort by rating ascending
+            
+            # Only optimize weakest 30% of squad (most likely to improve)
+            candidates_to_try = squad_with_ratings[:max(2, len(squad_with_ratings) // 3)]
+            
+            # Generate replacement moves: weak squad players vs best pool players
             squad_player_names = {p.get('Player') for p in squad if p.get('Player') != '---'}
             pool_available = pdf[~pdf['Player'].isin(squad_player_names)].copy()
             
             if pool_available.empty:
-                # No more players in pool to try
                 new_candidates.append((total_rating, copy.deepcopy(squad)))
                 continue
             
             replacement_candidates = []
             
-            # Try replacing each squad player with each available pool player
-            for squad_idx, squad_player in enumerate(squad):
-                if squad_player['Player'] == '---':
-                    continue
-                
+            # Try replacing ONLY weakest squad players with ONLY best pool players
+            for squad_idx, squad_player, _ in candidates_to_try:
                 squad_pos = squad_player.get('Position', '').strip().upper()
                 
-                for pool_idx, (_, pool_player) in enumerate(pool_available.iterrows()):
-                    pool_pos = str(pool_player['Position']).strip().upper()
-                    pool_sec = [s.strip().upper() for s in str(pool_player.get('Secondary Positions', '')).split(',') if s.strip()]
-                    
-                    # Check if pool player can fill squad player's position
-                    if squad_pos not in ([pool_pos] + pool_sec):
-                        continue
-                    
-                    # Cheap score for ranking (top N, not threshold-based)
+                # Only consider top 20 pool players by rating for each position
+                pool_for_pos = pool_available[
+                    pool_available['Position'].astype(str).str.strip().str.upper() == squad_pos
+                ].nlargest(20, 'Rating')
+                
+                for _, pool_player in pool_for_pos.iterrows():
                     cheap_score = _cheap_replacement_score(squad_player, pool_player, squad)
                     replacement_candidates.append((cheap_score, squad_idx, pool_player))
             
-            # Sort by cheap score and keep top N for full evaluation
+            # Sort by cheap score and keep VERY TOP few for full evaluation
             replacement_candidates.sort(reverse=True, key=lambda x: x[0])
-            top_n_replacements = min(len(replacement_candidates), max(20, beam_width * 3))
+            top_n_replacements = min(len(replacement_candidates), 5)  # AGGRESSIVE: only 5, not 20-30
             
             # Full evaluation only for top candidates
             for cheap_score, squad_idx, pool_player in replacement_candidates[:top_n_replacements]:
@@ -2528,14 +2542,20 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # ==========================================================
     pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
     
+    print(f"🔍 Optimizing squad for {formation_name} (pool size: {len(pool_df)})...")
+    import time
+    opt_start = time.time()
+    
     final_squad = _beam_search_squad_optimization(
         pool_df, 
         required_positions, 
         sort_mode, 
-        formation_name, 
-        beam_width=10, 
-        max_iterations=5
+        formation_name
+        # Using NEW optimized defaults: beam_width=3, max_iterations=2
     )
+    
+    opt_time = time.time() - opt_start
+    print(f"✅ Squad optimized in {opt_time:.2f}s")
     
     if not final_squad:
         return []
