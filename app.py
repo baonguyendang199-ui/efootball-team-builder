@@ -1838,6 +1838,361 @@ FORMATION_COORDS = {
 # ==========================================
 
 # ==========================================
+# BEAM SEARCH + BOOSTER-AWARE SQUAD OPTIMIZATION
+# ==========================================
+
+def _calculate_squad_depths(squad):
+    """
+    Calculate Nation/Club/League depth for a squad.
+    Returns (nation_depth, club_depth, league_depth) dicts.
+    Single source of truth for booster depth calculation.
+    """
+    nation_depth = {}
+    club_depth = {}
+    league_depth = {}
+    
+    for p in squad:
+        if p.get('Player') and p['Player'] != '---':
+            data = p.get('Data', {})
+            nation = str(data.get('Nation', '')).strip()
+            club = str(data.get('Club', '')).strip()
+            league = str(data.get('League', '')).strip()
+            
+            if nation:
+                nation_depth[nation] = nation_depth.get(nation, 0) + 1
+            if club and nation:
+                club_depth[(club, nation)] = club_depth.get((club, nation), 0) + 1
+            if league and nation:
+                league_depth[(league, nation)] = league_depth.get((league, nation), 0) + 1
+    
+    return nation_depth, club_depth, league_depth
+
+
+def _get_player_boosted_rating(player_dict, nation_depth, club_depth, league_depth):
+    """
+    Get a single player's final boosted rating based on squad depth.
+    SINGLE SOURCE OF TRUTH: Uses same tier logic as apply_squad_national_boosters.
+    """
+    data = player_dict.get('Data', {})
+    base_rating = int(data.get('Rating', 0))
+    booster_type = _normalize_booster_type(data.get('Booster Type', 'None'))
+    
+    if booster_type == 'None':
+        return base_rating
+    
+    # Determine depth for this player's booster type
+    if booster_type == 'National':
+        nation = str(data.get('Nation', '')).strip()
+        depth = nation_depth.get(nation, 0)
+    elif booster_type == 'Club':
+        club = str(data.get('Club', '')).strip()
+        nation = str(data.get('Nation', '')).strip()
+        depth = club_depth.get((club, nation), 0)
+    elif booster_type == 'League':
+        league = str(data.get('League', '')).strip()
+        nation = str(data.get('Nation', '')).strip()
+        depth = league_depth.get((league, nation), 0)
+    else:
+        return base_rating
+    
+    # Get boosted value based on tier (1-7, 8-10, 11-23)
+    if depth <= 7:
+        boosted = int(data.get('Booster Rating 1-7', 0))
+    elif depth <= 10:
+        boosted = int(data.get('Booster Rating 8-10', 0))
+    else:
+        boosted = int(data.get('Booster Rating 11-23', 0))
+    
+    # Return boosted rating if > 0, else base rating
+    return boosted if boosted > 0 else base_rating
+
+
+def _calculate_squad_final_ratings(squad):
+    """
+    Calculate final boosted rating for each player in squad.
+    Returns list of (player_dict, final_rating) tuples.
+    """
+    nation_depth, club_depth, league_depth = _calculate_squad_depths(squad)
+    
+    result = []
+    for p in squad:
+        if p.get('Player') and p['Player'] != '---':
+            final_rating = _get_player_boosted_rating(p, nation_depth, club_depth, league_depth)
+        else:
+            final_rating = 0
+        result.append((p, final_rating))
+    
+    return result
+
+
+def _get_squad_total_boosted_rating(squad):
+    """
+    Calculate total boosted rating for entire 23-player squad.
+    Used as objective function for Beam Search.
+    """
+    final_ratings = _calculate_squad_final_ratings(squad)
+    return sum(rating for _, rating in final_ratings)
+
+
+def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formation_name, beam_width=10, max_iterations=5):
+    """
+    Beam Search for squad optimization.
+    
+    Instead of greedy selection + iterative recalculation, this uses a proper search:
+    1. Generate DIVERSE initial candidates using different priority strategies
+    2. For each iteration, expand top K candidates by swapping/replacing players
+    3. Evaluate entire squad using final total boosted rating (23 players: starters + bench)
+    4. Keep top K candidates and repeat
+    5. Return best squad found
+    
+    Preserves all position constraints and formation requirements.
+    Booster scope: Depth calculated from entire 23-player squad (verified from apply_squad_national_boosters).
+    """
+    import copy
+    ERROR_SCORE = -999999
+    unique_formation_positions = set(required_positions)
+    
+    def _select_squad_hungarian(pdf_input):
+        """Hungarian Algorithm selection preserving position constraints."""
+        num_players = len(pdf_input)
+        num_slots = len(required_positions)
+        BIG_PENALTY = 1e9
+        cost_matrix = np.full((num_players, num_slots), BIG_PENALTY)
+
+        for p_idx, (idx, row) in enumerate(pdf_input.iterrows()):
+            p_main_pos = str(row['Position']).strip().upper()
+            p_sec_pos_list = [s.strip() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()]
+            full_pos_list = [p_main_pos] + p_sec_pos_list
+            score = row.get('Build_Score', ERROR_SCORE)
+            if score == ERROR_SCORE: 
+                continue
+
+            for s_idx, req_pos in enumerate(required_positions):
+                can_play = req_pos in full_pos_list
+                if can_play:
+                    main_pos_bonus = 0.0001 if req_pos == p_main_pos else 0
+                    cost_matrix[p_idx, s_idx] = -(score + main_pos_bonus)
+
+        try:
+            row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        except Exception:
+            return None
+
+        fsquad = [None] * 11
+        used_idx = set()
+
+        for i in range(len(row_ind)):
+            p_idx = row_ind[i]
+            s_idx = col_ind[i]
+            if cost_matrix[p_idx, s_idx] < (BIG_PENALTY / 2):
+                row = pdf_input.iloc[p_idx]
+                pid = str(row.get('Player ID', '')).strip()
+                purl = str(row.get('Player URL', '')).strip()
+                if not pid and purl:
+                    m = re.search(r"(\d{14,})", purl)
+                    pid = m.group(1) if m else ""
+                img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+
+                fsquad[s_idx] = {
+                    "Is_Starter": True, "Position": required_positions[s_idx],
+                    "Real_Position": row['Position'], "Player": row['Player'],
+                    "Rating": row['Rating'], "Type": row['Player Type'], "Image": img_url,
+                    "Height": row.get('Height', ''), "Weight": row.get('Weight', ''),
+                    "Age": row.get('Age', ''), "Score": row['Build_Score'], "Data": row.to_dict()
+                }
+                used_idx.add(p_idx)
+
+        for i in range(11):
+            if fsquad[i] is None:
+                fsquad[i] = {"Is_Starter": True, "Position": required_positions[i], "Player": "---", "Rating": 0, "Type": "N/A", "Score": -9999, "Image": None}
+
+        return fsquad, used_idx
+    
+    def _build_full_squad_with_bench(starters, remaining_pool):
+        """Build full 23-man squad with bench using greedy approach."""
+        bench_picks = []
+        bench_pos_counts = {}
+        gk_on_bench_count = 0
+        MAX_BENCH = 12
+        
+        num_starting_cbs = required_positions.count('CB')
+        max_cb_subs_allowed = 3 if num_starting_cbs >= 3 else 2
+        
+        for _ in range(MAX_BENCH):
+            if remaining_pool.empty:
+                break
+            
+            # Fit formation + don't duplicate GK + respect CB limit
+            candidates = remaining_pool.copy()
+            pos_col = candidates['Position'].astype(str).str.strip().str.upper()
+            
+            if gk_on_bench_count >= 1:
+                candidates = candidates[pos_col != 'GK']
+            
+            cb_count = bench_pos_counts.get('CB', 0)
+            if cb_count >= max_cb_subs_allowed:
+                sec_pos_list = candidates.get('Secondary Positions', '').astype(str).str.split(',')
+                candidates = candidates[~((pos_col == 'CB') & ~sec_pos_list.str.contains('CB', na=False))]
+            
+            if candidates.empty:
+                break
+            
+            # Pick best by Build_Score
+            best_pick = candidates.nlargest(1, 'Build_Score').iloc[0]
+            bench_picks.append(best_pick)
+            
+            picked_pos = str(best_pick['Position']).strip().upper()
+            bench_pos_counts[picked_pos] = bench_pos_counts.get(picked_pos, 0) + 1
+            if picked_pos == 'GK':
+                gk_on_bench_count += 1
+            
+            remaining_pool = remaining_pool.drop(best_pick.name)
+        
+        # Fill remaining slots
+        while len(bench_picks) < 12 and not remaining_pool.empty:
+            top = remaining_pool.iloc[0]
+            bench_picks.append(top)
+            remaining_pool = remaining_pool.iloc[1:]
+        
+        # Convert to squad dict
+        fsquad = starters.copy() if isinstance(starters, list) else [s for s in starters]
+        for row in bench_picks:
+            pid = str(row.get('Player ID', '')).strip()
+            purl = str(row.get('Player URL', '')).strip()
+            if not pid and purl:
+                m = re.search(r"(\d{14,})", purl)
+                pid = m.group(1) if m else ""
+            img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+
+            fsquad.append({
+                "Is_Starter": False, "Position": row['Position'], "Player": row['Player'],
+                "Rating": row['Rating'], "Type": row['Player Type'], "Image": img_url,
+                "Height": row.get('Height', ''), "Weight": row.get('Weight', ''), "Age": row.get('Age', ''),
+                "Score": row['Build_Score'], "Data": row.to_dict()
+            })
+        
+        return fsquad
+    
+    # === BEAM SEARCH MAIN LOOP ===
+    candidates = []  # List of (total_boosted_rating, full_squad)
+    
+    # Helper: Score with different priority strategies for diversity
+    def _score_with_priority(row, priority_mode='rating'):
+        eff_rating = row['_build_rating']
+        rating_bonus = eff_rating / 100000.0
+        nation = str(row.get('Nation', '')).strip()
+        club = str(row.get('Club', '')).strip()
+        league = str(row.get('League', '')).strip()
+        booster_type = _normalize_booster_type(row.get('Booster Type', 'None'))
+        
+        # Base score from sort_mode
+        if sort_mode == 'rating_desc': 
+            base = eff_rating
+        elif sort_mode == 'height_desc': base = row.get('Height_num', 0) + rating_bonus
+        elif sort_mode == 'height_asc': base = (250 - row.get('Height_num', 0)) + rating_bonus 
+        elif sort_mode == 'weight_desc': base = row.get('Weight_num', 0) + rating_bonus
+        elif sort_mode == 'weight_asc': base = (150 - row.get('Weight_num', 0)) + rating_bonus
+        elif sort_mode == 'age_desc': base = row.get('Age_num', 0) + rating_bonus
+        elif sort_mode == 'age_asc': base = (100 - row.get('Age_num', 0)) + rating_bonus
+        else: base = eff_rating
+        
+        # Apply priority strategy bonus for diversity
+        if priority_mode == 'nation_synergy':
+            return base + (500 if nation else 0)
+        elif priority_mode == 'club_synergy':
+            return base + (300 if club else 0)
+        elif priority_mode == 'league_synergy':
+            return base + (200 if league else 0)
+        elif priority_mode == 'booster_first':
+            return base + (1000 if booster_type != 'None' else 0)
+        else:
+            return base
+    
+    # Generate diverse initial candidates with different priority strategies
+    priority_strategies = ['rating', 'nation_synergy', 'club_synergy', 'league_synergy', 'booster_first']
+    for priority in priority_strategies:
+        test_pdf = pdf.copy()
+        test_pdf['Build_Score'] = test_pdf.apply(
+            lambda row: _score_with_priority(row, priority_mode=priority), axis=1
+        )
+        
+        result = _select_squad_hungarian(test_pdf)
+        if result is None:
+            continue
+        
+        starters, used_idx = result
+        remaining = test_pdf[~test_pdf.index.isin(used_idx)].copy()
+        full_squad = _build_full_squad_with_bench(starters, remaining)
+        
+        total_rating = _get_squad_total_boosted_rating(full_squad)
+        # Deep copy to prevent candidate contamination
+        candidates.append((total_rating, copy.deepcopy(full_squad)))
+    
+    # Keep top K and iterate
+    for iteration in range(max_iterations):
+        if not candidates:
+            break
+        
+        # Sort by total boosted rating (descending)
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        candidates = candidates[:beam_width]
+        
+        new_candidates = []
+        
+        for total_rating, squad in candidates:
+            # Try swapping players in starters to find booster synergies
+            starters = [p for p in squad if p.get('Is_Starter', False)]
+            bench = [p for p in squad if not p.get('Is_Starter', False)]
+            
+            # Swap exploration: try swapping each starter with bench players
+            for s_idx, starter in enumerate(starters):
+                if starter['Player'] == '---':
+                    continue
+                
+                for b_idx, bench_player in enumerate(bench):
+                    if bench_player['Player'] == '---':
+                        continue
+                    
+                    # Check if swap respects position constraint
+                    starter_pos = str(starter.get('Real_Position', '')).strip().upper()
+                    bench_pos = str(bench_player.get('Real_Position', '')).strip().upper()
+                    slot_req = str(starters[s_idx].get('Position', '')).strip().upper()
+                    
+                    # Bench player must fit the starter's position
+                    bench_sec = [s.strip().upper() for s in str(bench_player.get('Data', {}).get('Secondary Positions', '')).split(',')]
+                    if slot_req not in ([bench_pos] + bench_sec):
+                        continue
+                    
+                    # Try swap (deep copy to prevent parent mutation)
+                    swapped_squad = copy.deepcopy(squad)
+                    swapped_squad[s_idx], swapped_squad[11 + b_idx] = swapped_squad[11 + b_idx], swapped_squad[s_idx]
+                    
+                    # Fix Is_Starter flag
+                    swapped_squad[s_idx]['Is_Starter'] = False
+                    swapped_squad[11 + b_idx]['Is_Starter'] = True
+                    swapped_squad[11 + b_idx]['Position'] = slot_req
+                    
+                    swapped_rating = _get_squad_total_boosted_rating(swapped_squad)
+                    new_candidates.append((swapped_rating, swapped_squad))
+        
+        # Add original top candidates (keep diversity across iterations)
+        for total_rating, squad in candidates[:beam_width]:
+            new_candidates.append((total_rating, copy.deepcopy(squad)))
+        
+        if not new_candidates:
+            break
+        
+        candidates = new_candidates
+    
+    # Return best squad found
+    if candidates:
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return candidates[0][1]
+    
+    return None
+
+
+# ==========================================
 # CẬP NHẬT LOGIC: AUTO BUILD (FIX LỖI BMI/HEIGHT/WEIGHT)
 # ==========================================
 
@@ -2122,166 +2477,74 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         return fsquad, pdf
 
     # ==========================================================
-    # 5. VÒNG LẶP HỘI TỤ (FIXED-POINT ITERATION)
-    #    Build thử -> tính depth thực tế trong squad vừa build ->
-    #    cập nhật lại _build_rating cho Booster Type National/Club/League
-    #    rồi build lại. Lặp đến khi đội hình không đổi nữa.
+    # 5. BEAM SEARCH OPTIMIZATION (Thay thế iterative recalculation)
+    #    Sử dụng Beam Search để tìm squad với total boosted rating cao nhất
     # ==========================================================
-    def _depth_maps_of(fsquad):
-        nation_depth = {}
-        club_depth = {}
-        league_depth = {}
-        for p in fsquad:
-            if p.get('Player') and p['Player'] != '---':
-                data = p.get('Data', {})
-                nation = str(data.get('Nation', '')).strip()
-                club = str(data.get('Club', '')).strip()
-                league = str(data.get('League', '')).strip()
-
-                if nation:
-                    nation_depth[nation] = nation_depth.get(nation, 0) + 1
-                if club and nation:
-                    club_depth[(club, nation)] = club_depth.get((club, nation), 0) + 1
-                if league and nation:
-                    league_depth[(league, nation)] = league_depth.get((league, nation), 0) + 1
-
-        return nation_depth, club_depth, league_depth
-
-    def _tier_value(data_dict, depth):
-        if depth <= 7:
-            val = data_dict.get('Booster Rating 1-7', 0)
-        elif depth <= 10:
-            val = data_dict.get('Booster Rating 8-10', 0)
-        else:
-            val = data_dict.get('Booster Rating 11-23', 0)
-        try:
-            val = int(val)
-        except (TypeError, ValueError):
-            val = 0
-        base = data_dict.get('Rating', 0)
-        return val if val > 0 else base
-
-    def _refresh_build_rating(row, nation_depth, club_depth, league_depth):
-        booster_type = _normalize_booster_type(row.get('Booster Type', 'None'))
-        if booster_type == 'National':
-            depth = nation_depth.get(str(row.get('Nation', '')).strip(), 0)
-        elif booster_type == 'Club':
-            depth = club_depth.get((str(row.get('Club', '')).strip(), str(row.get('Nation', '')).strip()), 0)
-        elif booster_type == 'League':
-            depth = league_depth.get((str(row.get('League', '')).strip(), str(row.get('Nation', '')).strip()), 0)
-        else:
-            return row.get('_build_rating', row.get('Rating', 0))
-        return _tier_value(row.to_dict(), depth)
-
-    MAX_ITER = 8
-    prev_signature = None
-    seen_signatures = set()
-    final_squad = []
-
-    for _iter_n in range(MAX_ITER):
-        final_squad, pool_df = _select_squad(pool_df)
-        if not final_squad:
-            break
-
-        signature = tuple(sorted(
-            p.get('Player', '') for p in final_squad
-            if p.get('Player') and p['Player'] != '---'
-        ))
-
-        if signature == prev_signature:
-            break
-        if signature in seen_signatures:
-            break
-        seen_signatures.add(signature)
-        prev_signature = signature
-
-        pool_df = pool_df.copy()
-        nation_depth, club_depth, league_depth = _depth_maps_of(final_squad)
-        pool_df['_build_rating'] = pool_df.apply(
-            lambda r: _refresh_build_rating(r, nation_depth, club_depth, league_depth), axis=1
-        )
+    pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
+    
+    final_squad = _beam_search_squad_optimization(
+        pool_df, 
+        required_positions, 
+        sort_mode, 
+        formation_name, 
+        beam_width=10, 
+        max_iterations=5
+    )
+    
+    if not final_squad:
+        return []
 
     return apply_squad_national_boosters(final_squad, filter_col=filter_col)
 
+
+
+def calculate_squad_total_boosted_rating(squad):
+    """
+    Calculate the total rating of all 23 players in a squad AFTER applying all boosters.
+    
+    This is a wrapper around _get_squad_total_boosted_rating() for backward compatibility.
+    Uses the unified booster tier logic as single source of truth.
+    """
+    return _get_squad_total_boosted_rating(squad)
+
+
 def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
-    Tìm sơ đồ tối ưu với logic phân cấp (Tier-based Logic):
-    1. Ưu tiên TUYỆT ĐỐI cho sự đầy đủ đội hình (Đủ người > Thiếu 1 > Thiếu 2...).
-    2. Nếu cùng số lượng người thiếu: So sánh tổng điểm Score.
-    3. Nếu cùng điểm Score: So sánh số lượng cầu thủ đá đúng vị trí sở trường.
+    Tìm sơ đồ tối ưu dựa trên TOTAL BOOSTED RATING DƯƠNG của squad.
+    
+    Thuật toán:
+    1. Với MỖI formation: xây dựng squad tốt nhất cho formation đó
+    2. Tính TOTAL BOOSTED RATING của toàn bộ 23 cầu thủ (starters + bench)
+    3. Chọn formation có TOTAL BOOSTED RATING cao nhất
+    
+    Không còn ưu tiên "đủ 11 người" - CHỈ so sánh tổng rating sau booster.
+    Nếu formation A thiếu người nhưng tổng rating cao hơn formation B (đủ người),
+    thì formation A sẽ được chọn.
     """
-    best_score = -float('inf')
-    best_main_pos_count = -1 
+    best_total_boosted_rating = -float('inf')
     best_squad = []
     best_formation_name = ""
 
-    # Hằng số phạt cho mỗi vị trí thiếu (Đủ lớn để tách biệt các trường hợp)
-    # Ví dụ: Thiếu 1 người bị trừ 1 tỷ points remaining. Thiếu 2 người bị trừ 2 tỷ points remaining.
-    MISSING_PENALTY = 1_000_000_000 
-
     # Quét qua toàn bộ sơ đồ
     for form_name in FORMATIONS.keys():
-        # Build thử đội hình
+        # Build thử đội hình cho formation này
         squad = auto_build_squad(df, form_name, sort_mode, filter_col, filter_val)
         
-        # Lấy danh sách đá chính
-        starters = [p for p in squad if p.get('Is_Starter', False)]
+        if not squad:
+            continue
         
-        # Lọc ra những người CÓ MẶT (không phải placeholder "---")
-        valid_starters = [p for p in starters if p['Player'] != "---"]
+        # Tính TOTAL BOOSTED RATING của toàn bộ 23 cầu thủ
+        # (Điều này đã tính cả booster effect dựa trên squad depth)
+        total_boosted_rating = calculate_squad_total_boosted_rating(squad)
         
-        # Đếm số người thiếu
-        missing_count = 11 - len(valid_starters)
-        
-        # Tính tổng điểm của những người ĐANG CÓ
-        current_rating_score = sum(p.get('Score', 0) for p in valid_starters)
-        
-        # --- TÍNH ĐIỂM TỔNG HỢP (QUAN TRỌNG) ---
-        if missing_count == 0:
-            # Trường hợp ĐỦ NGƯỜI: Điểm dương bình thường
-            current_total_score = current_rating_score
-            
-            # Bonus đặc biệt cho Rating mode (Ưu tiên DMF) chỉ áp dụng khi đủ người
-            if sort_mode == 'rating_desc':
-                has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
-                needs_dmf = "DMF" in FORMATIONS[form_name]
-                if has_dmf: current_total_score += 50000 
-                elif needs_dmf: current_total_score -= 20000
-        else:
-            # Trường hợp THIẾU NGƯỜI: 
-            # Điểm = (Điểm của cầu thủ có sẵn) - (Số người thiếu * 1 Tỷ)
-            # Ví dụ: Rating 1000. Thiếu 1 -> Score = -999,999,000
-            #        Rating 1200. Thiếu 2 -> Score = -1,999,998,800
-            # => Thiếu 1 luôn luôn lớn hơn Thiếu 2.
-            current_total_score = current_rating_score - (missing_count * MISSING_PENALTY)
-
-        # --- TÍNH TOÁN POSITION FIDELITY (Số cầu thủ đá đúng Main Position) ---
-        current_main_pos_count = 0
-        for p in valid_starters:
-            assigned_pos = str(p.get('Position', '')).strip().upper()
-            real_pos = str(p.get('Real_Position', '')).strip().upper()
-            if assigned_pos == real_pos:
-                current_main_pos_count += 1
-
-        # --- LOGIC SO SÁNH ---
-        # 1. Nếu điểm số mới VƯỢT TRỘI (lớn hơn rõ rệt)
-        # (Điều này sẽ tự động chọn đội hình thiếu ít người nhất)
-        if current_total_score > best_score + 0.01:
-            best_score = current_total_score
-            best_main_pos_count = current_main_pos_count
+        # So sánh: Formation nào có total boosted rating cao nhất thì thắng
+        if total_boosted_rating > best_total_boosted_rating:
+            best_total_boosted_rating = total_boosted_rating
             best_squad = squad
             best_formation_name = form_name
             
-        # 2. Nếu điểm số NGANG BẰNG (VD: Cùng thiếu 1 người, cùng tổng rating)
-        elif abs(current_total_score - best_score) <= 0.01:
-            # Ưu tiên đội hình có nhiều người đá đúng sở trường hơn
-            if current_main_pos_count > best_main_pos_count:
-                best_score = current_total_score
-                best_main_pos_count = current_main_pos_count
-                best_squad = squad
-                best_formation_name = form_name
-            
     return best_formation_name, best_squad
+
 
 def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     """
