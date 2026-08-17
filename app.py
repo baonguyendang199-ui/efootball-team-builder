@@ -2141,22 +2141,22 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         
         for total_rating, squad in candidates:
             # Try swapping players in starters to find booster synergies
-            starters = [p for p in squad if p.get('Is_Starter', False)]
-            bench = [p for p in squad if not p.get('Is_Starter', False)]
+            # Use actual indices from squad list, not separate starters/bench lists
             
-            # Swap exploration: try swapping each starter with bench players
-            for s_idx, starter in enumerate(starters):
-                if starter['Player'] == '---':
+            for starter_idx, starter in enumerate(squad):
+                # Only try swapping actual starters
+                if not starter.get('Is_Starter', False) or starter['Player'] == '---':
                     continue
                 
-                for b_idx, bench_player in enumerate(bench):
-                    if bench_player['Player'] == '---':
+                for bench_idx, bench_player in enumerate(squad):
+                    # Only try swapping with actual bench players
+                    if bench_player.get('Is_Starter', False) or bench_player['Player'] == '---':
                         continue
                     
                     # Check if swap respects position constraint
                     starter_pos = str(starter.get('Real_Position', '')).strip().upper()
                     bench_pos = str(bench_player.get('Real_Position', '')).strip().upper()
-                    slot_req = str(starters[s_idx].get('Position', '')).strip().upper()
+                    slot_req = str(starter.get('Position', '')).strip().upper()
                     
                     # Bench player must fit the starter's position
                     bench_sec = [s.strip().upper() for s in str(bench_player.get('Data', {}).get('Secondary Positions', '')).split(',')]
@@ -2165,12 +2165,12 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
                     
                     # Try swap (deep copy to prevent parent mutation)
                     swapped_squad = copy.deepcopy(squad)
-                    swapped_squad[s_idx], swapped_squad[11 + b_idx] = swapped_squad[11 + b_idx], swapped_squad[s_idx]
+                    swapped_squad[starter_idx], swapped_squad[bench_idx] = swapped_squad[bench_idx], swapped_squad[starter_idx]
                     
-                    # Fix Is_Starter flag
-                    swapped_squad[s_idx]['Is_Starter'] = False
-                    swapped_squad[11 + b_idx]['Is_Starter'] = True
-                    swapped_squad[11 + b_idx]['Position'] = slot_req
+                    # Fix Is_Starter flags
+                    swapped_squad[starter_idx]['Is_Starter'] = False
+                    swapped_squad[bench_idx]['Is_Starter'] = True
+                    swapped_squad[bench_idx]['Position'] = slot_req
                     
                     swapped_rating = _get_squad_total_boosted_rating(swapped_squad)
                     new_candidates.append((swapped_rating, swapped_squad))
