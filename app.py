@@ -2712,11 +2712,17 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     
     form_elapsed = time.time() - form_eval_start
     total_elapsed = time.time() - global_start
-    
+
+    # Important: the squad shown in UI must use the final boosted ratings based on
+    # actual squad depth, not the raw card rating stored in the data sheet.
+    if best_squad:
+        best_squad = apply_squad_national_boosters(best_squad, filter_col=filter_col)
+        best_total_boosted_rating = _get_squad_total_boosted_rating(best_squad)
+
     print(f"[PHASE 2: FORMATION EVALUATION] {form_count} formations checked in {form_elapsed:.3f}s")
     print(f"[TOTAL TIME] {total_elapsed:.2f}s")
     print(f"[RESULT] Best Formation: {best_formation_name}, Total Boosted Rating: {best_total_boosted_rating}")
-    
+
     return best_formation_name, best_squad
 
 
@@ -7677,10 +7683,12 @@ def main():
                     # ---------------------------------------------
 
                 # --- TÍNH TOÁN CHỈ SỐ (CHO TOÀN BỘ 23 NGƯỜI) ---
-                all_valid_players = [p for p in best_squad if p['Rating'] > 0]
+                all_valid_players = [p for p in best_squad if p.get('Rating', 0) > 0]
                 total_players = len(all_valid_players)
-                
-                t_rat = sum(p['Rating'] for p in all_valid_players)
+
+                # Use the boosted squad ratings, not raw card Rating, so the display matches
+                # the actual squad formation/booster logic.
+                t_rat = _get_squad_total_boosted_rating(best_squad)
                 a_rat = t_rat / total_players if total_players > 0 else 0
                 
                 # --- LOGIC TÍNH CHỈ SỐ PHỤ ---
