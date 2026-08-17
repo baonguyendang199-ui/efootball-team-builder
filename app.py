@@ -2128,6 +2128,20 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         # Deep copy to prevent candidate contamination
         candidates.append((total_rating, copy.deepcopy(full_squad)))
     
+    # Helper: Calculate cheap replacement score (pre-filter)
+    def _cheap_replacement_score(out_player, in_player, current_squad):
+        """
+        Quick estimate of replacement benefit without full evaluation.
+        Only considers base rating diff and booster type presence.
+        Not exact, but fast for filtering.
+        """
+        base_diff = in_player.get('Rating', 0) - out_player.get('Rating', 0)
+        in_booster = _normalize_booster_type(in_player.get('Booster Type', 'None'))
+        out_booster = _normalize_booster_type(out_player.get('Booster Type', 'None'))
+        booster_bonus = 100 if in_booster != 'None' else 0
+        booster_penalty = -50 if out_booster != 'None' else 0
+        return base_diff + booster_bonus + booster_penalty
+    
     # Keep top K and iterate
     for iteration in range(max_iterations):
         if not candidates:
@@ -2140,40 +2154,72 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         new_candidates = []
         
         for total_rating, squad in candidates:
-            # Try swapping players in starters to find booster synergies
-            # Use actual indices from squad list, not separate starters/bench lists
+            # Generate replacement moves: any squad player can be replaced by any pool player
+            squad_player_names = {p.get('Player') for p in squad if p.get('Player') != '---'}
+            pool_available = pdf[~pdf['Player'].isin(squad_player_names)].copy()
             
-            for starter_idx, starter in enumerate(squad):
-                # Only try swapping actual starters
-                if not starter.get('Is_Starter', False) or starter['Player'] == '---':
+            if pool_available.empty:
+                # No more players in pool to try
+                new_candidates.append((total_rating, copy.deepcopy(squad)))
+                continue
+            
+            replacement_candidates = []
+            
+            # Try replacing each squad player with each available pool player
+            for squad_idx, squad_player in enumerate(squad):
+                if squad_player['Player'] == '---':
                     continue
                 
-                for bench_idx, bench_player in enumerate(squad):
-                    # Only try swapping with actual bench players
-                    if bench_player.get('Is_Starter', False) or bench_player['Player'] == '---':
+                squad_pos = squad_player.get('Position', '').strip().upper()
+                
+                for pool_idx, (_, pool_player) in enumerate(pool_available.iterrows()):
+                    pool_pos = str(pool_player['Position']).strip().upper()
+                    pool_sec = [s.strip().upper() for s in str(pool_player.get('Secondary Positions', '')).split(',') if s.strip()]
+                    
+                    # Check if pool player can fill squad player's position
+                    if squad_pos not in ([pool_pos] + pool_sec):
                         continue
                     
-                    # Check if swap respects position constraint
-                    starter_pos = str(starter.get('Real_Position', '')).strip().upper()
-                    bench_pos = str(bench_player.get('Real_Position', '')).strip().upper()
-                    slot_req = str(starter.get('Position', '')).strip().upper()
-                    
-                    # Bench player must fit the starter's position
-                    bench_sec = [s.strip().upper() for s in str(bench_player.get('Data', {}).get('Secondary Positions', '')).split(',')]
-                    if slot_req not in ([bench_pos] + bench_sec):
-                        continue
-                    
-                    # Try swap (deep copy to prevent parent mutation)
-                    swapped_squad = copy.deepcopy(squad)
-                    swapped_squad[starter_idx], swapped_squad[bench_idx] = swapped_squad[bench_idx], swapped_squad[starter_idx]
-                    
-                    # Fix Is_Starter flags
-                    swapped_squad[starter_idx]['Is_Starter'] = False
-                    swapped_squad[bench_idx]['Is_Starter'] = True
-                    swapped_squad[bench_idx]['Position'] = slot_req
-                    
-                    swapped_rating = _get_squad_total_boosted_rating(swapped_squad)
-                    new_candidates.append((swapped_rating, swapped_squad))
+                    # Cheap score for ranking (top N, not threshold-based)
+                    cheap_score = _cheap_replacement_score(squad_player, pool_player, squad)
+                    replacement_candidates.append((cheap_score, squad_idx, pool_player))
+            
+            # Sort by cheap score and keep top N for full evaluation
+            replacement_candidates.sort(reverse=True, key=lambda x: x[0])
+            top_n_replacements = min(len(replacement_candidates), max(20, beam_width * 3))
+            
+            # Full evaluation only for top candidates
+            for cheap_score, squad_idx, pool_player in replacement_candidates[:top_n_replacements]:
+                new_squad = copy.deepcopy(squad)
+                
+                # Convert pool_player row to squad player dict
+                pid = str(pool_player.get('Player ID', '')).strip()
+                purl = str(pool_player.get('Player URL', '')).strip()
+                if not pid and purl:
+                    m = re.search(r"(\d{14,})", purl)
+                    pid = m.group(1) if m else ""
+                img_url = f"https://pesdb.net/assets/img/card/f{pid}.png" if pid else None
+                
+                replacement_dict = {
+                    "Is_Starter": new_squad[squad_idx]['Is_Starter'],
+                    "Position": new_squad[squad_idx]['Position'],
+                    "Real_Position": pool_player['Position'],
+                    "Player": pool_player['Player'],
+                    "Rating": pool_player['Rating'],
+                    "Type": pool_player['Player Type'],
+                    "Image": img_url,
+                    "Height": pool_player.get('Height', ''),
+                    "Weight": pool_player.get('Weight', ''),
+                    "Age": pool_player.get('Age', ''),
+                    "Score": pool_player.get('Build_Score', 0),
+                    "Data": pool_player.to_dict()
+                }
+                
+                new_squad[squad_idx] = replacement_dict
+                
+                # Full boosted evaluation
+                new_rating = _get_squad_total_boosted_rating(new_squad)
+                new_candidates.append((new_rating, copy.deepcopy(new_squad)))
         
         # Add original top candidates (keep diversity across iterations)
         for total_rating, squad in candidates[:beam_width]:
