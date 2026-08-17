@@ -2591,7 +2591,7 @@ def _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidat
     start_time = time.time()
     
     # Use default formation for position assignment structure
-    default_formation = '4-2-3-1'
+    default_formation = '4-2-3-1 (Wide)'
     required_positions = FORMATIONS[default_formation]
     
     pool_df = df.copy()
