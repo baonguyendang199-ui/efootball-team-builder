@@ -2544,30 +2544,68 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         return fsquad, pdf
 
     # ==========================================================
-    # 5. BEAM SEARCH OPTIMIZATION (Thay thế iterative recalculation)
-    #    Sử dụng Beam Search để tìm squad với total boosted rating cao nhất
+    # 5. ITERATIVE REBUILD LOOP (Booster Feedback to Selection)
+    #    Lặp lại để booster ảnh hưởng ngược trở lại việc chọn cầu thủ
     # ==========================================================
-    pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
-    
-    print(f"🔍 Optimizing squad for {formation_name} (pool size: {len(pool_df)})...")
+    print(f'Optimizing squad for {formation_name} (pool size: {len(pool_df)})...')
     import time
+    import copy
     opt_start = time.time()
     
-    final_squad = _beam_search_squad_optimization(
-        pool_df, 
-        required_positions, 
-        sort_mode, 
-        formation_name
-        # Using NEW optimized defaults: beam_width=3, max_iterations=2
-    )
+    final_squad = None
+    previous_signature = None
+    MAX_ITERATIONS = 8
+    
+    for iteration in range(MAX_ITERATIONS):
+        # 1. Tính score từ current effective rating
+        pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
+        
+        # 2. Build squad sử dụng beam search
+        squad_candidate = _beam_search_squad_optimization(
+            pool_df, 
+            required_positions, 
+            sort_mode, 
+            formation_name
+        )
+        
+        if not squad_candidate:
+            break
+        
+        # 3. Deep copy squad để tránh mutate issue khi apply booster
+        squad_to_boost = copy.deepcopy(squad_candidate)
+        
+        # 4. Apply booster trên full 23-man squad (mutate)
+        squad_with_boosters = apply_squad_national_boosters(squad_to_boost, filter_col=filter_col)
+        
+        # 5. Tính effective rating cho từng cầu thủ dựa trên squad depth
+        nation_depth, club_depth, league_depth = _calculate_squad_depths(squad_with_boosters)
+        
+        # 6. Update pool_df['_build_rating'] với effective rating mới
+        for idx, row in pool_df.iterrows():
+            player_dict = {'Data': row.to_dict() if hasattr(row, 'to_dict') else row}
+            effective = _get_player_boosted_rating(player_dict, nation_depth, club_depth, league_depth)
+            pool_df.at[idx, '_build_rating'] = effective
+        
+        # 7. Kiểm tra convergence: 23 cầu thủ có thay đổi không
+        current_players = tuple(sorted([p.get('Player') for p in squad_with_boosters if p.get('Player') != '---']))
+        
+        if current_players == previous_signature:
+            print(f'   Iteration {iteration}: Converged')
+            final_squad = squad_with_boosters
+            break
+        
+        previous_signature = current_players
+        final_squad = squad_with_boosters
+        final_rating = _get_squad_total_boosted_rating(final_squad)
+        print(f'   Iteration {iteration}: Rating {final_rating}')
     
     opt_time = time.time() - opt_start
-    print(f"✅ Squad optimized in {opt_time:.2f}s")
+    print(f'Squad optimized in {opt_time:.2f}s')
     
     if not final_squad:
         return []
 
-    return apply_squad_national_boosters(final_squad, filter_col=filter_col)
+    return final_squad
 
 
 
