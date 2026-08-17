@@ -1959,6 +1959,13 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
     TIME_LIMIT = 60  # Safety net: abort after 60 seconds
     start_time = time.time()
     unique_formation_positions = set(required_positions)
+
+    # Ensure every candidate row has the build-rating field used by score prioritization.
+    for col in ['Height_num', 'Weight_num', 'Age_num']:
+        if col not in pdf.columns:
+            pdf[col] = 0.0
+    if '_build_rating' not in pdf.columns:
+        pdf['_build_rating'] = pd.to_numeric(pdf['Rating'], errors='coerce').fillna(0)
     
     def _select_squad_hungarian(pdf_input):
         """Hungarian Algorithm selection preserving position constraints."""
@@ -2086,7 +2093,7 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
     
     # Helper: Score with different priority strategies for diversity
     def _score_with_priority(row, priority_mode='rating'):
-        eff_rating = row['_build_rating']
+        eff_rating = row.get('_build_rating', row.get('Rating', 0))
         rating_bonus = eff_rating / 100000.0
         nation = str(row.get('Nation', '')).strip()
         club = str(row.get('Club', '')).strip()
@@ -2600,6 +2607,10 @@ def _global_23_man_optimizer(df, sort_mode, filter_col, filter_val, num_candidat
     pool_df['Height_num'] = pd.to_numeric(pool_df['Height'], errors='coerce').fillna(0)
     pool_df['Weight_num'] = pd.to_numeric(pool_df['Weight'], errors='coerce').fillna(0)
     pool_df['Age_num'] = pd.to_numeric(pool_df['Age'], errors='coerce').fillna(0)
+    
+    # Ensure the beam-search scorer has the effective rating column it expects.
+    if '_build_rating' not in pool_df.columns:
+        pool_df['_build_rating'] = pool_df['Rating']
     
     # Calculate effective rating for initial scoring
     pool_df['Effective_Nation_Rating'] = pool_df['Rating']  # Placeholder, will be overridden
