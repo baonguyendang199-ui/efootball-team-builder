@@ -1934,6 +1934,90 @@ def _get_squad_total_boosted_rating(squad):
     return sum(rating for _, rating in final_ratings)
 
 
+def prioritize_strongest_starting_xi(squad, required_positions):
+    """Reassign the selected 23 into the strongest legal starting XI.
+
+    Booster tiers are determined by the complete 23-player squad, so this runs
+    after the final ratings have been applied. It never adds or removes a player;
+    it only promotes the highest-rated eligible players from the bench.
+    """
+    valid_players = [
+        player for player in squad
+        if player.get('Player') and player.get('Player') != '---'
+    ]
+    if not valid_players or not required_positions:
+        return squad
+
+    big_penalty = 1e9
+    cost_matrix = np.full((len(valid_players), len(required_positions)), big_penalty)
+
+    def get_primary_and_secondary_positions(player):
+        data = player.get('Data', {}) or {}
+        primary = str(
+            data.get('Position') or player.get('Real_Position') or player.get('Position', '')
+        ).strip().upper()
+        secondary_raw = data.get('Secondary Positions', '')
+        secondary = [
+            pos.strip().upper() for pos in str(secondary_raw).split(',') if pos.strip()
+        ]
+        return primary, secondary
+
+    player_positions = []
+    for player_idx, player in enumerate(valid_players):
+        primary, secondary = get_primary_and_secondary_positions(player)
+        player_positions.append(primary)
+        eligible_positions = {primary, *secondary}
+        final_rating = int(player.get('Rating', 0) or 0)
+
+        for slot_idx, required_position in enumerate(required_positions):
+            if required_position in eligible_positions:
+                # Prefer the natural position only when final rating is identical.
+                natural_position_bonus = 0.0001 if required_position == primary else 0
+                cost_matrix[player_idx, slot_idx] = -(final_rating + natural_position_bonus)
+
+    try:
+        row_indices, slot_indices = linear_sum_assignment(cost_matrix)
+    except Exception:
+        return squad
+
+    starters = [None] * len(required_positions)
+    selected_player_indices = set()
+    for player_idx, slot_idx in zip(row_indices, slot_indices):
+        if cost_matrix[player_idx, slot_idx] >= big_penalty / 2:
+            continue
+
+        player = dict(valid_players[player_idx])
+        player['Is_Starter'] = True
+        player['Position'] = required_positions[slot_idx]
+        player['Real_Position'] = player_positions[player_idx]
+        starters[slot_idx] = player
+        selected_player_indices.add(player_idx)
+
+    for slot_idx, required_position in enumerate(required_positions):
+        if starters[slot_idx] is None:
+            starters[slot_idx] = {
+                'Is_Starter': True,
+                'Position': required_position,
+                'Player': '---',
+                'Rating': 0,
+                'Type': 'N/A',
+                'Score': -9999,
+                'Image': None,
+            }
+
+    bench = []
+    for player_idx, original_player in enumerate(valid_players):
+        if player_idx in selected_player_indices:
+            continue
+        player = dict(original_player)
+        player['Is_Starter'] = False
+        player['Position'] = player_positions[player_idx]
+        player.pop('Real_Position', None)
+        bench.append(player)
+
+    return starters + bench
+
+
 def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formation_name, beam_width=3, max_iterations=2):
     """
     Beam Search for squad optimization (OPTIMIZED for large pools).
@@ -2624,7 +2708,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             lambda r: _refresh_build_rating(r, nation_depth, club_depth, league_depth), axis=1
         )
 
-    return apply_squad_national_boosters(final_squad, filter_col=filter_col)
+    boosted_squad = apply_squad_national_boosters(final_squad, filter_col=filter_col)
+    return prioritize_strongest_starting_xi(boosted_squad, required_positions)
 
 
 
