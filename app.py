@@ -2298,9 +2298,10 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
-    _BUILD_COL = {'Nation': 'Effective_Nation_Rating', 'Club': 'Effective_Club_Rating', 'League': 'Effective_League_Rating'}
-    _bcol = _BUILD_COL.get(filter_col, 'Rating')
-    pool_df['_build_rating'] = pool_df[_bcol] if _bcol in pool_df.columns else pool_df['Rating']
+    # Start from each card's base rating. Booster ratings depend on the 23 players
+    # that are actually selected, so inventory-wide effective ratings are not a
+    # valid objective for the first squad build.
+    pool_df['_build_rating'] = pool_df['Rating']
 
     # Sort sơ bộ
     pool_df = pool_df.sort_values(['_build_rating', 'Epic_Priority'], ascending=[False, True])
@@ -2397,8 +2398,6 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
                     except ValueError:
                         val = 0.0
                 return val + rating_bonus if direction == 'desc' else -val + rating_bonus
-
-    pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
 
     def _select_squad(pdf):
         num_players = len(pdf)
@@ -2599,6 +2598,10 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     final_squad = []
 
     for _iter_n in range(MAX_ITER):
+        # _build_rating is refreshed from the previous candidate's real squad
+        # depth. Recalculate the score before every selection so the Hungarian
+        # assignment and bench draft can react to 1-7 / 8-10 / 11-23 tiers.
+        pool_df['Build_Score'] = pool_df.apply(calculate_score, axis=1)
         final_squad, pool_df = _select_squad(pool_df)
         if not final_squad:
             break
@@ -2697,10 +2700,11 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     """
     Tìm sơ đồ tối ưu với logic phân cấp (Tier-based Logic):
     1. Ưu tiên TUYỆT ĐỐI cho sự đầy đủ đội hình (Đủ người > Thiếu 1 > Thiếu 2...).
-    2. Nếu cùng số lượng người thiếu: So sánh tổng điểm Score.
+    2. Nếu cùng số lượng người thiếu: So sánh đúng objective đang chọn.
     3. Nếu cùng điểm Score: So sánh số lượng cầu thủ đá đúng vị trí sở trường.
     """
     best_score = -float('inf')
+    best_boosted_total = -float('inf')
     best_main_pos_count = -1
     best_squad = []
     best_formation_name = ""
@@ -2722,21 +2726,24 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
         # Đếm số người thiếu
         missing_count = 11 - len(valid_starters)
 
-        # Tính tổng điểm của những người ĐANG CÓ
-        current_rating_score = sum(p.get('Score', 0) for p in valid_starters)
+        # For rating builds, formations must be compared using the final value of
+        # all 23 players after their real booster tier is applied. ``Score`` is a
+        # selection aid and can otherwise contain a stale/intermediate value.
+        boosted_total = _get_squad_total_boosted_rating(squad)
+        build_score = sum(p.get('Score', 0) for p in valid_starters)
+        if sort_mode == 'rating_desc':
+            current_objective = boosted_total
+        elif sort_mode == 'rating_asc':
+            current_objective = -boosted_total
+        else:
+            # Preserve the requested non-rating criterion (height, age, etc.).
+            current_objective = build_score
 
         # --- TÍNH ĐIỂM TỔNG HỢP ---
         if missing_count == 0:
-            current_total_score = current_rating_score
-
-            # Bonus đặc biệt cho Rating mode (Ưu tiên DMF) chỉ áp dụng khi đủ người
-            if sort_mode == 'rating_desc':
-                has_dmf = any(p['Position'] == 'DMF' for p in valid_starters)
-                needs_dmf = "DMF" in FORMATIONS[form_name]
-                if has_dmf: current_total_score += 50000
-                elif needs_dmf: current_total_score -= 20000
+            current_total_score = current_objective
         else:
-            current_total_score = current_rating_score - (missing_count * MISSING_PENALTY)
+            current_total_score = current_objective - (missing_count * MISSING_PENALTY)
 
         # --- TÍNH TOÁN POSITION FIDELITY ---
         current_main_pos_count = 0
@@ -2749,12 +2756,16 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
         # --- LOGIC SO SÁNH ---
         if current_total_score > best_score + 0.01:
             best_score = current_total_score
+            best_boosted_total = boosted_total
             best_main_pos_count = current_main_pos_count
             best_squad = squad
             best_formation_name = form_name
         elif abs(current_total_score - best_score) <= 0.01:
-            if current_main_pos_count > best_main_pos_count:
+            if boosted_total > best_boosted_total or (
+                boosted_total == best_boosted_total and current_main_pos_count > best_main_pos_count
+            ):
                 best_score = current_total_score
+                best_boosted_total = boosted_total
                 best_main_pos_count = current_main_pos_count
                 best_squad = squad
                 best_formation_name = form_name
