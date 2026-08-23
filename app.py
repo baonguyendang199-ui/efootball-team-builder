@@ -2762,6 +2762,8 @@ def find_best_formation_for_team(df, sort_mode, filter_col, filter_val):
     return best_formation_name, best_squad
 
 
+
+
 def render_pitch_view(squad_list, formation_name="", sort_mode='rating_desc'):
     """
     Vẽ sơ đồ sân bóng: SỬ DỤNG TỌA ĐỘ CỐ ĐỊNH.
@@ -6030,6 +6032,9 @@ def main():
         st.error("⚠️ Player data not found in Google Sheets. Please check `spreadsheet_id` or sheet.")
         return
 
+    # Tự động cập nhật target lists dựa trên player count
+    auto_update_target_lists(df)
+
     # --- HÀM ĐỒNG BỘ PESDB CHO PLAYER CŨ (THỦ CÔNG) ---
 
     # Nếu user ấn nút đồng bộ PESDB ở sidebar thì chạy ở đây
@@ -6071,6 +6076,11 @@ def main():
             for rank, idx in enumerate(gdf.index.tolist(), start=1):
                 top_map[(value, idx)] = f"{rank}/{size} {value}"
         return top_map
+    
+    # Tạo map cho 3 nhóm
+    club_top_map = build_top23_map(df, 'Club')
+    league_top_map = build_top23_map(df, 'League')
+    nation_top_map = build_top23_map(df, 'Nation')
     
     # Hàm tra cứu nhanh
     def fast_rank(value, idx, mapping):
@@ -6660,9 +6670,6 @@ def main():
                     st.info('Không có dữ liệu để xuất. Vui lòng chạy ít nhất một module.')
 
     elif current_tab == 'players':
-        # These rankings are only displayed in this tab, so avoid calculating
-        # them during an auto-build of a squad.
-        auto_update_target_lists(df)
         st.header("👥 Players")
 
         SQUAD_SIZE = 23  # Số cầu thủ mỗi team
@@ -7661,14 +7668,7 @@ def main():
                             sort_mode = f"{stat_key}_{direction}"
                             stat_type = f"{stat_field} ({stat_direction})"
 
-            # --- BUILD ON DEMAND ---
-            # Changing a filter should be instant. The expensive formation search is
-            # only started when the user explicitly requests a build.
-            build_col, cache_col = st.columns([1, 2])
-            with build_col:
-                build_requested = st.button("🤖 Build squad", type="primary", use_container_width=True)
-            with cache_col:
-                st.caption("The lineup is calculated only when you select Build squad, using the current filters.")
+            # --- TÍNH TOÁN VÀ HIỂN THỊ NGAY LẬP TỨC ---
             
             # 1. Kiểm tra nhanh dữ liệu (nếu chọn Team)
             if build_mode == "By Team/League" and filter_col and filter_val and filter_val != "(All)":
@@ -7683,21 +7683,23 @@ def main():
                     if missing_msg:
                         st.toast(f"⚠️ Squad warning: {', '.join(missing_msg)}", icon="⚠️")
 
-            # 2. Run the original auto-build only after an explicit request.
+            # 2. Chạy Auto Build
             best_squad = []
             found_name = ""
 
-            if build_requested:
-                # Always execute the original optimizer from scratch. This preserves
-                # the exact pre-optimization squad-selection behaviour.
-                with st.spinner(f"🤖 Scanning {len(FORMATIONS)} formations to find the optimal squad..."):
+            # Chỉ chạy khi có dữ liệu hợp lệ
+            should_run = True
+            if build_mode == "By Team/League" and (not filter_val or filter_val == "(All)" or filter_val == "-"):
+                # Nếu chọn toàn bộ database thì hơi nặng, nhưng vẫn cho chạy
+                pass 
+
+            if should_run:
+                # Dùng spinner để báo đang xử lý
+                with st.spinner("🤖 Scanning 80+ formations to find the optimal squad..."):
                     found_name, best_squad = find_best_formation_for_team(df, sort_mode, filter_col, filter_val)
                 
             if not best_squad:
-                if build_requested:
-                    st.warning("⚠️ No suitable players found for squad formation!")
-                else:
-                    st.info("Choose the criteria, then select **Build squad** to calculate the optimal lineup.")
+                st.warning("⚠️ No suitable players found for squad formation!")
             else:
                 # Lưu squad vừa build để tab Players dùng chung logic đánh giá Top 23
                 st.session_state['last_built_squad'] = best_squad
