@@ -1,0 +1,12 @@
+import app
+print('URL:', app.make_ehub_player_url('https://efhub.com/players/106799999082154'))
+info = app.extract_full_player_info('https://efhub.com/players/106799999082154')
+print('HAS_PLAYER', bool(info.get('Player')))
+print('PLAYER', info.get('Player'))
+print('RATING', info.get('Rating'))
+print('NATION', info.get('Nation'))
+print('CLUB', info.get('Club'))
+print('LEAGUE', info.get('League'))
+print('SKILLS', info.get('Skills'))
+print('DEBUG', info.get('_debug_error'))
+print('ALL_KEYS', sorted(list(info.keys()))[:20])
