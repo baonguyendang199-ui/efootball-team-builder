@@ -684,8 +684,8 @@ def show_player_modal(row):
     c1, c2 = st.columns([1, 4])
     with c1:
         if row.get('Player URL'):
-            efhub_link = make_ehub_player_url(row.get('Player URL')) or row.get('Player URL')
-            st.link_button("🌐 EFHub Link", efhub_link, use_container_width=True)
+            pesdb_link = _build_pesdb_player_url(row.get('Player URL')) or row.get('Player URL')
+            st.link_button("🌐 PESDB Link", pesdb_link, use_container_width=True)
     with c2:
         pass
 
@@ -3240,7 +3240,6 @@ def auto_update_target_lists(df):
 
 # ==================== PESDB SCRAPER ====================
 PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/?id="
-EFHUB_PLAYER_URL_BASE = "https://efhub.com/players/"
 PESDB_IMAGE_URL_BASE = "https://pesdb.net/assets/img/card/"
 PESDATA_API_BASE = "https://www.pesdata.net/api/player/detail"
 PESDATA_API_VERSION = "1.9.0"
@@ -3417,36 +3416,18 @@ def fetch_pesdata_player_json(player_id_or_url: str) -> dict:
     return {}
 
 
-def extract_ehub_player_id(value: str) -> str:
-    """Extract player ID from URL or string"""
+def extract_pesdb_player_id(value: str) -> str:
+    """Extract a PESDB numeric ID from a PESDB URL or numeric input."""
     if not value:
         return ""
     s = str(value).strip()
-    m = re.search(r"(\d{14,})", s)
-    return m.group(1) if m else ""
-
-
-def make_ehub_player_url(value: str) -> str:
-    """Normalize eFHUB input to a direct player page URL."""
-    if not value:
+    if not s:
         return ""
-
-    text = str(value).strip()
-    if not text:
-        return ""
-
-    lowered = text.lower()
-    if "efhub.com" in lowered and "/players/" in lowered:
-        return text
-
-    if text.isdigit():
-        return f"{EFHUB_PLAYER_URL_BASE}{text}"
-
-    match = re.search(r"(\d{6,})", text)
+    match = re.search(r"[?&]id=(\d{6,})", s)
     if match:
-        return f"{EFHUB_PLAYER_URL_BASE}{match.group(1)}"
-
-    return text
+        return match.group(1)
+    match = re.search(r"(\d{6,})", s)
+    return match.group(1) if match else ""
 
 
 def _build_pesdb_player_url(value: str) -> str:
@@ -3564,196 +3545,44 @@ def _build_fetch_error_debug(resp=None, exc=None, url: str = '', final_url: str 
     return ' | '.join(details) if details else 'Unknown error'
 
 
-def _fetch_ehub_via_playwright(url: str) -> str:
-    """Fallback scraper: open the page in a real browser engine to bypass Cloudflare anti-bot screens."""
-    try:
-        from playwright.sync_api import sync_playwright
-    except Exception as exc:
-        raise RuntimeError(
-            'Playwright fallback is unavailable. Install it with: '
-            'python -m pip install playwright && python -m playwright install chromium. '
-            f'Original error: {exc}'
-        ) from exc
-
-    def launch_browser(playwright_obj):
-        try:
-            return playwright_obj.chromium.launch(
-                headless=True,
-                args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-features=IsolateOrigins,site-per-process',
-                ],
-            )
-        except Exception as exc:
-            message = str(exc).lower()
-            if (
-                'executable doesn\'t exist' in message
-                or 'browser type.launch' in message
-                or 'playwright install' in message
-                or 'cannot open shared object file' in message
-                or 'libglib-2.0' in message
-                or 'error while loading shared libraries' in message
-            ):
-                try:
-                    subprocess.run(
-                        [sys.executable, '-m', 'playwright', 'install', '--with-deps', 'chromium'],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                except Exception as install_exc:
-                    raise RuntimeError(
-                        'Playwright Chromium is missing or its Linux shared libraries are unavailable. '
-                        f'Run: {sys.executable} -m playwright install --with-deps chromium. '
-                        f'Original error: {install_exc}'
-                    ) from install_exc
-                return playwright_obj.chromium.launch(
-                    headless=True,
-                    args=[
-                        '--disable-blink-features=AutomationControlled',
-                        '--disable-features=IsolateOrigins,site-per-process',
-                    ],
-                )
-            raise
-
-    with sync_playwright() as p:
-        browser = launch_browser(p)
-        context = browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-            viewport={'width': 1440, 'height': 1800},
-            locale='en-US',
-            timezone_id='Asia/Singapore',
-        )
-        page = context.new_page()
-        try:
-            page.goto(url, wait_until='domcontentloaded', timeout=60000)
-            page.wait_for_timeout(4000)
-            for _ in range(3):
-                text = (page.locator('body').inner_text() or '').lower()
-                if 'just a moment' not in text and 'checking your browser' not in text and 'cloudflare' not in text:
-                    break
-                page.wait_for_timeout(3000)
-                page.reload(wait_until='domcontentloaded', timeout=60000)
-            html = page.content()
-            if not html or len(html) < 500:
-                raise ValueError('Browser fallback returned empty HTML')
-            return html
-        finally:
-            context.close()
-            browser.close()
-
-
 @st.cache_data(ttl=86400, show_spinner=False)
-def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
-    """Fetch the eFHUB player page and accept valid player pages even when the page uses different wording or layout."""
+def fetch_pesdb_raw_html(url: str, max_retries: int = 3) -> str:
+    """Fetch a PESDB player page and return the HTML for the PESDB-only scraper."""
     if not url or not str(url).startswith('http'):
-        raise ValueError('Invalid player URL')
+        raise ValueError('Invalid PESDB player URL')
 
-    final_url = ''
     last_error = 'Unknown error'
-    last_resp = None
     for attempt in range(max_retries):
         try:
             resp = requests.get(
                 str(url).strip(),
                 headers={
                     **HEADERS,
-                    'Referer': 'https://efhub.com/',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Referer': 'https://pesdb.net/',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.9',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache',
                 },
                 allow_redirects=True,
                 timeout=20,
             )
-            last_resp = resp
-            final_url = resp.url.strip()
-            status_code = getattr(resp, 'status_code', None)
-            if status_code is not None and status_code >= 400:
-                raise requests.exceptions.HTTPError(f'HTTP {status_code} from eFHUB')
             resp.raise_for_status()
             html = resp.text or ''
-
-            if len(html) < 500:
+            if len(html) < 200:
                 raise ValueError(f'HTML too short: {len(html)} chars')
-
             lower_html = html.lower()
-            if 'just a moment' in lower_html or 'checking your browser' in lower_html or 'cloudflare' in lower_html or 'cf-challenge' in lower_html:
-                raise ValueError('Cloudflare anti-bot challenge page returned. This is not a valid player page.')
-
-            if 'page not found' in lower_html or ('not found' in lower_html and 'efhub' in lower_html):
-                raise ValueError('Player page not found')
-
-            markers = [
-                'country', 'player model', 'skills', 'weak foot usage', 'height', 'weight',
-                'player page', 'morita hidemasa', 'rate this player', 'attack', 'defending', 'physics'
-            ]
-            if any(marker in lower_html for marker in markers):
+            if 'page not found' in lower_html or 'not found' in lower_html and 'pesdb' in lower_html:
+                raise ValueError('PESDB player page not found')
+            if 'player' in lower_html or 'overall' in lower_html or 'nationality' in lower_html or 'position' in lower_html:
                 return html
-
-            if '/players/' in final_url.lower() and (soup := BeautifulSoup(html, 'html.parser')):
-                title = soup.title.get_text(' ', strip=True) if soup.title else ''
-                h1 = soup.find('h1')
-                if h1 or title:
-                    return html
-
-            raise ValueError(f'Page does not look like an eFHUB player page: {final_url}')
+            raise ValueError(f'Page does not look like a PESDB player page: {resp.url}')
         except Exception as exc:
-            last_error = _build_fetch_error_debug(resp=last_resp, exc=exc, url=str(url).strip(), final_url=final_url)
+            last_error = _build_fetch_error_debug(resp=resp if 'resp' in locals() else None, exc=exc, url=str(url).strip(), final_url=str(url).strip())
             if attempt < max_retries - 1:
-                time.sleep(2 + attempt)
+                time.sleep(1 + attempt)
                 continue
-
-            try:
-                browser_html = _fetch_ehub_via_playwright(str(url).strip())
-                browser_lower = browser_html.lower()
-                if 'just a moment' not in browser_lower and 'checking your browser' not in browser_lower and 'cloudflare' not in browser_lower:
-                    if any(marker in browser_lower for marker in ['country', 'player model', 'skills', 'weak foot usage', 'height', 'weight', 'morita hidemasa', 'rate this player', 'physics']):
-                        return browser_html
-            except Exception as browser_exc:
-                last_error = _build_fetch_error_debug(resp=last_resp, exc=browser_exc, url=str(url).strip(), final_url=final_url)
-
-            raise RuntimeError(f'Failed to fetch eFHUB: {last_error}') from exc
+            raise RuntimeError(f'Failed to fetch PESDB: {last_error}') from exc
 
     return ""
-
-
-def extract_efhub_body_model(html: str) -> dict:
-    """Fallback extractor kept for compatibility; prefer direct section parsing."""
-    if not html:
-        return {}
-
-    soup = BeautifulSoup(html, 'html.parser')
-    page_text = re.sub(r'\s+', ' ', soup.get_text(' ', strip=True))
-    labels = {
-        'Arm Length': 'ArmLength',
-        'Shoulder Width': 'ShoulderWidth',
-        'Neck Length': 'NeckLength',
-        'Chest Measurement': 'ChestMeasurement',
-        'Neck Size': 'NeckSize',
-        'Shoulder Height': 'ShoulderHeight',
-        'Leg Length': 'LegLength',
-        'Thigh Size': 'ThighSize',
-        'Waist Size': 'WaistSize',
-        'Arm Size': 'ArmSize',
-        'Calf Size': 'CalfSize',
-        'Leg Coverage Radius': 'LegCoverageRadius',
-        'Arm Coverage Radius': 'ArmCoverageRadius',
-        'Jumping Height': 'JumpingHeight',
-        'Torso Collision': 'TorsoCollision',
-        'Leg Length Based Height': 'LegLengthBasedHeight',
-    }
-
-    result = {}
-    for label, key in labels.items():
-        label_pattern = re.escape(label)
-        match = re.search(rf'{label_pattern}\s*[:\-]?\s*([0-9]+(?:\.\d+)?)', page_text, flags=re.IGNORECASE)
-        if match:
-            result[key] = match.group(1)
-            result[label] = match.group(1)
-
-    return result
 
 
 def extract_player_skills(player_url: str) -> str:
@@ -3762,7 +3591,7 @@ def extract_player_skills(player_url: str) -> str:
         if not player_url or not str(player_url).startswith('http'):
             return ""
 
-        html = fetch_ehub_raw_html(player_url)
+        html = fetch_pesdb_raw_html(player_url)
         soup = BeautifulSoup(html, 'html.parser')
         skills = []
 
@@ -3831,7 +3660,7 @@ def extract_card_type_from_html(soup) -> str:
 def extract_max_level_rating(player_url: str, card_type: str = None, base_html: str = None) -> int:
     """Read the rating values directly from the player details block without fetching max-level pages."""
     try:
-        html = base_html or fetch_ehub_raw_html(player_url)
+        html = base_html or fetch_pesdb_raw_html(player_url)
         soup = BeautifulSoup(html, 'html.parser')
 
         for label in ['Max Overall', 'Maximum Overall', 'Overall Rating', 'OVR']:
@@ -3868,51 +3697,6 @@ def extract_secondary_positions(soup, main_position):
     return ', '.join(cleaned)
 
 
-def extract_efhub_player_info(player_url: str) -> dict:
-    """Extract the actual player details visible on an eFHUB player page."""
-    default_info = {
-        'Player': '',
-        'Rating': 0,
-        'Position': '',
-        'Nation': '',
-        'Club': '',
-        'League': '',
-        'Skills': '',
-        'Region': '',
-        'Height': '',
-        'Weight': '',
-        'Age': '',
-        'Foot': '',
-        'Weak Foot Usage': '',
-        'Weak Foot Accuracy': '',
-        'Form': '',
-        'Injury Resistance': '',
-        'Player_Type': 'NON-EPIC',
-    }
-    for field_name in PESDATA_BODY_MODEL_FIELDS:
-        default_info[field_name] = ''
-
-    try:
-        url = make_ehub_player_url(player_url)
-        html = fetch_ehub_raw_html(url)
-        soup = BeautifulSoup(html, 'html.parser')
-        page_text = re.sub(r'\s+', ' ', soup.get_text(' ', strip=True))
-
-        info = default_info.copy()
-
-        h1 = soup.find('h1')
-        if h1:
-            info['Player'] = re.sub(r'\s+', ' ', h1.get_text(' ', strip=True)).strip()
-        if not info['Player']:
-            title = soup.title.get_text(' ', strip=True) if soup.title else ''
-            info['Player'] = re.sub(r'\s*[-|].*$', '', title).strip() if title else ''
-
-        # Try to read the current rating from the player card area, not only OVR text.
-        rating_candidates = [
-            r'(?:OVR|Overall|Rating)\s*[:\-]?\s*(\d{2,3}(?:\.\d+)?)',
-            r'\b(\d{2,3}(?:\.\d+)?)\s*(?:OVR|Overall|Rating)\b',
-            r'\b(\d{2,3})\b(?=\s*(?:DMF|CMF|LMF|RMF|AMF|LWF|RWF|SS|CF|CB|LB|RB|GK)\b)',
-        ]
         for pattern in rating_candidates:
             match = re.search(pattern, page_text, flags=re.IGNORECASE)
             if match:
@@ -4020,7 +3804,7 @@ def extract_efhub_player_info(player_url: str) -> dict:
 
 
 def extract_full_player_info(player_url: str) -> dict:
-    """Primary player extraction entry point. Prefer PESDB and only fall back to eFHUB when needed."""
+    """Primary player extraction entry point. PESDB is the only supported source."""
     default_info = {
         'Player': '',
         'Rating': 0,
@@ -4048,105 +3832,88 @@ def extract_full_player_info(player_url: str) -> dict:
         if not normalized:
             return default_info
 
-        pesdb_url = ''
-        if 'pesdb.net' in normalized.lower():
-            pesdb_url = _build_pesdb_player_url(normalized)
+        pesdb_url = _build_pesdb_player_url(normalized)
+        if not pesdb_url or not str(pesdb_url).startswith('http'):
+            return default_info
 
-        if pesdb_url and str(pesdb_url).startswith('http'):
-            try:
-                html = fetch_ehub_raw_html(pesdb_url)
-                soup = BeautifulSoup(html, 'html.parser')
-                info = default_info.copy()
+        try:
+            html = fetch_pesdb_raw_html(pesdb_url)
+            soup = BeautifulSoup(html, 'html.parser')
+            info = default_info.copy()
 
-                field_mapping = {
-                    'player name': 'Player',
-                    'team name': 'Club',
-                    'league': 'League',
-                    'nationality': 'Nation',
-                    'region': 'Region',
-                    'height': 'Height',
-                    'weight': 'Weight',
-                    'age': 'Age',
-                    'foot': 'Foot',
-                    'weak foot usage': 'Weak Foot Usage',
-                    'weak foot accuracy': 'Weak Foot Accuracy',
-                    'form': 'Form',
-                    'injury resistance': 'Injury Resistance',
-                    'position': 'Position',
-                    'card type': 'Card Type',
-                    'overall rating': 'Rating',
-                    'max overall': 'Max Overall',
-                }
+            field_mapping = {
+                'player name': 'Player',
+                'team name': 'Club',
+                'league': 'League',
+                'nationality': 'Nation',
+                'region': 'Region',
+                'height': 'Height',
+                'weight': 'Weight',
+                'age': 'Age',
+                'foot': 'Foot',
+                'weak foot usage': 'Weak Foot Usage',
+                'weak foot accuracy': 'Weak Foot Accuracy',
+                'form': 'Form',
+                'injury resistance': 'Injury Resistance',
+                'position': 'Position',
+                'card type': 'Card Type',
+                'overall rating': 'Rating',
+                'max overall': 'Max Overall',
+            }
 
-                detail_rows = _find_section_rows(soup, ['player details'])
-                for row in detail_rows:
-                    cells = row.find_all(['th', 'td'])
-                    if len(cells) < 2:
-                        continue
-                    key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
-                    value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
-                    if not key or not value:
-                        continue
-                    normalized_key = key.lower().strip()
-                    mapped_key = field_mapping.get(normalized_key, '')
-                    if mapped_key:
-                        if mapped_key == 'Card Type':
-                            info['Player_Type'] = normalize_player_type(value)
-                        elif mapped_key == 'Rating':
-                            match = re.search(r'(\d{2,3})', value)
-                            if match:
-                                info['Rating'] = int(match.group(1))
-                        elif mapped_key == 'Max Overall':
-                            match = re.search(r'(\d{2,3})', value)
-                            if match:
-                                info['Rating'] = int(match.group(1))
-                        else:
-                            info[mapped_key] = value
+            detail_rows = _find_section_rows(soup, ['player details'])
+            for row in detail_rows:
+                cells = row.find_all(['th', 'td'])
+                if len(cells) < 2:
+                    continue
+                key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
+                value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
+                if not key or not value:
+                    continue
+                normalized_key = key.lower().strip()
+                mapped_key = field_mapping.get(normalized_key, '')
+                if mapped_key:
+                    if mapped_key == 'Card Type':
+                        info['Player_Type'] = normalize_player_type(value)
+                    elif mapped_key == 'Rating':
+                        match = re.search(r'(\d{2,3})', value)
+                        if match:
+                            info['Rating'] = int(match.group(1))
+                    elif mapped_key == 'Max Overall':
+                        match = re.search(r'(\d{2,3})', value)
+                        if match:
+                            info['Rating'] = int(match.group(1))
+                    else:
+                        info[mapped_key] = value
 
-                    if normalized_key == 'position':
-                        info['Position'] = value
+                if normalized_key == 'position':
+                    info['Position'] = value
 
-                info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
-                info['Skills'] = extract_player_skills(pesdb_url)
-                info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
-                info['Rating'] = extract_max_level_rating(pesdb_url, card_type=info.get('Player_Type'), base_html=html) or info.get('Rating', 0)
+            info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
+            info['Skills'] = extract_player_skills(pesdb_url)
+            info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
+            info['Rating'] = extract_max_level_rating(pesdb_url, card_type=info.get('Player_Type'), base_html=html) or info.get('Rating', 0)
 
-                model_rows = _find_section_rows(soup, ['player model'])
-                for row in model_rows:
-                    cells = row.find_all(['th', 'td'])
-                    if len(cells) < 2:
-                        continue
-                    key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
-                    value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
-                    if not key or not value:
-                        continue
-                    for field_name in PESDATA_BODY_MODEL_FIELDS:
-                        if key.strip().lower() == field_name.lower():
-                            info[field_name] = value
-                            break
+            model_rows = _find_section_rows(soup, ['player model'])
+            for row in model_rows:
+                cells = row.find_all(['th', 'td'])
+                if len(cells) < 2:
+                    continue
+                key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
+                value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
+                if not key or not value:
+                    continue
+                for field_name in PESDATA_BODY_MODEL_FIELDS:
+                    if key.strip().lower() == field_name.lower():
+                        info[field_name] = value
+                        break
 
-                if info.get('Player') or info.get('Rating') or info.get('Club') or info.get('League'):
-                    return info
-            except Exception as exc:
-                default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
-
-        if 'efhub.com' in normalized.lower() or 'efhub' in normalized.lower() or normalized.isdigit() or re.search(r'\d{6,}', normalized):
-            result = extract_efhub_player_info(normalized)
-            if result and (
-                result.get('Player')
-                or result.get('Rating')
-                or result.get('Height')
-                or result.get('Club')
-                or result.get('League')
-                or result.get('Nation')
-                or result.get('Skills')
-                or any(result.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS)
-            ):
-                return result
-            if result and result.get('_debug_error'):
-                return result
-
-        return default_info
+            if info.get('Player') or info.get('Rating') or info.get('Club') or info.get('League'):
+                return info
+            return default_info
+        except Exception as exc:
+            default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
+            return default_info
     except Exception as exc:
         default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
         return default_info
@@ -6213,9 +5980,9 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         state['updated_count'] += 1
                         updated_in_batch += 1
                     else:
-                        failure_text = 'PESDATA API + EFHub fallback returned nothing useful for body model'
+                        failure_text = 'PESDATA API + PESDB fallback returned nothing useful for body model'
                         if appearance:
-                            failure_text = 'PESDATA API returned data but no missing fields were filled; EFHub fallback was also empty'
+                            failure_text = 'PESDATA API returned data but no missing fields were filled; PESDB fallback was also empty'
                         state['failed'].append({
                             'idx': idx,
                             'name': player_name,
@@ -8267,7 +8034,7 @@ def main():
                     upgrade_input = st.text_input(
                         "PESDB URL or Player ID",
                         placeholder="Example: https://pesdb.net/efootball/players/youri-tielemans-106799730583961",
-                        help="Paste the full PESDB player page URL. This is the primary source for player lookups and avoids the Cloudflare-dependent eFHUB scraper.",
+                        help="Paste the full PESDB player page URL. This is the primary source for player lookups.",
                         key="upgrade_url"
                     )
                     
@@ -8276,10 +8043,7 @@ def main():
                         st.session_state.last_upgrade_input = upgrade_input
                         raw_input = str(upgrade_input).strip()
 
-                        if raw_input.isdigit():
-                            upgrade_url = make_ehub_player_url(raw_input)
-                        else:
-                            upgrade_url = make_ehub_player_url(raw_input)
+                        upgrade_url = _build_pesdb_player_url(raw_input)
 
                         if upgrade_url:
                             with st.spinner("⏳ Extracting data..."):
@@ -8306,7 +8070,7 @@ def main():
                                         'Skills': player_info['Skills'],
                                         'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                         'Player_URL': upgrade_url,
-                                        'Player_ID': extract_ehub_player_id(upgrade_url),
+                                        'Player_ID': extract_pesdb_player_id(upgrade_url),
                                         **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
                                         'Booster Type': 'None',
                                         'National Booster': False,
@@ -8369,20 +8133,17 @@ def main():
                     pesdb_input = st.text_input(
                         "PESDB URL or Player ID",
                         placeholder="Example: https://pesdb.net/efootball/players/youri-tielemans-106799730583961",
-                        help="Use the full PESDB player page URL. This source is now the primary fetch target because it is more stable than eFHUB on Streamlit Cloud."
+                        help="Use the full PESDB player page URL. This source is now the primary fetch target for all player lookups."
                     )
 
                     if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
                         st.session_state.last_pesdb_input = pesdb_input
                         raw_input = str(pesdb_input).strip()
 
-                        if raw_input.isdigit():
-                            pesdb_url = make_ehub_player_url(raw_input)
-                        else:
-                            pesdb_url = make_ehub_player_url(raw_input)
+                        pesdb_url = _build_pesdb_player_url(raw_input)
 
                         if pesdb_url:
-                            with st.spinner("⏳ Extracting data from eFHUB..."):
+                            with st.spinner("⏳ Extracting data from PESDB..."):
                                 player_info = extract_full_player_info(pesdb_url)
 
                                 if player_info and player_info['Player']:
@@ -8406,7 +8167,7 @@ def main():
                                         'Skills': player_info['Skills'],
                                         'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                                         'Player_URL': pesdb_url,
-                                        'Player_ID': extract_ehub_player_id(pesdb_url),
+                                        'Player_ID': extract_pesdb_player_id(pesdb_url),
                                         **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
                                         'Booster Type': 'None',
                                         'National Booster': False,
