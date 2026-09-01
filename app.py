@@ -3424,10 +3424,13 @@ def extract_ehub_player_id(value: str) -> str:
 
 
 def _build_pesdb_player_url(value: str) -> str:
-    """Normalize a PESDB player URL or raw ID into the safest valid player URL.
+    """Normalize PESDB input without guessing the URL slug.
 
-    Short IDs still use the legacy ?id= form. Long IDs must be validated against the
-    final resolved PESDB URL and must not fall back to the homepage.
+    - Full PESDB player URLs are used as-is.
+    - Legacy ?id= URLs are kept as-is.
+    - Short numeric IDs still convert to the legacy ?id= form.
+    - Long numeric IDs are rejected: they require the full browser URL because the
+      new PESDB route uses a player name slug that cannot be reconstructed reliably.
     """
     if not value:
         return ""
@@ -3437,15 +3440,13 @@ def _build_pesdb_player_url(value: str) -> str:
         return ""
 
     lowered = text.lower()
-    if "pesdb.net" in lowered and "/players/" in lowered and re.search(r"\d{12,}", text):
+    if "pesdb.net" in lowered and ("/players/" in lowered or "?id=" in lowered):
         return text
 
-    if "pesdb.net" in lowered and "?id=" in lowered:
-        match = re.search(r"\d{6,}", text)
-        if match:
-            player_id = match.group(0)
-            if len(player_id) <= 8:
-                return f"{PESDB_PLAYER_URL_BASE}{player_id}"
+    if text.isdigit():
+        if len(text) <= 8:
+            return f"{PESDB_PLAYER_URL_BASE}{text}"
+        return ""
 
     match = re.search(r"(\d{6,})", text)
     if not match:
@@ -3455,39 +3456,7 @@ def _build_pesdb_player_url(value: str) -> str:
     if len(player_id) <= 8:
         return f"{PESDB_PLAYER_URL_BASE}{player_id}"
 
-    candidates = [
-        f"https://pesdb.net/efootball/players/_-{player_id}",
-        f"https://pesdb.net/efootball/players/player-{player_id}",
-        f"https://pesdb.net/efootball/players/{player_id}",
-        f"{PESDB_PLAYER_URL_BASE}{player_id}",
-    ]
-
-    for candidate in candidates:
-        try:
-            resp = requests.get(candidate, headers=HEADERS, allow_redirects=True, timeout=15)
-            final_url = resp.url.strip()
-            final_url_l = final_url.lower()
-            if not resp.ok:
-                continue
-            if final_url_l.rstrip('/') in {'https://pesdb.net/efootball', 'https://pesdb.net/efootball/'}:
-                continue
-            if player_id not in final_url:
-                continue
-            if '/players/' not in final_url_l and '?id=' not in final_url_l and '/player/' not in final_url_l:
-                continue
-            html = resp.text or ''
-            lower_html = html.lower()
-            if len(html) < 1000:
-                continue
-            if 'please wait a moment' in lower_html or 'temporarily busy' in lower_html:
-                continue
-            if not any(marker in lower_html for marker in ['player details', 'add player to compare', 'overall rating', 'nationality', 'player name']):
-                continue
-            return final_url
-        except Exception:
-            continue
-
-    return f"https://pesdb.net/efootball/players/_-{player_id}"
+    return ""
 
 
 def _find_section_rows(soup, section_names):
@@ -7955,26 +7924,29 @@ def main():
                     
                     upgrade_input = st.text_input(
                         "PESDB URL or Player ID",
-                        placeholder="105809740719809 or https://pesdb.net/efootball/players/_-105809740719809",
+                        placeholder="Old cards: 1058097407 or https://pesdb.net/efootball/?id=1058097407 | New cards: https://pesdb.net/efootball/players/karim-adeyemi-106799730668598",
+                        help="For old cards (short ID): paste the numeric ID or a ?id= link. For new cards (Show Time / Trending / Highlight ...): paste the full URL from the browser, not just the long ID.",
                         key="upgrade_url"
                     )
                     
                     # Tự động fetch khi input thay đổi
                     if upgrade_input and upgrade_input != st.session_state.get('last_upgrade_input', ''):
                         st.session_state.last_upgrade_input = upgrade_input
-                        
-                        # Không được build URL kiểu cũ trước khi hàm chuẩn hóa chạy.
-                        if upgrade_input.isdigit():
-                            upgrade_url = upgrade_input
-                        elif "pesdata.net" in upgrade_input or "player/detail/" in upgrade_input:
-                            upgrade_url = upgrade_input
+                        raw_input = str(upgrade_input).strip()
+
+                        if raw_input.isdigit() and len(raw_input) > 8:
+                            st.error("⚠️ ID dài cần dán nguyên link đầy đủ từ trình duyệt, không thể tự tạo URL từ ID dài.")
+                            upgrade_url = ""
+                        elif raw_input.isdigit() and len(raw_input) <= 8:
+                            upgrade_url = f"{PESDB_PLAYER_URL_BASE}{raw_input}"
                         else:
-                            upgrade_url = upgrade_input
+                            upgrade_url = raw_input
                         
-                        with st.spinner("⏳ Extracting data..."):
-                            player_info = extract_full_player_info(upgrade_url)
-                            
-                            if player_info and player_info['Player']:
+                        if upgrade_url:
+                            with st.spinner("⏳ Extracting data..."):
+                                player_info = extract_full_player_info(upgrade_url)
+                                
+                                if player_info and player_info['Player']:
                                 st.session_state.add_preview_data = {
                                     'Player': selected_player,
                                     'Rating': player_info.get('Rating', 0),
@@ -8017,26 +7989,28 @@ def main():
                     
                     pesdb_input = st.text_input(
                         "PESDB URL or Player ID",
-                        placeholder="105809740719809 or https://pesdb.net/efootball/players/_-105809740719809",
-                        help="Example: 105809740719809 or https://pesdb.net/efootball/players/_-105809740719809"
+                        placeholder="Old cards: 1058097407 or https://pesdb.net/efootball/?id=1058097407 | New cards: https://pesdb.net/efootball/players/karim-adeyemi-106799730668598",
+                        help="For old cards (short ID): paste the numeric ID or a ?id= link. For new cards (Show Time / Trending / Highlight ...): paste the full URL from the browser, not just the long ID."
                     )
                     
                     # Tự động fetch khi input thay đổi
                     if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
                         st.session_state.last_pesdb_input = pesdb_input
-                        
-                        # Để _build_pesdb_player_url quyết định URL cuối cùng dựa trên ID và redirect thật.
-                        if pesdb_input.isdigit():
-                            pesdb_url = pesdb_input
-                        elif "pesdata.net" in pesdb_input or "player/detail/" in pesdb_input:
-                            pesdb_url = pesdb_input
+                        raw_input = str(pesdb_input).strip()
+
+                        if raw_input.isdigit() and len(raw_input) > 8:
+                            st.error("⚠️ ID dài cần dán nguyên link đầy đủ từ trình duyệt, không thể tự tạo URL từ ID dài.")
+                            pesdb_url = ""
+                        elif raw_input.isdigit() and len(raw_input) <= 8:
+                            pesdb_url = f"{PESDB_PLAYER_URL_BASE}{raw_input}"
                         else:
-                            pesdb_url = pesdb_input
+                            pesdb_url = raw_input
                         
-                        with st.spinner("⏳ Extracting data from PESDB..."):
-                            player_info = extract_full_player_info(pesdb_url)
-                            
-                            if player_info and player_info['Player']:
+                        if pesdb_url:
+                            with st.spinner("⏳ Extracting data from PESDB..."):
+                                player_info = extract_full_player_info(pesdb_url)
+                                
+                                if player_info and player_info['Player']:
                                 st.session_state.add_preview_data = {
                                     'Player': player_info['Player'],
                                     'Rating': player_info.get('Rating', 0),
