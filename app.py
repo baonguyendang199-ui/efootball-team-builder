@@ -8120,13 +8120,10 @@ def main():
                         st.session_state.last_upgrade_input = upgrade_input
                         raw_input = str(upgrade_input).strip()
 
-                        if raw_input.isdigit() and len(raw_input) > 8:
-                            st.error("⚠️ ID dài cần dán nguyên link đầy đủ từ trình duyệt, không thể tự tạo URL từ ID dài.")
-                            upgrade_url = ""
-                        elif raw_input.isdigit() and len(raw_input) <= 8:
-                            upgrade_url = f"{PESDB_PLAYER_URL_BASE}{raw_input}"
+                        if raw_input.isdigit():
+                            upgrade_url = make_ehub_player_url(raw_input)
                         else:
-                            upgrade_url = raw_input
+                            upgrade_url = make_ehub_player_url(raw_input)
 
                         if upgrade_url:
                             with st.spinner("⏳ Extracting data..."):
@@ -8206,11 +8203,11 @@ def main():
                             st.rerun()
                     
                     st.divider()
-                    st.caption("🎯 **Guide:** Enter the PESDB URL to fetch info automatically, or choose 'Enter manually' to fill it in yourself")
+                    st.caption("🎯 **Guide:** Enter the eFHUB player URL or ID to fetch info automatically, or choose 'Enter manually' to fill it in yourself")
 
             else:
                 if not st.session_state.add_show_form:
-                    st.markdown("### 🔗 Step 1: Enter PESDB URL or ID")
+                    st.markdown("### 🔗 Step 1: Enter eFHUB URL or ID")
                     st.info("💡 Enter the eFHUB player URL or ID to automatically fetch full player info")
 
                     pesdb_input = st.text_input(
@@ -8223,16 +8220,13 @@ def main():
                         st.session_state.last_pesdb_input = pesdb_input
                         raw_input = str(pesdb_input).strip()
 
-                        if raw_input.isdigit() and len(raw_input) > 8:
-                            st.error("⚠️ ID dài cần dán nguyên link đầy đủ từ trình duyệt, không thể tự tạo URL từ ID dài.")
-                            pesdb_url = ""
-                        elif raw_input.isdigit() and len(raw_input) <= 8:
-                            pesdb_url = f"{PESDB_PLAYER_URL_BASE}{raw_input}"
+                        if raw_input.isdigit():
+                            pesdb_url = make_ehub_player_url(raw_input)
                         else:
-                            pesdb_url = raw_input
+                            pesdb_url = make_ehub_player_url(raw_input)
 
                         if pesdb_url:
-                            with st.spinner("⏳ Extracting data from PESDB..."):
+                            with st.spinner("⏳ Extracting data from eFHUB..."):
                                 player_info = extract_full_player_info(pesdb_url)
 
                                 if player_info and player_info['Player']:
