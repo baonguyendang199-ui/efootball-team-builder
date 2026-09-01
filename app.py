@@ -8082,6 +8082,56 @@ def main():
         # Manual squad tab removed.
     elif current_tab == 'add':
             st.header("➕ Add player")
+
+            def fetch_player_preview_from_pesdb(raw_input: str, default_name: str = "") -> bool:
+                """Auto-fetch PESDB preview data as soon as a URL or player ID is pasted."""
+                pesdb_url = _build_pesdb_player_url(str(raw_input).strip())
+                if not pesdb_url:
+                    return False
+
+                with st.spinner("⏳ Extracting data from PESDB..."):
+                    player_info = extract_full_player_info(pesdb_url)
+
+                if player_info and player_info.get('Player'):
+                    name_value = player_info.get('Player') or default_name or "Unknown Player"
+                    st.session_state.add_preview_data = {
+                        'Player': name_value,
+                        'Rating': player_info.get('Rating', 0),
+                        'Position': player_info['Position'],
+                        'Secondary Positions': player_info.get('Secondary Positions', ''),
+                        'Nation': player_info['Nation'],
+                        'Club': player_info['Club'],
+                        'League': player_info['League'],
+                        'Region': player_info.get('Region', ''),
+                        'Height': player_info.get('Height', ''),
+                        'Weight': player_info.get('Weight', ''),
+                        'Age': player_info.get('Age', ''),
+                        'Foot': player_info.get('Foot', ''),
+                        'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
+                        'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
+                        'Form': player_info.get('Form', ''),
+                        'Injury Resistance': player_info.get('Injury Resistance', ''),
+                        'Skills': player_info['Skills'],
+                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
+                        'Player_URL': pesdb_url,
+                        'Player_ID': extract_pesdb_player_id(pesdb_url),
+                        **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
+                        'Booster Type': 'None',
+                        'National Booster': False,
+                        'Booster Rating 1-7': 0,
+                        'Booster Rating 8-10': 0,
+                        'Booster Rating 11-23': 0,
+                    }
+                    st.session_state.add_show_form = True
+                    st.success("✅ Successfully fetched info from PESDB!")
+                    return True
+
+                debug_msg = player_info.get('_debug_error', '') if isinstance(player_info, dict) else ''
+                error_text = "❌ Cannot fetch info from this URL. Please check again!"
+                if debug_msg:
+                    error_text += f" Details: {debug_msg}"
+                st.error(error_text)
+                return False
             
             # Initialize session state
             if 'add_preview_data' not in st.session_state:
@@ -8144,50 +8194,8 @@ def main():
                         st.session_state.last_upgrade_input = upgrade_input
                         raw_input = str(upgrade_input).strip()
 
-                        upgrade_url = _build_pesdb_player_url(raw_input)
-
-                        if upgrade_url:
-                            with st.spinner("⏳ Extracting data..."):
-                                player_info = extract_full_player_info(upgrade_url)
-
-                                if player_info and player_info['Player']:
-                                    st.session_state.add_preview_data = {
-                                        'Player': selected_player,
-                                        'Rating': player_info.get('Rating', 0),
-                                        'Position': player_info['Position'],
-                                        'Secondary Positions': player_info.get('Secondary Positions', ''),
-                                        'Nation': player_info['Nation'],
-                                        'Club': player_info['Club'],
-                                        'League': player_info['League'],
-                                        'Region': player_info.get('Region', ''),
-                                        'Height': player_info.get('Height', ''),
-                                        'Weight': player_info.get('Weight', ''),
-                                        'Age': player_info.get('Age', ''),
-                                        'Foot': player_info.get('Foot', ''),
-                                        'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
-                                        'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
-                                        'Form': player_info.get('Form', ''),
-                                        'Injury Resistance': player_info.get('Injury Resistance', ''),
-                                        'Skills': player_info['Skills'],
-                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
-                                        'Player_URL': upgrade_url,
-                                        'Player_ID': extract_pesdb_player_id(upgrade_url),
-                                        **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
-                                        'Booster Type': 'None',
-                                        'National Booster': False,
-                                        'Booster Rating 1-7': 0,
-                                        'Booster Rating 8-10': 0,
-                                        'Booster Rating 11-23': 0,
-                                    }
-                                    st.session_state.add_show_form = True
-                                    st.success("✅ Successfully fetched info!")
-                                    st.rerun()
-                                else:
-                                    debug_msg = player_info.get('_debug_error', '') if isinstance(player_info, dict) else ''
-                                    error_text = "❌ Cannot fetch info from this URL."
-                                    if debug_msg:
-                                        error_text += f" Details: {debug_msg}"
-                                    st.error(error_text)
+                        if fetch_player_preview_from_pesdb(raw_input, selected_player):
+                            st.rerun()
                     
                     # Nút nhập tay nếu cần
                     if st.button("✍️ Enter manually instead", use_container_width=True):
@@ -8241,49 +8249,8 @@ def main():
                         st.session_state.last_pesdb_input = pesdb_input
                         raw_input = str(pesdb_input).strip()
 
-                        pesdb_url = _build_pesdb_player_url(raw_input)
-
-                        if pesdb_url:
-                            with st.spinner("⏳ Extracting data from PESDB..."):
-                                player_info = extract_full_player_info(pesdb_url)
-
-                                if player_info and player_info['Player']:
-                                    st.session_state.add_preview_data = {
-                                        'Player': player_info['Player'],
-                                        'Rating': player_info.get('Rating', 0),
-                                        'Position': player_info['Position'],
-                                        'Secondary Positions': player_info.get('Secondary Positions', ''),
-                                        'Nation': player_info['Nation'],
-                                        'Club': player_info['Club'],
-                                        'League': player_info['League'],
-                                        'Region': player_info.get('Region', ''),
-                                        'Height': player_info.get('Height', ''),
-                                        'Weight': player_info.get('Weight', ''),
-                                        'Age': player_info.get('Age', ''),
-                                        'Foot': player_info.get('Foot', ''),
-                                        'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
-                                        'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
-                                        'Form': player_info.get('Form', ''),
-                                        'Injury Resistance': player_info.get('Injury Resistance', ''),
-                                        'Skills': player_info['Skills'],
-                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
-                                        'Player_URL': pesdb_url,
-                                        'Player_ID': extract_pesdb_player_id(pesdb_url),
-                                        **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
-                                        'Booster Type': 'None',
-                                        'National Booster': False,
-                                        'Booster Rating 1-7': 0,
-                                        'Booster Rating 8-10': 0,
-                                        'Booster Rating 11-23': 0,
-                                    }
-                                    st.session_state.add_show_form = True
-                                    st.success("✅ Successfully fetched info!")
-                                else:
-                                    debug_msg = player_info.get('_debug_error', '') if isinstance(player_info, dict) else ''
-                                    error_text = "❌ Cannot fetch info from this URL. Please check again!"
-                                    if debug_msg:
-                                        error_text += f" Details: {debug_msg}"
-                                    st.error(error_text)
+                        if fetch_player_preview_from_pesdb(raw_input):
+                            st.rerun()
 
                     if st.button("✍️ Enter manually instead", use_container_width=True):
                             manual_preview = {
