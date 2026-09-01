@@ -3702,7 +3702,7 @@ def fetch_pesdb_raw_html(url: str, max_retries: int = 3) -> str:
 
 
 def extract_player_skills(player_url: str) -> str:
-    """Extract skills from the dedicated Player Skills section only."""
+    """Extract the literal skill chips from the Player Skills section only."""
     try:
         if not player_url or not str(player_url).startswith('http'):
             return ""
@@ -3711,40 +3711,39 @@ def extract_player_skills(player_url: str) -> str:
         soup = BeautifulSoup(html, 'html.parser')
         skills = []
 
-        section_heading = None
-        for heading in soup.find_all(['h2', 'h3', 'h4', 'p', 'div']):
-            text = re.sub(r'\s+', ' ', heading.get_text(' ', strip=True)).strip()
+        heading = None
+        for tag in soup.find_all(['h2', 'h3', 'h4']):
+            text = re.sub(r'\s+', ' ', tag.get_text(' ', strip=True)).strip()
             if text and 'player skills' in text.lower():
-                section_heading = heading
+                heading = tag
                 break
 
-        if section_heading is not None:
-            start = section_heading
-            container = start.find_parent(['section', 'div', 'article'])
-            target_area = container if container else start
-            for span in target_area.select('span, li, a'):
-                value = re.sub(r'\s+', ' ', span.get_text(' ', strip=True)).strip()
-                if not value or value.lower() in {'player skills', 'skills'}:
-                    continue
-                if len(value) <= 2:
-                    continue
-                if re.fullmatch(r'[0-9]+', value):
-                    continue
-                if value.lower() in {'cmf', 'dmf', 'amf', 'cb', 'rb', 'lb', 'cf', 'rw', 'lw', 'rf', 'lf', 'st'}:
-                    continue
-                skills.append(value)
+        if heading:
+            target_container = heading.find_parent(['section', 'div', 'article', 'main'])
+            if target_container:
+                for selector in ['.skill-chips', '.skills', '.player-skills', '.skill-list', '[class*="skill"]']:
+                    for chip in target_container.select(selector):
+                        for item in chip.select('span, li, a'):
+                            value = re.sub(r'\s+', ' ', item.get_text(' ', strip=True)).strip()
+                            if value and value.lower() not in {'player skills', 'skills'}:
+                                skills.append(value)
 
+            if not skills:
+                for sib in heading.next_siblings:
+                    if getattr(sib, 'name', None) in {'div', 'section', 'article', 'ul', 'ol'}:
+                        for item in sib.select('span, li, a'):
+                            value = re.sub(r'\s+', ' ', item.get_text(' ', strip=True)).strip()
+                            if value and value.lower() not in {'player skills', 'skills'}:
+                                skills.append(value)
+                        if skills:
+                            break
+
+        # Strong fallback: only include chip-like values when they belong specifically to the Player Skills area.
         if not skills:
-            for tag in soup.select('div, span, li, td'):
-                text = re.sub(r'\s+', ' ', tag.get_text(' ', strip=True))
-                if not text:
-                    continue
-                parent_text = re.sub(r'\s+', ' ', tag.find_parent(['div', 'section', 'table']) or '').lower() if tag.find_parent(['div', 'section', 'table']) else ''
-                if 'player skills' not in parent_text and 'skills' not in parent_text:
-                    continue
-                if text.lower() not in {'player skills', 'skills'}:
-                    if any(token in text.lower() for token in ['ball control', 'dribbling', 'low pass', 'heading', 'jumping', 'speed', 'finishing']):
-                        skills.append(text)
+            for chip in soup.select('.skill-chips span, .skill-chip, .skills span, .player-skills span, .skill-list span'):
+                value = re.sub(r'\s+', ' ', chip.get_text(' ', strip=True)).strip()
+                if value and value.lower() not in {'player skills', 'skills'}:
+                    skills.append(value)
 
         deduped = []
         seen = set()
@@ -3753,11 +3752,15 @@ def extract_player_skills(player_url: str) -> str:
             if not clean:
                 continue
             key = clean.lower()
-            if key not in seen:
-                seen.add(key)
-                deduped.append(clean)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(clean)
 
-        return ', '.join(sorted(deduped, key=lambda x: x.lower()))
+        if not deduped:
+            return ""
+
+        return ', '.join(deduped)
     except Exception:
         return ""
 
