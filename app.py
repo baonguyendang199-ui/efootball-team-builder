@@ -3454,34 +3454,122 @@ def make_ehub_player_image_url(player_id: str) -> str:
         return ""
     return f"{PESDB_IMAGE_URL_BASE}f{pid}.png"
 
+def _build_pesdb_player_url(value: str) -> str:
+    """Normalize legacy IDs and URLs into a PESDB player URL."""
+    if not value:
+        return ""
+
+    text = str(value).strip()
+    if not text:
+        return ""
+
+    if "pesdb.net" in text.lower():
+        return text
+
+    match = re.search(r"(\d{6,})", text)
+    if match:
+        return f"{PESDB_PLAYER_URL_BASE}{match.group(1)}"
+
+    return text
+
+
+def _find_section_rows(soup, section_names):
+    """Return rows belonging to the target section by scanning headings first."""
+    names = [str(name).strip().lower() for name in section_names if str(name).strip()]
+    if not names:
+        return soup.find_all('tr')
+
+    checked = set()
+    for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'th', 'div', 'span', 'p']):
+        text = re.sub(r'\s+', ' ', tag.get_text(' ', strip=True))
+        if not text:
+            continue
+        lowered = text.lower()
+        if any(name in lowered for name in names):
+            parent = tag.find_parent(['table', 'section', 'div', 'tbody'])
+            if parent:
+                rows = parent.find_all('tr')
+                if rows:
+                    return rows
+            row = tag.find_parent('tr')
+            if row:
+                siblings = row.find_next_siblings('tr')
+                if siblings:
+                    return [row] + list(siblings)
+            checked.add(id(tag))
+
+    return soup.find_all('tr')
+
+
+def _extract_field_from_rows(soup, label_name, section_names=None):
+    """Extract the first field value matching a label inside a target section."""
+    rows = _find_section_rows(soup, section_names or ['player details']) if section_names else soup.find_all('tr')
+    target = re.sub(r'\s+', ' ', str(label_name or '')).strip().lower()
+
+    for row in rows:
+        cells = row.find_all(['th', 'td'])
+        if len(cells) < 2:
+            continue
+
+        key_text = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
+        value_text = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
+        if not key_text or not value_text:
+            continue
+
+        if key_text.lower() == target or target in key_text.lower():
+            return value_text
+
+    return ""
+
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
-    """Fetch HTML từ PESDB với retry logic"""
+    """Fetch PESDB HTML with redirect validation and no cache pollution on failed pages."""
+    if not url or not str(url).startswith('http'):
+        raise ValueError('Invalid player URL')
+
+    final_url = ''
     for attempt in range(max_retries):
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=20)
+            resp = requests.get(str(url).strip(), headers=HEADERS, allow_redirects=True, timeout=20)
             resp.raise_for_status()
-            
-            html = resp.text
+            final_url = resp.url.strip()
+            html = resp.text or ''
+
             if len(html) < 1000:
-                raise Exception(f"HTML too short: {len(html)} chars")
-            
+                raise ValueError(f'HTML too short: {len(html)} chars')
+
+            lower_html = html.lower()
+            if 'please wait a moment' in lower_html or 'temporarily busy' in lower_html:
+                raise ValueError('Player page is temporarily busy')
+
+            if final_url.rstrip('/').lower() in {'https://pesdb.net/efootball', 'https://pesdb.net/efootball/'}:
+                raise ValueError(f'Redirected to home page: {final_url}')
+
+            markers = ['player details', 'add player to compare', 'overall rating', 'nationality', 'player name']
+            final_url_lower = final_url.lower()
+            valid_player_markers = any(marker in lower_html for marker in markers)
+            valid_url_markers = ('/players/' in final_url_lower or '?id=' in final_url_lower or 'player/detail' in final_url_lower)
+            if not (valid_player_markers or valid_url_markers):
+                raise ValueError(f'Page does not look like a player-detail page: {final_url}')
+
             return html
-        except Exception as e:
+        except Exception:
             if attempt < max_retries - 1:
-                time.sleep(1)
-            continue
+                time.sleep(2 + attempt)
+                continue
+            raise
+
     return ""
 
 
 def extract_efhub_body_model(html: str) -> dict:
-    """Extract body-model and physics values directly from eFHUB player HTML."""
+    """Fallback extractor kept for compatibility; prefer direct section parsing."""
     if not html:
         return {}
 
     soup = BeautifulSoup(html, 'html.parser')
     page_text = re.sub(r'\s+', ' ', soup.get_text(' ', strip=True))
-
     labels = {
         'Arm Length': 'ArmLength',
         'Shoulder Width': 'ShoulderWidth',
@@ -3513,285 +3601,119 @@ def extract_efhub_body_model(html: str) -> dict:
 
 
 def extract_player_skills(player_url: str) -> str:
-    """Trích xuất Skills từ PESDB
-    
-    HTML Structure:
-    <tbody>
-        <tr><th>Player Skills</th></tr>
-        <tr><td>Heading</td></tr>
-        <tr><td>Man Marking</td></tr>
-        ...
-    </tbody>
-    """
+    """Extract skills from the dedicated Player Skills section only."""
     try:
         if not player_url or not str(player_url).startswith('http'):
             return ""
-        
+
         html = fetch_ehub_raw_html(player_url)
-        if not html:
-            return ""
-        
         soup = BeautifulSoup(html, 'html.parser')
         skills = []
-        
-        # Tìm <th>Player Skills</th>
-        skill_headers = soup.find_all('th', string=re.compile(r'Player Skills', re.IGNORECASE))
-        
-        for header in skill_headers:
-            # Lấy parent <tr>
-            header_row = header.find_parent('tr')
-            if not header_row:
+
+        section_rows = _find_section_rows(soup, ['player skills', 'skills'])
+        for row in section_rows:
+            if row.find('th') and 'player skills' in row.get_text(' ', strip=True).lower():
                 continue
-            
-            # Lấy tất cả <tr> kế tiếp cho đến khi gặp <th> khác
-            current_row = header_row.find_next_sibling('tr')
-            
-            while current_row:
-                # Nếu gặp <th> → dừng (đã sang section khác)
-                if current_row.find('th'):
-                    break
-                
-                # Lấy <td>
-                td = current_row.find('td')
-                if td:
-                    skill_name = td.get_text(strip=True)
-                    if skill_name:
-                        skills.append(skill_name)
-                
-                current_row = current_row.find_next_sibling('tr')
-        
-        # Remove duplicates và sort
-        skills = sorted(list(set(s for s in skills if s)))
-        
-        return ', '.join(skills)
-        
-    except Exception as e:
+            if row.find('td'):
+                cell_text = re.sub(r'\s+', ' ', row.get_text(' ', strip=True))
+                if not cell_text or 'player skills' in cell_text.lower():
+                    continue
+                if any(keyword in cell_text.lower() for keyword in ['player skills', 'heading', 'overall rating', 'card type']):
+                    continue
+                # Pick up the skill chip/value directly from the row rather than flattening the whole container.
+                if row.find_all('td'):
+                    for td in row.find_all('td'):
+                        value = td.get_text(' ', strip=True)
+                        if value and value.lower() not in {'player skills'}:
+                            skills.append(value)
+                elif row.get_text(' ', strip=True):
+                    skills.append(row.get_text(' ', strip=True))
+
+        if not skills:
+            for tag in soup.select('div, span, li, td'):
+                text = re.sub(r'\s+', ' ', tag.get_text(' ', strip=True))
+                if not text:
+                    continue
+                parent_text = re.sub(r'\s+', ' ', tag.find_parent(['div', 'section', 'table']) or '').lower() if tag.find_parent(['div', 'section', 'table']) else ''
+                if 'player skills' not in parent_text and 'skills' not in parent_text:
+                    continue
+                if text.lower() not in {'player skills', 'skills'}:
+                    skills.append(text)
+
+        deduped = []
+        seen = set()
+        for skill in skills:
+            clean = re.sub(r'\s+', ' ', skill).strip()
+            if not clean:
+                continue
+            key = clean.lower()
+            if key not in seen:
+                seen.add(key)
+                deduped.append(clean)
+
+        return ', '.join(sorted(deduped))
+    except Exception:
         return ""
 
+
 def extract_card_type_from_html(soup) -> str:
-    """Trích xuất loại thẻ từ HTML PESDB
-    
-    Mapping:
-    - Trending → POTW
-    - Epic, Legendary → EPIC
-    - Standard, Highlight, Standard Featured → NON-EPIC
-    """
-    def detect_prioritized(texts):
-        """Trả về loại thẻ theo priority: POTW > NON-EPIC > EPIC."""
-        non_epic_detected = False
-        epic_detected = False
-        
-        for text in texts:
-            if not text:
-                continue
-            upper_text = text.upper()
-            
-            if 'TRENDING' in upper_text or 'POTW' in upper_text:
-                return 'POTW'
-            
-            if ('HIGHLIGHT' in upper_text or 
-                'FEATURED' in upper_text or 
-                'STANDARD' in upper_text):
-                non_epic_detected = True
-                continue
-            
-            if 'LEGENDARY' in upper_text or 'EPIC' in upper_text:
-                epic_detected = True
-        
-        if non_epic_detected:
-            return 'NON-EPIC'
-        if epic_detected:
-            return 'EPIC'
-        return None
-    
-    try:
-        # --- Ưu tiên 1: Quét toàn bộ HTML text để bắt keyword đơn giản ---
-        raw_html = str(soup).upper()
-        if 'TRENDING' in raw_html or 'POTW' in raw_html:
-            return 'POTW'
-        if 'HIGHLIGHT' in raw_html or 'FEATURED' in raw_html or 'STANDARD' in raw_html:
-            return 'NON-EPIC'
-        if 'LEGENDARY' in raw_html:
-            return 'EPIC'
-        if 'EPIC' in raw_html:
-            return 'EPIC'
-        
-        candidate_texts = []
-        
-        # 1. Mode tabs (ưu tiên)
-        mode_tabs = soup.find('div', class_='mode-tabs')
-        if mode_tabs:
-            active_tab = mode_tabs.find('a', class_='active')
-            if active_tab:
-                candidate_texts.append(active_tab.get_text(strip=True))
-        
-        # 2. Các badge / label khác
-        selectors = [
-            '.player-card-label', '.card-type', '.player-type', '.player-card__type',
-            '.player-card__badge', '.mode-title', '.player-info__type'
-        ]
-        for sel in selectors:
-            el = soup.select_one(sel)
-            if el:
-                candidate_texts.append(el.get_text(strip=True))
-        
-        # 3. Script / data attributes (ví dụ data-mode)
-        if mode_tabs:
-            active_tab = mode_tabs.find('a', class_='active')
-            if active_tab and active_tab.has_attr('data-mode'):
-                candidate_texts.append(active_tab['data-mode'])
-        
-        # 4. Tổng hợp và áp dụng priority
-        full_text = soup.get_text(separator=' ', strip=True)
-        candidate_texts.append(full_text)
-        
-        detected = detect_prioritized(candidate_texts)
-        if detected:
-            return detected
-        
-        return 'NON-EPIC'  # Default
-    except:
-        return 'NON-EPIC'
+    """Read the literal Card Type field from the Player Details section only."""
+    value = _extract_field_from_rows(soup, 'Card Type', ['player details'])
+    if value:
+        return normalize_player_type(value)
+
+    for selector in ['.card-type', '.player-card__type', '.player-type', '.player-card-label']:
+        el = soup.select_one(selector)
+        if el:
+            text = re.sub(r'\s+', ' ', el.get_text(' ', strip=True))
+            if text:
+                return normalize_player_type(text)
+
+    return 'NON-EPIC'
+
 
 def extract_max_level_rating(player_url: str, card_type: str = None, base_html: str = None) -> int:
-    """Lấy Overall Rating với logic tùy loại thẻ.
-    
-    POTW/Trending: dùng level gốc + 4 (không cần max level).
-    Type khác: thử Max Level trước, fallback về level gốc, cuối cùng trả 0.
-    """
-    def extract_rating_from_html(html: str) -> int:
-        """Helper function để trích xuất rating từ HTML"""
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-            rows = soup.find_all('tr')
-            for row in rows:
-                th = row.find('th')
-                if th and 'Overall Rating' in th.get_text():
-                    td = row.find('td')
-                    if td:
-                        rating_text = td.get_text(strip=True)
-                        # rating_text có thể chứa (+12) hoặc ký tự khác → lọc số cuối cùng
-                        numbers = re.findall(r'\d+', rating_text)
-                        if numbers:
-                            try:
-                                base_rating = int(numbers[-1])
-                                return base_rating + 4  # Tự động +4
-                            except:
-                                pass
-        except:
-            pass
-        return 0
-    
-    def get_level1_rating():
-        level_html = base_html
-        if not level_html:
-            level_html = fetch_ehub_raw_html(base_url)
-        if level_html:
-            rating = extract_rating_from_html(level_html)
-            if rating > 0:
-                return rating
-        return 0
-    
+    """Read the rating values directly from the player details block without fetching max-level pages."""
     try:
-        normalized_card_type = normalize_player_type(card_type) if card_type else None
-        
-        # Lấy base URL (loại bỏ các tham số mode nếu có)
-        base_url = player_url
-        if '&mode=max_level' in base_url:
-            base_url = base_url.replace('&mode=max_level', '')
-        if '?mode=max_level' in base_url:
-            base_url = base_url.replace('?mode=max_level', '')
-        
-        # Nếu là POTW → chỉ cần level gốc +4
-        if normalized_card_type == 'POTW':
-            return get_level1_rating()
-        
-        # === BƯỚC 1: Thử lấy từ Max Level (Ưu tiên) ===
-        max_level_url = f"{base_url}&mode=max_level" if '?' in base_url else f"{base_url}?mode=max_level"
-        html = fetch_ehub_raw_html(max_level_url)
-        if html:
-            rating = extract_rating_from_html(html)
-            if rating > 0:
-                return rating
-        
-        # === BƯỚC 2: Fallback về Level 1 (Dự phòng) ===
-        level_rating = get_level1_rating()
-        if level_rating > 0:
-            return level_rating
-        
-        # === BƯỚC 3: Trả về 0 nếu cả 2 đều thất bại ===
+        html = base_html or fetch_ehub_raw_html(player_url)
+        soup = BeautifulSoup(html, 'html.parser')
+
+        for label in ['Max Overall', 'Maximum Overall', 'Overall Rating', 'OVR']:
+            value = _extract_field_from_rows(soup, label, ['player details'])
+            if value:
+                numbers = re.findall(r'\d{2,3}', value)
+                if numbers:
+                    return int(numbers[-1])
+
+        text = re.sub(r'\s+', ' ', soup.get_text(' ', strip=True))
+        for pattern in [r'(?:Max Overall|Maximum Overall|MAX)\s*[:\-]?\s*(\d{2,3})', r'(?:Overall Rating|OVR)\s*[:\-]?\s*(\d{2,3})']:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+
         return 0
-        
     except Exception:
         return 0
 
+
 def extract_secondary_positions(soup, main_position):
-    """
-    Trích xuất vị trí phụ từ sơ đồ sân bóng (div class='pitch').
-    CHỈ LẤY POS2 (Position sở trường - Đỏ đậm).
-    Type bỏ vị trí chính khỏi danh sách.
-    """
-    # 1. Nếu là GK -> Không cần lấy vị trí phụ
+    """Read the literal Secondary Positions field; do not guess from pitch class names."""
     if str(main_position).strip().upper() == 'GK':
         return ""
 
-    try:
-        pitch_div = soup.find('div', class_='pitch')
-        if not pitch_div: return ""
-        
-        # Danh sách mã vị trí hợp lệ trong game
-        VALID_POS = ['GK','CB','LB','RB','DMF','CMF','LMF','RMF','AMF','LWF','RWF','SS','CF']
-        found_pos = set()
-        
-        # Chuẩn hóa vị trí chính (ví dụ: " AMF " -> "AMF")
-        main_pos_norm = str(main_position).strip().upper()
-        
-        # Quét tất cả các div con (đại diện cho các chấm trên sân)
-        for div in pitch_div.find_all('div'):
-            classes = div.get('class', [])
-            
-            # --- SỬA ĐỔI TẠI ĐÂY ---
-            # Chỉ xử lý nếu trong class có chứa 'pos2'
-            if 'pos2' not in classes:
-                continue
-            # -----------------------
-
-            for c in classes:
-                c_upper = c.upper()
-                # Nếu là mã vị trí VÀ không trùng với vị trí chính
-                if c_upper in VALID_POS and c_upper != main_pos_norm:
-                    found_pos.add(c_upper)
-                    
-        # Trả về chuỗi sắp xếp, ví dụ: "CF, SS"
-        return ", ".join(sorted(list(found_pos)))
-    except Exception as e:
+    value = _extract_field_from_rows(soup, 'Secondary Positions', ['player details', 'positions'])
+    if not value:
         return ""
 
+    parts = re.split(r'[,/|]+', value)
+    cleaned = [p.strip() for p in parts if p.strip()]
+    if not cleaned:
+        return ""
+    return ', '.join(cleaned)
+
+
 def extract_full_player_info(player_url: str) -> dict:
-    """Trích xuất TOÀN BỘ thông tin cầu thủ từ PESDB hoặc PESDATA.
-    
-    Returns:
-        dict: {
-            'Player': str,
-            'Rating': int,
-            'Position': str,
-            'Nation': str,
-            'Club': str,
-            'League': str,
-            'Skills': str,
-            'Region': str,
-            'Height': str,
-            'Weight': str,
-            'Age': str,
-            'Foot': str,
-            'Weak Foot Usage': str,
-            'Weak Foot Accuracy': str,
-            'Form': str,
-            'Injury Resistance': str,
-            'Player_Type': str,
-            ... body model fields ...
-        }
-    """
+    """Trích xuất toàn bộ thông tin cầu thủ từ PESDB / PESDATA theo logic section-based và validation redirect."""
     default_info = {
         'Player': '',
         'Rating': 0,
@@ -3817,99 +3739,88 @@ def extract_full_player_info(player_url: str) -> dict:
     try:
         normalized_url = str(player_url).strip()
         pesdata_id = _extract_pesdata_player_id(normalized_url)
-        pesdb_url = None
-
-        if pesdata_id:
-            pesdb_url = f"https://pesdb.net/efootball/?id={pesdata_id}"
-        elif normalized_url.isdigit():
-            pesdb_url = f"https://pesdb.net/efootball/?id={normalized_url}"
-        else:
-            pesdb_url = normalized_url
+        pesdb_url = _build_pesdb_player_url(normalized_url)
 
         if not pesdb_url or not str(pesdb_url).startswith('http'):
             return default_info
 
         html = fetch_ehub_raw_html(pesdb_url)
-        if not html:
-            return default_info
-
         soup = BeautifulSoup(html, 'html.parser')
         info = default_info.copy()
 
-        # Mapping từ PESDB labels sang tên fields
         field_mapping = {
-            'Player Name': 'Player',
-            'Team Name': 'Club',
-            'League': 'League',
-            'Nationality': 'Nation',
-            'Region': 'Region',
-            'Height': 'Height',
-            'Weight': 'Weight',
-            'Age': 'Age',
-            'Foot': 'Foot',
-            'Weak Foot Usage': 'Weak Foot Usage',
-            'Weak Foot Accuracy': 'Weak Foot Accuracy',
-            'Form': 'Form',
-            'Injury Resistance': 'Injury Resistance',
+            'player name': 'Player',
+            'team name': 'Club',
+            'league': 'League',
+            'nationality': 'Nation',
+            'region': 'Region',
+            'height': 'Height',
+            'weight': 'Weight',
+            'age': 'Age',
+            'foot': 'Foot',
+            'weak foot usage': 'Weak Foot Usage',
+            'weak foot accuracy': 'Weak Foot Accuracy',
+            'form': 'Form',
+            'injury resistance': 'Injury Resistance',
+            'position': 'Position',
+            'card type': 'Card Type',
+            'overall rating': 'Rating',
+            'max overall': 'Max Overall',
         }
 
-        # Lấy thông tin từ các <tr><th>...</th><td>...</td></tr>
-        rows = soup.find_all('tr')
-        for row in rows:
-            th = row.find('th')
-            td = row.find('td')
-            if th and td:
-                key = th.get_text(strip=True).replace(':', '')
-                value = td.get_text(strip=True)
-                if key in field_mapping:
-                    field_name = field_mapping[key]
-                    info[field_name] = value
-                if key == 'Position':
-                    pos_div = td.find('div', title=True)
-                    if pos_div:
-                        info['Position'] = pos_div.get_text(strip=True)
+        detail_rows = _find_section_rows(soup, ['player details'])
+        for row in detail_rows:
+            cells = row.find_all(['th', 'td'])
+            if len(cells) < 2:
+                continue
+            key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
+            value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
+            if not key or not value:
+                continue
+            normalized_key = key.lower().strip()
+            mapped_key = field_mapping.get(normalized_key, '')
+            if mapped_key:
+                if mapped_key == 'Card Type':
+                    info['Player_Type'] = normalize_player_type(value)
+                elif mapped_key == 'Rating':
+                    info['Rating'] = int(re.search(r'(\d{2,3})', value).group(1)) if re.search(r'(\d{2,3})', value) else info['Rating']
+                elif mapped_key == 'Max Overall':
+                    info['Rating'] = int(re.search(r'(\d{2,3})', value).group(1)) if re.search(r'(\d{2,3})', value) else info['Rating']
+                else:
+                    info[mapped_key] = value
 
-        # Lấy vị trí phụ từ sơ đồ sân bóng
+            if normalized_key == 'position':
+                info['Position'] = value
+
         info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
         info['Skills'] = extract_player_skills(pesdb_url)
         info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
-        info['Rating'] = extract_max_level_rating(
-            pesdb_url,
-            card_type=info.get('Player_Type'),
-            base_html=html
-        )
+        info['Rating'] = extract_max_level_rating(pesdb_url, card_type=info.get('Player_Type'), base_html=html) or info.get('Rating', 0)
 
-        # Nếu có PESDATA ID, lấy thêm body model từ PESDATA API
+        model_rows = _find_section_rows(soup, ['player model'])
+        for row in model_rows:
+            cells = row.find_all(['th', 'td'])
+            if len(cells) < 2:
+                continue
+            key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
+            value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
+            if not key or not value:
+                continue
+            for field_name in PESDATA_BODY_MODEL_FIELDS:
+                if key.strip().lower() == field_name.lower():
+                    info[field_name] = value
+                    break
+
         if pesdata_id:
             pesdata_data = fetch_pesdata_player_json(pesdata_id)
             appearance = _extract_pesdata_appearance(pesdata_data)
             for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                if not info.get(field_name):
+                if not str(info.get(field_name, '')).strip():
                     info[field_name] = appearance.get(json_key, '')
-
-            efhub_fallback = extract_efhub_body_model(html)
-            for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                if not info.get(field_name) and efhub_fallback.get(json_key):
-                    info[field_name] = efhub_fallback.get(json_key, '')
-        else:
-            # Nếu URL/PID khác dạng, thử extract ID và lấy body model
-            player_id = extract_ehub_player_id(normalized_url)
-            if player_id:
-                pesdata_data = fetch_pesdata_player_json(player_id)
-                appearance = _extract_pesdata_appearance(pesdata_data)
-                for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                    if not info.get(field_name):
-                        info[field_name] = appearance.get(json_key, '')
-
-            efhub_fallback = extract_efhub_body_model(html)
-            for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                if not info.get(field_name) and efhub_fallback.get(json_key):
-                    info[field_name] = efhub_fallback.get(json_key, '')
 
         return info
 
-    except Exception as e:
-        st.error(f"❌ Error extracting information: {e}")
+    except Exception:
         return default_info
 
 
