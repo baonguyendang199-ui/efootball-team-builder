@@ -3967,6 +3967,8 @@ def extract_full_player_info(player_url: str) -> dict:
                 or any(result.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS)
             ):
                 return result
+            if result and result.get('_debug_error'):
+                return result
 
         if 'pesdb.net' in normalized.lower():
             try:
@@ -4050,7 +4052,18 @@ def extract_full_player_info(player_url: str) -> dict:
                 return default_info
 
         result = extract_efhub_player_info(normalized)
-        if result and (result.get('Player') or result.get('Rating') or result.get('Height') or result.get('Skills')):
+        if result and (
+            result.get('Player')
+            or result.get('Rating')
+            or result.get('Height')
+            or result.get('Club')
+            or result.get('League')
+            or result.get('Nation')
+            or result.get('Skills')
+            or any(result.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS)
+        ):
+            return result
+        if result and result.get('_debug_error'):
             return result
         return default_info
     except Exception as exc:
