@@ -3467,7 +3467,13 @@ def _build_pesdb_player_url(value: str) -> str:
 
 
 def make_pesdb_player_image_url(player_id: str) -> str:
-    """Build a best-effort PESDB card image URL. PESDB is the supported source now."""
+    """Build the PESDB image URL from the player-page ID.
+
+    Actual PESDB format examples:
+    - https://pesdb.net/efootball/players/morita-hidemasa-106799999082154
+    - image: https://pesdb.net/assets/img/card/f106799999082154.png
+    The card image uses the same numeric ID with an f prefix.
+    """
     if not player_id:
         return ""
 
@@ -3475,14 +3481,17 @@ def make_pesdb_player_image_url(player_id: str) -> str:
     if not pid:
         return ""
 
-    candidates = [
-        f"{PESDB_IMAGE_URL_BASE}{pid}.png",
-        f"{PESDB_IMAGE_URL_BASE}{pid}.jpg",
-        f"{PESDB_IMAGE_URL_BASE}{pid}.webp",
-        f"https://pesdb.net/assets/img/players/{pid}.png",
-        f"https://pesdb.net/assets/img/players/{pid}.jpg",
-    ]
-    return candidates[0]
+    image_id = pid
+    if image_id.startswith('f'):
+        image_id = image_id[1:]
+    elif image_id.startswith('https://'):
+        m = re.search(r'(\d{12,})', image_id)
+        if m:
+            image_id = m.group(1)
+    if not re.fullmatch(r'\d{12,}', image_id):
+        return ""
+
+    return f"{PESDB_IMAGE_URL_BASE}f{image_id}.png"
 
 
 def _find_section_rows(soup, section_names):
