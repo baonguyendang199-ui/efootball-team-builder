@@ -3515,6 +3515,54 @@ def _extract_field_from_rows(soup, label_name, section_names=None):
     return ""
 
 
+def _extract_definition_pairs(soup):
+    """Collect key/value pairs from semantic definition-list and term/definition layouts used by PESDB."""
+    pairs = {}
+    label_tags = soup.select('term, dt, th, .term, .label, .key')
+    for tag in label_tags:
+        key_text = re.sub(r'\s+', ' ', tag.get_text(' ', strip=True)).strip()
+        if not key_text:
+            continue
+
+        value_text = ""
+        for sib in tag.next_siblings:
+            if isinstance(sib, str):
+                candidate = re.sub(r'\s+', ' ', sib).strip()
+                if candidate and candidate.lower() != key_text.lower():
+                    value_text = candidate
+                    break
+                continue
+            if hasattr(sib, 'get_text'):
+                candidate = re.sub(r'\s+', ' ', sib.get_text(' ', strip=True)).strip()
+                if candidate and candidate.lower() != key_text.lower():
+                    value_text = candidate
+                    break
+
+        if value_text:
+            pairs[key_text.lower()] = value_text
+
+    # Extra fallback for dl/dd or term/definition wrappers without direct sibling layout.
+    for parent in soup.select('dl, div, section, article, li, .player-details, .details'):
+        labels = parent.select('term, dt, th, .term, .label, .key')
+        if not labels:
+            continue
+        for label in labels:
+            key_text = re.sub(r'\s+', ' ', label.get_text(' ', strip=True)).strip()
+            if not key_text:
+                continue
+            value_candidates = []
+            for target in label.parent.find_all(['dd', 'definition', 'td', 'div', 'span', 'strong', 'p']):
+                if target is label:
+                    continue
+                candidate = re.sub(r'\s+', ' ', target.get_text(' ', strip=True)).strip()
+                if candidate and candidate.lower() != key_text.lower():
+                    value_candidates.append(candidate)
+            if value_candidates:
+                pairs[key_text.lower()] = value_candidates[0]
+
+    return pairs
+
+
 def _build_fetch_error_debug(resp=None, exc=None, url: str = '', final_url: str = '') -> str:
     """Summarize the real network error so the UI can show a useful debug message."""
     details = []
@@ -3765,6 +3813,27 @@ def extract_full_player_info(player_url: str) -> dict:
                 if not key or not value:
                     continue
                 normalized_key = key.lower().strip()
+                mapped_key = field_mapping.get(normalized_key, '')
+                if mapped_key:
+                    if mapped_key == 'Card Type':
+                        info['Player_Type'] = normalize_player_type(value)
+                    elif mapped_key == 'Rating':
+                        match = re.search(r'(\d{2,3})', value)
+                        if match:
+                            info['Rating'] = int(match.group(1))
+                    elif mapped_key == 'Max Overall':
+                        match = re.search(r'(\d{2,3})', value)
+                        if match:
+                            info['Rating'] = int(match.group(1))
+                    else:
+                        info[mapped_key] = value
+
+                if normalized_key == 'position':
+                    info['Position'] = value
+
+            definition_pairs = _extract_definition_pairs(soup)
+            for key, value in definition_pairs.items():
+                normalized_key = key.strip().lower()
                 mapped_key = field_mapping.get(normalized_key, '')
                 if mapped_key:
                     if mapped_key == 'Card Type':
