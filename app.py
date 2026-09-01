@@ -2,6 +2,8 @@
 # app.py – Efootball Team Builder (Google Sheets version)
 import os
 import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
 from datetime import datetime
@@ -3573,14 +3575,42 @@ def _fetch_ehub_via_playwright(url: str) -> str:
             f'Original error: {exc}'
         ) from exc
 
+    def launch_browser(playwright_obj):
+        try:
+            return playwright_obj.chromium.launch(
+                headless=True,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-features=IsolateOrigins,site-per-process',
+                ],
+            )
+        except Exception as exc:
+            message = str(exc).lower()
+            if 'executable doesn\'t exist' in message or 'browser type.launch' in message or 'playwright install' in message:
+                try:
+                    subprocess.run(
+                        [sys.executable, '-m', 'playwright', 'install', 'chromium'],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                except Exception as install_exc:
+                    raise RuntimeError(
+                        'Playwright Chromium is missing and auto-install failed. '
+                        f'Run: {sys.executable} -m playwright install chromium. '
+                        f'Original error: {install_exc}'
+                    ) from install_exc
+                return playwright_obj.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--disable-blink-features=AutomationControlled',
+                        '--disable-features=IsolateOrigins,site-per-process',
+                    ],
+                )
+            raise
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--disable-features=IsolateOrigins,site-per-process',
-            ],
-        )
+        browser = launch_browser(p)
         context = browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             viewport={'width': 1440, 'height': 1800},
