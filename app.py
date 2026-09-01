@@ -3523,22 +3523,50 @@ def _find_section_rows(soup, section_names):
 
 
 def _extract_field_from_rows(soup, label_name, section_names=None):
-    """Extract the first field value matching a label inside a target section."""
-    rows = _find_section_rows(soup, section_names or ['player details']) if section_names else soup.find_all('tr')
+    """Extract a field value either from table rows or from dt/dd definition lists used by PESDB."""
     target = re.sub(r'\s+', ' ', str(label_name or '')).strip().lower()
 
+    def matches_label(key_text):
+        key_norm = re.sub(r'\s+', ' ', key_text or '').strip().lower()
+        return key_norm == target or target in key_norm
+
+    def in_target_section(tag):
+        if not section_names:
+            return True
+        parent = tag.find_parent(['section', 'div', 'article', 'table', 'tbody'])
+        if not parent:
+            return True
+        parent_text = re.sub(r'\s+', ' ', parent.get_text(' ', strip=True)).lower()
+        return any(name in parent_text for name in [str(n).strip().lower() for n in section_names if str(n).strip()])
+
+    rows = _find_section_rows(soup, section_names or ['player details']) if section_names else soup.find_all('tr')
     for row in rows:
         cells = row.find_all(['th', 'td'])
         if len(cells) < 2:
             continue
-
         key_text = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
         value_text = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
         if not key_text or not value_text:
             continue
-
-        if key_text.lower() == target or target in key_text.lower():
+        if matches_label(key_text) and in_target_section(row):
             return value_text
+
+    for label in soup.select('dt'):
+        key_text = re.sub(r'\s+', ' ', label.get_text(' ', strip=True))
+        if not matches_label(key_text):
+            continue
+        if not in_target_section(label):
+            continue
+        value_node = label.find_next_sibling('dd')
+        if value_node:
+            value_text = re.sub(r'\s+', ' ', value_node.get_text(' ', strip=True))
+            if value_text:
+                return value_text
+        next_node = label.find_next(['dd', 'span', 'div', 'p'])
+        if next_node:
+            value_text = re.sub(r'\s+', ' ', next_node.get_text(' ', strip=True))
+            if value_text and value_text.lower() != key_text.lower():
+                return value_text
 
     return ""
 
@@ -3683,24 +3711,28 @@ def extract_player_skills(player_url: str) -> str:
         soup = BeautifulSoup(html, 'html.parser')
         skills = []
 
-        section_rows = _find_section_rows(soup, ['player skills', 'skills'])
-        for row in section_rows:
-            if row.find('th') and 'player skills' in row.get_text(' ', strip=True).lower():
-                continue
-            if row.find('td'):
-                cell_text = re.sub(r'\s+', ' ', row.get_text(' ', strip=True))
-                if not cell_text or 'player skills' in cell_text.lower():
+        section_heading = None
+        for heading in soup.find_all(['h2', 'h3', 'h4', 'p', 'div']):
+            text = re.sub(r'\s+', ' ', heading.get_text(' ', strip=True)).strip()
+            if text and 'player skills' in text.lower():
+                section_heading = heading
+                break
+
+        if section_heading is not None:
+            start = section_heading
+            container = start.find_parent(['section', 'div', 'article'])
+            target_area = container if container else start
+            for span in target_area.select('span, li, a'):
+                value = re.sub(r'\s+', ' ', span.get_text(' ', strip=True)).strip()
+                if not value or value.lower() in {'player skills', 'skills'}:
                     continue
-                if any(keyword in cell_text.lower() for keyword in ['player skills', 'heading', 'overall rating', 'card type']):
+                if len(value) <= 2:
                     continue
-                # Pick up the skill chip/value directly from the row rather than flattening the whole container.
-                if row.find_all('td'):
-                    for td in row.find_all('td'):
-                        value = td.get_text(' ', strip=True)
-                        if value and value.lower() not in {'player skills'}:
-                            skills.append(value)
-                elif row.get_text(' ', strip=True):
-                    skills.append(row.get_text(' ', strip=True))
+                if re.fullmatch(r'[0-9]+', value):
+                    continue
+                if value.lower() in {'cmf', 'dmf', 'amf', 'cb', 'rb', 'lb', 'cf', 'rw', 'lw', 'rf', 'lf', 'st'}:
+                    continue
+                skills.append(value)
 
         if not skills:
             for tag in soup.select('div, span, li, td'):
@@ -3711,7 +3743,8 @@ def extract_player_skills(player_url: str) -> str:
                 if 'player skills' not in parent_text and 'skills' not in parent_text:
                     continue
                 if text.lower() not in {'player skills', 'skills'}:
-                    skills.append(text)
+                    if any(token in text.lower() for token in ['ball control', 'dribbling', 'low pass', 'heading', 'jumping', 'speed', 'finishing']):
+                        skills.append(text)
 
         deduped = []
         seen = set()
@@ -3724,7 +3757,7 @@ def extract_player_skills(player_url: str) -> str:
                 seen.add(key)
                 deduped.append(clean)
 
-        return ', '.join(sorted(deduped))
+        return ', '.join(sorted(deduped, key=lambda x: x.lower()))
     except Exception:
         return ""
 
@@ -3775,14 +3808,27 @@ def extract_secondary_positions(soup, main_position):
         return ""
 
     value = _extract_field_from_rows(soup, 'Secondary Positions', ['player details', 'positions'])
-    if not value:
-        return ""
+    if value:
+        parts = re.split(r'[,/|]+', value)
+        cleaned = [p.strip() for p in parts if p.strip()]
+        if cleaned:
+            return ', '.join(cleaned)
 
-    parts = re.split(r'[,/|]+', value)
-    cleaned = [p.strip() for p in parts if p.strip()]
-    if not cleaned:
-        return ""
-    return ', '.join(cleaned)
+    for label in soup.select('dt'):
+        key_text = re.sub(r'\s+', ' ', label.get_text(' ', strip=True)).strip().lower()
+        if 'secondary positions' in key_text:
+            next_node = label.find_next_sibling('dd')
+            if next_node:
+                value = re.sub(r'\s+', ' ', next_node.get_text(' ', strip=True)).strip()
+                if value:
+                    return ', '.join([p.strip() for p in re.split(r'[,/|]+', value) if p.strip()])
+            raw = re.sub(r'\s+', ' ', label.parent.get_text(' ', strip=True)).strip()
+            if 'secondary positions' in raw.lower():
+                val = raw.split('Secondary Positions', 1)[1].strip()
+                if val:
+                    return ', '.join([p.strip() for p in re.split(r'[,/|]+', val) if p.strip()])
+
+    return ""
 
 
 def extract_full_player_info(player_url: str) -> dict:
