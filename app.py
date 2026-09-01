@@ -3810,12 +3810,30 @@ def extract_secondary_positions(soup, main_position):
     if str(main_position).strip().upper() == 'GK':
         return ""
 
+    def normalize_secondary_list(raw_value):
+        if not raw_value:
+            return ""
+        parts = re.split(r'[,/|]+', str(raw_value))
+        cleaned = []
+        seen = set()
+        main_upper = str(main_position).strip().upper()
+        for part in parts:
+            token = re.sub(r'\s+', ' ', part).strip()
+            if not token:
+                continue
+            token_upper = token.upper()
+            if token_upper == main_upper:
+                continue
+            if token_upper not in seen:
+                seen.add(token_upper)
+                cleaned.append(token)
+        return ', '.join(cleaned)
+
     value = _extract_field_from_rows(soup, 'Secondary Positions', ['player details', 'positions'])
     if value:
-        parts = re.split(r'[,/|]+', value)
-        cleaned = [p.strip() for p in parts if p.strip()]
-        if cleaned:
-            return ', '.join(cleaned)
+        result = normalize_secondary_list(value)
+        if result:
+            return result
 
     for label in soup.select('dt'):
         key_text = re.sub(r'\s+', ' ', label.get_text(' ', strip=True)).strip().lower()
@@ -3823,13 +3841,15 @@ def extract_secondary_positions(soup, main_position):
             next_node = label.find_next_sibling('dd')
             if next_node:
                 value = re.sub(r'\s+', ' ', next_node.get_text(' ', strip=True)).strip()
-                if value:
-                    return ', '.join([p.strip() for p in re.split(r'[,/|]+', value) if p.strip()])
+                result = normalize_secondary_list(value)
+                if result:
+                    return result
             raw = re.sub(r'\s+', ' ', label.parent.get_text(' ', strip=True)).strip()
             if 'secondary positions' in raw.lower():
                 val = raw.split('Secondary Positions', 1)[1].strip()
-                if val:
-                    return ', '.join([p.strip() for p in re.split(r'[,/|]+', val) if p.strip()])
+                result = normalize_secondary_list(val)
+                if result:
+                    return result
 
     return ""
 
