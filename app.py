@@ -3586,18 +3586,25 @@ def _fetch_ehub_via_playwright(url: str) -> str:
             )
         except Exception as exc:
             message = str(exc).lower()
-            if 'executable doesn\'t exist' in message or 'browser type.launch' in message or 'playwright install' in message:
+            if (
+                'executable doesn\'t exist' in message
+                or 'browser type.launch' in message
+                or 'playwright install' in message
+                or 'cannot open shared object file' in message
+                or 'libglib-2.0' in message
+                or 'error while loading shared libraries' in message
+            ):
                 try:
                     subprocess.run(
-                        [sys.executable, '-m', 'playwright', 'install', 'chromium'],
+                        [sys.executable, '-m', 'playwright', 'install', '--with-deps', 'chromium'],
                         check=True,
                         capture_output=True,
                         text=True,
                     )
                 except Exception as install_exc:
                     raise RuntimeError(
-                        'Playwright Chromium is missing and auto-install failed. '
-                        f'Run: {sys.executable} -m playwright install chromium. '
+                        'Playwright Chromium is missing or its Linux shared libraries are unavailable. '
+                        f'Run: {sys.executable} -m playwright install --with-deps chromium. '
                         f'Original error: {install_exc}'
                     ) from install_exc
                 return playwright_obj.chromium.launch(
