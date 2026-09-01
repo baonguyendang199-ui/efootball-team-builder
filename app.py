@@ -3508,6 +3508,36 @@ def _extract_field_from_rows(soup, label_name, section_names=None):
     return ""
 
 
+def _build_fetch_error_debug(resp=None, exc=None, url: str = '', final_url: str = '') -> str:
+    """Summarize the real network error so the UI can show a useful debug message."""
+    details = []
+    if resp is not None:
+        status = getattr(resp, 'status_code', None)
+        if status is not None:
+            details.append(f'HTTP {status}')
+        headers = getattr(resp, 'headers', {}) or {}
+        server = headers.get('server', '')
+        if server:
+            details.append(f'server={server}')
+        cf_ray = headers.get('cf-ray', '')
+        if cf_ray:
+            details.append(f'cf-ray={cf_ray}')
+        cf_cache = headers.get('cf-cache-status', '')
+        if cf_cache:
+            details.append(f'cf-cache={cf_cache}')
+        body = getattr(resp, 'text', '') or ''
+        clean = re.sub(r'\s+', ' ', body)[:220]
+        if clean:
+            details.append(f'body={clean}')
+    if exc is not None:
+        details.append(f'error={type(exc).__name__}: {exc}')
+    if url:
+        details.append(f'url={url}')
+    if final_url:
+        details.append(f'final_url={final_url}')
+    return ' | '.join(details) if details else 'Unknown error'
+
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
     """Fetch PESDB HTML with redirect validation and no cache pollution on failed pages."""
@@ -3516,9 +3546,11 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
 
     final_url = ''
     last_error = 'Unknown error'
+    last_resp = None
     for attempt in range(max_retries):
         try:
             resp = requests.get(str(url).strip(), headers=HEADERS, allow_redirects=True, timeout=20)
+            last_resp = resp
             final_url = resp.url.strip()
             status_code = getattr(resp, 'status_code', None)
             if status_code is not None and status_code >= 400:
@@ -3545,11 +3577,11 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
 
             return html
         except Exception as exc:
-            last_error = f'{type(exc).__name__}: {exc}'
+            last_error = _build_fetch_error_debug(resp=last_resp, exc=exc, url=str(url).strip(), final_url=final_url)
             if attempt < max_retries - 1:
                 time.sleep(2 + attempt)
                 continue
-            raise RuntimeError(f'Failed to fetch PESDB: {last_error} | url={str(url).strip()} | final_url={final_url or "n/a"}') from exc
+            raise RuntimeError(f'Failed to fetch PESDB: {last_error}') from exc
 
     return ""
 
