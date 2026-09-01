@@ -3562,6 +3562,46 @@ def _build_fetch_error_debug(resp=None, exc=None, url: str = '', final_url: str 
     return ' | '.join(details) if details else 'Unknown error'
 
 
+def _fetch_ehub_via_playwright(url: str) -> str:
+    """Fallback scraper: open the page in a real browser engine to bypass Cloudflare anti-bot screens."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:
+        raise RuntimeError(f'Playwright not available for browser fallback: {exc}') from exc
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--disable-features=IsolateOrigins,site-per-process',
+            ],
+        )
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            viewport={'width': 1440, 'height': 1800},
+            locale='en-US',
+            timezone_id='Asia/Singapore',
+        )
+        page = context.new_page()
+        try:
+            page.goto(url, wait_until='domcontentloaded', timeout=60000)
+            page.wait_for_timeout(4000)
+            for _ in range(3):
+                text = (page.locator('body').inner_text() or '').lower()
+                if 'just a moment' not in text and 'checking your browser' not in text and 'cloudflare' not in text:
+                    break
+                page.wait_for_timeout(3000)
+                page.reload(wait_until='domcontentloaded', timeout=60000)
+            html = page.content()
+            if not html or len(html) < 500:
+                raise ValueError('Browser fallback returned empty HTML')
+            return html
+        finally:
+            context.close()
+            browser.close()
+
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
     """Fetch the eFHUB player page and accept valid player pages even when the page uses different wording or layout."""
@@ -3598,6 +3638,9 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
                 raise ValueError(f'HTML too short: {len(html)} chars')
 
             lower_html = html.lower()
+            if 'just a moment' in lower_html or 'checking your browser' in lower_html or 'cloudflare' in lower_html or 'cf-challenge' in lower_html:
+                raise ValueError('Cloudflare anti-bot challenge page returned. This is not a valid player page.')
+
             if 'page not found' in lower_html or ('not found' in lower_html and 'efhub' in lower_html):
                 raise ValueError('Player page not found')
 
@@ -3620,6 +3663,16 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
             if attempt < max_retries - 1:
                 time.sleep(2 + attempt)
                 continue
+
+            try:
+                browser_html = _fetch_ehub_via_playwright(str(url).strip())
+                browser_lower = browser_html.lower()
+                if 'just a moment' not in browser_lower and 'checking your browser' not in browser_lower and 'cloudflare' not in browser_lower:
+                    if any(marker in browser_lower for marker in ['country', 'player model', 'skills', 'weak foot usage', 'height', 'weight', 'morita hidemasa', 'rate this player', 'physics']):
+                        return browser_html
+            except Exception as browser_exc:
+                last_error = _build_fetch_error_debug(resp=last_resp, exc=browser_exc, url=str(url).strip(), final_url=final_url)
+
             raise RuntimeError(f'Failed to fetch eFHUB: {last_error}') from exc
 
     return ""
