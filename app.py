@@ -3564,7 +3564,7 @@ def _build_fetch_error_debug(resp=None, exc=None, url: str = '', final_url: str 
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
-    """Fetch the eFHUB player page, validating that it is an actual player page instead of a generic landing page."""
+    """Fetch the eFHUB player page and accept valid player pages even when the page uses different wording or layout."""
     if not url or not str(url).startswith('http'):
         raise ValueError('Invalid player URL')
 
@@ -3598,12 +3598,21 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
                 raise ValueError(f'HTML too short: {len(html)} chars')
 
             lower_html = html.lower()
-            if 'page not found' in lower_html or 'not found' in lower_html and 'efhub' in lower_html:
+            if 'page not found' in lower_html or ('not found' in lower_html and 'efhub' in lower_html):
                 raise ValueError('Player page not found')
 
-            markers = ['country', 'player model', 'skills', 'weak foot usage', 'height', 'weight', 'morita hidemasa']
+            markers = [
+                'country', 'player model', 'skills', 'weak foot usage', 'height', 'weight',
+                'player page', 'morita hidemasa', 'rate this player', 'attack', 'defending', 'physics'
+            ]
             if any(marker in lower_html for marker in markers):
                 return html
+
+            if '/players/' in final_url.lower() and (soup := BeautifulSoup(html, 'html.parser')):
+                title = soup.title.get_text(' ', strip=True) if soup.title else ''
+                h1 = soup.find('h1')
+                if h1 or title:
+                    return html
 
             raise ValueError(f'Page does not look like an eFHUB player page: {final_url}')
         except Exception as exc:
@@ -3766,7 +3775,7 @@ def extract_secondary_positions(soup, main_position):
 
 
 def extract_efhub_player_info(player_url: str) -> dict:
-    """Extract player data using the eFHUB page structure. This is the primary source now."""
+    """Extract the actual player details visible on an eFHUB player page."""
     default_info = {
         'Player': '',
         'Rating': 0,
@@ -3804,68 +3813,112 @@ def extract_efhub_player_info(player_url: str) -> dict:
             title = soup.title.get_text(' ', strip=True) if soup.title else ''
             info['Player'] = re.sub(r'\s*[-|].*$', '', title).strip() if title else ''
 
-        rating_match = re.search(r'(\d{2,3})\s*OVR|OVR\s*(\d{2,3})', page_text, flags=re.IGNORECASE)
-        if rating_match:
-            info['Rating'] = int(rating_match.group(1) or rating_match.group(2))
+        # Try to read the current rating from the player card area, not only OVR text.
+        rating_candidates = [
+            r'(?:OVR|Overall|Rating)\s*[:\-]?\s*(\d{2,3}(?:\.\d+)?)',
+            r'\b(\d{2,3}(?:\.\d+)?)\s*(?:OVR|Overall|Rating)\b',
+            r'\b(\d{2,3})\b(?=\s*(?:DMF|CMF|LMF|RMF|AMF|LWF|RWF|SS|CF|CB|LB|RB|GK)\b)',
+        ]
+        for pattern in rating_candidates:
+            match = re.search(pattern, page_text, flags=re.IGNORECASE)
+            if match:
+                value = match.group(1)
+                try:
+                    info['Rating'] = int(float(value))
+                except ValueError:
+                    pass
+                break
 
         position_match = re.search(r'\b(?:GK|CB|LB|RB|DMF|CMF|LMF|RMF|AMF|LWF|RWF|SS|CF)\b', page_text, flags=re.IGNORECASE)
         if position_match:
             info['Position'] = position_match.group(0).upper()
 
-        field_map = {
-            'Country': 'Nation',
-            'Club': 'Club',
-            'League': 'League',
-            'Height': 'Height',
-            'Weight': 'Weight',
-            'Age': 'Age',
-            'Foot': 'Foot',
-            'Weak Foot Usage': 'Weak Foot Usage',
-            'Weak Foot Accuracy': 'Weak Foot Accuracy',
-            'Form': 'Form',
-            'Injury Resistance': 'Injury Resistance',
-        }
-        for label, field in field_map.items():
-            match = re.search(rf'{re.escape(label)}\s*[:\-]?\s*([A-Za-z0-9 .\-]+?)(?=\s*(?:Country|Club|League|Height|Weight|Age|Foot|Weak Foot Usage|Weak Foot Accuracy|Form|Injury Resistance|Skills|Player Model|Physics|$))', page_text, flags=re.IGNORECASE)
-            if match:
-                value = re.sub(r'\s+', ' ', match.group(1)).strip(' -:')
-                if value:
-                    info[field] = value
+        def read_value(label: str, fallback_labels=None):
+            label_variants = [label]
+            if fallback_labels:
+                label_variants.extend(fallback_labels)
+            for needle in label_variants:
+                for pattern in [
+                    rf'{re.escape(needle)}\s*[:\-]?\s*([A-Za-z0-9 .\-]+?)(?=\s*(?:Country|Club|League|Height|Weight|Age|Foot|Condition|Weak Foot Usage|Weak Foot Accuracy|Form|Injury Resistance|Skills|Com Skills|Player Model|Physics|Other Stats|$))',
+                    rf'{re.escape(needle)}\s*[:\-]?\s*([A-Za-z0-9 .\-]+)',
+                ]:
+                    match = re.search(pattern, page_text, flags=re.IGNORECASE)
+                    if match:
+                        value = re.sub(r'\s+', ' ', match.group(1)).strip(' -:')
+                        if value and value.lower() not in {'unknown', 'n/a'}:
+                            return value
+            return ''
 
+        info['Nation'] = read_value('Country')
+        info['Club'] = read_value('Club') or read_value('Club Name')
+        info['League'] = read_value('League') or read_value('English League')
+        info['Height'] = read_value('Height', ['Height (cm)'])
+        info['Weight'] = read_value('Weight', ['Weight (kg)'])
+        info['Age'] = read_value('Age')
+        info['Foot'] = read_value('Foot')
+        info['Weak Foot Usage'] = read_value('Weak Foot Usage') or read_value('Weak Foot')
+        info['Weak Foot Accuracy'] = read_value('Weak Foot Accuracy')
+        info['Form'] = read_value('Form')
+        info['Injury Resistance'] = read_value('Injury Resistance')
+
+        # Gather skill names from visible buttons/cards.
         skill_names = []
-        for btn in soup.select('button'):
+        for btn in soup.select('button, li, span, div'):
             text = re.sub(r'\s+', ' ', btn.get_text(' ', strip=True))
             if not text or len(text) < 3:
                 continue
             lowered = text.lower()
-            if lowered in {'skill fx', 'skills', 'add skill', 'community tier', 'rate this player'}:
+            if lowered in {'skill fx', 'skills', 'add skill', 'community tier', 'rate this player', 'position boosters'}:
                 continue
-            if lowered in {'through passing', 'fortress', 'double touch', 'sole control', 'one touch pass', 'outside curler', 'man marking', 'interception', 'fighting spirit', 'phenomenal pass', 'mazing run', 'speeding bullet', 'early crosser'}:
+            if any(keyword in lowered for keyword in ['through passing', 'fortress', 'double touch', 'sole control', 'one touch pass', 'outside curler', 'man marking', 'interception', 'fighting spirit', 'phenomenal pass', 'mazing run', 'speeding bullet', 'early crosser', 'box to box']):
                 skill_names.append(text)
         if skill_names:
             info['Skills'] = ', '.join(dict.fromkeys(skill_names))
 
+        # Read body-model metrics from the dedicated player model section.
+        for label in list(PESDATA_APPEARANCE_KEY_MAP.values()):
+            value = read_value(label)
+            if value:
+                if label == 'Leg Length Based Height':
+                    info['Leg Length Based Height'] = value
+                else:
+                    info[label] = value
+
+        # Read physics values from the physics section.
+        for label in ['Leg Coverage Radius', 'Arm Coverage Radius', 'Jumping Height', 'Torso Collision', 'Leg Length Based Height']:
+            value = read_value(label)
+            if value:
+                info[label] = value
+
+        # Fallback: if the page embeds player model values in clearly structured rows, capture them too.
         model_labels = {
+            'Arm Length': 'Arm Length',
+            'Shoulder Width': 'Shoulder Width',
             'Neck Length': 'Neck Length',
+            'Chest Measurement': 'Chest Measurement',
             'Neck Size': 'Neck Size',
             'Shoulder Height': 'Shoulder Height',
-            'Shoulder Width': 'Shoulder Width',
-            'Chest Measurement': 'Chest Measurement',
+            'Leg Length': 'Leg Length',
+            'Thigh Size': 'Thigh Size',
             'Waist Size': 'Waist Size',
             'Arm Size': 'Arm Size',
-            'Arm Length': 'Arm Length',
-            'Thigh Size': 'Thigh Size',
             'Calf Size': 'Calf Size',
-            'Leg Length': 'Leg Length',
+            'Leg Coverage Radius': 'Leg Coverage Radius',
+            'Arm Coverage Radius': 'Arm Coverage Radius',
+            'Jumping Height': 'Jumping Height',
+            'Torso Collision': 'Torso Collision',
+            'Leg Length Based Height': 'Leg Length Based Height',
         }
         for label, field_name in model_labels.items():
             match = re.search(rf'{re.escape(label)}\s*[:\-]?\s*([0-9]+(?:\.\d+)?)', page_text, flags=re.IGNORECASE)
             if match:
-                default_info[field_name] = match.group(1)
                 info[field_name] = match.group(1)
 
         info['Player_Type'] = 'NON-EPIC'
         info['Secondary Positions'] = ''
+        if not info['Player']:
+            info['Player'] = re.sub(r'\s*[-|].*$', '', (soup.title.get_text(' ', strip=True) if soup.title else '')).strip()
+
         return info
     except Exception as exc:
         default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
@@ -3903,7 +3956,16 @@ def extract_full_player_info(player_url: str) -> dict:
 
         if 'efhub.com' in normalized.lower() or 'efhub' in normalized.lower() or normalized.isdigit() or re.search(r'\d{6,}', normalized):
             result = extract_efhub_player_info(normalized)
-            if result and (result.get('Player') or result.get('Rating') or result.get('Height') or result.get('Skills')):
+            if result and (
+                result.get('Player')
+                or result.get('Rating')
+                or result.get('Height')
+                or result.get('Club')
+                or result.get('League')
+                or result.get('Nation')
+                or result.get('Skills')
+                or any(result.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS)
+            ):
                 return result
 
         if 'pesdb.net' in normalized.lower():
