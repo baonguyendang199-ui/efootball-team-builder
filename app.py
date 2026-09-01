@@ -3571,6 +3571,22 @@ def _extract_field_from_rows(soup, label_name, section_names=None):
     return ""
 
 
+def _clean_numeric_field(raw_value):
+    """Return only the numeric portion for measure fields like '65 kg' or '176 cm'."""
+    if raw_value is None:
+        return ""
+
+    text = str(raw_value).strip()
+    if not text:
+        return ""
+
+    match = re.search(r'(\d+(?:[.,]\d+)?)', text)
+    if not match:
+        return text
+
+    return match.group(1).replace(',', '.')
+
+
 def _extract_definition_pairs(soup):
     """Collect key/value pairs from semantic term/definition markup used by PESDB."""
     pairs = {}
@@ -3929,7 +3945,9 @@ def extract_full_player_info(player_url: str) -> dict:
                 normalized_key = key.lower().strip()
                 mapped_key = field_mapping.get(normalized_key, '')
                 if mapped_key:
-                    if mapped_key == 'Card Type':
+                    if mapped_key in {'Height', 'Weight', 'Age'}:
+                        info[mapped_key] = _clean_numeric_field(value)
+                    elif mapped_key == 'Card Type':
                         info['Player_Type'] = normalize_player_type(value)
                     elif mapped_key == 'Rating':
                         match = re.search(r'(\d{2,3})', value)
@@ -3950,7 +3968,9 @@ def extract_full_player_info(player_url: str) -> dict:
                 normalized_key = key.strip().lower()
                 mapped_key = field_mapping.get(normalized_key, '')
                 if mapped_key:
-                    if mapped_key == 'Card Type':
+                    if mapped_key in {'Height', 'Weight', 'Age'}:
+                        info[mapped_key] = _clean_numeric_field(value)
+                    elif mapped_key == 'Card Type':
                         info['Player_Type'] = normalize_player_type(value)
                     elif mapped_key == 'Rating':
                         match = re.search(r'(\d{2,3})', value)
