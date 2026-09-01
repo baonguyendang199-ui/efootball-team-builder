@@ -7947,39 +7947,39 @@ def main():
                                 player_info = extract_full_player_info(upgrade_url)
                                 
                                 if player_info and player_info['Player']:
-                                st.session_state.add_preview_data = {
-                                    'Player': selected_player,
-                                    'Rating': player_info.get('Rating', 0),
-                                    'Position': player_info['Position'],
-                                    'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
-                                    'Nation': player_info['Nation'],
-                                    'Club': player_info['Club'],
-                                    'League': player_info['League'],
-                                    'Region': player_info.get('Region', ''),
-                                    'Height': player_info.get('Height', ''),
-                                    'Weight': player_info.get('Weight', ''),
-                                    'Age': player_info.get('Age', ''),
-                                    'Foot': player_info.get('Foot', ''),
-                                    'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
-                                    'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
-                                    'Form': player_info.get('Form', ''),
-                                    'Injury Resistance': player_info.get('Injury Resistance', ''),
-                                    'Skills': player_info['Skills'],
-                                    'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
-                                    'Player_URL': upgrade_url,
-                                    'Player_ID': extract_ehub_player_id(upgrade_url),
-                                    **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
-                                    'Booster Type': 'None',
-                                    'National Booster': False,
-                                    'Booster Rating 1-7': 0,
-                                    'Booster Rating 8-10': 0,
-                                    'Booster Rating 11-23': 0,
-                                }
-                                st.session_state.add_show_form = True
-                                st.success("✅ Successfully fetched info!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Cannot fetch info from this URL!")
+                                    st.session_state.add_preview_data = {
+                                        'Player': selected_player,
+                                        'Rating': player_info.get('Rating', 0),
+                                        'Position': player_info['Position'],
+                                        'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
+                                        'Nation': player_info['Nation'],
+                                        'Club': player_info['Club'],
+                                        'League': player_info['League'],
+                                        'Region': player_info.get('Region', ''),
+                                        'Height': player_info.get('Height', ''),
+                                        'Weight': player_info.get('Weight', ''),
+                                        'Age': player_info.get('Age', ''),
+                                        'Foot': player_info.get('Foot', ''),
+                                        'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
+                                        'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
+                                        'Form': player_info.get('Form', ''),
+                                        'Injury Resistance': player_info.get('Injury Resistance', ''),
+                                        'Skills': player_info['Skills'],
+                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
+                                        'Player_URL': upgrade_url,
+                                        'Player_ID': extract_ehub_player_id(upgrade_url),
+                                        **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
+                                        'Booster Type': 'None',
+                                        'National Booster': False,
+                                        'Booster Rating 1-7': 0,
+                                        'Booster Rating 8-10': 0,
+                                        'Booster Rating 11-23': 0,
+                                    }
+                                    st.session_state.add_show_form = True
+                                    st.success("✅ Successfully fetched info!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Cannot fetch info from this URL!")
             
             # ========== CHẾ ĐỘ THÊM MỚI ==========
             else:
@@ -8011,38 +8011,38 @@ def main():
                                 player_info = extract_full_player_info(pesdb_url)
                                 
                                 if player_info and player_info['Player']:
-                                st.session_state.add_preview_data = {
-                                    'Player': player_info['Player'],
-                                    'Rating': player_info.get('Rating', 0),
-                                    'Position': player_info['Position'],
-                                    'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
-                                    'Nation': player_info['Nation'],
-                                    'Club': player_info['Club'],
-                                    'League': player_info['League'],
-                                    'Region': player_info.get('Region', ''),
-                                    'Height': player_info.get('Height', ''),
-                                    'Weight': player_info.get('Weight', ''),
-                                    'Age': player_info.get('Age', ''),
-                                    'Foot': player_info.get('Foot', ''),
-                                    'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
-                                    'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
-                                    'Form': player_info.get('Form', ''),
-                                    'Injury Resistance': player_info.get('Injury Resistance', ''),
-                                    'Skills': player_info['Skills'],
-                                    'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
-                                    'Player_URL': pesdb_url,
-                                    'Player_ID': extract_ehub_player_id(pesdb_url),
-                                    **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
-                                    'Booster Type': 'None',
-                                    'National Booster': False,
-                                    'Booster Rating 1-7': 0,
-                                    'Booster Rating 8-10': 0,
-                                    'Booster Rating 11-23': 0,
-                                }
-                                st.session_state.add_show_form = True
-                                st.success("✅ Successfully fetched info!")
-                            else:
-                                st.error("❌ Cannot fetch info from this URL. Please check again!")
+                                    st.session_state.add_preview_data = {
+                                        'Player': player_info['Player'],
+                                        'Rating': player_info.get('Rating', 0),
+                                        'Position': player_info['Position'],
+                                        'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
+                                        'Nation': player_info['Nation'],
+                                        'Club': player_info['Club'],
+                                        'League': player_info['League'],
+                                        'Region': player_info.get('Region', ''),
+                                        'Height': player_info.get('Height', ''),
+                                        'Weight': player_info.get('Weight', ''),
+                                        'Age': player_info.get('Age', ''),
+                                        'Foot': player_info.get('Foot', ''),
+                                        'Weak Foot Usage': player_info.get('Weak Foot Usage', ''),
+                                        'Weak Foot Accuracy': player_info.get('Weak Foot Accuracy', ''),
+                                        'Form': player_info.get('Form', ''),
+                                        'Injury Resistance': player_info.get('Injury Resistance', ''),
+                                        'Skills': player_info['Skills'],
+                                        'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
+                                        'Player_URL': pesdb_url,
+                                        'Player_ID': extract_ehub_player_id(pesdb_url),
+                                        **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
+                                        'Booster Type': 'None',
+                                        'National Booster': False,
+                                        'Booster Rating 1-7': 0,
+                                        'Booster Rating 8-10': 0,
+                                        'Booster Rating 11-23': 0,
+                                    }
+                                    st.session_state.add_show_form = True
+                                    st.success("✅ Successfully fetched info!")
+                                else:
+                                    st.error("❌ Cannot fetch info from this URL. Please check again!")
                     
                     # Nút nhập tay nếu cần
                     if st.button("✍️ Enter manually instead", use_container_width=True):
