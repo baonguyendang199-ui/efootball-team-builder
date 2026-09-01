@@ -3455,7 +3455,11 @@ def make_ehub_player_image_url(player_id: str) -> str:
     return f"{PESDB_IMAGE_URL_BASE}f{pid}.png"
 
 def _build_pesdb_player_url(value: str) -> str:
-    """Normalize legacy IDs and URLs into a PESDB player URL."""
+    """Normalize legacy IDs and URLs into a PESDB player URL.
+
+    For short IDs we keep the legacy redirect-safe ?id= form. For long IDs we prefer
+    player URL patterns and validate the final resolved URL before accepting it.
+    """
     if not value:
         return ""
 
@@ -3467,10 +3471,30 @@ def _build_pesdb_player_url(value: str) -> str:
         return text
 
     match = re.search(r"(\d{6,})", text)
-    if match:
-        return f"{PESDB_PLAYER_URL_BASE}{match.group(1)}"
+    if not match:
+        return text
 
-    return text
+    player_id = match.group(1)
+    if len(player_id) <= 8:
+        return f"{PESDB_PLAYER_URL_BASE}{player_id}"
+
+    candidates = [
+        f"https://pesdb.net/efootball/players/_-{player_id}",
+        f"https://pesdb.net/efootball/players/player-{player_id}",
+        f"https://pesdb.net/efootball/players/{player_id}",
+        f"{PESDB_PLAYER_URL_BASE}{player_id}",
+    ]
+
+    for candidate in candidates:
+        try:
+            resp = requests.get(candidate, headers=HEADERS, allow_redirects=True, timeout=15)
+            final_url = resp.url.lower()
+            if resp.ok and (('/players/' in final_url) or ('?id=' in final_url) or ('/player/' in final_url)) and player_id in final_url:
+                return resp.url
+        except Exception:
+            continue
+
+    return candidates[0]
 
 
 def _find_section_rows(soup, section_names):
