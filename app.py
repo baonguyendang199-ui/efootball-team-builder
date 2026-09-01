@@ -7947,17 +7947,17 @@ def main():
                             upgrade_url = f"{PESDB_PLAYER_URL_BASE}{raw_input}"
                         else:
                             upgrade_url = raw_input
-                        
+
                         if upgrade_url:
                             with st.spinner("⏳ Extracting data..."):
                                 player_info = extract_full_player_info(upgrade_url)
-                                
+
                                 if player_info and player_info['Player']:
                                     st.session_state.add_preview_data = {
                                         'Player': selected_player,
                                         'Rating': player_info.get('Rating', 0),
                                         'Position': player_info['Position'],
-                                        'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
+                                        'Secondary Positions': player_info.get('Secondary Positions', ''),
                                         'Nation': player_info['Nation'],
                                         'Club': player_info['Club'],
                                         'League': player_info['League'],
@@ -7985,14 +7985,82 @@ def main():
                                     st.success("✅ Successfully fetched info!")
                                     st.rerun()
                                 else:
-                                debug_msg = player_info.get('_debug_error', '') if isinstance(player_info, dict) else ''
-                                error_text = "❌ Cannot fetch info from this URL."
-                                if debug_msg:
-                                    error_text += f" Details: {debug_msg}"
-                                st.error(error_text)
+                                    debug_msg = player_info.get('_debug_error', '') if isinstance(player_info, dict) else ''
+                                    error_text = "❌ Cannot fetch info from this URL."
+                                    if debug_msg:
+                                        error_text += f" Details: {debug_msg}"
+                                    st.error(error_text)
+                    
+                    # Nút nhập tay nếu cần
+                    if st.button("✍️ Enter manually instead", use_container_width=True):
+                            manual_preview = {
+                                'Player': '',
+                                'Rating': 90,
+                                'Position': 'CF',
+                                'Secondary Positions': '',
+                                'Nation': '',
+                                'Club': '',
+                                'League': '',
+                                'Region': '',
+                                'Height': '',
+                                'Weight': '',
+                                'Age': '',
+                                'Foot': '',
+                                'Weak Foot Usage': '',
+                                'Weak Foot Accuracy': '',
+                                'Form': '',
+                                'Injury Resistance': '',
+                                'Skills': '',
+                                'Player_Type': 'NON-EPIC',
+                                'Player_URL': '',
+                                'Player_ID': '',
+                                'National Booster': False,
+                                'Booster Rating 1-7': 0,
+                                'Booster Rating 8-10': 0,
+                                'Booster Rating 11-23': 0,
+                            }
+                            for field in PESDATA_BODY_MODEL_FIELDS:
+                                manual_preview[field] = ''
+                            st.session_state.add_preview_data = manual_preview
+                            st.session_state.add_show_form = True
+                            st.rerun()
+                    
+                    st.divider()
+                    st.caption("🎯 **Guide:** Enter the PESDB URL to fetch info automatically, or choose 'Enter manually' to fill it in yourself")
+
+            else:
+                if not st.session_state.add_show_form:
+                    st.markdown("### 🔗 Step 1: Enter PESDB URL or ID")
+                    st.info("💡 Enter the PESDB link, player ID, or efhub link to automatically fetch full player info")
+
+                    pesdb_input = st.text_input(
+                        "PESDB URL or Player ID",
+                        placeholder="Old cards: 1058097407 or https://pesdb.net/efootball/?id=1058097407 | New cards: https://pesdb.net/efootball/players/karim-adeyemi-106799730668598",
+                        help="For old cards (short ID): paste the numeric ID or a ?id= link. For new cards (Show Time / Trending / Highlight ...): paste the full URL from the browser, not just the long ID."
+                    )
+
+                    if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
+                        st.session_state.last_pesdb_input = pesdb_input
+                        raw_input = str(pesdb_input).strip()
+
+                        if raw_input.isdigit() and len(raw_input) > 8:
+                            st.error("⚠️ ID dài cần dán nguyên link đầy đủ từ trình duyệt, không thể tự tạo URL từ ID dài.")
+                            pesdb_url = ""
+                        elif raw_input.isdigit() and len(raw_input) <= 8:
+                            pesdb_url = f"{PESDB_PLAYER_URL_BASE}{raw_input}"
+                        else:
+                            pesdb_url = raw_input
+
+                        if pesdb_url:
+                            with st.spinner("⏳ Extracting data from PESDB..."):
+                                player_info = extract_full_player_info(pesdb_url)
+
+                                if player_info and player_info['Player']:
+                                    st.session_state.add_preview_data = {
+                                        'Player': player_info['Player'],
                                         'Rating': player_info.get('Rating', 0),
                                         'Position': player_info['Position'],
-                                        'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
+                                        'Secondary Positions': player_info.get('Secondary Positions', ''),
                                         'Nation': player_info['Nation'],
                                         'Club': player_info['Club'],
                                         'League': player_info['League'],
@@ -8024,8 +8092,7 @@ def main():
                                     if debug_msg:
                                         error_text += f" Details: {debug_msg}"
                                     st.error(error_text)
-                    
-                    # Nút nhập tay nếu cần
+
                     if st.button("✍️ Enter manually instead", use_container_width=True):
                             manual_preview = {
                                 'Player': '',
