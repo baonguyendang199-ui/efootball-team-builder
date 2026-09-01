@@ -8093,6 +8093,24 @@ def main():
                     player_info = extract_full_player_info(pesdb_url)
 
                 if player_info and player_info.get('Player'):
+                    pesdata_id = extract_pesdb_player_id(pesdb_url)
+                    pesdata_appearance = {}
+                    if pesdata_id:
+                        try:
+                            pesdata_payload = fetch_pesdata_player_json(pesdata_id)
+                            pesdata_appearance = _extract_pesdata_appearance(pesdata_payload) or {}
+                        except Exception:
+                            pesdata_appearance = {}
+
+                    combined_body_model = {}
+                    for field in PESDATA_BODY_MODEL_FIELDS:
+                        value = player_info.get(field, '')
+                        if not str(value).strip():
+                            appearance_key = PESDATA_APPEARANCE_KEY_MAP_REVERSE.get(field, '')
+                            if appearance_key:
+                                value = pesdata_appearance.get(appearance_key, '')
+                        combined_body_model[field] = value
+
                     name_value = player_info.get('Player') or default_name or "Unknown Player"
                     st.session_state.add_preview_data = {
                         'Player': name_value,
@@ -8114,8 +8132,8 @@ def main():
                         'Skills': player_info['Skills'],
                         'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                         'Player_URL': pesdb_url,
-                        'Player_ID': extract_pesdb_player_id(pesdb_url),
-                        **{field: player_info.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
+                        'Player_ID': pesdata_id,
+                        **combined_body_model,
                         'Booster Type': 'None',
                         'National Booster': False,
                         'Booster Rating 1-7': 0,
