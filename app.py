@@ -3544,49 +3544,61 @@ def _extract_field_from_rows(soup, label_name, section_names=None):
 
 
 def _extract_definition_pairs(soup):
-    """Collect key/value pairs from semantic definition-list and term/definition layouts used by PESDB."""
+    """Collect key/value pairs from semantic term/definition markup used by PESDB."""
     pairs = {}
-    label_tags = soup.select('term, dt, th, .term, .label, .key')
-    for tag in label_tags:
-        key_text = re.sub(r'\s+', ' ', tag.get_text(' ', strip=True)).strip()
+
+    # First, cover direct term/definition markup such as <term> ... </term><definition>...</definition>
+    for term_tag in soup.select('term, dt, .term, .key, th'):
+        key_text = re.sub(r'\s+', ' ', term_tag.get_text(' ', strip=True)).strip()
         if not key_text:
             continue
 
         value_text = ""
-        for sib in tag.next_siblings:
-            if isinstance(sib, str):
-                candidate = re.sub(r'\s+', ' ', sib).strip()
+        for sibling in term_tag.next_siblings:
+            if isinstance(sibling, str):
+                candidate = re.sub(r'\s+', ' ', sibling).strip()
                 if candidate and candidate.lower() != key_text.lower():
                     value_text = candidate
                     break
                 continue
-            if hasattr(sib, 'get_text'):
-                candidate = re.sub(r'\s+', ' ', sib.get_text(' ', strip=True)).strip()
+            if getattr(sibling, 'name', None) in {'definition', 'dd', 'td', 'div', 'span', 'strong', 'p'}:
+                candidate = re.sub(r'\s+', ' ', sibling.get_text(' ', strip=True)).strip()
                 if candidate and candidate.lower() != key_text.lower():
                     value_text = candidate
                     break
 
         if value_text:
             pairs[key_text.lower()] = value_text
-
-    # Extra fallback for dl/dd or term/definition wrappers without direct sibling layout.
-    for parent in soup.select('dl, div, section, article, li, .player-details, .details'):
-        labels = parent.select('term, dt, th, .term, .label, .key')
-        if not labels:
             continue
-        for label in labels:
-            key_text = re.sub(r'\s+', ' ', label.get_text(' ', strip=True)).strip()
-            if not key_text:
-                continue
-            value_candidates = []
-            for target in label.parent.find_all(['dd', 'definition', 'td', 'div', 'span', 'strong', 'p']):
-                if target is label:
+
+        # Fallback for surrounding wrappers where the definition appears as a sibling element.
+        parent = term_tag.parent
+        if parent:
+            for child in parent.find_all(['definition', 'dd', 'td', 'span', 'strong', 'p', 'div']):
+                if child is term_tag:
                     continue
-                candidate = re.sub(r'\s+', ' ', target.get_text(' ', strip=True)).strip()
-                if candidate and candidate.lower() != key_text.lower():
-                    value_candidates.append(candidate)
-            if value_candidates:
-                pairs[key_text.lower()] = value_candidates[0]
+                if child in list(parent.children):
+                    pass
+                # Keep only direct entries that appear after this term within the same parent.
+                if not child.find_all(recursive=False):
+                    candidate = re.sub(r'\s+', ' ', child.get_text(' ', strip=True)).strip()
+                    if candidate and candidate.lower() != key_text.lower():
+                        value_text = candidate
+                        break
+
+        if value_text:
+            pairs[key_text.lower()] = value_text
+
+    # Also cover non-HTML semantic containers that still present as term + definition wrappers.
+    for label in soup.select('term, dt, .term, .key'):
+        key_text = re.sub(r'\s+', ' ', label.get_text(' ', strip=True)).strip()
+        if not key_text:
+            continue
+        target = label.find_next(['definition', 'dd', 'span', 'strong', 'p', 'div'])
+        if target:
+            value_text = re.sub(r'\s+', ' ', target.get_text(' ', strip=True)).strip()
+            if value_text and value_text.lower() != key_text.lower():
+                pairs[key_text.lower()] = value_text
 
     return pairs
 
@@ -3814,18 +3826,23 @@ def extract_full_player_info(player_url: str) -> dict:
             field_mapping = {
                 'player name': 'Player',
                 'team name': 'Club',
+                'club': 'Club',
                 'league': 'League',
                 'nationality': 'Nation',
+                'nation': 'Nation',
                 'region': 'Region',
                 'height': 'Height',
                 'weight': 'Weight',
                 'age': 'Age',
                 'foot': 'Foot',
+                'stronger foot': 'Foot',
                 'weak foot usage': 'Weak Foot Usage',
                 'weak foot accuracy': 'Weak Foot Accuracy',
                 'form': 'Form',
                 'injury resistance': 'Injury Resistance',
                 'position': 'Position',
+                'primary position': 'Position',
+                'secondary positions': 'Secondary Positions',
                 'card type': 'Card Type',
                 'overall rating': 'Rating',
                 'max overall': 'Max Overall',
@@ -3877,8 +3894,12 @@ def extract_full_player_info(player_url: str) -> dict:
                     else:
                         info[mapped_key] = value
 
-                if normalized_key == 'position':
+                if normalized_key == 'position' or normalized_key == 'primary position':
                     info['Position'] = value
+                if normalized_key == 'secondary positions':
+                    info['Secondary Positions'] = value
+                if normalized_key == 'stronger foot':
+                    info['Foot'] = value
 
             info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
             info['Skills'] = extract_player_skills(pesdb_url)
