@@ -3466,6 +3466,25 @@ def _build_pesdb_player_url(value: str) -> str:
     return ""
 
 
+def make_pesdb_player_image_url(player_id: str) -> str:
+    """Build a best-effort PESDB card image URL. PESDB is the supported source now."""
+    if not player_id:
+        return ""
+
+    pid = str(player_id).strip()
+    if not pid:
+        return ""
+
+    candidates = [
+        f"{PESDB_IMAGE_URL_BASE}{pid}.png",
+        f"{PESDB_IMAGE_URL_BASE}{pid}.jpg",
+        f"{PESDB_IMAGE_URL_BASE}{pid}.webp",
+        f"https://pesdb.net/assets/img/players/{pid}.png",
+        f"https://pesdb.net/assets/img/players/{pid}.jpg",
+    ]
+    return candidates[0]
+
+
 def _find_section_rows(soup, section_names):
     """Return rows belonging to the target section by scanning headings first."""
     names = [str(name).strip().lower() for name in section_names if str(name).strip()]
@@ -8193,8 +8212,14 @@ def main():
                 if data.get('Player_ID'):
                     col_img, col_info = st.columns([1, 3])
                     with col_img:
-                        image_url = make_ehub_player_image_url(data['Player_ID'])
-                        st.image(image_url, width=200)
+                        image_url = make_pesdb_player_image_url(data['Player_ID'])
+                        if image_url:
+                            try:
+                                st.image(image_url, width=200)
+                            except Exception:
+                                st.caption("🖼️ Player image unavailable")
+                        else:
+                            st.caption("🖼️ Player image unavailable")
                     with col_info:
                         st.markdown(f"## {data.get('Player', 'Unknown Player')}")
                         # Hiển thị nhanh các vị trí
