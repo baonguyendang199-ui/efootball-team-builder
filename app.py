@@ -3422,43 +3422,12 @@ def extract_ehub_player_id(value: str) -> str:
     m = re.search(r"(\d{14,})", s)
     return m.group(1) if m else ""
 
-def resolve_efhub_player_url(value: str) -> str:
-    """Normalize any legacy player URL/ID into the canonical EFHub player URL."""
-    if not value:
-        return ""
-    s = str(value).strip()
-    if not s:
-        return ""
-
-    if "efhub.com/players/" in s:
-        return s
-
-    for pattern in (r"(\d{14,})", r"[?&]id=(\d{12,})", r"player/detail/(\d{12,})"):
-        match = re.search(pattern, s)
-        if match:
-            pid = match.group(1)
-            return f"https://efhub.com/players/{pid}"
-
-    return make_ehub_player_url(s)
-
-
-def make_ehub_player_url(player_id: str) -> str:
-    """Tạo URL EFHub player từ Player ID hoặc URL"""
-    pid = extract_ehub_player_id(player_id)
-    return f"https://efhub.com/players/{pid}" if pid else ""
-
-def make_ehub_player_image_url(player_id: str) -> str:
-    """Tạo URL hình ảnh từ Player ID - PESDB format"""
-    pid = extract_ehub_player_id(player_id)
-    if not pid:
-        return ""
-    return f"{PESDB_IMAGE_URL_BASE}f{pid}.png"
 
 def _build_pesdb_player_url(value: str) -> str:
-    """Normalize legacy IDs and URLs into a PESDB player URL.
+    """Normalize a PESDB player URL or raw ID into the safest valid player URL.
 
-    For short IDs we keep the legacy redirect-safe ?id= form. For long IDs we prefer
-    player URL patterns and validate the final resolved URL before accepting it.
+    Short IDs still use the legacy ?id= form. Long IDs must be validated against the
+    final resolved PESDB URL and must not fall back to the homepage.
     """
     if not value:
         return ""
@@ -3467,8 +3436,16 @@ def _build_pesdb_player_url(value: str) -> str:
     if not text:
         return ""
 
-    if "pesdb.net" in text.lower():
+    lowered = text.lower()
+    if "pesdb.net" in lowered and "/players/" in lowered and re.search(r"\d{12,}", text):
         return text
+
+    if "pesdb.net" in lowered and "?id=" in lowered:
+        match = re.search(r"\d{6,}", text)
+        if match:
+            player_id = match.group(0)
+            if len(player_id) <= 8:
+                return f"{PESDB_PLAYER_URL_BASE}{player_id}"
 
     match = re.search(r"(\d{6,})", text)
     if not match:
@@ -3488,13 +3465,29 @@ def _build_pesdb_player_url(value: str) -> str:
     for candidate in candidates:
         try:
             resp = requests.get(candidate, headers=HEADERS, allow_redirects=True, timeout=15)
-            final_url = resp.url.lower()
-            if resp.ok and (('/players/' in final_url) or ('?id=' in final_url) or ('/player/' in final_url)) and player_id in final_url:
-                return resp.url
+            final_url = resp.url.strip()
+            final_url_l = final_url.lower()
+            if not resp.ok:
+                continue
+            if final_url_l.rstrip('/') in {'https://pesdb.net/efootball', 'https://pesdb.net/efootball/'}:
+                continue
+            if player_id not in final_url:
+                continue
+            if '/players/' not in final_url_l and '?id=' not in final_url_l and '/player/' not in final_url_l:
+                continue
+            html = resp.text or ''
+            lower_html = html.lower()
+            if len(html) < 1000:
+                continue
+            if 'please wait a moment' in lower_html or 'temporarily busy' in lower_html:
+                continue
+            if not any(marker in lower_html for marker in ['player details', 'add player to compare', 'overall rating', 'nationality', 'player name']):
+                continue
+            return final_url
         except Exception:
             continue
 
-    return candidates[0]
+    return f"https://pesdb.net/efootball/players/_-{player_id}"
 
 
 def _find_section_rows(soup, section_names):
@@ -5901,12 +5894,6 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
                         if not current_val or current_val == 'nan':
                             appearance_key = PESDATA_APPEARANCE_KEY_MAP_REVERSE.get(field, '')
                             new_val = appearance.get(appearance_key, '') if appearance_key else ''
-                            if not str(new_val).strip():
-                                player_url = str(row.get('Player URL', '') or '')
-                                efhub_url = resolve_efhub_player_url(player_url)
-                                fallback_html = fetch_ehub_raw_html(efhub_url) if efhub_url else ''
-                                fallback_appearance = extract_efhub_body_model(fallback_html)
-                                new_val = fallback_appearance.get(appearance_key, '') if appearance_key else ''
                             if new_val is not None and str(new_val).strip() != '':
                                 state['df_snapshot'].at[idx, field] = new_val
                                 row_updated = True
@@ -7968,7 +7955,7 @@ def main():
                     
                     upgrade_input = st.text_input(
                         "PESDB URL or Player ID",
-                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809 or https://efhub.com/players/106784161310028",
+                        placeholder="105809740719809 or https://pesdb.net/efootball/players/_-105809740719809",
                         key="upgrade_url"
                     )
                     
@@ -7976,14 +7963,11 @@ def main():
                     if upgrade_input and upgrade_input != st.session_state.get('last_upgrade_input', ''):
                         st.session_state.last_upgrade_input = upgrade_input
                         
-                        # Xử lý input: chỉ link pesdata.net dùng để lấy Body model; số thường vẫn dùng PESDB
+                        # Không được build URL kiểu cũ trước khi hàm chuẩn hóa chạy.
                         if upgrade_input.isdigit():
-                            upgrade_url = f"https://pesdb.net/efootball/?id={upgrade_input}"
+                            upgrade_url = upgrade_input
                         elif "pesdata.net" in upgrade_input or "player/detail/" in upgrade_input:
                             upgrade_url = upgrade_input
-                        elif "efhub.com" in upgrade_input:
-                            _pid = extract_ehub_player_id(upgrade_input)
-                            upgrade_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else upgrade_input
                         else:
                             upgrade_url = upgrade_input
                         
@@ -8033,22 +8017,19 @@ def main():
                     
                     pesdb_input = st.text_input(
                         "PESDB URL or Player ID",
-                        placeholder="105809740719809 or https://pesdb.net/efootball/?id=105809740719809 or https://efhub.com/players/106784161310028",
-                        help="Example: 105809740719809 or https://pesdb.net/efootball/?id=105809740719809 or https://efhub.com/players/106784161310028"
+                        placeholder="105809740719809 or https://pesdb.net/efootball/players/_-105809740719809",
+                        help="Example: 105809740719809 or https://pesdb.net/efootball/players/_-105809740719809"
                     )
                     
                     # Tự động fetch khi input thay đổi
                     if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
                         st.session_state.last_pesdb_input = pesdb_input
                         
-                        # Xử lý input: số hoặc efhub dùng PESDB cũ; chỉ pesdata.net mới dùng link mới
+                        # Để _build_pesdb_player_url quyết định URL cuối cùng dựa trên ID và redirect thật.
                         if pesdb_input.isdigit():
-                            pesdb_url = f"https://pesdb.net/efootball/?id={pesdb_input}"
+                            pesdb_url = pesdb_input
                         elif "pesdata.net" in pesdb_input or "player/detail/" in pesdb_input:
                             pesdb_url = pesdb_input
-                        elif "efhub.com" in pesdb_input:
-                            _pid = extract_ehub_player_id(pesdb_input)
-                            pesdb_url = f"https://pesdb.net/efootball/?id={_pid}" if _pid else pesdb_input
                         else:
                             pesdb_url = pesdb_input
                         
