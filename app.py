@@ -4020,7 +4020,7 @@ def extract_efhub_player_info(player_url: str) -> dict:
 
 
 def extract_full_player_info(player_url: str) -> dict:
-    """Main player extraction entry point. Default to eFHUB, with PESDB kept as compatibility fallback if needed."""
+    """Primary player extraction entry point. Prefer PESDB and only fall back to eFHUB when needed."""
     default_info = {
         'Player': '',
         'Rating': 0,
@@ -4048,27 +4048,12 @@ def extract_full_player_info(player_url: str) -> dict:
         if not normalized:
             return default_info
 
-        if 'efhub.com' in normalized.lower() or 'efhub' in normalized.lower() or normalized.isdigit() or re.search(r'\d{6,}', normalized):
-            result = extract_efhub_player_info(normalized)
-            if result and (
-                result.get('Player')
-                or result.get('Rating')
-                or result.get('Height')
-                or result.get('Club')
-                or result.get('League')
-                or result.get('Nation')
-                or result.get('Skills')
-                or any(result.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS)
-            ):
-                return result
-            if result and result.get('_debug_error'):
-                return result
-
+        pesdb_url = ''
         if 'pesdb.net' in normalized.lower():
+            pesdb_url = _build_pesdb_player_url(normalized)
+
+        if pesdb_url and str(pesdb_url).startswith('http'):
             try:
-                pesdb_url = _build_pesdb_player_url(normalized)
-                if not pesdb_url or not str(pesdb_url).startswith('http'):
-                    return default_info
                 html = fetch_ehub_raw_html(pesdb_url)
                 soup = BeautifulSoup(html, 'html.parser')
                 info = default_info.copy()
@@ -4140,25 +4125,27 @@ def extract_full_player_info(player_url: str) -> dict:
                             info[field_name] = value
                             break
 
-                return info
+                if info.get('Player') or info.get('Rating') or info.get('Club') or info.get('League'):
+                    return info
             except Exception as exc:
                 default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
-                return default_info
 
-        result = extract_efhub_player_info(normalized)
-        if result and (
-            result.get('Player')
-            or result.get('Rating')
-            or result.get('Height')
-            or result.get('Club')
-            or result.get('League')
-            or result.get('Nation')
-            or result.get('Skills')
-            or any(result.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS)
-        ):
-            return result
-        if result and result.get('_debug_error'):
-            return result
+        if 'efhub.com' in normalized.lower() or 'efhub' in normalized.lower() or normalized.isdigit() or re.search(r'\d{6,}', normalized):
+            result = extract_efhub_player_info(normalized)
+            if result and (
+                result.get('Player')
+                or result.get('Rating')
+                or result.get('Height')
+                or result.get('Club')
+                or result.get('League')
+                or result.get('Nation')
+                or result.get('Skills')
+                or any(result.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS)
+            ):
+                return result
+            if result and result.get('_debug_error'):
+                return result
+
         return default_info
     except Exception as exc:
         default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
@@ -8275,12 +8262,12 @@ def main():
                     st.dataframe(version_display, use_container_width=True, hide_index=True)
                     
                     st.divider()
-                    st.markdown("### 2️⃣ Enter the eFHUB player URL or ID")
+                    st.markdown("### 2️⃣ Enter the PESDB player URL or ID")
                     
                     upgrade_input = st.text_input(
-                        "eFHUB URL or Player ID",
-                        placeholder="Example: https://efhub.com/players/106799999082154 or 106799999082154",
-                        help="Paste the full eFHUB player page URL or the numeric player ID. This is the primary source for player lookups.",
+                        "PESDB URL or Player ID",
+                        placeholder="Example: https://pesdb.net/efootball/players/youri-tielemans-106799730583961",
+                        help="Paste the full PESDB player page URL. This is the primary source for player lookups and avoids the Cloudflare-dependent eFHUB scraper.",
                         key="upgrade_url"
                     )
                     
@@ -8372,17 +8359,17 @@ def main():
                             st.rerun()
                     
                     st.divider()
-                    st.caption("🎯 **Guide:** Enter the eFHUB player URL or ID to fetch info automatically, or choose 'Enter manually' to fill it in yourself")
+                    st.caption("🎯 **Guide:** Enter the PESDB player URL to fetch info automatically, or choose 'Enter manually' to fill it in yourself")
 
             else:
                 if not st.session_state.add_show_form:
-                    st.markdown("### 🔗 Step 1: Enter eFHUB URL or ID")
-                    st.info("💡 Enter the eFHUB player URL or ID to automatically fetch full player info")
+                    st.markdown("### 🔗 Step 1: Enter PESDB URL")
+                    st.info("💡 Enter the PESDB player URL to automatically fetch full player info")
 
                     pesdb_input = st.text_input(
-                        "eFHUB URL or Player ID",
-                        placeholder="Example: https://efhub.com/players/106799999082154 or 106799999082154",
-                        help="Use the full eFHUB player page URL or the numeric player ID. This source is now the primary fetch target."
+                        "PESDB URL or Player ID",
+                        placeholder="Example: https://pesdb.net/efootball/players/youri-tielemans-106799730583961",
+                        help="Use the full PESDB player page URL. This source is now the primary fetch target because it is more stable than eFHUB on Streamlit Cloud."
                     )
 
                     if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
