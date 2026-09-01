@@ -3515,11 +3515,15 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
         raise ValueError('Invalid player URL')
 
     final_url = ''
+    last_error = 'Unknown error'
     for attempt in range(max_retries):
         try:
             resp = requests.get(str(url).strip(), headers=HEADERS, allow_redirects=True, timeout=20)
-            resp.raise_for_status()
             final_url = resp.url.strip()
+            status_code = getattr(resp, 'status_code', None)
+            if status_code is not None and status_code >= 400:
+                raise requests.exceptions.HTTPError(f'HTTP {status_code} from PESDB')
+            resp.raise_for_status()
             html = resp.text or ''
 
             if len(html) < 1000:
@@ -3540,11 +3544,12 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
                 raise ValueError(f'Page does not look like a player-detail page: {final_url}')
 
             return html
-        except Exception:
+        except Exception as exc:
+            last_error = f'{type(exc).__name__}: {exc}'
             if attempt < max_retries - 1:
                 time.sleep(2 + attempt)
                 continue
-            raise
+            raise RuntimeError(f'Failed to fetch PESDB: {last_error} | url={str(url).strip()} | final_url={final_url or "n/a"}') from exc
 
     return ""
 
@@ -3806,7 +3811,8 @@ def extract_full_player_info(player_url: str) -> dict:
 
         return info
 
-    except Exception:
+    except Exception as exc:
+        default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
         return default_info
 
 
@@ -7979,40 +7985,11 @@ def main():
                                     st.success("✅ Successfully fetched info!")
                                     st.rerun()
                                 else:
-                                    st.error("❌ Cannot fetch info from this URL!")
-            
-            # ========== CHẾ ĐỘ THÊM MỚI ==========
-            else:
-                if not st.session_state.add_show_form:
-                    st.markdown("### 🔗 Step 1: Enter PESDB URL or ID")
-                    st.info("💡 Enter the PESDB link, player ID, or efhub link to automatically fetch full player info")
-                    
-                    pesdb_input = st.text_input(
-                        "PESDB URL or Player ID",
-                        placeholder="Old cards: 1058097407 or https://pesdb.net/efootball/?id=1058097407 | New cards: https://pesdb.net/efootball/players/karim-adeyemi-106799730668598",
-                        help="For old cards (short ID): paste the numeric ID or a ?id= link. For new cards (Show Time / Trending / Highlight ...): paste the full URL from the browser, not just the long ID."
-                    )
-                    
-                    # Tự động fetch khi input thay đổi
-                    if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
-                        st.session_state.last_pesdb_input = pesdb_input
-                        raw_input = str(pesdb_input).strip()
-
-                        if raw_input.isdigit() and len(raw_input) > 8:
-                            st.error("⚠️ ID dài cần dán nguyên link đầy đủ từ trình duyệt, không thể tự tạo URL từ ID dài.")
-                            pesdb_url = ""
-                        elif raw_input.isdigit() and len(raw_input) <= 8:
-                            pesdb_url = f"{PESDB_PLAYER_URL_BASE}{raw_input}"
-                        else:
-                            pesdb_url = raw_input
-                        
-                        if pesdb_url:
-                            with st.spinner("⏳ Extracting data from PESDB..."):
-                                player_info = extract_full_player_info(pesdb_url)
-                                
-                                if player_info and player_info['Player']:
-                                    st.session_state.add_preview_data = {
-                                        'Player': player_info['Player'],
+                                debug_msg = player_info.get('_debug_error', '') if isinstance(player_info, dict) else ''
+                                error_text = "❌ Cannot fetch info from this URL."
+                                if debug_msg:
+                                    error_text += f" Details: {debug_msg}"
+                                st.error(error_text)
                                         'Rating': player_info.get('Rating', 0),
                                         'Position': player_info['Position'],
                                         'Secondary Positions': player_info.get('Secondary Positions', ''), # Lấy vị trí phụ
@@ -8042,7 +8019,11 @@ def main():
                                     st.session_state.add_show_form = True
                                     st.success("✅ Successfully fetched info!")
                                 else:
-                                    st.error("❌ Cannot fetch info from this URL. Please check again!")
+                                    debug_msg = player_info.get('_debug_error', '') if isinstance(player_info, dict) else ''
+                                    error_text = "❌ Cannot fetch info from this URL. Please check again!"
+                                    if debug_msg:
+                                        error_text += f" Details: {debug_msg}"
+                                    st.error(error_text)
                     
                     # Nút nhập tay nếu cần
                     if st.button("✍️ Enter manually instead", use_container_width=True):
