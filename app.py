@@ -3238,6 +3238,7 @@ def auto_update_target_lists(df):
 
 # ==================== PESDB SCRAPER ====================
 PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/?id="
+EFHUB_PLAYER_URL_BASE = "https://efhub.com/players/"
 PESDB_IMAGE_URL_BASE = "https://pesdb.net/assets/img/card/"
 PESDATA_API_BASE = "https://www.pesdata.net/api/player/detail"
 PESDATA_API_VERSION = "1.9.0"
@@ -3423,6 +3424,29 @@ def extract_ehub_player_id(value: str) -> str:
     return m.group(1) if m else ""
 
 
+def make_ehub_player_url(value: str) -> str:
+    """Normalize eFHUB input to a direct player page URL."""
+    if not value:
+        return ""
+
+    text = str(value).strip()
+    if not text:
+        return ""
+
+    lowered = text.lower()
+    if "efhub.com" in lowered and "/players/" in lowered:
+        return text
+
+    if text.isdigit():
+        return f"{EFHUB_PLAYER_URL_BASE}{text}"
+
+    match = re.search(r"(\d{6,})", text)
+    if match:
+        return f"{EFHUB_PLAYER_URL_BASE}{match.group(1)}"
+
+    return text
+
+
 def _build_pesdb_player_url(value: str) -> str:
     """Normalize PESDB input without guessing the URL slug.
 
@@ -3540,7 +3564,7 @@ def _build_fetch_error_debug(resp=None, exc=None, url: str = '', final_url: str 
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
-    """Fetch PESDB HTML with redirect validation and no cache pollution on failed pages."""
+    """Fetch the eFHUB player page, validating that it is an actual player page instead of a generic landing page."""
     if not url or not str(url).startswith('http'):
         raise ValueError('Invalid player URL')
 
@@ -3549,39 +3573,45 @@ def fetch_ehub_raw_html(url: str, max_retries: int = 3) -> str:
     last_resp = None
     for attempt in range(max_retries):
         try:
-            resp = requests.get(str(url).strip(), headers=HEADERS, allow_redirects=True, timeout=20)
+            resp = requests.get(
+                str(url).strip(),
+                headers={
+                    **HEADERS,
+                    'Referer': 'https://efhub.com/',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                },
+                allow_redirects=True,
+                timeout=20,
+            )
             last_resp = resp
             final_url = resp.url.strip()
             status_code = getattr(resp, 'status_code', None)
             if status_code is not None and status_code >= 400:
-                raise requests.exceptions.HTTPError(f'HTTP {status_code} from PESDB')
+                raise requests.exceptions.HTTPError(f'HTTP {status_code} from eFHUB')
             resp.raise_for_status()
             html = resp.text or ''
 
-            if len(html) < 1000:
+            if len(html) < 500:
                 raise ValueError(f'HTML too short: {len(html)} chars')
 
             lower_html = html.lower()
-            if 'please wait a moment' in lower_html or 'temporarily busy' in lower_html:
-                raise ValueError('Player page is temporarily busy')
+            if 'page not found' in lower_html or 'not found' in lower_html and 'efhub' in lower_html:
+                raise ValueError('Player page not found')
 
-            if final_url.rstrip('/').lower() in {'https://pesdb.net/efootball', 'https://pesdb.net/efootball/'}:
-                raise ValueError(f'Redirected to home page: {final_url}')
+            markers = ['country', 'player model', 'skills', 'weak foot usage', 'height', 'weight', 'morita hidemasa']
+            if any(marker in lower_html for marker in markers):
+                return html
 
-            markers = ['player details', 'add player to compare', 'overall rating', 'nationality', 'player name']
-            final_url_lower = final_url.lower()
-            valid_player_markers = any(marker in lower_html for marker in markers)
-            valid_url_markers = ('/players/' in final_url_lower or '?id=' in final_url_lower or 'player/detail' in final_url_lower)
-            if not (valid_player_markers or valid_url_markers):
-                raise ValueError(f'Page does not look like a player-detail page: {final_url}')
-
-            return html
+            raise ValueError(f'Page does not look like an eFHUB player page: {final_url}')
         except Exception as exc:
             last_error = _build_fetch_error_debug(resp=last_resp, exc=exc, url=str(url).strip(), final_url=final_url)
             if attempt < max_retries - 1:
                 time.sleep(2 + attempt)
                 continue
-            raise RuntimeError(f'Failed to fetch PESDB: {last_error}') from exc
+            raise RuntimeError(f'Failed to fetch eFHUB: {last_error}') from exc
 
     return ""
 
@@ -3735,8 +3765,8 @@ def extract_secondary_positions(soup, main_position):
     return ', '.join(cleaned)
 
 
-def extract_full_player_info(player_url: str) -> dict:
-    """Trích xuất toàn bộ thông tin cầu thủ từ PESDB / PESDATA theo logic section-based và validation redirect."""
+def extract_efhub_player_info(player_url: str) -> dict:
+    """Extract player data using the eFHUB page structure. This is the primary source now."""
     default_info = {
         'Player': '',
         'Rating': 0,
@@ -3760,89 +3790,207 @@ def extract_full_player_info(player_url: str) -> dict:
         default_info[field_name] = ''
 
     try:
-        normalized_url = str(player_url).strip()
-        pesdata_id = _extract_pesdata_player_id(normalized_url)
-        pesdb_url = _build_pesdb_player_url(normalized_url)
-
-        if not pesdb_url or not str(pesdb_url).startswith('http'):
-            return default_info
-
-        html = fetch_ehub_raw_html(pesdb_url)
+        url = make_ehub_player_url(player_url)
+        html = fetch_ehub_raw_html(url)
         soup = BeautifulSoup(html, 'html.parser')
+        page_text = re.sub(r'\s+', ' ', soup.get_text(' ', strip=True))
+
         info = default_info.copy()
 
-        field_mapping = {
-            'player name': 'Player',
-            'team name': 'Club',
-            'league': 'League',
-            'nationality': 'Nation',
-            'region': 'Region',
-            'height': 'Height',
-            'weight': 'Weight',
-            'age': 'Age',
-            'foot': 'Foot',
-            'weak foot usage': 'Weak Foot Usage',
-            'weak foot accuracy': 'Weak Foot Accuracy',
-            'form': 'Form',
-            'injury resistance': 'Injury Resistance',
-            'position': 'Position',
-            'card type': 'Card Type',
-            'overall rating': 'Rating',
-            'max overall': 'Max Overall',
+        h1 = soup.find('h1')
+        if h1:
+            info['Player'] = re.sub(r'\s+', ' ', h1.get_text(' ', strip=True)).strip()
+        if not info['Player']:
+            title = soup.title.get_text(' ', strip=True) if soup.title else ''
+            info['Player'] = re.sub(r'\s*[-|].*$', '', title).strip() if title else ''
+
+        rating_match = re.search(r'(\d{2,3})\s*OVR|OVR\s*(\d{2,3})', page_text, flags=re.IGNORECASE)
+        if rating_match:
+            info['Rating'] = int(rating_match.group(1) or rating_match.group(2))
+
+        position_match = re.search(r'\b(?:GK|CB|LB|RB|DMF|CMF|LMF|RMF|AMF|LWF|RWF|SS|CF)\b', page_text, flags=re.IGNORECASE)
+        if position_match:
+            info['Position'] = position_match.group(0).upper()
+
+        field_map = {
+            'Country': 'Nation',
+            'Club': 'Club',
+            'League': 'League',
+            'Height': 'Height',
+            'Weight': 'Weight',
+            'Age': 'Age',
+            'Foot': 'Foot',
+            'Weak Foot Usage': 'Weak Foot Usage',
+            'Weak Foot Accuracy': 'Weak Foot Accuracy',
+            'Form': 'Form',
+            'Injury Resistance': 'Injury Resistance',
         }
+        for label, field in field_map.items():
+            match = re.search(rf'{re.escape(label)}\s*[:\-]?\s*([A-Za-z0-9 .\-]+?)(?=\s*(?:Country|Club|League|Height|Weight|Age|Foot|Weak Foot Usage|Weak Foot Accuracy|Form|Injury Resistance|Skills|Player Model|Physics|$))', page_text, flags=re.IGNORECASE)
+            if match:
+                value = re.sub(r'\s+', ' ', match.group(1)).strip(' -:')
+                if value:
+                    info[field] = value
 
-        detail_rows = _find_section_rows(soup, ['player details'])
-        for row in detail_rows:
-            cells = row.find_all(['th', 'td'])
-            if len(cells) < 2:
+        skill_names = []
+        for btn in soup.select('button'):
+            text = re.sub(r'\s+', ' ', btn.get_text(' ', strip=True))
+            if not text or len(text) < 3:
                 continue
-            key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
-            value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
-            if not key or not value:
+            lowered = text.lower()
+            if lowered in {'skill fx', 'skills', 'add skill', 'community tier', 'rate this player'}:
                 continue
-            normalized_key = key.lower().strip()
-            mapped_key = field_mapping.get(normalized_key, '')
-            if mapped_key:
-                if mapped_key == 'Card Type':
-                    info['Player_Type'] = normalize_player_type(value)
-                elif mapped_key == 'Rating':
-                    info['Rating'] = int(re.search(r'(\d{2,3})', value).group(1)) if re.search(r'(\d{2,3})', value) else info['Rating']
-                elif mapped_key == 'Max Overall':
-                    info['Rating'] = int(re.search(r'(\d{2,3})', value).group(1)) if re.search(r'(\d{2,3})', value) else info['Rating']
-                else:
-                    info[mapped_key] = value
+            if lowered in {'through passing', 'fortress', 'double touch', 'sole control', 'one touch pass', 'outside curler', 'man marking', 'interception', 'fighting spirit', 'phenomenal pass', 'mazing run', 'speeding bullet', 'early crosser'}:
+                skill_names.append(text)
+        if skill_names:
+            info['Skills'] = ', '.join(dict.fromkeys(skill_names))
 
-            if normalized_key == 'position':
-                info['Position'] = value
+        model_labels = {
+            'Neck Length': 'Neck Length',
+            'Neck Size': 'Neck Size',
+            'Shoulder Height': 'Shoulder Height',
+            'Shoulder Width': 'Shoulder Width',
+            'Chest Measurement': 'Chest Measurement',
+            'Waist Size': 'Waist Size',
+            'Arm Size': 'Arm Size',
+            'Arm Length': 'Arm Length',
+            'Thigh Size': 'Thigh Size',
+            'Calf Size': 'Calf Size',
+            'Leg Length': 'Leg Length',
+        }
+        for label, field_name in model_labels.items():
+            match = re.search(rf'{re.escape(label)}\s*[:\-]?\s*([0-9]+(?:\.\d+)?)', page_text, flags=re.IGNORECASE)
+            if match:
+                default_info[field_name] = match.group(1)
+                info[field_name] = match.group(1)
 
-        info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
-        info['Skills'] = extract_player_skills(pesdb_url)
-        info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
-        info['Rating'] = extract_max_level_rating(pesdb_url, card_type=info.get('Player_Type'), base_html=html) or info.get('Rating', 0)
-
-        model_rows = _find_section_rows(soup, ['player model'])
-        for row in model_rows:
-            cells = row.find_all(['th', 'td'])
-            if len(cells) < 2:
-                continue
-            key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
-            value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
-            if not key or not value:
-                continue
-            for field_name in PESDATA_BODY_MODEL_FIELDS:
-                if key.strip().lower() == field_name.lower():
-                    info[field_name] = value
-                    break
-
-        if pesdata_id:
-            pesdata_data = fetch_pesdata_player_json(pesdata_id)
-            appearance = _extract_pesdata_appearance(pesdata_data)
-            for json_key, field_name in PESDATA_APPEARANCE_KEY_MAP.items():
-                if not str(info.get(field_name, '')).strip():
-                    info[field_name] = appearance.get(json_key, '')
-
+        info['Player_Type'] = 'NON-EPIC'
+        info['Secondary Positions'] = ''
         return info
+    except Exception as exc:
+        default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
+        return default_info
 
+
+def extract_full_player_info(player_url: str) -> dict:
+    """Main player extraction entry point. Default to eFHUB, with PESDB kept as compatibility fallback if needed."""
+    default_info = {
+        'Player': '',
+        'Rating': 0,
+        'Position': '',
+        'Nation': '',
+        'Club': '',
+        'League': '',
+        'Skills': '',
+        'Region': '',
+        'Height': '',
+        'Weight': '',
+        'Age': '',
+        'Foot': '',
+        'Weak Foot Usage': '',
+        'Weak Foot Accuracy': '',
+        'Form': '',
+        'Injury Resistance': '',
+        'Player_Type': 'NON-EPIC',
+    }
+    for field_name in PESDATA_BODY_MODEL_FIELDS:
+        default_info[field_name] = ''
+
+    try:
+        normalized = str(player_url or '').strip()
+        if not normalized:
+            return default_info
+
+        if 'efhub.com' in normalized.lower() or 'efhub' in normalized.lower() or normalized.isdigit() or re.search(r'\d{6,}', normalized):
+            result = extract_efhub_player_info(normalized)
+            if result and (result.get('Player') or result.get('Rating') or result.get('Height') or result.get('Skills')):
+                return result
+
+        if 'pesdb.net' in normalized.lower():
+            try:
+                pesdb_url = _build_pesdb_player_url(normalized)
+                if not pesdb_url or not str(pesdb_url).startswith('http'):
+                    return default_info
+                html = fetch_ehub_raw_html(pesdb_url)
+                soup = BeautifulSoup(html, 'html.parser')
+                info = default_info.copy()
+
+                field_mapping = {
+                    'player name': 'Player',
+                    'team name': 'Club',
+                    'league': 'League',
+                    'nationality': 'Nation',
+                    'region': 'Region',
+                    'height': 'Height',
+                    'weight': 'Weight',
+                    'age': 'Age',
+                    'foot': 'Foot',
+                    'weak foot usage': 'Weak Foot Usage',
+                    'weak foot accuracy': 'Weak Foot Accuracy',
+                    'form': 'Form',
+                    'injury resistance': 'Injury Resistance',
+                    'position': 'Position',
+                    'card type': 'Card Type',
+                    'overall rating': 'Rating',
+                    'max overall': 'Max Overall',
+                }
+
+                detail_rows = _find_section_rows(soup, ['player details'])
+                for row in detail_rows:
+                    cells = row.find_all(['th', 'td'])
+                    if len(cells) < 2:
+                        continue
+                    key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
+                    value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
+                    if not key or not value:
+                        continue
+                    normalized_key = key.lower().strip()
+                    mapped_key = field_mapping.get(normalized_key, '')
+                    if mapped_key:
+                        if mapped_key == 'Card Type':
+                            info['Player_Type'] = normalize_player_type(value)
+                        elif mapped_key == 'Rating':
+                            match = re.search(r'(\d{2,3})', value)
+                            if match:
+                                info['Rating'] = int(match.group(1))
+                        elif mapped_key == 'Max Overall':
+                            match = re.search(r'(\d{2,3})', value)
+                            if match:
+                                info['Rating'] = int(match.group(1))
+                        else:
+                            info[mapped_key] = value
+
+                    if normalized_key == 'position':
+                        info['Position'] = value
+
+                info['Secondary Positions'] = extract_secondary_positions(soup, info.get('Position', ''))
+                info['Skills'] = extract_player_skills(pesdb_url)
+                info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
+                info['Rating'] = extract_max_level_rating(pesdb_url, card_type=info.get('Player_Type'), base_html=html) or info.get('Rating', 0)
+
+                model_rows = _find_section_rows(soup, ['player model'])
+                for row in model_rows:
+                    cells = row.find_all(['th', 'td'])
+                    if len(cells) < 2:
+                        continue
+                    key = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True))
+                    value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
+                    if not key or not value:
+                        continue
+                    for field_name in PESDATA_BODY_MODEL_FIELDS:
+                        if key.strip().lower() == field_name.lower():
+                            info[field_name] = value
+                            break
+
+                return info
+            except Exception as exc:
+                default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
+                return default_info
+
+        result = extract_efhub_player_info(normalized)
+        if result and (result.get('Player') or result.get('Rating') or result.get('Height') or result.get('Skills')):
+            return result
+        return default_info
     except Exception as exc:
         default_info['_debug_error'] = f'{type(exc).__name__}: {exc}'
         return default_info
@@ -7958,12 +8106,12 @@ def main():
                     st.dataframe(version_display, use_container_width=True, hide_index=True)
                     
                     st.divider()
-                    st.markdown("### 2️⃣ Enter the new version PESDB URL or ID")
+                    st.markdown("### 2️⃣ Enter the eFHUB player URL or ID")
                     
                     upgrade_input = st.text_input(
-                        "PESDB URL or Player ID",
-                        placeholder="Old cards: 1058097407 or https://pesdb.net/efootball/?id=1058097407 | New cards: https://pesdb.net/efootball/players/karim-adeyemi-106799730668598",
-                        help="For old cards (short ID): paste the numeric ID or a ?id= link. For new cards (Show Time / Trending / Highlight ...): paste the full URL from the browser, not just the long ID.",
+                        "eFHUB URL or Player ID",
+                        placeholder="Example: https://efhub.com/players/106799999082154 or 106799999082154",
+                        help="Paste the full eFHUB player page URL or the numeric player ID. This is the primary source for player lookups.",
                         key="upgrade_url"
                     )
                     
@@ -8063,12 +8211,12 @@ def main():
             else:
                 if not st.session_state.add_show_form:
                     st.markdown("### 🔗 Step 1: Enter PESDB URL or ID")
-                    st.info("💡 Enter the PESDB link, player ID, or efhub link to automatically fetch full player info")
+                    st.info("💡 Enter the eFHUB player URL or ID to automatically fetch full player info")
 
                     pesdb_input = st.text_input(
-                        "PESDB URL or Player ID",
-                        placeholder="Old cards: 1058097407 or https://pesdb.net/efootball/?id=1058097407 | New cards: https://pesdb.net/efootball/players/karim-adeyemi-106799730668598",
-                        help="For old cards (short ID): paste the numeric ID or a ?id= link. For new cards (Show Time / Trending / Highlight ...): paste the full URL from the browser, not just the long ID."
+                        "eFHUB URL or Player ID",
+                        placeholder="Example: https://efhub.com/players/106799999082154 or 106799999082154",
+                        help="Use the full eFHUB player page URL or the numeric player ID. This source is now the primary fetch target."
                     )
 
                     if pesdb_input and pesdb_input != st.session_state.get('last_pesdb_input', ''):
