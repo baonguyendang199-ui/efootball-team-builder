@@ -3567,7 +3567,11 @@ def _fetch_ehub_via_playwright(url: str) -> str:
     try:
         from playwright.sync_api import sync_playwright
     except Exception as exc:
-        raise RuntimeError(f'Playwright not available for browser fallback: {exc}') from exc
+        raise RuntimeError(
+            'Playwright fallback is unavailable. Install it with: '
+            'python -m pip install playwright && python -m playwright install chromium. '
+            f'Original error: {exc}'
+        ) from exc
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
