@@ -563,10 +563,10 @@ def show_player_modal(row):
     if not skills_html: skills_html = '<span style="color:#64748b; font-style:italic;">No skills yet</span>'
 
     # --- 2.5 BODY MODEL ---
-    has_body_model = any(str(row.get(field, '') or '').strip() for field in PESDATA_BODY_MODEL_FIELDS)
+    has_body_model = any(str(row.get(field, '') or '').strip() for field in BODY_MODEL_FIELDS)
     if has_body_model:
         body_items = []
-        for field in PESDATA_BODY_MODEL_FIELDS:
+        for field in BODY_MODEL_FIELDS:
             txt = str(row.get(field, '') or '').strip()
             if not txt:
                 continue
@@ -828,7 +828,7 @@ def load_data_from_gsheet():
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
             "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions",
             "Is Bench", "National Booster", "Booster Type", "Booster Rating 1-7", "Booster Rating 8-10", "Booster Rating 11-23",
-            *PESDATA_BODY_MODEL_FIELDS
+            *BODY_MODEL_FIELDS
         ]
         for col in required_cols:
             if col not in df.columns:
@@ -850,7 +850,7 @@ def load_data_from_gsheet():
             "Region", "Height", "Weight", "Age", "Foot",
             "Weak Foot Usage", "Weak Foot Accuracy", "Form", "Injury Resistance",
             "Player URL", "Player ID", "Skills", "Added Skills", "Secondary Positions", "Is Bench", "Booster Type",
-            *PESDATA_BODY_MODEL_FIELDS
+            *BODY_MODEL_FIELDS
         ]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
@@ -3243,35 +3243,51 @@ def auto_update_target_lists(df):
 # https://pesdb.net/efootball/players/marc-guehi-52902186057942
 PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/players/"
 PESDB_IMAGE_URL_BASE = "https://pesdb.net/assets/img/card/"
-PESDATA_API_BASE = "https://www.pesdata.net/api/player/detail"
-PESDATA_API_VERSION = "1.9.0"
-PESDATA_API_TOKEN = "null"
-PESDATA_API_SECRET = "777888"
-PESDATA_BODY_MODEL_FIELDS = [
+BODY_MODEL_FIELDS = [
     'Arm Length', 'Shoulder Width', 'Neck Length', 'Chest Measurement',
     'Neck Size', 'Shoulder Height', 'Leg Length', 'Thigh Size', 'Waist Size',
     'Arm Size', 'Calf Size', 'Leg Coverage Radius', 'Arm Coverage Radius',
     'Jumping Height', 'Torso Collision', 'Leg Length Based Height'
 ]
-PESDATA_APPEARANCE_KEY_MAP = {
-    'ArmLength': 'Arm Length',
-    'ShoulderWidth': 'Shoulder Width',
-    'NeckLength': 'Neck Length',
-    'ChestMeasurement': 'Chest Measurement',
-    'NeckSize': 'Neck Size',
-    'ShoulderHeight': 'Shoulder Height',
-    'LegLength': 'Leg Length',
-    'ThighSize': 'Thigh Size',
-    'WaistSize': 'Waist Size',
-    'ArmSize': 'Arm Size',
-    'CalfSize': 'Calf Size',
-    'LegCoverageRadius': 'Leg Coverage Radius',
-    'ArmCoverageRadius': 'Arm Coverage Radius',
-    'JumpingHeight': 'Jumping Height',
-    'TorsoCollision': 'Torso Collision',
-    'LegLengthBasedHeight': 'Leg Length Based Height'
-}
-PESDATA_APPEARANCE_KEY_MAP_REVERSE = {v: k for k, v in PESDATA_APPEARANCE_KEY_MAP.items()}
+
+
+def calculate_physics_fields(info: dict) -> dict:
+    """Calculate the five physics fields from values scraped from PESDB."""
+    def number(field):
+        try:
+            return float(str(info.get(field, '')).replace(',', '.'))
+        except (TypeError, ValueError):
+            return None
+
+    height = number('Height')
+    leg_length = number('Leg Length')
+    shoulder_width = number('Shoulder Width')
+    arm_length = number('Arm Length')
+    chest_size = number('Chest Measurement')
+    thigh_size = number('Thigh Size')
+    waist_size = number('Waist Size')
+    jump = number('Jump')
+    calculated = {}
+
+    if height is not None and leg_length is not None:
+        calculated['Leg Coverage Radius'] = round(
+            0.16 * height + 0.7 * height * (0.56 + 0.03 * (leg_length / 14)) * 2, 1
+        )
+        calculated['Leg Length Based Height'] = round(height + leg_length - 7, 1)
+    if height is not None and shoulder_width is not None and arm_length is not None:
+        calculated['Arm Coverage Radius'] = round(
+            (0.23 + (shoulder_width / 14) * 0.02) * 0.7 * 0.5 * height * 2
+            + height * (0.35 + (arm_length / 14) * 0.04) * 2, 1
+        )
+    if height is not None and shoulder_width is not None and None not in (chest_size, thigh_size, waist_size):
+        calculated['Torso Collision'] = round(
+            (0.26 + (shoulder_width / 14) * 0.032) * height * 0.7
+            + (((chest_size + thigh_size + waist_size) / 42) * 0.115 + 1)
+            * height * 0.27 * 0.3, 1
+        )
+    if height is not None and jump is not None:
+        calculated['Jumping Height'] = round(height + 54 + 0.666 * (jump - 40), 1)
+    return calculated
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -3280,142 +3296,6 @@ HEADERS = {
     'Referer': 'https://pesdb.net/',
     'Connection': 'keep-alive',
 }
-
-
-def _pesdata_encode_value(value: str) -> str:
-    return quote(str(value), safe="'")
-
-
-def _build_pesdata_signature(params: dict) -> dict:
-    clean_params = {k: str(v) for k, v in params.items() if v is not None and str(v) != ''}
-    sorted_keys = sorted(clean_params.keys())
-    query = '&'.join(f"{k}={_pesdata_encode_value(clean_params[k])}" for k in sorted_keys)
-    timestamp = str(int(time.time()))
-    nonce = uuid.uuid4().hex[:13]
-    payload = f"{timestamp}{nonce}{PESDATA_API_SECRET}{query}"
-    signature = hashlib.md5(payload.encode('utf-8')).hexdigest()
-    return {
-        'timestamp': timestamp,
-        'nonce': nonce,
-        'signature': signature,
-    }
-
-
-def _extract_pesdata_player_id(value: str) -> str:
-    if not value:
-        return ""
-    text = str(value).strip()
-    # First match query parameter id= in URLs like ?id=123...
-    m = re.search(r"[?&]id=(\d{12,})", text)
-    if m:
-        return m.group(1)
-    # Then match pesdata player/detail/<id> URLs
-    m = re.search(r"player/detail/(\d{12,})", text)
-    if m:
-        return m.group(1)
-    # Fallback to any trailing 12+ digit sequence
-    m = re.search(r"(\d{12,})", text)
-    return m.group(1) if m else ""
-
-
-def _extract_pesdata_appearance(payload) -> dict:
-    """Extract the body-model/appearance dict across PESDATA response variants."""
-    if not isinstance(payload, (dict, list)):
-        return {}
-
-    def normalize_key(key):
-        return re.sub(r"[^a-z0-9]", "", str(key).lower())
-
-    def recurse(node):
-        if isinstance(node, list):
-            for item in node:
-                extracted = recurse(item)
-                if extracted:
-                    return extracted
-            return {}
-
-        if not isinstance(node, dict):
-            return {}
-
-        for key in ("appearance", "bodyModel", "body_model", "bodymodel", "bodyModelInfo", "body_model_info"):
-            value = node.get(key)
-            if isinstance(value, dict):
-                return value
-
-        if isinstance(node.get("data"), dict):
-            extracted = recurse(node["data"])
-            if extracted:
-                return extracted
-
-        if isinstance(node.get("data"), list):
-            extracted = recurse(node["data"])
-            if extracted:
-                return extracted
-
-        if node and all(normalize_key(k) not in {"data", "result", "player", "response"} for k in node.keys()):
-            if any(normalize_key(k) in {
-                "armlength", "shoulderwidth", "necklength", "chestmeasurement", "necksize",
-                "shoulderheight", "leglength", "thighsize", "waistsize", "armsize",
-                "calfsize", "legcoverageradius", "armcoverageradius", "jumpingheight",
-                "torsocollision", "leglengthbasedheight"
-            } for k in node.keys()):
-                return node
-
-        for value in node.values():
-            if isinstance(value, (dict, list)):
-                extracted = recurse(value)
-                if extracted:
-                    return extracted
-
-        return {}
-
-    return recurse(payload)
-
-
-def fetch_pesdata_player_json(player_id_or_url: str) -> dict:
-    pid = _extract_pesdata_player_id(player_id_or_url)
-    if not pid:
-        return {}
-
-    params = {'id': pid}
-    signature = _build_pesdata_signature(params)
-    headers = HEADERS.copy()
-    headers.update({
-        'version': PESDATA_API_VERSION,
-        'token': PESDATA_API_TOKEN,
-        'x-timestamp': signature['timestamp'],
-        'x-nonce': signature['nonce'],
-        'x-signature': signature['signature'],
-        'Referer': f'https://www.pesdata.net/player/detail/{pid}',
-        'Accept': 'application/json, text/plain, */*',
-    })
-
-    try:
-        resp = requests.get(PESDATA_API_BASE, headers=headers, params=params, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-
-        if isinstance(data, list) and data:
-            for item in data:
-                if isinstance(item, dict):
-                    return item
-            return {}
-
-        if isinstance(data, dict):
-            for key in ('data', 'result', 'response', 'player', 'details', 'detail'):
-                value = data.get(key)
-                if isinstance(value, list) and value:
-                    for item in value:
-                        if isinstance(item, dict):
-                            return item
-                elif isinstance(value, dict):
-                    return value
-            if data.get('code') in (0, 200):
-                return data
-            return data
-    except Exception:
-        pass
-    return {}
 
 
 def extract_pesdb_player_id(value: str) -> str:
@@ -3504,7 +3384,7 @@ def _build_pesdb_player_url(value: str) -> str:
     if not player_id:
         return text
 
-    if "efhub.com" in lowered or "efootballdb.com" in lowered or "pesdata.net" in lowered:
+    if "efhub.com" in lowered or "efootballdb.com" in lowered:
         player_name = _fetch_efootballdb_player_name(player_id)
         if player_name:
             slug = _slugify_player_name(player_name)
@@ -3936,6 +3816,7 @@ def extract_full_player_info(player_url: str) -> dict:
         'Height': '',
         'Weight': '',
         'Age': '',
+        'Jump': '',
         'Foot': '',
         'Weak Foot Usage': '',
         'Weak Foot Accuracy': '',
@@ -3943,7 +3824,7 @@ def extract_full_player_info(player_url: str) -> dict:
         'Injury Resistance': '',
         'Player_Type': 'NON-EPIC',
     }
-    for field_name in PESDATA_BODY_MODEL_FIELDS:
+    for field_name in BODY_MODEL_FIELDS:
         default_info[field_name] = ''
 
     try:
@@ -3971,6 +3852,7 @@ def extract_full_player_info(player_url: str) -> dict:
                 'height': 'Height',
                 'weight': 'Weight',
                 'age': 'Age',
+                'jump': 'Jump',
                 'foot': 'Foot',
                 'stronger foot': 'Foot',
                 'weak foot usage': 'Weak Foot Usage',
@@ -4047,6 +3929,16 @@ def extract_full_player_info(player_url: str) -> dict:
             info['Player_Type'] = normalize_player_type(extract_card_type_from_html(soup))
             info['Rating'] = extract_max_level_rating(pesdb_url, card_type=info.get('Player_Type'), base_html=html) or info.get('Rating', 0)
 
+            strength_rows = _find_section_rows(soup, ['strength', 'athleticism'])
+            for row in strength_rows:
+                cells = row.find_all(['th', 'td'])
+                if len(cells) < 2:
+                    continue
+                stat_name = re.sub(r'\s+', ' ', cells[0].get_text(' ', strip=True)).strip().lower()
+                if stat_name in {'jump', 'jumping'}:
+                    info['Jump'] = _clean_numeric_field(cells[-1].get_text(' ', strip=True))
+                    break
+
             model_rows = _find_section_rows(soup, ['player model'])
             for row in model_rows:
                 cells = row.find_all(['th', 'td'])
@@ -4056,11 +3948,12 @@ def extract_full_player_info(player_url: str) -> dict:
                 value = re.sub(r'\s+', ' ', cells[1].get_text(' ', strip=True))
                 if not key or not value:
                     continue
-                for field_name in PESDATA_BODY_MODEL_FIELDS:
+                for field_name in BODY_MODEL_FIELDS:
                     if key.strip().lower() == field_name.lower():
                         info[field_name] = value
                         break
 
+            info.update(calculate_physics_fields(info))
             if info.get('Player') or info.get('Rating') or info.get('Club') or info.get('League'):
                 return info
             return default_info
@@ -6028,25 +5921,25 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
         # Lọc danh sách cần cập nhật chỉ dựa trên Body Model thiếu
         player_urls = df['Player URL'].astype(str).str.strip()
         has_url = player_urls.str.startswith('http')
-        missing_body = df[PESDATA_BODY_MODEL_FIELDS].fillna('').astype(str).applymap(lambda x: str(x).strip() == '').any(axis=1)
+        missing_body = df[BODY_MODEL_FIELDS].fillna('').astype(str).applymap(lambda x: str(x).strip() == '').any(axis=1)
 
-        valid_id = player_urls[has_url].apply(lambda x: bool(_extract_pesdata_player_id(x)))
+        valid_id = player_urls[has_url].apply(lambda x: bool(extract_pesdb_player_id(x)))
         valid_id_count = int(valid_id.sum())
         invalid_id_count = len(player_urls[has_url]) - valid_id_count
         missing_body_count = int(missing_body[has_url].sum())
         missing_url_count = int((~has_url).sum())
 
-        st.info(f"🔍 URLs: {len(player_urls[has_url])}, valid PESDATA ID: {valid_id_count}, invalid ID: {invalid_id_count}, missing body model: {missing_body_count}, no URL: {missing_url_count}")
+        st.info(f"🔍 URLs: {len(player_urls[has_url])}, valid PESDB ID: {valid_id_count}, invalid ID: {invalid_id_count}, missing body model: {missing_body_count}, no URL: {missing_url_count}")
         if missing_url_count > 0:
             st.warning(f"⚠️ {missing_url_count} player(s) have no valid Player URL and cannot be auto-updated.")
         if invalid_id_count > 0:
-            st.warning(f"⚠️ {invalid_id_count} player(s) have a Player URL but no valid PESDATA ID could be extracted.")
+            st.warning(f"⚠️ {invalid_id_count} player(s) have a Player URL but no valid PESDB ID could be extracted.")
 
         eligible_players = df[has_url & missing_body]
-        needs_extraction = eligible_players[eligible_players['Player URL'].apply(lambda x: bool(_extract_pesdata_player_id(str(x).strip())))]
+        needs_extraction = eligible_players[eligible_players['Player URL'].apply(lambda x: bool(extract_pesdb_player_id(str(x).strip())))]
 
         if needs_extraction.empty:
-            st.success("✅ All existing players already have PESDATA Body Model info or no valid PESDATA IDs.")
+            st.success("✅ All existing players already have calculated body model info or no valid PESDB IDs.")
             st.session_state.run_pesdb_sync = False # Tắt cờ chạy
             return df
 
@@ -6106,50 +5999,32 @@ def sync_pesdb_missing_fields(df: pd.DataFrame) -> pd.DataFrame:
             st.info(f"📡 Loading data for: **{player_name}** ({state['current_idx_ptr'] + 1}/{total})...")
 
             try:
-                pesdata_id = _extract_pesdata_player_id(row.get('Player URL', ''))
-                if not pesdata_id:
+                calculated = calculate_physics_fields(row.to_dict())
+                row_updated = False
+                for field, new_val in calculated.items():
+                    current_val = str(state['df_snapshot'].at[idx, field]).strip()
+                    if not current_val or current_val == 'nan':
+                        state['df_snapshot'].at[idx, field] = new_val
+                        row_updated = True
+
+                if row_updated:
+                    state['updated_count'] += 1
+                    updated_in_batch += 1
+                else:
                     state['failed'].append({
                         'idx': idx,
                         'name': player_name,
                         'url': row.get('Player URL', ''),
-                        'pid': '',
-                        'reason': 'No valid PESDATA ID extracted from Player URL'
+                        'pid': extract_pesdb_player_id(row.get('Player URL', '')),
+                        'reason': 'No missing calculated physics fields could be filled'
                     })
-                else:
-                    pesdata_data = fetch_pesdata_player_json(pesdata_id)
-                    appearance = _extract_pesdata_appearance(pesdata_data)
-                    row_updated = False
-
-                    for field in PESDATA_BODY_MODEL_FIELDS:
-                        current_val = str(state['df_snapshot'].at[idx, field]).strip()
-                        if not current_val or current_val == 'nan':
-                            appearance_key = PESDATA_APPEARANCE_KEY_MAP_REVERSE.get(field, '')
-                            new_val = appearance.get(appearance_key, '') if appearance_key else ''
-                            if new_val is not None and str(new_val).strip() != '':
-                                state['df_snapshot'].at[idx, field] = new_val
-                                row_updated = True
-
-                    if row_updated:
-                        state['updated_count'] += 1
-                        updated_in_batch += 1
-                    else:
-                        failure_text = 'PESDATA API + PESDB fallback returned nothing useful for body model'
-                        if appearance:
-                            failure_text = 'PESDATA API returned data but no missing fields were filled; PESDB fallback was also empty'
-                        state['failed'].append({
-                            'idx': idx,
-                            'name': player_name,
-                            'url': row.get('Player URL', ''),
-                            'pid': pesdata_id,
-                            'reason': failure_text
-                        })
             except Exception as e:
                 state['failed'].append({
                     'idx': idx,
                     'name': player_name,
                     'url': row.get('Player URL', ''),
                     'pid': '',
-                    'reason': f'Exception while fetching PESDATA: {e}'
+                    'reason': f'Exception while calculating physics fields: {e}'
                 })
 
             state['current_idx_ptr'] += 1
@@ -6207,7 +6082,7 @@ def main():
             st.session_state.manual_reload_triggered = True
             st.rerun()
 
-        if st.button("🧲 Auto update old players", use_container_width=True, help="Update all existing players with missing PESDATA body model and PESDB info."):
+        if st.button("🧲 Recalculate old players", use_container_width=True, help="Calculate missing body model physics fields from existing PESDB data."):
             st.session_state.run_pesdb_sync = True
             st.rerun()
 
@@ -8145,24 +8020,6 @@ def main():
                     player_info = extract_full_player_info(pesdb_url)
 
                 if player_info and player_info.get('Player'):
-                    pesdata_id = extract_pesdb_player_id(pesdb_url)
-                    pesdata_appearance = {}
-                    if pesdata_id:
-                        try:
-                            pesdata_payload = fetch_pesdata_player_json(pesdata_id)
-                            pesdata_appearance = _extract_pesdata_appearance(pesdata_payload) or {}
-                        except Exception:
-                            pesdata_appearance = {}
-
-                    combined_body_model = {}
-                    for field in PESDATA_BODY_MODEL_FIELDS:
-                        value = player_info.get(field, '')
-                        if not str(value).strip():
-                            appearance_key = PESDATA_APPEARANCE_KEY_MAP_REVERSE.get(field, '')
-                            if appearance_key:
-                                value = pesdata_appearance.get(appearance_key, '')
-                        combined_body_model[field] = value
-
                     name_value = player_info.get('Player') or default_name or "Unknown Player"
                     st.session_state.add_preview_data = {
                         'Player': name_value,
@@ -8184,8 +8041,8 @@ def main():
                         'Skills': player_info['Skills'],
                         'Player_Type': normalize_player_type(player_info.get('Player_Type', 'NON-EPIC')),
                         'Player_URL': pesdb_url,
-                        'Player_ID': pesdata_id,
-                        **combined_body_model,
+                        'Player_ID': extract_pesdb_player_id(pesdb_url),
+                        **{field: player_info.get(field, '') for field in BODY_MODEL_FIELDS},
                         'Booster Type': 'None',
                         'National Booster': False,
                         'Booster Rating 1-7': 0,
@@ -8295,7 +8152,7 @@ def main():
                                 'Booster Rating 8-10': 0,
                                 'Booster Rating 11-23': 0,
                             }
-                            for field in PESDATA_BODY_MODEL_FIELDS:
+                            for field in BODY_MODEL_FIELDS:
                                 manual_preview[field] = ''
                             st.session_state.add_preview_data = manual_preview
                             st.session_state.add_show_form = True
@@ -8349,7 +8206,7 @@ def main():
                                 'Booster Rating 8-10': 0,
                                 'Booster Rating 11-23': 0,
                             }
-                            for field in PESDATA_BODY_MODEL_FIELDS:
+                            for field in BODY_MODEL_FIELDS:
                                 manual_preview[field] = ''
                             st.session_state.add_preview_data = manual_preview
                             st.session_state.add_show_form = True
@@ -8383,10 +8240,10 @@ def main():
                 else:
                     st.markdown(f"## ✍️ Enter new player information")
 
-                if any(data.get(field) for field in PESDATA_BODY_MODEL_FIELDS):
-                    with st.expander("📦 PESDATA Body Model Preview", expanded=True):
+                if any(data.get(field) for field in BODY_MODEL_FIELDS):
+                    with st.expander("📦 Body Model Preview", expanded=True):
                         cols = st.columns(2)
-                        for idx, field_name in enumerate(PESDATA_BODY_MODEL_FIELDS):
+                        for idx, field_name in enumerate(BODY_MODEL_FIELDS):
                             if not data.get(field_name):
                                 continue
                             with cols[idx % 2]:
@@ -8603,7 +8460,7 @@ def main():
                                     new_df.at[old_idx, 'Player ID'] = data.get('Player_ID', '')
                                     new_df.at[old_idx, 'Skills'] = skills
                                     new_df.at[old_idx, 'Added Skills'] = ""
-                                    for field in PESDATA_BODY_MODEL_FIELDS:
+                                    for field in BODY_MODEL_FIELDS:
                                         new_df.at[old_idx, field] = data.get(field, '')
                                     new_df.at[old_idx, 'Epic_Priority'] = 0 if player_type_norm == "EPIC" else 1
                                     new_df.at[old_idx, 'National Booster'] = booster_type == 'National'
@@ -8656,7 +8513,7 @@ def main():
                                         "Player ID": data.get('Player_ID', ''),
                                         "Skills": skills,
                                         "Added Skills": "",
-                                        **{field: data.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
+                                        **{field: data.get(field, '') for field in BODY_MODEL_FIELDS},
                                         "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
                                         "National Booster": booster_type == 'National',
                                         "Booster Type": booster_type,
@@ -8706,7 +8563,7 @@ def main():
                                     "Player ID": data.get('Player_ID', ''),
                                     "Skills": skills,
                                     "Added Skills": "",
-                                    **{field: data.get(field, '') for field in PESDATA_BODY_MODEL_FIELDS},
+                                        **{field: data.get(field, '') for field in BODY_MODEL_FIELDS},
                                     "Epic_Priority": 0 if player_type_norm == "EPIC" else 1,
                                     "National Booster": booster_type == 'National',
                                     "Booster Type": booster_type,
