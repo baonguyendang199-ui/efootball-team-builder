@@ -1936,7 +1936,7 @@ def _get_squad_total_boosted_rating(squad):
     return sum(rating for _, rating in final_ratings)
 
 
-def prioritize_strongest_starting_xi(squad, required_positions):
+def prioritize_strongest_starting_xi(squad, required_positions, sort_mode='rating_desc'):
     """Reassign the selected 23 into the strongest legal starting XI.
 
     Booster tiers are determined by the complete 23-player squad, so this runs
@@ -1970,12 +1970,39 @@ def prioritize_strongest_starting_xi(squad, required_positions):
         player_positions.append(primary)
         eligible_positions = {primary, *secondary}
         final_rating = int(player.get('Rating', 0) or 0)
+        selection_score = final_rating
+        if sort_mode == 'ambidextrous':
+            usage = str(data.get('Weak Foot Usage', '')).strip().lower()
+            accuracy = str(data.get('Weak Foot Accuracy', '')).strip().lower()
+
+            def weak_foot_value(text):
+                if any(value in text for value in ['regularly', 'very high']):
+                    return 4
+                if any(value in text for value in ['occasionally', 'high']):
+                    return 3
+                if any(value in text for value in ['medium', 'rarely']):
+                    return 2
+                return 1
+
+            usage_value = weak_foot_value(usage)
+            accuracy_value = weak_foot_value(accuracy)
+            if usage_value == 4 and accuracy_value == 4:
+                tier_priority = 4000000000
+            elif accuracy_value == 4:
+                tier_priority = 3000000000
+            elif accuracy_value == 3:
+                tier_priority = 2000000000
+            elif accuracy_value == 2:
+                tier_priority = 1000000000
+            else:
+                tier_priority = 0
+            selection_score = tier_priority + final_rating + usage_value * 100
 
         for slot_idx, required_position in enumerate(required_positions):
             if required_position in eligible_positions:
                 # Prefer the natural position only when final rating is identical.
                 natural_position_bonus = 0.0001 if required_position == primary else 0
-                cost_matrix[player_idx, slot_idx] = -(final_rating + natural_position_bonus)
+                cost_matrix[player_idx, slot_idx] = -(selection_score + natural_position_bonus)
 
     try:
         row_indices, slot_indices = linear_sum_assignment(cost_matrix)
@@ -2712,7 +2739,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         )
 
     boosted_squad = apply_squad_national_boosters(final_squad, filter_col=filter_col)
-    return prioritize_strongest_starting_xi(boosted_squad, required_positions)
+    return prioritize_strongest_starting_xi(boosted_squad, required_positions, sort_mode=sort_mode)
 
 
 
