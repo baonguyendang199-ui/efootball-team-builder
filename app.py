@@ -3953,6 +3953,18 @@ def extract_full_player_info(player_url: str) -> dict:
                         info[field_name] = value
                         break
 
+            for term_tag in soup.select('term'):
+                key = re.sub(r'\s+', ' ', term_tag.get_text(' ', strip=True)).strip()
+                if key.lower() not in {field.lower() for field in BODY_MODEL_FIELDS}:
+                    continue
+                value_tag = term_tag.find_next_sibling('definition')
+                if value_tag:
+                    value = re.sub(r'\s+', ' ', value_tag.get_text(' ', strip=True)).strip()
+                    for field_name in BODY_MODEL_FIELDS:
+                        if key.lower() == field_name.lower() and value:
+                            info[field_name] = value
+                            break
+
             info.update(calculate_physics_fields(info))
             if info.get('Player') or info.get('Rating') or info.get('Club') or info.get('League'):
                 return info
