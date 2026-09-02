@@ -3938,6 +3938,15 @@ def extract_full_player_info(player_url: str) -> dict:
                 if stat_name in {'jump', 'jumping'}:
                     info['Jump'] = _clean_numeric_field(cells[-1].get_text(' ', strip=True))
                     break
+            if not str(info.get('Jump', '')).strip():
+                for term_tag in soup.select('dt'):
+                    stat_name = re.sub(r'\s+', ' ', term_tag.get_text(' ', strip=True)).strip().lower()
+                    if stat_name not in {'jump', 'jumping'}:
+                        continue
+                    value_tag = term_tag.find_next_sibling('dd') or term_tag.find_next('dd')
+                    if value_tag:
+                        info['Jump'] = _clean_numeric_field(value_tag.get_text(' ', strip=True))
+                        break
 
             model_rows = _find_section_rows(soup, ['player model'])
             for row in model_rows:
@@ -3953,17 +3962,33 @@ def extract_full_player_info(player_url: str) -> dict:
                         info[field_name] = value
                         break
 
-            for term_tag in soup.select('term'):
+            for term_tag in soup.select('term, dt'):
                 key = re.sub(r'\s+', ' ', term_tag.get_text(' ', strip=True)).strip()
                 if key.lower() not in {field.lower() for field in BODY_MODEL_FIELDS}:
                     continue
-                value_tag = term_tag.find_next_sibling('definition') or term_tag.find_next('definition')
+                value_tag = (
+                    term_tag.find_next_sibling(['definition', 'dd'])
+                    or term_tag.find_next(['definition', 'dd'])
+                )
                 if value_tag:
                     value = re.sub(r'\s+', ' ', value_tag.get_text(' ', strip=True)).strip()
                     for field_name in BODY_MODEL_FIELDS:
                         if key.lower() == field_name.lower() and value:
                             info[field_name] = value
                             break
+
+            for field_name in BODY_MODEL_FIELDS:
+                if str(info.get(field_name, '')).strip():
+                    continue
+                field_pattern = re.escape(field_name)
+                match = re.search(
+                    rf'<(?:term|dt)[^>]*>\s*{field_pattern}\s*</(?:term|dt)>.*?'
+                    rf'<(?:definition|dd)[^>]*>\s*([^<]+?)\s*</(?:definition|dd)>',
+                    html,
+                    flags=re.IGNORECASE | re.DOTALL
+                )
+                if match:
+                    info[field_name] = re.sub(r'\s+', ' ', match.group(1)).strip()
 
             info.update(calculate_physics_fields(info))
             if info.get('Player') or info.get('Rating') or info.get('Club') or info.get('League'):
