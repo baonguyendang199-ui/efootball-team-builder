@@ -3947,6 +3947,21 @@ def extract_full_player_info(player_url: str) -> dict:
                     if value_tag:
                         info['Jump'] = _clean_numeric_field(value_tag.get_text(' ', strip=True))
                         break
+            if not str(info.get('Jump', '')).strip():
+                jump_match = re.search(
+                    r'<(?:term|dt)[^>]*>\s*(?:Jump|Jumping)\s*</(?:term|dt)>.*?'
+                    r'<(?:definition|dd)[^>]*>\s*([^<]+?)\s*</(?:definition|dd)>',
+                    html,
+                    flags=re.IGNORECASE | re.DOTALL
+                )
+                if jump_match:
+                    info['Jump'] = _clean_numeric_field(jump_match.group(1))
+            if not str(info.get('Jump', '')).strip():
+                for ability_row in soup.select('.ability-row'):
+                    labels = ability_row.find_all(['span', 'strong'])
+                    if len(labels) >= 2 and labels[0].get_text(' ', strip=True).lower() in {'jump', 'jumping'}:
+                        info['Jump'] = _clean_numeric_field(labels[-1].get_text(' ', strip=True))
+                        break
 
             model_rows = _find_section_rows(soup, ['player model'])
             for row in model_rows:
