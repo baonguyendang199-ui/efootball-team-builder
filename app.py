@@ -5486,10 +5486,16 @@ def compute_position_model_scores(df: pd.DataFrame, weights: dict = None, group_
             z_squares.append(z * z)
         rms = math.sqrt(sum(z_squares) / len(z_squares)) if z_squares else 0.0
 
-        # Role assignment uses position role profiles if available
+        # Role assignment uses position role profiles if available.
+        # NOTE: the role catalog (with 'overall'/'roles' keys) only ever exists in MODEL_PROFILES.
+        # `weights` here may be a flat {position: [features]} override (a single selected role,
+        # or the legacy POSITION_MODEL_WEIGHTS) which is NOT shaped like MODEL_PROFILES, so it must
+        # never be passed as `profiles` — doing so silently made every player fall back to
+        # role_profiles == [] (i.e. Model Role='Standard', Model Confidence=NaN) whenever a
+        # specific Model Profile / role was selected in the UI, or in the GK module.
         role_label = 'Standard'
         role_confidence = np.nan
-        role_profiles = get_model_roles_for_position(model_position, profiles=weights if weights is not None else MODEL_PROFILES, exclude_experimental=not JUMPING_HEIGHT_ENABLED)
+        role_profiles = get_model_roles_for_position(model_position, profiles=MODEL_PROFILES, exclude_experimental=not JUMPING_HEIGHT_ENABLED)
         if role_profiles:
             scored_roles = []
             for role in role_profiles:
