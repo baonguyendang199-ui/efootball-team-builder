@@ -8020,6 +8020,8 @@ def main():
                     player_info = extract_full_player_info(pesdb_url)
 
                 if player_info and player_info.get('Player'):
+                    calculated_physics = calculate_physics_fields(player_info)
+                    player_info.update(calculated_physics)
                     name_value = player_info.get('Player') or default_name or "Unknown Player"
                     st.session_state.add_preview_data = {
                         'Player': name_value,
