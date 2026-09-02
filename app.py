@@ -2453,7 +2453,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             elif a_val == 3: tier_score = 30000
             elif a_val == 2: tier_score = 20000
             sub_tier_bonus = u_val * 100
-            return eff_rating + tier_score + sub_tier_bonus
+            tier_priority = tier_score * 100000
+            return tier_priority + eff_rating + sub_tier_bonus
         elif sort_mode == 'potw_only':
             ptype = str(row.get('Player Type', '')).upper()
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
