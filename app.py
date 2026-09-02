@@ -3430,14 +3430,61 @@ def extract_pesdb_player_id(value: str) -> str:
     return match.group(1) if match else ""
 
 
-def _build_pesdb_player_url(value: str) -> str:
-    """Normalize PESDB input without guessing the URL slug.
+def _slugify_player_name(value: str) -> str:
+    """Convert a player name to the PESDB slug format used in player URLs."""
+    if not value:
+        return ""
+    slug = str(value).strip().lower()
+    slug = slug.replace("'", "")
+    slug = slug.replace("’", "")
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
 
-    - Full PESDB player URLs are used as-is.
-    - Legacy ?id= URLs are kept as-is.
-    - Short numeric IDs still convert to the legacy ?id= form.
-    - Long numeric IDs are rejected: they require the full browser URL because the
-      new PESDB route uses a player name slug that cannot be reconstructed reliably.
+
+def _fetch_efootballdb_player_name(player_id: str) -> str:
+    """Resolve a player name from an eFootballDB profile page using the player ID."""
+    if not player_id:
+        return ""
+
+    url = f"https://www.efootballdb.com/fr/players/profile?id={player_id}"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=20)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        title = soup.title.get_text(' ', strip=True) if soup.title else ""
+        if " - Report" in title:
+            return title.replace(" - Report", "").strip()
+
+        meta = soup.find("meta", attrs={"property": "og:title"})
+        if meta and meta.get("content"):
+            meta_title = str(meta.get("content", "")).strip()
+            if meta_title and " - " in meta_title:
+                return meta_title.split(" - ", 1)[0].strip()
+
+        for label in soup.find_all(['h1', 'h2', 'title']):
+            text = re.sub(r'\s+', ' ', label.get_text(' ', strip=True))
+            if text and len(text) > 2 and 'eFootball DB' not in text:
+                if 'Report' in text:
+                    return text.replace('Report', '').strip(' - ')
+                if 'Players' in text and '/' in text:
+                    candidate = text.split('/')[-1].strip()
+                    if candidate and 'Players' not in candidate:
+                        return candidate
+        return ""
+    except Exception:
+        return ""
+
+
+def _build_pesdb_player_url(value: str) -> str:
+    """Normalize PESDB input while respecting the new slug-based URL format.
+
+    Supported:
+    - Full PESDB URLs are used as-is.
+    - EFHUB or eFootballDB profile URLs resolve via the numeric ID and player name.
+    - Short numeric IDs are rejected unless we can resolve a real name, because PESDB
+      now requires the player-name slug in the URL path.
     """
     if not value:
         return ""
@@ -3450,20 +3497,22 @@ def _build_pesdb_player_url(value: str) -> str:
     if "pesdb.net" in lowered and ("/players/" in lowered or "?id=" in lowered):
         return text
 
-    if text.isdigit():
-        if len(text) <= 8:
-            return f"{PESDB_PLAYER_URL_BASE}{text}"
-        return ""
-
-    match = re.search(r"(\d{6,})", text)
-    if not match:
+    player_id = extract_pesdb_player_id(text)
+    if not player_id:
         return text
 
-    player_id = match.group(1)
-    if len(player_id) <= 8:
-        return f"{PESDB_PLAYER_URL_BASE}{player_id}"
+    if "efhub.com" in lowered or "efootballdb.com" in lowered or "pesdata.net" in lowered:
+        player_name = _fetch_efootballdb_player_name(player_id)
+        if player_name:
+            slug = _slugify_player_name(player_name)
+            if slug:
+                return f"{PESDB_PLAYER_URL_BASE}{slug}-{player_id}"
+        return ""
 
-    return ""
+    if text.isdigit():
+        return ""
+
+    return text
 
 
 def make_pesdb_player_image_url(player_id: str) -> str:
