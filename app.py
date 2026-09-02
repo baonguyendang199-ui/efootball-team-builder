@@ -3239,7 +3239,9 @@ def auto_update_target_lists(df):
 
 
 # ==================== PESDB SCRAPER ====================
-PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/?id="
+# Current PESDB player URLs use the slugged format:
+# https://pesdb.net/efootball/players/marc-guehi-52902186057942
+PESDB_PLAYER_URL_BASE = "https://pesdb.net/efootball/players/"
 PESDB_IMAGE_URL_BASE = "https://pesdb.net/assets/img/card/"
 PESDATA_API_BASE = "https://www.pesdata.net/api/player/detail"
 PESDATA_API_VERSION = "1.9.0"
@@ -3494,8 +3496,9 @@ def _build_pesdb_player_url(value: str) -> str:
         return ""
 
     lowered = text.lower()
-    if "pesdb.net" in lowered and ("/players/" in lowered or "?id=" in lowered):
-        return text
+    if "pesdb.net" in lowered:
+        if "/players/" in lowered or "/efootball/?id=" in lowered or "?id=" in lowered:
+            return text
 
     player_id = extract_pesdb_player_id(text)
     if not player_id:
