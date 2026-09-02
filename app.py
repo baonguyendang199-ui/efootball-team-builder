@@ -3286,7 +3286,7 @@ def calculate_physics_fields(info: dict) -> dict:
             * height * 0.27 * 0.3, 1
         )
     if height is not None and jump is not None:
-        calculated['Jumping Height'] = round(height + 54 + 0.666 * (jump - 40), 1)
+        calculated['Jumping Height'] = round(height + 55.6 + 0.666 * (jump - 40), 1)
     return calculated
 
 HEADERS = {
