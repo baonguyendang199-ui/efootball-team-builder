@@ -1966,6 +1966,7 @@ def prioritize_strongest_starting_xi(squad, required_positions, sort_mode='ratin
 
     player_positions = []
     for player_idx, player in enumerate(valid_players):
+        data = player.get('Data', {}) or {}
         primary, secondary = get_primary_and_secondary_positions(player)
         player_positions.append(primary)
         eligible_positions = {primary, *secondary}
