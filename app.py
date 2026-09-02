@@ -3957,7 +3957,7 @@ def extract_full_player_info(player_url: str) -> dict:
                 key = re.sub(r'\s+', ' ', term_tag.get_text(' ', strip=True)).strip()
                 if key.lower() not in {field.lower() for field in BODY_MODEL_FIELDS}:
                     continue
-                value_tag = term_tag.find_next_sibling('definition')
+                value_tag = term_tag.find_next_sibling('definition') or term_tag.find_next('definition')
                 if value_tag:
                     value = re.sub(r'\s+', ' ', value_tag.get_text(' ', strip=True)).strip()
                     for field_name in BODY_MODEL_FIELDS:
@@ -8254,14 +8254,17 @@ def main():
                 else:
                     st.markdown(f"## ✍️ Enter new player information")
 
-                if any(data.get(field) for field in BODY_MODEL_FIELDS):
-                    with st.expander("📦 Body Model Preview", expanded=True):
-                        cols = st.columns(2)
-                        for idx, field_name in enumerate(BODY_MODEL_FIELDS):
-                            if not data.get(field_name):
-                                continue
-                            with cols[idx % 2]:
-                                st.text_input(field_name, value=data.get(field_name, ''), key=f"preview_{field_name}", disabled=True)
+                with st.expander("📦 Body Model Preview", expanded=True):
+                    cols = st.columns(2)
+                    for idx, field_name in enumerate(BODY_MODEL_FIELDS):
+                        with cols[idx % 2]:
+                            value = data.get(field_name, '')
+                            st.text_input(
+                                field_name,
+                                value=str(value) if str(value).strip() else "Not available",
+                                key=f"preview_{field_name}",
+                                disabled=True
+                            )
 
                 st.divider()
 
