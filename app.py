@@ -1054,6 +1054,7 @@ def normalize_player_type(value: str) -> str:
         'EPIC': 'EPIC',
         'LEGENDARY': 'EPIC',
         'LEGEND': 'EPIC',
+        'BIG TIME': 'EPIC',
         'NON-EPIC': 'NON-EPIC',
         'NON EPIC': 'NON-EPIC',
         'NON_EPIC': 'NON-EPIC',
@@ -1071,7 +1072,7 @@ def normalize_player_type(value: str) -> str:
     if 'NON' in text and 'EPIC' in text:
         return 'NON-EPIC'
     
-    if 'LEGENDARY' in text or 'LEGEND' in text:
+    if 'LEGENDARY' in text or 'LEGEND' in text or 'BIG TIME' in text:
         return 'EPIC'
     
     if 'EPIC' in text:
