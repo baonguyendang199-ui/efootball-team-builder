@@ -854,6 +854,10 @@ def load_data_from_gsheet():
         ]:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).replace(['nan', 'None', 'NaN', '<NA>'], '').str.strip()
+
+        for col in BODY_MODEL_FIELDS:
+            if col in df.columns:
+                df[col] = df[col].apply(normalize_body_model_value)
         
         if "Is Bench" not in df.columns:
             df["Is Bench"] = False
@@ -913,6 +917,10 @@ def save_data_to_gsheet(df):
         
         # Remove Epic_Priority column before saving
         df_save = df.drop(columns=['Epic_Priority', 'Effective_Nation_Rating', 'Effective_Club_Rating', 'Effective_League_Rating', 'Top23_Count'], errors='ignore').copy()
+
+        for col in BODY_MODEL_FIELDS:
+            if col in df_save.columns:
+                df_save[col] = df_save[col].apply(normalize_body_model_value)
         
         # CRITICAL: Replace NaN/inf values with empty string or 0
         # This prevents JSON error when saving to Google Sheets
@@ -3278,6 +3286,18 @@ BODY_MODEL_FIELDS = [
     'Arm Size', 'Calf Size', 'Leg Coverage Radius', 'Arm Coverage Radius',
     'Jumping Height', 'Torso Collision', 'Leg Length Based Height'
 ]
+
+
+def normalize_body_model_value(value):
+    """Restore body-model values saved as fixed-point tenths in the sheet."""
+    try:
+        number = float(str(value).strip().replace(',', '.'))
+    except (TypeError, ValueError):
+        return value
+
+    if number >= 500:
+        number /= 10
+    return f'{number:.1f}'
 
 
 def calculate_physics_fields(info: dict) -> dict:
