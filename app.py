@@ -3826,6 +3826,33 @@ def extract_secondary_positions(soup, main_position):
                 cleaned.append(token)
         return ', '.join(cleaned)
 
+    full_positions = []
+    for zone in soup.select('.position-pitch-zone.is-full'):
+        position_class = next(
+            (class_name for class_name in zone.get('class', [])
+             if class_name.startswith('position-pitch-')),
+            ''
+        )
+        if position_class:
+            full_positions.append(position_class.removeprefix('position-pitch-').upper())
+    if full_positions:
+        result = normalize_secondary_list(', '.join(full_positions))
+        if result:
+            return result
+
+    pitch = soup.select_one('.position-pitch[aria-label]')
+    if pitch:
+        aria_label = pitch.get('aria-label', '')
+        full_match = re.search(
+            r'Full Familiarity:\s*(.*?)(?:\.\s*Partial Familiarity:|$)',
+            aria_label,
+            flags=re.IGNORECASE,
+        )
+        if full_match:
+            result = normalize_secondary_list(full_match.group(1))
+            if result:
+                return result
+
     value = _extract_field_from_rows(soup, 'Secondary Positions', ['player details', 'positions'])
     if value:
         result = normalize_secondary_list(value)
