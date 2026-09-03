@@ -3814,11 +3814,14 @@ def extract_secondary_positions(soup, main_position):
         cleaned = []
         seen = set()
         main_upper = str(main_position).strip().upper()
+        valid_positions = set(EFConstants.POSITIONS)
         for part in parts:
             token = re.sub(r'\s+', ' ', part).strip()
             if not token:
                 continue
             token_upper = token.upper()
+            if token_upper not in valid_positions:
+                continue
             if token_upper == main_upper:
                 continue
             if token_upper not in seen:
@@ -3830,7 +3833,8 @@ def extract_secondary_positions(soup, main_position):
     for zone in soup.select('.position-pitch-zone.is-full'):
         position_class = next(
             (class_name for class_name in zone.get('class', [])
-             if class_name.startswith('position-pitch-')),
+             if class_name.startswith('position-pitch-')
+             and class_name != 'position-pitch-zone'),
             ''
         )
         if position_class:
