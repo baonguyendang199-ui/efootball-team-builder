@@ -1193,12 +1193,13 @@ def get_player_rank(df, row, group_by, max_size=23):
     # Xác định các tiêu chí sắp xếp
     sort_keys = [rank_col, 'Epic_Priority']
     sort_asc = [False, True]
-    
-    # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
-    if group_by in ['Nation', 'League'] and 'Top23_Count' in group_df.columns:
+
+    # Top23_Count phải được dùng cho mọi nhóm khi cùng rating, không chỉ Nation/League,
+    # để tránh giữ nhầm player có ít slot Top23 thực tế.
+    if 'Top23_Count' in group_df.columns:
         sort_keys.append('Top23_Count')
-        sort_asc.append(False) # False = Giảm dần
-    
+        sort_asc.append(False)
+
     # Sort theo các tiêu chí đã định
     group_df = group_df.sort_values(sort_keys, ascending=sort_asc).head(max_size)
     
@@ -1472,39 +1473,32 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
 
 def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Tính toán số lần một cầu thủ thuộc Top 23 Club hoặc League (CHỈ TÍNH TARGET CLUBS/LEAGUES)
-    Sử dụng để ưu tiên khi Nation/League Top 23 bị tie.
+    Tính toán số lượng Top 23 membership của một cầu thủ ở các nhóm mục tiêu
+    (Club / Nation / League). Mục tiêu là ưu tiên người có nhiều "slot giữ" khi
+    rating và cấp độ thẻ bằng nhau, ví dụ 97-97 trong cùng 1 Club nhưng chỉ có
+    1 slot trống.
     """
     if 'Top23_Count' in df.columns:
         df = df.drop(columns=['Top23_Count'])
-        
-    # 1. Lấy danh sách index của Top 23 cho TẤT CẢ các team (dựa trên Rating)
+
     raw_club_top_indices = get_top23_indices(df, 'Club')
     raw_league_top_indices = get_top23_indices(df, 'League')
-    
-    # 2. Tạo cột Count mặc định là 0
+    raw_nation_top_indices = get_top23_indices(df, 'Nation')
+
     df['Top23_Count'] = 0
-    
-    # 3. CHỈ cộng điểm nếu:
-    #    a) Player nằm trong Top 23 của team đó (raw indices)
-    #    b) Team đó nằm trong danh sách TARGET (Target list)
-    
-    # --- Xử lý Club ---
-    # Kiểm tra xem Club của cầu thủ có trong TARGET_CLUBS không
+
     is_target_club = df['Club'].isin(target_clubs)
-    # Kiểm tra xem cầu thủ có trong Top 23 Club không
-    is_top23_club = df.index.isin(raw_club_top_indices)
-    # Cộng 1 nếu thỏa mãn cả hai
-    df.loc[is_target_club & is_top23_club, 'Top23_Count'] += 1
-    
-    # --- Xử lý League ---
-    # Kiểm tra xem League của cầu thủ có trong TARGET_LEAGUES không
     is_target_league = df['League'].isin(target_leagues)
-    # Kiểm tra xem cầu thủ có trong Top 23 League không
+    is_target_nation = df['Nation'].isin(target_nations)
+
+    is_top23_club = df.index.isin(raw_club_top_indices)
     is_top23_league = df.index.isin(raw_league_top_indices)
-    # Cộng 1 nếu thỏa mãn cả hai
+    is_top23_nation = df.index.isin(raw_nation_top_indices)
+
+    df.loc[is_target_club & is_top23_club, 'Top23_Count'] += 1
     df.loc[is_target_league & is_top23_league, 'Top23_Count'] += 1
-    
+    df.loc[is_target_nation & is_top23_nation, 'Top23_Count'] += 1
+
     return df
 
 # --- SKILL INVENTORY MANAGEMENT (Google Sheets) ---
@@ -6327,12 +6321,13 @@ def main():
             # Xác định các tiêu chí sắp xếp
             sort_keys = [rank_col, 'Epic_Priority']
             sort_asc = [False, True]
-            
-            # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
-            if group_by in ['Nation', 'League'] and 'Top23_Count' in gdf.columns:
+
+            # Top23_Count phải được dùng cho mọi nhóm khi cùng rating, không chỉ Nation/League,
+            # nhằm ưu tiên player nào có nhiều slot Top 23 thật sự và loại quyết định sai.
+            if 'Top23_Count' in gdf.columns:
                 sort_keys.append('Top23_Count')
-                sort_asc.append(False) # False = Giảm dần, ưu tiên số count cao hơn (thuộc nhiều Top 23 target hơn)
-                
+                sort_asc.append(False)
+
             # Sort theo các tiêu chí đã định
             gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
             size = len(gdf)
