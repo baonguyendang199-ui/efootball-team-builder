@@ -7128,21 +7128,20 @@ def main():
             if is_duplicate and not (in_top_club or in_top_nation or in_top_league):
                 return '❌ SELL', "⚠️ Duplicate card - Better card exists (same player + club + nation + league)"
 
-            # 3.5. Nếu cùng Club và cùng Effective_Club_Rating, chỉ áp dụng tie-break cho
-            # những cầu thủ chưa nằm trong bất kỳ Top23 nào. Nếu đã có Top23 hợp lệ qua Club/Nation/League,
-            # ưu tiên giữ vì đó là slot thật sự trong team.
-            if not (in_top_club or in_top_nation or in_top_league):
-                club_rating = pd.to_numeric(row.get('Effective_Club_Rating', row.get('Rating', 0)), errors='coerce')
-                same_club_rows = rec_df[(rec_df['Club'] == club) & (pd.to_numeric(rec_df['Effective_Club_Rating'], errors='coerce').fillna(0) == club_rating)]
-                if not same_club_rows.empty and len(same_club_rows) > 1:
-                    best_same_club_idx = same_club_rows.sort_values(
-                        ['Top23_Count', 'Epic_Priority', 'Rating'],
-                        ascending=[False, True, False]
-                    ).index[0]
-                    current_count = pd.to_numeric(row.get('Top23_Count', 0), errors='coerce')
-                    best_count = pd.to_numeric(rec_df.loc[best_same_club_idx, 'Top23_Count'], errors='coerce')
-                    if current_count != best_count and idx != best_same_club_idx:
-                        return '❌ SELL', f"Club tie-break: same Club rating {club_rating} but lower Top23 coverage than {rec_df.loc[best_same_club_idx, 'Player']}"
+            # 3.5. Nếu cùng Club và cùng Effective_Club_Rating, tie-break phải được áp dụng
+            # TRƯỚC khi quyết định KEEP. Đây là trường hợp MU 97/97: chỉ có 1 slot thật sự và
+            # phải giữ người có Top23 coverage mạnh hơn, không phải ai nằm trong Top23 trước.
+            club_rating = pd.to_numeric(row.get('Effective_Club_Rating', row.get('Rating', 0)), errors='coerce')
+            same_club_rows = rec_df[(rec_df['Club'] == club) & (pd.to_numeric(rec_df['Effective_Club_Rating'], errors='coerce').fillna(0) == club_rating)]
+            if not same_club_rows.empty and len(same_club_rows) > 1:
+                best_same_club_idx = same_club_rows.sort_values(
+                    ['Top23_Count', 'Epic_Priority', 'Rating'],
+                    ascending=[False, True, False]
+                ).index[0]
+                current_count = pd.to_numeric(row.get('Top23_Count', 0), errors='coerce')
+                best_count = pd.to_numeric(rec_df.loc[best_same_club_idx, 'Top23_Count'], errors='coerce')
+                if idx != best_same_club_idx and current_count != best_count:
+                    return '❌ SELL', f"Club tie-break: same Club rating {club_rating} but lower Top23 coverage than {rec_df.loc[best_same_club_idx, 'Player']}"
 
             # 4. Quyết định: nếu player nằm trong ít nhất một Top 23 rank thì KEEP
             if in_top_club or in_top_nation or in_top_league:
