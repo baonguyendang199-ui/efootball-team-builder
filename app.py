@@ -1191,14 +1191,14 @@ def get_player_rank(df, row, group_by, max_size=23):
         group_df = group_df.drop_duplicates(subset=['Player'], keep='first')
 
     # Xác định các tiêu chí sắp xếp
-    sort_keys = [rank_col, 'Epic_Priority']
-    sort_asc = [False, True]
+    sort_keys = [rank_col, 'Top23_Count', 'Epic_Priority']
+    sort_asc = [False, False, True]
 
     # Top23_Count phải được dùng cho mọi nhóm khi cùng rating, không chỉ Nation/League,
     # để tránh giữ nhầm player có ít slot Top23 thực tế.
-    if 'Top23_Count' in group_df.columns:
-        sort_keys.append('Top23_Count')
-        sort_asc.append(False)
+    if 'Top23_Count' not in group_df.columns:
+        sort_keys = [rank_col, 'Epic_Priority']
+        sort_asc = [False, True]
 
     # Sort theo các tiêu chí đã định
     group_df = group_df.sort_values(sort_keys, ascending=sort_asc).head(max_size)
@@ -6319,14 +6319,14 @@ def main():
                 gdf = gdf.sort_values(['Player', rank_col, 'Epic_Priority'], ascending=[True, False, True])
                 gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
             # Xác định các tiêu chí sắp xếp
-            sort_keys = [rank_col, 'Epic_Priority']
-            sort_asc = [False, True]
+            sort_keys = [rank_col, 'Top23_Count', 'Epic_Priority']
+            sort_asc = [False, False, True]
 
             # Top23_Count phải được dùng cho mọi nhóm khi cùng rating, không chỉ Nation/League,
             # nhằm ưu tiên player nào có nhiều slot Top 23 thật sự và loại quyết định sai.
-            if 'Top23_Count' in gdf.columns:
-                sort_keys.append('Top23_Count')
-                sort_asc.append(False)
+            if 'Top23_Count' not in gdf.columns:
+                sort_keys = [rank_col, 'Epic_Priority']
+                sort_asc = [False, True]
 
             # Sort theo các tiêu chí đã định
             gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
@@ -6955,8 +6955,8 @@ def main():
                     if 'Top23_Count' not in team_df.columns:
                         team_df['Top23_Count'] = 0
                     team_df = team_df.sort_values(
-                        ['Player', rank_col, 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
-                        ascending=[True, False, True, False, False]
+                        ['Player', rank_col, 'Top23_Count', 'Epic_Priority', 'TargetClubPriority'],
+                        ascending=[True, False, False, True, False]
                     )
                     team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
     
@@ -6970,7 +6970,7 @@ def main():
                 if not gk_df.empty:
                     gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
-                    best_gk = gk_df.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(1)
+                    best_gk = gk_df.sort_values([rank_col, 'Top23_Count', 'Epic_Priority'], ascending=[False, False, True]).head(1)
                     squad = pd.concat([squad, best_gk])
                     remaining_slots -= 1
     
@@ -6978,7 +6978,7 @@ def main():
                 if not cb_df.empty:
                     cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
-                    best_cb = cb_df.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(2)
+                    best_cb = cb_df.sort_values([rank_col, 'Top23_Count', 'Epic_Priority'], ascending=[False, False, True]).head(2)
                     squad = pd.concat([squad, best_cb])
                     remaining_slots -= len(best_cb)
     
@@ -6987,7 +6987,7 @@ def main():
                 if not others.empty:
                     others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in others.columns: others['Top23_Count'] = 0
-                    top_rest = others.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(remaining_slots)
+                    top_rest = others.sort_values([rank_col, 'Top23_Count', 'Epic_Priority'], ascending=[False, False, True]).head(remaining_slots)
                     squad = pd.concat([squad, top_rest])
                 
                 # --- LƯU RANKING ---
@@ -7110,6 +7110,20 @@ def main():
             is_duplicate = any(dup['index'] == idx for dup in duplicates)
             if is_duplicate and not (in_top_club or in_top_nation or in_top_league):
                 return '❌ SELL', "⚠️ Duplicate card - Better card exists (same player + club + nation + league)"
+
+            # 3.5. Nếu cùng Club và cùng Effective_Club_Rating, giữ người có nhiều slot Top23 hợp lệ hơn
+            # (đây là fix cho trường hợp 97/97 MU mà chỉ có 1 slot: Zirkzee có Netherlands + MU, Casemiro chỉ MU).
+            club_rating = pd.to_numeric(row.get('Effective_Club_Rating', row.get('Rating', 0)), errors='coerce')
+            same_club_rows = rec_df[(rec_df['Club'] == club) & (pd.to_numeric(rec_df['Effective_Club_Rating'], errors='coerce').fillna(0) == club_rating)]
+            if not same_club_rows.empty and len(same_club_rows) > 1:
+                best_same_club_idx = same_club_rows.sort_values(
+                    ['Top23_Count', 'Epic_Priority', 'Rating'],
+                    ascending=[False, True, False]
+                ).index[0]
+                current_count = pd.to_numeric(row.get('Top23_Count', 0), errors='coerce')
+                best_count = pd.to_numeric(rec_df.loc[best_same_club_idx, 'Top23_Count'], errors='coerce')
+                if current_count != best_count and idx != best_same_club_idx:
+                    return '❌ SELL', f"Club tie-break: same Club rating {club_rating} but lower Top23 coverage than {rec_df.loc[best_same_club_idx, 'Player']}"
 
             # 4. Quyết định: nếu player nằm trong ít nhất một Top 23 rank thì KEEP
             if in_top_club or in_top_nation or in_top_league:
