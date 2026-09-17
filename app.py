@@ -1986,7 +1986,8 @@ def prioritize_strongest_starting_xi(squad, required_positions, sort_mode='ratin
         player_positions.append(primary)
         eligible_positions = {primary, *secondary}
         final_rating = int(player.get('Rating', 0) or 0)
-        selection_score = final_rating
+        build_score = float(player.get('Build_Score', player.get('Score', final_rating)))
+        selection_score = build_score if build_score != 0 else final_rating
         if sort_mode == 'ambidextrous':
             usage = str(data.get('Weak Foot Usage', '')).strip().lower()
             accuracy = str(data.get('Weak Foot Accuracy', '')).strip().lower()
@@ -2012,7 +2013,7 @@ def prioritize_strongest_starting_xi(squad, required_positions, sort_mode='ratin
                 tier_priority = 1000000000
             else:
                 tier_priority = 0
-            selection_score = tier_priority + final_rating + usage_value * 100
+            selection_score = tier_priority + build_score + usage_value * 100
 
         for slot_idx, required_position in enumerate(required_positions):
             if required_position in eligible_positions:
@@ -2221,6 +2222,23 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
     candidates = []  # List of (total_boosted_rating, full_squad)
     
     # Helper: Score with different priority strategies for diversity
+    def _resolve_generic_sort_field(mode_name):
+        if mode_name in ['rating_desc', 'rating_asc']:
+            return 'Rating', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['height_desc', 'height_asc']:
+            return 'Height_num', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['weight_desc', 'weight_asc']:
+            return 'Weight_num', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['age_desc', 'age_asc']:
+            return 'Age_num', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['bmi_desc', 'bmi_asc']:
+            return 'BMI', 'desc' if mode_name.endswith('desc') else 'asc'
+        if '_' in mode_name:
+            field, direction = mode_name.rsplit('_', 1)
+            field = field.lower()
+            return field, direction.lower()
+        return None, 'desc'
+
     def _score_with_priority(row, priority_mode='rating'):
         eff_rating = row.get('_build_rating', row.get('Rating', 0))
         rating_bonus = eff_rating / 100000.0
@@ -2228,18 +2246,54 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         club = str(row.get('Club', '')).strip()
         league = str(row.get('League', '')).strip()
         booster_type = _normalize_booster_type(row.get('Booster Type', 'None'))
-        
+
+        field_name, direction = _resolve_generic_sort_field(sort_mode)
+        max_value = float(row.get('_sort_field_max', 1000.0) or 1000.0)
+
         # Base score from sort_mode
-        if sort_mode == 'rating_desc': 
+        if sort_mode == 'rating_desc':
             base = eff_rating
-        elif sort_mode == 'height_desc': base = row.get('Height_num', 0) + rating_bonus
-        elif sort_mode == 'height_asc': base = (250 - row.get('Height_num', 0)) + rating_bonus 
-        elif sort_mode == 'weight_desc': base = row.get('Weight_num', 0) + rating_bonus
-        elif sort_mode == 'weight_asc': base = (150 - row.get('Weight_num', 0)) + rating_bonus
-        elif sort_mode == 'age_desc': base = row.get('Age_num', 0) + rating_bonus
-        elif sort_mode == 'age_asc': base = (100 - row.get('Age_num', 0)) + rating_bonus
-        else: base = eff_rating
-        
+        elif sort_mode == 'rating_asc':
+            base = max(1.0, max_value - eff_rating) + rating_bonus
+        elif sort_mode == 'height_desc':
+            base = row.get('Height_num', 0) + rating_bonus
+        elif sort_mode == 'height_asc':
+            base = max(1.0, max_value - row.get('Height_num', 0)) + rating_bonus
+        elif sort_mode == 'weight_desc':
+            base = row.get('Weight_num', 0) + rating_bonus
+        elif sort_mode == 'weight_asc':
+            base = max(1.0, max_value - row.get('Weight_num', 0)) + rating_bonus
+        elif sort_mode == 'age_desc':
+            base = row.get('Age_num', 0) + rating_bonus
+        elif sort_mode == 'age_asc':
+            base = max(1.0, max_value - row.get('Age_num', 0)) + rating_bonus
+        elif sort_mode == 'ambidextrous':
+            base = eff_rating
+        elif sort_mode.startswith('bmi'):
+            h_m = row.get('Height_num', 0) / 100.0
+            w = row.get('Weight_num', 0)
+            if h_m < 1.0 or w < 30:
+                base = 0.0
+            else:
+                bmi = w / (h_m ** 2)
+                base = (bmi * 1000) + rating_bonus if sort_mode == 'bmi_desc' else max(1.0, max_value - bmi) + rating_bonus
+        elif field_name is not None:
+            raw_val = row.get(field_name)
+            if raw_val is None:
+                raw_val = row.get(field_name.replace('_', ' '))
+            if raw_val is None:
+                raw_val = row.get(field_name.upper())
+            try:
+                val = float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
+            except (ValueError, TypeError):
+                val = 0.0
+            if direction == 'desc':
+                base = val + rating_bonus
+            else:
+                base = max(1.0, max_value - val) + rating_bonus
+        else:
+            base = eff_rating
+
         # Apply priority strategy bonus for diversity
         if priority_mode == 'nation_synergy':
             return base + (500 if nation else 0)
@@ -2463,24 +2517,48 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     # 3. HỆ THỐNG TÍNH ĐIỂM (SCORING)
     ERROR_SCORE = -999999
 
+    def _resolve_sort_field(mode_name):
+        if mode_name in ['rating_desc', 'rating_asc']:
+            return 'Rating', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['height_desc', 'height_asc']:
+            return 'Height_num', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['weight_desc', 'weight_asc']:
+            return 'Weight_num', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['age_desc', 'age_asc']:
+            return 'Age_num', 'desc' if mode_name.endswith('desc') else 'asc'
+        if mode_name in ['bmi_desc', 'bmi_asc']:
+            return 'BMI', 'desc' if mode_name.endswith('desc') else 'asc'
+        if '_' in mode_name:
+            field, direction = mode_name.rsplit('_', 1)
+            return field.lower(), direction.lower()
+        return None, 'desc'
+
     def calculate_score(row):
         eff_rating = row['_build_rating']
         rating_bonus = eff_rating / 100000.0
 
         if sort_mode == 'rating_desc':
             return eff_rating
-        elif sort_mode == 'height_desc': return row['Height_num'] + rating_bonus
-        elif sort_mode == 'height_asc': return (250 - row['Height_num']) + rating_bonus
-        elif sort_mode == 'weight_desc': return row['Weight_num'] + rating_bonus
-        elif sort_mode == 'weight_asc': return (150 - row['Weight_num']) + rating_bonus
-        elif sort_mode == 'age_desc': return row['Age_num'] + rating_bonus
-        elif sort_mode == 'age_asc': return (100 - row['Age_num']) + rating_bonus
+        elif sort_mode == 'rating_asc':
+            return max(1.0, 1000.0 - eff_rating) + rating_bonus
+        elif sort_mode == 'height_desc':
+            return row['Height_num'] + rating_bonus
+        elif sort_mode == 'height_asc':
+            return max(1.0, 250.0 - row['Height_num']) + rating_bonus
+        elif sort_mode == 'weight_desc':
+            return row['Weight_num'] + rating_bonus
+        elif sort_mode == 'weight_asc':
+            return max(1.0, 150.0 - row['Weight_num']) + rating_bonus
+        elif sort_mode == 'age_desc':
+            return row['Age_num'] + rating_bonus
+        elif sort_mode == 'age_asc':
+            return max(1.0, 100.0 - row['Age_num']) + rating_bonus
         elif 'bmi' in sort_mode:
             h_m = row['Height_num'] / 100.0; w = row['Weight_num']
             if h_m < 1.0 or w < 30: return ERROR_SCORE
             bmi = w / (h_m ** 2)
             if sort_mode == 'bmi_desc': return (bmi * 1000) + rating_bonus
-            else: return ((100 - bmi) * 1000) + rating_bonus
+            return max(1.0, 100.0 - bmi) * 1000 + rating_bonus
         elif sort_mode == 'ambidextrous':
             def get_wf_val(text):
                 t = str(text).strip().lower()
@@ -2503,31 +2581,32 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             is_potw = 'POTW' in ptype or 'TRENDING' in ptype
             return (10000 if is_potw else 0) + eff_rating
         elif '_' in sort_mode:
-            field, direction = sort_mode.rsplit('_', 1)
-            field = field.lower()
-            direction = direction.lower()
-            if field == 'bmi':
+            field, direction = _resolve_sort_field(sort_mode)
+            if field is None:
+                return eff_rating
+            if field in ['height_num', 'weight_num', 'age_num']:
+                val = row.get(field, 0.0)
+            elif field == 'bmi':
                 h_m = row['Height_num'] / 100.0
                 w = row['Weight_num']
                 if h_m < 1.0 or w < 30:
                     return ERROR_SCORE
-                bmi = w / (h_m ** 2)
-                if direction == 'desc':
-                    return (bmi * 1000) + rating_bonus
-                return ((100 - bmi) * 1000) + rating_bonus
-            if field == 'rating':
-                return eff_rating if direction == 'desc' else -eff_rating
-            if field != 'bmi':
-                label = field.replace('_', ' ').title()
-                if field in ['height', 'weight', 'age']:
-                    val = row.get(f"{label}_num", 0.0)
-                else:
-                    raw_val = row.get(label, row.get('Data', {}).get(label, 0.0))
-                    try:
-                        val = float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
-                    except ValueError:
-                        val = 0.0
-                return val + rating_bonus if direction == 'desc' else -val + rating_bonus
+                val = w / (h_m ** 2)
+            else:
+                raw_val = row.get(field)
+                if raw_val is None:
+                    raw_val = row.get(field.replace('_', ' '))
+                if raw_val is None:
+                    raw_val = row.get(field.upper())
+                try:
+                    val = float(re.sub(r'[^\d.]', '', str(raw_val).replace(',', '.')))
+                except (ValueError, TypeError):
+                    val = 0.0
+
+            scale = max(1.0, float(row.get('_sort_field_max', max(val, 1.0))))
+            if direction == 'desc':
+                return val + rating_bonus
+            return max(1.0, scale - val) + rating_bonus
 
     def _select_squad(pdf):
         num_players = len(pdf)
@@ -2601,7 +2680,8 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         remaining_pool['_fits_formation'] = remaining_pool.apply(_can_fit_formation, axis=1)
         remaining_pool['_fit_bonus'] = remaining_pool['_pos'].apply(lambda p: 0.2 if p in unique_formation_positions else 0.0)
 
-        if sort_mode in ['height_desc', 'weight_desc']:
+        physical_mode_keys = ('height', 'weight', 'bmi', 'leg', 'torso', 'arm', 'core', 'strength', 'speed', 'acceleration', 'jump', 'stamina')
+        if any(key in sort_mode.lower() for key in physical_mode_keys):
             _useful = {'LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF'}
             def _is_cb_versatile(row):
                 secs = {s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()}
@@ -2619,7 +2699,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             if gk_on_bench_count >= 1:
                 mask = mask & (remaining_pool['_pos'] != 'GK')
 
-            if sort_mode in ['height_desc', 'weight_desc']:
+            if any(key in sort_mode.lower() for key in ('height', 'weight', 'bmi', 'leg', 'torso', 'arm', 'core', 'strength', 'speed', 'acceleration', 'jump', 'stamina')):
                 cb_count = bench_pos_counts.get('CB', 0)
                 if cb_count >= max_cb_subs_allowed:
                     mask = mask & ~((remaining_pool['_pos'] == 'CB') & ~remaining_pool['_cb_versatile'])
