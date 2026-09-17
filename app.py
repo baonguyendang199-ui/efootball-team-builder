@@ -1924,6 +1924,107 @@ def _get_player_boosted_rating(player_dict, nation_depth, club_depth, league_dep
     return boosted if boosted > 0 else base_rating
 
 
+PHYSICAL_BODY_STAT_SORT_MODES = {
+    'arm_length_desc', 'arm_length_asc',
+    'shoulder_width_desc', 'shoulder_width_asc',
+    'neck_length_desc', 'neck_length_asc',
+    'chest_measurement_desc', 'chest_measurement_asc',
+    'neck_size_desc', 'neck_size_asc',
+    'shoulder_height_desc', 'shoulder_height_asc',
+    'leg_length_desc', 'leg_length_asc',
+    'thigh_size_desc', 'thigh_size_asc',
+    'waist_size_desc', 'waist_size_asc',
+    'arm_size_desc', 'arm_size_asc',
+    'calf_size_desc', 'calf_size_asc',
+    'leg_coverage_radius_desc', 'leg_coverage_radius_asc',
+    'arm_coverage_radius_desc', 'arm_coverage_radius_asc',
+    'jumping_height_desc', 'jumping_height_asc',
+    'torso_collision_desc', 'torso_collision_asc',
+    'leg_length_based_height_desc', 'leg_length_based_height_asc',
+}
+
+
+def _body_stat_field_for_mode(mode_name: str):
+    mode_name = str(mode_name or '').strip().lower()
+    if not mode_name:
+        return None
+    mode_name = mode_name.replace('_desc', '').replace('_asc', '')
+    mapping = {
+        'arm_length': 'Arm Length',
+        'shoulder_width': 'Shoulder Width',
+        'neck_length': 'Neck Length',
+        'chest_measurement': 'Chest Measurement',
+        'neck_size': 'Neck Size',
+        'shoulder_height': 'Shoulder Height',
+        'leg_length': 'Leg Length',
+        'thigh_size': 'Thigh Size',
+        'waist_size': 'Waist Size',
+        'arm_size': 'Arm Size',
+        'calf_size': 'Calf Size',
+        'leg_coverage_radius': 'Leg Coverage Radius',
+        'arm_coverage_radius': 'Arm Coverage Radius',
+        'jumping_height': 'Jumping Height',
+        'torso_collision': 'Torso Collision',
+        'leg_length_based_height': 'Leg Length Based Height',
+    }
+    return mapping.get(mode_name)
+
+
+def is_physical_body_stat_mode(mode_name: str) -> bool:
+    return _body_stat_field_for_mode(mode_name) is not None and str(mode_name or '').lower() in PHYSICAL_BODY_STAT_SORT_MODES
+
+
+def _coerce_numeric_stat(value):
+    if value is None or str(value).strip() == '':
+        return None
+    try:
+        cleaned = re.sub(r'[^\d.-]', '', str(value).replace(',', '.'))
+        if cleaned in ('', '-', '.', '-.'):
+            return None
+        numeric = float(cleaned)
+        return numeric if np.isfinite(numeric) else None
+    except Exception:
+        return None
+
+
+def _get_squad_total_boosted_rating(squad):
+    """
+    Calculate total boosted rating for entire 23-player squad.
+    Used as objective function for Beam Search.
+    """
+    final_ratings = _calculate_squad_final_ratings(squad)
+    return sum(rating for _, rating in final_ratings)
+
+
+def _get_squad_target_stat_score(squad, sort_mode):
+    if not is_physical_body_stat_mode(sort_mode):
+        return _get_squad_total_boosted_rating(squad)
+
+    field_name = _body_stat_field_for_mode(sort_mode)
+    if not field_name:
+        return _get_squad_total_boosted_rating(squad)
+
+    values = []
+    for player in squad:
+        if not player.get('Player') or player.get('Player') == '---':
+            continue
+        data = player.get('Data', {}) or {}
+        value = (
+            data.get(field_name)
+            if field_name in data
+            else data.get(field_name.lower().replace(' ', '_'))
+        )
+        if value is None and 'Data' in player:
+            value = player.get(field_name)
+        numeric = _coerce_numeric_stat(value)
+        if numeric is not None and numeric != 0:
+            values.append(float(numeric))
+
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
 def _calculate_squad_final_ratings(squad):
     """
     Calculate final boosted rating for each player in squad.
@@ -1940,15 +2041,6 @@ def _calculate_squad_final_ratings(squad):
         result.append((p, final_rating))
     
     return result
-
-
-def _get_squad_total_boosted_rating(squad):
-    """
-    Calculate total boosted rating for entire 23-player squad.
-    Used as objective function for Beam Search.
-    """
-    final_ratings = _calculate_squad_final_ratings(squad)
-    return sum(rating for _, rating in final_ratings)
 
 
 def prioritize_strongest_starting_xi(squad, required_positions, sort_mode='rating_desc'):
@@ -1988,6 +2080,20 @@ def prioritize_strongest_starting_xi(squad, required_positions, sort_mode='ratin
         final_rating = int(player.get('Rating', 0) or 0)
         build_score = float(player.get('Build_Score', player.get('Score', final_rating)))
         selection_score = build_score if build_score != 0 else final_rating
+        if is_physical_body_stat_mode(sort_mode):
+            field_name = _body_stat_field_for_mode(sort_mode)
+            raw_value = None
+            if field_name and field_name in data:
+                raw_value = data.get(field_name)
+            elif field_name:
+                raw_value = data.get(field_name.lower().replace(' ', '_'))
+            numeric = _coerce_numeric_stat(raw_value)
+            if numeric is not None and numeric != 0:
+                selection_score = float(numeric)
+                if sort_mode.endswith('_asc'):
+                    selection_score = max(1.0, float(player.get('Build_Score', 1000.0)) - numeric)
+            else:
+                selection_score = -1e9
         if sort_mode == 'ambidextrous':
             usage = str(data.get('Weak Foot Usage', '')).strip().lower()
             accuracy = str(data.get('Weak Foot Accuracy', '')).strip().lower()
@@ -2219,9 +2325,8 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         return fsquad
     
     # === BEAM SEARCH MAIN LOOP ===
-    candidates = []  # List of (total_boosted_rating, full_squad)
-    
-    # Helper: Score with different priority strategies for diversity
+    candidates = []  # List of (objective_score, full_squad)
+
     def _resolve_generic_sort_field(mode_name):
         if mode_name in ['rating_desc', 'rating_asc']:
             return 'Rating', 'desc' if mode_name.endswith('desc') else 'asc'
@@ -2241,16 +2346,34 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
 
     def _score_with_priority(row, priority_mode='rating'):
         eff_rating = row.get('_build_rating', row.get('Rating', 0))
-        rating_bonus = eff_rating / 100000.0
         nation = str(row.get('Nation', '')).strip()
         club = str(row.get('Club', '')).strip()
         league = str(row.get('League', '')).strip()
         booster_type = _normalize_booster_type(row.get('Booster Type', 'None'))
 
+        if is_physical_body_stat_mode(sort_mode):
+            field_name = _body_stat_field_for_mode(sort_mode)
+            if field_name is None:
+                base = eff_rating
+            else:
+                raw_val = row.get(field_name)
+                if raw_val is None:
+                    raw_val = row.get(field_name.lower().replace(' ', '_'))
+                if raw_val is None:
+                    raw_val = row.get(field_name.upper())
+                numeric_val = _coerce_numeric_stat(raw_val)
+                if numeric_val is None or numeric_val == 0:
+                    return -1e9
+                base = float(numeric_val)
+                if sort_mode.endswith('_asc'):
+                    scale = max(1.0, float(row.get('_sort_field_max', numeric_val + 1.0)))
+                    base = max(1.0, scale - numeric_val)
+            return base
+
         field_name, direction = _resolve_generic_sort_field(sort_mode)
         max_value = float(row.get('_sort_field_max', 1000.0) or 1000.0)
+        rating_bonus = eff_rating / 100000.0
 
-        # Base score from sort_mode
         if sort_mode == 'rating_desc':
             base = eff_rating
         elif sort_mode == 'rating_asc':
@@ -2294,7 +2417,6 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         else:
             base = eff_rating
 
-        # Apply priority strategy bonus for diversity
         if priority_mode == 'nation_synergy':
             return base + (500 if nation else 0)
         elif priority_mode == 'club_synergy':
@@ -2322,8 +2444,7 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
         remaining = test_pdf[~test_pdf.index.isin(used_idx)].copy()
         full_squad = _build_full_squad_with_bench(starters, remaining)
         
-        total_rating = _get_squad_total_boosted_rating(full_squad)
-        # Deep copy to prevent candidate contamination
+        total_rating = _get_squad_target_stat_score(full_squad, sort_mode)
         candidates.append((total_rating, copy.deepcopy(full_squad)))
     
     # Helper: Calculate cheap replacement score (pre-filter)
@@ -2422,7 +2543,7 @@ def _beam_search_squad_optimization(pdf, required_positions, sort_mode, formatio
                 new_squad[squad_idx] = replacement_dict
                 
                 # Full boosted evaluation
-                new_rating = _get_squad_total_boosted_rating(new_squad)
+                new_rating = _get_squad_target_stat_score(new_squad, sort_mode)
                 new_candidates.append((new_rating, copy.deepcopy(new_squad)))
         
         # Add original top candidates (keep diversity across iterations)
@@ -2481,6 +2602,16 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         pool_df = pool_df[pool_df[filter_col].astype(str) == filter_val]
     if pool_df.empty: return []
 
+    if is_physical_body_stat_mode(sort_mode):
+        body_field = _body_stat_field_for_mode(sort_mode)
+        if body_field:
+            numeric_values = pool_df[body_field].apply(_coerce_numeric_stat)
+            valid_mask = numeric_values.notna() & (numeric_values != 0)
+            pool_df = pool_df[valid_mask].copy()
+            if pool_df.empty:
+                return []
+            pool_df['_sort_field_max'] = float(numeric_values[valid_mask].max()) + 1.0
+
     # Start from each card's base rating. Booster ratings depend on the 23 players
     # that are actually selected, so inventory-wide effective ratings are not a
     # valid objective for the first squad build.
@@ -2536,6 +2667,23 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
     def calculate_score(row):
         eff_rating = row['_build_rating']
         rating_bonus = eff_rating / 100000.0
+
+        if is_physical_body_stat_mode(sort_mode):
+            field_name = _body_stat_field_for_mode(sort_mode)
+            if field_name is None:
+                return eff_rating
+            raw_val = row.get(field_name)
+            if raw_val is None:
+                raw_val = row.get(field_name.lower().replace(' ', '_'))
+            if raw_val is None:
+                raw_val = row.get(field_name.upper())
+            numeric = _coerce_numeric_stat(raw_val)
+            if numeric is None or numeric == 0:
+                return ERROR_SCORE
+            if sort_mode.endswith('_asc'):
+                scale = float(row.get('_sort_field_max', numeric + 1.0))
+                return max(1.0, scale - numeric)
+            return float(numeric)
 
         if sort_mode == 'rating_desc':
             return eff_rating
@@ -2680,8 +2828,7 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
         remaining_pool['_fits_formation'] = remaining_pool.apply(_can_fit_formation, axis=1)
         remaining_pool['_fit_bonus'] = remaining_pool['_pos'].apply(lambda p: 0.2 if p in unique_formation_positions else 0.0)
 
-        physical_mode_keys = ('height', 'weight', 'bmi', 'leg', 'torso', 'arm', 'core', 'strength', 'speed', 'acceleration', 'jump', 'stamina')
-        if any(key in sort_mode.lower() for key in physical_mode_keys):
+        if is_physical_body_stat_mode(sort_mode):
             _useful = {'LB', 'RB', 'DMF', 'CMF', 'LWF', 'RWF', 'SS', 'CF', 'AMF', 'LMF', 'RMF'}
             def _is_cb_versatile(row):
                 secs = {s.strip().upper() for s in str(row.get('Secondary Positions', '')).split(',') if s.strip()}
@@ -2699,7 +2846,9 @@ def auto_build_squad(df, formation_name, sort_mode='rating_desc', filter_col=Non
             if gk_on_bench_count >= 1:
                 mask = mask & (remaining_pool['_pos'] != 'GK')
 
-            if any(key in sort_mode.lower() for key in ('height', 'weight', 'bmi', 'leg', 'torso', 'arm', 'core', 'strength', 'speed', 'acceleration', 'jump', 'stamina')):
+            if is_physical_body_stat_mode(sort_mode):
+                pass
+            elif any(key in sort_mode.lower() for key in ('height', 'weight', 'bmi', 'leg', 'torso', 'arm', 'core', 'strength', 'speed', 'acceleration', 'jump', 'stamina')):
                 cb_count = bench_pos_counts.get('CB', 0)
                 if cb_count >= max_cb_subs_allowed:
                     mask = mask & ~((remaining_pool['_pos'] == 'CB') & ~remaining_pool['_cb_versatile'])
