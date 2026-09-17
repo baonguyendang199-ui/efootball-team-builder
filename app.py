@@ -1191,16 +1191,14 @@ def get_player_rank(df, row, group_by, max_size=23):
         group_df = group_df.drop_duplicates(subset=['Player'], keep='first')
 
     # Xác định các tiêu chí sắp xếp
-    sort_keys = [rank_col, 'Top23_Count', 'Epic_Priority']
-    sort_asc = [False, False, True]
-
-    # Top23_Count phải được dùng cho mọi nhóm khi cùng rating, không chỉ Nation/League,
-    # để tránh giữ nhầm player có ít slot Top23 thực tế.
-    # Nếu cột chưa có, fallback về trường hợp cũ để tránh lỗi khi đang xây Top23 map.
-    if 'Top23_Count' not in group_df.columns:
-        sort_keys = [rank_col, 'Epic_Priority']
-        sort_asc = [False, True]
-
+    sort_keys = [rank_col, 'Epic_Priority']
+    sort_asc = [False, True]
+    
+    # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
+    if group_by in ['Nation', 'League'] and 'Top23_Count' in group_df.columns:
+        sort_keys.append('Top23_Count')
+        sort_asc.append(False) # False = Giảm dần
+    
     # Sort theo các tiêu chí đã định
     group_df = group_df.sort_values(sort_keys, ascending=sort_asc).head(max_size)
     
@@ -1465,47 +1463,48 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
             gdf = gdf.sort_values(['Player', primary_sort_key, 'Epic_Priority'], ascending=[True, False, True])
             gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
             
-        # Sort cơ bản: Rating, coverage trong Top23, rồi Epic_Priority.
-        # Dùng Top23_Count khi cột đã có sẵn để tránh nhầm slot khi cùng rating.
-        sort_keys = [primary_sort_key, 'Top23_Count', 'Epic_Priority'] if 'Top23_Count' in gdf.columns else [primary_sort_key, 'Epic_Priority']
-        sort_asc = [False, False, True] if 'Top23_Count' in gdf.columns else [False, True]
-        gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
+        # Sort cơ bản: Rating, Epic_Priority
+        # **Lưu ý: Không dùng Top23_Count ở đây để tránh vòng lặp phụ thuộc**
+        gdf = gdf.sort_values([primary_sort_key, 'Epic_Priority'], ascending=[False, True]).head(max_size)
         top_indices.update(gdf.index.tolist())
         
     return top_indices
 
 def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Tính toán số lượng Top 23 membership (2-Pass Algorithm).
-    Mục tiêu là ưu tiên người có nhiều "slot giữ" khi rating bằng nhau
-    để ép các cầu thủ đơn nhiệm ra khỏi danh sách và bán đi.
+    Tính toán số lần một cầu thủ thuộc Top 23 Club hoặc League (CHỈ TÍNH TARGET CLUBS/LEAGUES)
+    Sử dụng để ưu tiên khi Nation/League Top 23 bị tie.
     """
-    # --- VÒNG 1 (Draft): Tính overlap tự nhiên không có tie-break chéo ---
-    temp_df = df.copy()
-    if 'Top23_Count' in temp_df.columns:
-        temp_df = temp_df.drop(columns=['Top23_Count'])
-
-    raw_club = get_top23_indices(temp_df, 'Club')
-    raw_league = get_top23_indices(temp_df, 'League')
-    raw_nation = get_top23_indices(temp_df, 'Nation')
-
-    temp_df['Top23_Count'] = 0
-    temp_df.loc[temp_df['Club'].isin(target_clubs) & temp_df.index.isin(raw_club), 'Top23_Count'] += 1
-    temp_df.loc[temp_df['League'].isin(target_leagues) & temp_df.index.isin(raw_league), 'Top23_Count'] += 1
-    temp_df.loc[temp_df['Nation'].isin(target_nations) & temp_df.index.isin(raw_nation), 'Top23_Count'] += 1
-
-    # --- VÒNG 2 (Final): Dùng Draft Count làm tie-break để ép chiếm slot ---
-    df['Top23_Count'] = temp_df['Top23_Count']
-
-    final_club = get_top23_indices(df, 'Club')
-    final_league = get_top23_indices(df, 'League')
-    final_nation = get_top23_indices(df, 'Nation')
-
+    if 'Top23_Count' in df.columns:
+        df = df.drop(columns=['Top23_Count'])
+        
+    # 1. Lấy danh sách index của Top 23 cho TẤT CẢ các team (dựa trên Rating)
+    raw_club_top_indices = get_top23_indices(df, 'Club')
+    raw_league_top_indices = get_top23_indices(df, 'League')
+    
+    # 2. Tạo cột Count mặc định là 0
     df['Top23_Count'] = 0
-    df.loc[df['Club'].isin(target_clubs) & df.index.isin(final_club), 'Top23_Count'] += 1
-    df.loc[df['League'].isin(target_leagues) & df.index.isin(final_league), 'Top23_Count'] += 1
-    df.loc[df['Nation'].isin(target_nations) & df.index.isin(final_nation), 'Top23_Count'] += 1
-
+    
+    # 3. CHỈ cộng điểm nếu:
+    #    a) Player nằm trong Top 23 của team đó (raw indices)
+    #    b) Team đó nằm trong danh sách TARGET (Target list)
+    
+    # --- Xử lý Club ---
+    # Kiểm tra xem Club của cầu thủ có trong TARGET_CLUBS không
+    is_target_club = df['Club'].isin(target_clubs)
+    # Kiểm tra xem cầu thủ có trong Top 23 Club không
+    is_top23_club = df.index.isin(raw_club_top_indices)
+    # Cộng 1 nếu thỏa mãn cả hai
+    df.loc[is_target_club & is_top23_club, 'Top23_Count'] += 1
+    
+    # --- Xử lý League ---
+    # Kiểm tra xem League của cầu thủ có trong TARGET_LEAGUES không
+    is_target_league = df['League'].isin(target_leagues)
+    # Kiểm tra xem cầu thủ có trong Top 23 League không
+    is_top23_league = df.index.isin(raw_league_top_indices)
+    # Cộng 1 nếu thỏa mãn cả hai
+    df.loc[is_target_league & is_top23_league, 'Top23_Count'] += 1
+    
     return df
 
 # --- SKILL INVENTORY MANAGEMENT (Google Sheets) ---
@@ -6326,15 +6325,14 @@ def main():
                 gdf = gdf.sort_values(['Player', rank_col, 'Epic_Priority'], ascending=[True, False, True])
                 gdf = gdf.drop_duplicates(subset=['Player'], keep='first')
             # Xác định các tiêu chí sắp xếp
-            sort_keys = [rank_col, 'Top23_Count', 'Epic_Priority']
-            sort_asc = [False, False, True]
-
-            # Top23_Count phải được dùng cho mọi nhóm khi cùng rating, không chỉ Nation/League,
-            # nhằm ưu tiên player nào có nhiều slot Top 23 thật sự và loại quyết định sai.
-            if 'Top23_Count' not in gdf.columns:
-                sort_keys = [rank_col, 'Epic_Priority']
-                sort_asc = [False, True]
-
+            sort_keys = [rank_col, 'Epic_Priority']
+            sort_asc = [False, True]
+            
+            # THÊM TIÊU CHÍ ƯU TIÊN MỚI: Top23_Count (chỉ áp dụng cho Nation/League khi bị tie)
+            if group_by in ['Nation', 'League'] and 'Top23_Count' in gdf.columns:
+                sort_keys.append('Top23_Count')
+                sort_asc.append(False) # False = Giảm dần, ưu tiên số count cao hơn (thuộc nhiều Top 23 target hơn)
+                
             # Sort theo các tiêu chí đã định
             gdf = gdf.sort_values(sort_keys, ascending=sort_asc).head(max_size)
             size = len(gdf)
@@ -6962,8 +6960,8 @@ def main():
                     if 'Top23_Count' not in team_df.columns:
                         team_df['Top23_Count'] = 0
                     team_df = team_df.sort_values(
-                        ['Player', rank_col, 'Top23_Count', 'Epic_Priority', 'TargetClubPriority'],
-                        ascending=[True, False, False, True, False]
+                        ['Player', rank_col, 'Epic_Priority', 'Top23_Count', 'TargetClubPriority'],
+                        ascending=[True, False, True, False, False]
                     )
                     team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
     
@@ -6977,7 +6975,7 @@ def main():
                 if not gk_df.empty:
                     gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
-                    best_gk = gk_df.sort_values([rank_col, 'Top23_Count', 'Epic_Priority'], ascending=[False, False, True]).head(1)
+                    best_gk = gk_df.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(1)
                     squad = pd.concat([squad, best_gk])
                     remaining_slots -= 1
     
@@ -6985,7 +6983,7 @@ def main():
                 if not cb_df.empty:
                     cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
-                    best_cb = cb_df.sort_values([rank_col, 'Top23_Count', 'Epic_Priority'], ascending=[False, False, True]).head(2)
+                    best_cb = cb_df.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(2)
                     squad = pd.concat([squad, best_cb])
                     remaining_slots -= len(best_cb)
     
@@ -6994,7 +6992,7 @@ def main():
                 if not others.empty:
                     others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
                     if 'Top23_Count' not in others.columns: others['Top23_Count'] = 0
-                    top_rest = others.sort_values([rank_col, 'Top23_Count', 'Epic_Priority'], ascending=[False, False, True]).head(remaining_slots)
+                    top_rest = others.sort_values([rank_col, 'Epic_Priority', 'Top23_Count'], ascending=[False, True, False]).head(remaining_slots)
                     squad = pd.concat([squad, top_rest])
                 
                 # --- LƯU RANKING ---
@@ -7024,7 +7022,6 @@ def main():
                 ranking_squad = []
 
         ranking_df = build_squad_based_effective_ratings(df, ranking_squad)
-        ranking_df = calculate_top23_count(ranking_df)
 
         club_rank_map = get_top_23_ranked_map(ranking_df, 'Club', target_clubs)
         nation_rank_map = get_top_23_ranked_map(ranking_df, 'Nation', target_nations)
@@ -7088,19 +7085,6 @@ def main():
             # 0. Kiểm tra club được bảo vệ
             if club in local_protected_clubs:
                 return ' ✅  KEEP', f" 🛡 ️ {club} - Never sell (Fan club)"
-
-            # 0.5. Nếu là GK và đang là goalkeeper cần thiết cho đội hình, ưu tiên giữ.
-            # Dù rating có thấp hơn, vẫn phải có ít nhất 1 GK trong đội.
-            position = str(row.get('Position', '')).strip().upper()
-            if position == 'GK':
-                gk_rows = rec_df[rec_df['Position'].astype(str).str.upper().str.strip() == 'GK'].copy()
-                if not gk_rows.empty:
-                    best_gk_idx = gk_rows.sort_values(
-                        ['Effective_Club_Rating', 'Top23_Count', 'Epic_Priority'],
-                        ascending=[False, False, True]
-                    ).index[0]
-                    if idx == best_gk_idx:
-                        return '✅ KEEP', 'Required goalkeeper slot: at least 1 GK must be kept'
             
             # 2. Kiểm tra thuộc Top 23 (DÙNG RANK MAP ĐỂ HIỂN THỊ CHI TIẾT)
             in_top_club = idx in club_rank_map
@@ -7131,21 +7115,6 @@ def main():
             is_duplicate = any(dup['index'] == idx for dup in duplicates)
             if is_duplicate and not (in_top_club or in_top_nation or in_top_league):
                 return '❌ SELL', "⚠️ Duplicate card - Better card exists (same player + club + nation + league)"
-
-            # 3.5. Nếu cùng Club và cùng Effective_Club_Rating, tie-break phải được áp dụng
-            # TRƯỚC khi quyết định KEEP. Đây là trường hợp MU 97/97: chỉ có 1 slot thật sự và
-            # phải giữ người có Top23 coverage mạnh hơn, không phải ai nằm trong Top23 trước.
-            club_rating = pd.to_numeric(row.get('Effective_Club_Rating', row.get('Rating', 0)), errors='coerce')
-            same_club_rows = rec_df[(rec_df['Club'] == club) & (pd.to_numeric(rec_df['Effective_Club_Rating'], errors='coerce').fillna(0) == club_rating)]
-            if not same_club_rows.empty and len(same_club_rows) > 1:
-                best_same_club_idx = same_club_rows.sort_values(
-                    ['Top23_Count', 'Epic_Priority', 'Rating'],
-                    ascending=[False, True, False]
-                ).index[0]
-                current_count = pd.to_numeric(row.get('Top23_Count', 0), errors='coerce')
-                best_count = pd.to_numeric(rec_df.loc[best_same_club_idx, 'Top23_Count'], errors='coerce')
-                if idx != best_same_club_idx and current_count != best_count:
-                    return '❌ SELL', f"Club tie-break: same Club rating {club_rating} but lower Top23 coverage than {rec_df.loc[best_same_club_idx, 'Player']}"
 
             # 4. Quyết định: nếu player nằm trong ít nhất một Top 23 rank thì KEEP
             if in_top_club or in_top_nation or in_top_league:
