@@ -1476,31 +1476,35 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
 
 def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Tính toán số lượng Top 23 membership của một cầu thủ ở các nhóm mục tiêu
-    (Club / Nation / League). Mục tiêu là ưu tiên người có nhiều "slot giữ" khi
-    rating và cấp độ thẻ bằng nhau, ví dụ 97-97 trong cùng 1 Club nhưng chỉ có
-    1 slot trống.
+    Tính toán số lượng Top 23 membership (2-Pass Algorithm).
+    Mục tiêu là ưu tiên người có nhiều "slot giữ" khi rating bằng nhau
+    để ép các cầu thủ đơn nhiệm ra khỏi danh sách và bán đi.
     """
-    if 'Top23_Count' in df.columns:
-        df = df.drop(columns=['Top23_Count'])
+    # --- VÒNG 1 (Draft): Tính overlap tự nhiên không có tie-break chéo ---
+    temp_df = df.copy()
+    if 'Top23_Count' in temp_df.columns:
+        temp_df = temp_df.drop(columns=['Top23_Count'])
 
-    raw_club_top_indices = get_top23_indices(df, 'Club')
-    raw_league_top_indices = get_top23_indices(df, 'League')
-    raw_nation_top_indices = get_top23_indices(df, 'Nation')
+    raw_club = get_top23_indices(temp_df, 'Club')
+    raw_league = get_top23_indices(temp_df, 'League')
+    raw_nation = get_top23_indices(temp_df, 'Nation')
+
+    temp_df['Top23_Count'] = 0
+    temp_df.loc[temp_df['Club'].isin(target_clubs) & temp_df.index.isin(raw_club), 'Top23_Count'] += 1
+    temp_df.loc[temp_df['League'].isin(target_leagues) & temp_df.index.isin(raw_league), 'Top23_Count'] += 1
+    temp_df.loc[temp_df['Nation'].isin(target_nations) & temp_df.index.isin(raw_nation), 'Top23_Count'] += 1
+
+    # --- VÒNG 2 (Final): Dùng Draft Count làm tie-break để ép chiếm slot ---
+    df['Top23_Count'] = temp_df['Top23_Count']
+
+    final_club = get_top23_indices(df, 'Club')
+    final_league = get_top23_indices(df, 'League')
+    final_nation = get_top23_indices(df, 'Nation')
 
     df['Top23_Count'] = 0
-
-    is_target_club = df['Club'].isin(target_clubs)
-    is_target_league = df['League'].isin(target_leagues)
-    is_target_nation = df['Nation'].isin(target_nations)
-
-    is_top23_club = df.index.isin(raw_club_top_indices)
-    is_top23_league = df.index.isin(raw_league_top_indices)
-    is_top23_nation = df.index.isin(raw_nation_top_indices)
-
-    df.loc[is_target_club & is_top23_club, 'Top23_Count'] += 1
-    df.loc[is_target_league & is_top23_league, 'Top23_Count'] += 1
-    df.loc[is_target_nation & is_top23_nation, 'Top23_Count'] += 1
+    df.loc[df['Club'].isin(target_clubs) & df.index.isin(final_club), 'Top23_Count'] += 1
+    df.loc[df['League'].isin(target_leagues) & df.index.isin(final_league), 'Top23_Count'] += 1
+    df.loc[df['Nation'].isin(target_nations) & df.index.isin(final_nation), 'Top23_Count'] += 1
 
     return df
 
