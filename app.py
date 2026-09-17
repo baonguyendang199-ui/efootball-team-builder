@@ -1194,10 +1194,22 @@ def get_player_rank(df, row, group_by, max_size=23):
     sort_keys = [rank_col, 'Epic_Priority']
     sort_asc = [False, True]
 
-    # Ưu tiên cầu thủ đa dụng khi bị tie trong mọi nhóm (Club/Nation/League)
+    # Ưu tiên cầu thủ đa dụng theo tất cả các khía cạnh liên quan:
+    # - Club xét League + Nation
+    # - League xét Club + Nation
+    # - Nation xét Club + League
+    priority_fields = {
+        'Club': ['Needed_By_League', 'Needed_By_National'],
+        'League': ['Needed_By_Club', 'Needed_By_National'],
+        'Nation': ['Needed_By_Club', 'Needed_By_League'],
+    }
+    for field in priority_fields.get(group_by, []):
+        if field in group_df.columns:
+            sort_keys.append(field)
+            sort_asc.append(False)
     if 'Top23_Count' in group_df.columns:
         sort_keys.append('Top23_Count')
-        sort_asc.append(False)  # False = Giảm dần
+        sort_asc.append(False)
 
     # Sort theo các tiêu chí đã định
     group_df = group_df.sort_values(sort_keys, ascending=sort_asc).head(max_size)
@@ -1472,13 +1484,12 @@ def get_top23_indices(df: pd.DataFrame, group_by: str, max_size: int = 23) -> se
 
 def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Tính toán số lần một cầu thủ thuộc Top 23 của Club/League/Nation ở các target groups.
-    Đây là chỉ số đa dụng dùng để ưu tiên tie-break khi nhiều cầu thủ cùng rating.
+    Tính toán số lần một cầu thủ thuộc Top 23 của Club/League/Nation ở các target groups,
+    đồng thời gán các cờ cần-thiết cho tie-break theo 3 chiều đa dụng.
     """
-    if 'Top23_Count' in df.columns:
-        df = df.drop(columns=['Top23_Count'])
-    if 'Needed_By_National' in df.columns:
-        df = df.drop(columns=['Needed_By_National'])
+    for col in ['Top23_Count', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National']:
+        if col in df.columns:
+            df = df.drop(columns=[col])
 
     # 1. Lấy danh sách index của Top 23 cho TẤT CẢ các team (dựa trên effective rating)
     raw_club_top_indices = get_top23_indices(df, 'Club')
@@ -1486,29 +1497,27 @@ def calculate_top23_count(df: pd.DataFrame) -> pd.DataFrame:
     raw_nation_top_indices = get_top23_indices(df, 'Nation')
 
     # 2. Tạo cột Count mặc định là 0
+    df['Needed_By_Club'] = False
+    df['Needed_By_League'] = False
     df['Needed_By_National'] = False
     df['Top23_Count'] = 0
 
-    # 3. Gán đánh dấu cầu thủ đang cần cho ĐTQG của mình (được Top 23 của Nation)
+    # 3. Gán đánh dấu nhu cầu theo từng chiều dữ liệu target
+    is_target_club = df['Club'].isin(target_clubs)
+    is_target_league = df['League'].isin(target_leagues)
     is_target_nation = df['Nation'].isin(target_nations)
+
+    is_top23_club = df.index.isin(raw_club_top_indices)
+    is_top23_league = df.index.isin(raw_league_top_indices)
     is_top23_nation = df.index.isin(raw_nation_top_indices)
+
+    df.loc[is_target_club & is_top23_club, 'Needed_By_Club'] = True
+    df.loc[is_target_league & is_top23_league, 'Needed_By_League'] = True
     df.loc[is_target_nation & is_top23_nation, 'Needed_By_National'] = True
 
-    # 4. CHỈ cộng điểm nếu
-    #    a) Player nằm trong Top 23 của nhóm đó
-    #    b) Nhóm đó nằm trong danh sách TARGET
-
-    # --- Xử lý Club ---
-    is_target_club = df['Club'].isin(target_clubs)
-    is_top23_club = df.index.isin(raw_club_top_indices)
+    # 4. CHỈ cộng điểm nếu player nằm trong Top 23 của nhóm đó và nhóm đó nằm trong target list.
     df.loc[is_target_club & is_top23_club, 'Top23_Count'] += 1
-
-    # --- Xử lý League ---
-    is_target_league = df['League'].isin(target_leagues)
-    is_top23_league = df.index.isin(raw_league_top_indices)
     df.loc[is_target_league & is_top23_league, 'Top23_Count'] += 1
-
-    # --- Xử lý Nation ---
     df.loc[is_target_nation & is_top23_nation, 'Top23_Count'] += 1
 
     return df
@@ -6334,10 +6343,16 @@ def main():
             sort_keys = [rank_col, 'Epic_Priority']
             sort_asc = [False, True]
             
-            # Ưu tiên cầu thủ đa dụng trong cả Club/Nation/League khi bị tie
-            if 'Needed_By_National' in gdf.columns:
-                sort_keys.append('Needed_By_National')
-                sort_asc.append(False)
+            # Ưu tiên cầu thủ đa dụng theo tất cả các chiều còn lại của squad target
+            priority_fields = {
+                'Club': ['Needed_By_League', 'Needed_By_National'],
+                'League': ['Needed_By_Club', 'Needed_By_National'],
+                'Nation': ['Needed_By_Club', 'Needed_By_League'],
+            }
+            for field in priority_fields.get(group_by, []):
+                if field in gdf.columns:
+                    sort_keys.append(field)
+                    sort_asc.append(False)
             if 'Top23_Count' in gdf.columns:
                 sort_keys.append('Top23_Count')
                 sort_asc.append(False)
@@ -6966,13 +6981,12 @@ def main():
                 # Với Nation/League: loại trùng tên, giữ thẻ tốt nhất
                 if group_by in ['Nation', 'League']:
                     team_df['TargetClubPriority'] = team_df['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in team_df.columns:
-                        team_df['Top23_Count'] = 0
-                    if 'Needed_By_National' not in team_df.columns:
-                        team_df['Needed_By_National'] = False
+                    for col in ['Top23_Count', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National']:
+                        if col not in team_df.columns:
+                            team_df[col] = False if 'Needed_' in col else 0
                     team_df = team_df.sort_values(
-                        ['Player', rank_col, 'Epic_Priority', 'Needed_By_National', 'Top23_Count', 'TargetClubPriority'],
-                        ascending=[True, False, True, False, False, False]
+                        ['Player', rank_col, 'Epic_Priority', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National', 'Top23_Count', 'TargetClubPriority'],
+                        ascending=[True, False, True, False, False, False, False, False]
                     )
                     team_df = team_df.drop_duplicates(subset=['Player'], keep='first')
     
@@ -6985,18 +6999,20 @@ def main():
                 # 1. Choose 1 GK tốt nhất
                 if not gk_df.empty:
                     gk_df['TargetClubPriority'] = gk_df['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in gk_df.columns: gk_df['Top23_Count'] = 0
-                    if 'Needed_By_National' not in gk_df.columns: gk_df['Needed_By_National'] = False
-                    best_gk = gk_df.sort_values([rank_col, 'Epic_Priority', 'Needed_By_National', 'Top23_Count'], ascending=[False, True, False, False]).head(1)
+                    for col in ['Top23_Count', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National']:
+                        if col not in gk_df.columns:
+                            gk_df[col] = False if 'Needed_' in col else 0
+                    best_gk = gk_df.sort_values([rank_col, 'Epic_Priority', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National', 'Top23_Count'], ascending=[False, True, False, False, False, False]).head(1)
                     squad = pd.concat([squad, best_gk])
                     remaining_slots -= 1
     
                 # 2. Choose 2 CB tốt nhất
                 if not cb_df.empty:
                     cb_df['TargetClubPriority'] = cb_df['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in cb_df.columns: cb_df['Top23_Count'] = 0
-                    if 'Needed_By_National' not in cb_df.columns: cb_df['Needed_By_National'] = False
-                    best_cb = cb_df.sort_values([rank_col, 'Epic_Priority', 'Needed_By_National', 'Top23_Count'], ascending=[False, True, False, False]).head(2)
+                    for col in ['Top23_Count', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National']:
+                        if col not in cb_df.columns:
+                            cb_df[col] = False if 'Needed_' in col else 0
+                    best_cb = cb_df.sort_values([rank_col, 'Epic_Priority', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National', 'Top23_Count'], ascending=[False, True, False, False, False, False]).head(2)
                     squad = pd.concat([squad, best_cb])
                     remaining_slots -= len(best_cb)
     
@@ -7004,9 +7020,10 @@ def main():
                 others = team_df.drop(squad.index, errors='ignore')
                 if not others.empty:
                     others['TargetClubPriority'] = others['Club'].isin(target_clubs).astype(int)
-                    if 'Top23_Count' not in others.columns: others['Top23_Count'] = 0
-                    if 'Needed_By_National' not in others.columns: others['Needed_By_National'] = False
-                    top_rest = others.sort_values([rank_col, 'Epic_Priority', 'Needed_By_National', 'Top23_Count'], ascending=[False, True, False, False]).head(remaining_slots)
+                    for col in ['Top23_Count', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National']:
+                        if col not in others.columns:
+                            others[col] = False if 'Needed_' in col else 0
+                    top_rest = others.sort_values([rank_col, 'Epic_Priority', 'Needed_By_Club', 'Needed_By_League', 'Needed_By_National', 'Top23_Count'], ascending=[False, True, False, False, False, False]).head(remaining_slots)
                     squad = pd.concat([squad, top_rest])
                 
                 # --- LƯU RANKING ---
